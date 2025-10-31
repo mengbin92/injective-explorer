@@ -1,0 +1,412 @@
+// Package service provides business logic services for the explorer API.
+package service
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/internal/global"
+
+	"github.com/InjectiveLabs/sdk-go/client"
+	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
+	"github.com/InjectiveLabs/sdk-go/client/common"
+	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
+	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
+	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	"github.com/pkg/errors"
+	"google.golang.org/protobuf/types/known/emptypb"
+)
+
+// DemoService implements the explorer API service.
+// It provides methods to query blockchain data including blocks, transactions, and account information.
+//
+// The service maintains client connections for better performance,
+// creating them lazily when needed and reusing them across requests.
+type DemoService struct {
+	pb.UnimplementedDemoServer
+}
+
+// NewDemoService creates a new instance of DemoService.
+//
+// Returns:
+//   - *DemoService: A new service instance
+func NewDemoService() *DemoService {
+	return &DemoService{}
+}
+
+// GetLatestBlocks retrieves the latest blocks from the blockchain.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Empty request
+//
+// Returns:
+//   - *pb.Reply: Response containing the latest blocks data
+//   - error: Error if the operation fails
+func (s *DemoService) GetLatestBlocks(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+	global.Logger.Infof("get latest blocks")
+
+	client, err := s.getExplorerClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+	}
+
+	blocks, err := client.GetBlocks(ctx)
+	if err != nil {
+		global.Logger.Errorf("get blocks error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get blocks error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    blocks.String(),
+	}, nil
+}
+
+// GetBlockByHeight retrieves a specific block by its height.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the block height
+//
+// Returns:
+//   - *pb.Reply: Response containing the block data
+//   - error: Error if the operation fails or validation fails
+func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHeightRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	global.Logger.Infof("get block by height: height=%d", req.Height)
+
+	client, err := s.getExplorerClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+	}
+
+	block, err := client.GetBlock(ctx, fmt.Sprintf("%d", req.Height))
+	if err != nil {
+		global.Logger.Errorf("get block error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get block error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    block.String(),
+	}, nil
+}
+
+// GetLatestBlockHeight retrieves the height of the latest block.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Empty request
+//
+// Returns:
+//   - *pb.Reply: Response containing the latest block height
+//   - error: Error if the operation fails
+func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+	global.Logger.Infof("get latest block height")
+
+	client := s.getTMClient()
+	height, err := client.GetLatestBlockHeight(ctx)
+	if err != nil {
+		global.Logger.Errorf("get latest block height error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get latest block height error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    fmt.Sprintf("%d", height),
+	}, nil
+}
+
+// GetLatestTransactions retrieves the latest transactions from the blockchain.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Empty request
+//
+// Returns:
+//   - *pb.Reply: Response containing the latest transactions data
+//   - error: Error if the operation fails
+func (s *DemoService) GetLatestTransactions(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+	global.Logger.Infof("get latest transactions")
+
+	client, err := s.getExplorerClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+	}
+
+	transactions, err := client.GetTxs(ctx, &injective_explorer_rpcpb.GetTxsRequest{Limit: 100})
+	if err != nil {
+		global.Logger.Errorf("get transactions error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get transactions error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    transactions.String(),
+	}, nil
+}
+
+// GetTransactionByHash retrieves a specific transaction by its hash.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the transaction hash
+//
+// Returns:
+//   - *pb.Reply: Response containing the transaction data
+//   - error: Error if the operation fails or validation fails
+func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTransactionByHashRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+	if req.Hash == "" {
+		return s.errorReply(http.StatusBadRequest, "transaction hash cannot be empty", errors.New("empty hash")), errors.New("empty hash")
+	}
+
+	global.Logger.Infof("get transaction by hash: hash=%s", req.Hash)
+
+	client, err := s.getExplorerClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+	}
+
+	transaction, err := client.GetTxByTxHash(ctx, req.Hash)
+	if err != nil {
+		global.Logger.Errorf("get transaction error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get transaction error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    transaction.String(),
+	}, nil
+}
+
+// GetAccountInfo retrieves account information for a given address.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the account address
+//
+// Returns:
+//   - *pb.Reply: Response containing the account information
+//   - error: Error if the operation fails or validation fails
+func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfoRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+	if req.Address == "" {
+		return s.errorReply(http.StatusBadRequest, "address cannot be empty", errors.New("empty address")), errors.New("empty address")
+	}
+
+	global.Logger.Infof("get account info: address=%s", req.Address)
+
+	client, err := s.getChainClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
+	}
+
+	account, err := client.GetAccount(ctx, req.Address)
+	if err != nil {
+		global.Logger.Errorf("get account error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get account error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    account.String(),
+	}, nil
+}
+
+// GetAccountTransactions retrieves transactions for a given account address.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the account address
+//
+// Returns:
+//   - *pb.Reply: Response containing the account transactions
+//   - error: Error if the operation fails or validation fails
+func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAccountTransactionsRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+	if req.Address == "" {
+		return s.errorReply(http.StatusBadRequest, "address cannot be empty", errors.New("empty address")), errors.New("empty address")
+	}
+
+	global.Logger.Infof("get account transactions: address=%s", req.Address)
+
+	client, err := s.getExplorerClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+	}
+
+	transactions, err := client.GetAccountTxs(ctx, &injective_explorer_rpcpb.GetAccountTxsRequest{
+		Address: req.Address,
+		Limit:   100,
+	})
+	if err != nil {
+		global.Logger.Errorf("get account transactions error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get account transactions error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    transactions.String(),
+	}, nil
+}
+
+// GetAccountBalances retrieves account balances for a given address.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the account address
+//
+// Returns:
+//   - *pb.Reply: Response containing the account balances
+//   - error: Error if the operation fails or validation fails
+func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccountBalancesRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+	if req.Address == "" {
+		return s.errorReply(http.StatusBadRequest, "address cannot be empty", errors.New("empty address")), errors.New("empty address")
+	}
+
+	global.Logger.Infof("get account balances: address=%s", req.Address)
+
+	client, err := s.getChainClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
+	}
+
+	balances, err := client.GetBankBalances(ctx, req.Address)
+	if err != nil {
+		global.Logger.Errorf("get account balances error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get account balances error", err), err
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    balances.String(),
+	}, nil
+}
+
+// errorReply creates a standardized error reply.
+//
+// Parameters:
+//   - code: HTTP status code
+//   - message: Error message prefix
+//   - err: The underlying error
+//
+// Returns:
+//   - *pb.Reply: A reply with error information
+func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply {
+	return &pb.Reply{
+		Code:    int32(code),
+		Message: fmt.Sprintf("%s: %v", message, err),
+	}
+}
+
+// getExplorerClient returns a cached or newly created explorer client.
+// This method is thread-safe and uses lazy initialization for better performance.
+//
+// Returns:
+//   - ExplorerClient: The explorer client instance
+//   - error: Error if client creation fails
+func (s *DemoService) getExplorerClient() (explorerclient.ExplorerClient, error) {
+
+	client, err := explorerclient.NewExplorerClient(global.ChainConfig)
+	if err != nil {
+		global.Logger.Errorf("create explorer client error: %v", err)
+		return nil, errors.Wrap(err, "create explorer client error")
+	}
+	return client, nil
+}
+
+// getChainClient returns a cached or newly created chain client.
+// This method is thread-safe and uses lazy initialization for better performance.
+//
+// Returns:
+//   - ChainClient: The chain client instance
+//   - error: Error if client creation fails
+func (s *DemoService) getChainClient() (chainclient.ChainClientV2, error) {
+	client, err := buildChainClientV2Query()
+	if err != nil {
+		global.Logger.Errorf("build chain client error: %v", err)
+		return nil, errors.Wrap(err, "build chain client error")
+	}
+	return client, nil
+}
+
+// getTMClient returns a cached or newly created Tendermint client.
+// This method is thread-safe and uses lazy initialization for better performance.
+//
+// Returns:
+//   - TMClient: The Tendermint client instance
+func (s *DemoService) getTMClient() tmclient.TendermintClient {
+
+	return tmclient.NewRPCClient(global.ChainConfig.TmEndpoint)
+}
+
+// buildChainClientV2Query creates a new ChainClientV2 for query operations.
+// This client does not require a keyring as it is only used for queries, not transactions.
+//
+// Returns:
+//   - chainclient.ChainClientV2: A configured chain client
+//   - error: Error if client creation fails
+func buildChainClientV2Query() (chainclient.ChainClientV2, error) {
+	// Create Tendermint RPC client
+	tmClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
+	if err != nil {
+		global.Logger.Errorf("create tm client error: %v", err)
+		return nil, errors.Wrap(err, "create tm client error")
+	}
+
+	// Create client context (no keyring needed for queries)
+	// Note: This client cannot sign transactions, only perform queries
+	clientCtx, err := chainclient.NewClientContext(
+		global.ChainConfig.ChainId,
+		"",  // Sender address can be empty (query only)
+		nil, // Keyring can be nil (query only)
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "create client context error")
+	}
+
+	// Configure node URI and RPC client
+	clientCtx = clientCtx.WithNodeURI(global.ChainConfig.TmEndpoint).WithClient(tmClient)
+
+	// Create ChainClientV2
+	chainClient, err := chainclient.NewChainClientV2(
+		clientCtx,
+		global.ChainConfig,
+		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "create chain client error")
+	}
+
+	return chainClient, nil
+}

@@ -1,7 +1,8 @@
+// Package server provides server initialization for both gRPC and HTTP servers.
 package server
 
 import (
-	v1 "injective-explorer/api/helloworld/v1"
+	v1 "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/conf"
 	"injective-explorer/internal/service"
 
@@ -10,8 +11,17 @@ import (
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 )
 
-// NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *grpc.Server {
+// NewGRPCServer creates and configures a new gRPC server instance.
+// It sets up middleware, network configuration, address, and timeout from the provided configuration.
+// The server registers the demo service implementation.
+//
+// Parameters:
+//   - c: Server configuration containing gRPC settings
+//   - logger: Logger instance for server logging
+//
+// Returns:
+//   - *grpc.Server: A configured gRPC server ready to accept connections
+func NewGRPCServer(c *conf.Server, logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
@@ -27,6 +37,9 @@ func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, grpc.Timeout(c.Grpc.Timeout.AsDuration()))
 	}
 	srv := grpc.NewServer(opts...)
-	v1.RegisterGreeterServer(srv, greeter)
+
+	demoService := service.NewDemoService()
+	v1.RegisterDemoServer(srv, demoService)
+
 	return srv
 }

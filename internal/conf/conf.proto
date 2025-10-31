@@ -8,6 +8,9 @@ import "google/protobuf/duration.proto";
 message Bootstrap {
   Server server = 1;
   Data data = 2;
+  Node node = 3;
+  Log log = 4;
+  Chain chain = 5;
 }
 
 message Server {
@@ -31,11 +34,41 @@ message Data {
     string source = 2;
   }
   message Redis {
-    string network = 1;
-    string addr = 2;
-    google.protobuf.Duration read_timeout = 3;
-    google.protobuf.Duration write_timeout = 4;
+    string addr = 1;
+    string password = 2;
+    int32 db = 3;
+    int32 pool_size = 4;
+    google.protobuf.Duration read_timeout = 5;
+    google.protobuf.Duration write_timeout = 6;
   }
   Database database = 1;
   Redis redis = 2;
+}
+
+message Node {
+  string rpc_node = 1;
+  string grpc_node = 2;
+  string chain_id = 3;
+}
+
+message Log {
+  // 日志级别设置
+  // 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
+  int32 level = 1;
+  // 日志输出格式，支持json or console
+  string format = 2;
+}
+
+message Chain {
+  string network = 1;
+  string lcd_endpoint = 2;
+  string tm_endpoint = 3;
+  string chain_grpc_endpoint = 4;
+  string chain_stream_grpc_endpoint = 5;
+  string exchange_grpc_endpoint = 6;
+  string explorer_grpc_endpoint = 7;
+  string chain_id = 8;
+  string fee_denom = 9;
+  string name = 10;
+  string official_tokens_list_url = 11;
 }

@@ -3,21 +3,17 @@
 
 openapi: 3.0.3
 info:
-    title: Greeter API
-    description: The greeting service definition.
+    title: Demo API
     version: 0.0.1
 paths:
-    /helloworld/{name}:
+    /demo/account/balances:
         get:
             tags:
-                - Greeter
-                - subgroup
-            description: Sends a greeting
-            operationId: Greeter_SayHello
+                - Demo
+            operationId: Demo_GetAccountBalances
             parameters:
-                - name: name
-                  in: path
-                  required: true
+                - name: address
+                  in: query
                   schema:
                     type: string
             responses:
@@ -26,14 +22,126 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/helloworld.v1.HelloReply'
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/account/info:
+        get:
+            tags:
+                - Demo
+            operationId: Demo_GetAccountInfo
+            parameters:
+                - name: address
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/account/transactions:
+        get:
+            tags:
+                - Demo
+            operationId: Demo_GetAccountTransactions
+            parameters:
+                - name: address
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/block/by-height:
+        get:
+            tags:
+                - Demo
+            operationId: Demo_GetBlockByHeight
+            parameters:
+                - name: height
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/block/latest:
+        get:
+            tags:
+                - Demo
+            operationId: Demo_GetLatestBlocks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/block/latest-height:
+        get:
+            tags:
+                - Demo
+            operationId: Demo_GetLatestBlockHeight
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/transaction/by-hash:
+        get:
+            tags:
+                - Demo
+            operationId: Demo_GetTransactionByHash
+            parameters:
+                - name: hash
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/transaction/latest:
+        get:
+            tags:
+                - Demo
+            operationId: Demo_GetLatestTransactions
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
 components:
     schemas:
-        helloworld.v1.HelloReply:
+        api.explorer.v1.Reply:
             type: object
             properties:
+                code:
+                    type: integer
+                    description: 响应状态码，0表示成功，非0表示失败
+                    format: int32
                 message:
                     type: string
-            description: The response message containing the greetings
+                    description: 响应消息
+                data:
+                    type: string
+                    description: 响应数据（JSON字符串格式）
+            description: 通用响应结构
 tags:
-    - name: Greeter
+    - name: Demo

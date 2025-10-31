@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// 分页请求参数
+message PaginationRequest {
+  // 页码，从1开始
+  int32 page = 1;
+  // 每页大小，默认20，最大100
+  int32 page_size = 2;
+}
+
+// 通用响应结构
+message Reply {
+  // 响应状态码，0表示成功，非0表示失败
+  int32 code = 1;
+  // 响应消息
+  string message = 2;
+  // 响应数据（JSON字符串格式）
+  string data = 3;
+}

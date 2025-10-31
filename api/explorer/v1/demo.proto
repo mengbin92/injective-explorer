@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+service Demo {
+  rpc GetLatestBlocks(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/block/latest"
+    };
+  }
+  rpc GetBlockByHeight(GetBlockByHeightRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/block/by-height"
+    };
+  }
+  rpc GetLatestBlockHeight(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/block/latest-height"
+    };
+  }
+
+  rpc GetLatestTransactions(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/transaction/latest"
+    };
+  }
+  rpc GetTransactionByHash(GetTransactionByHashRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/transaction/by-hash"
+    };
+  }
+
+  rpc GetAccountInfo(GetAccountInfoRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/account/info"
+    };
+  }
+
+  rpc GetAccountTransactions(GetAccountTransactionsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/account/transactions"
+    };
+  }
+
+  rpc GetAccountBalances(GetAccountBalancesRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/account/balances"
+    };
+  }
+}
+
+message GetBlockByHeightRequest { int64 height = 1; }
+
+message GetTransactionByHashRequest { string hash = 1; }
+
+message GetAccountInfoRequest { string address = 1; }
+
+message GetAccountTransactionsRequest { string address = 1; }
+
+message GetAccountBalancesRequest { string address = 1; }

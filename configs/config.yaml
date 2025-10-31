@@ -7,9 +7,31 @@ server:
     timeout: 1s
 data:
   database:
-    driver: mysql
-    source: root:root@tcp(127.0.0.1:3306)/test?parseTime=True&loc=Local
+    driver: postgre
+    source: postgres://postgres:agentx_pwd@101.201.174.95:5432/test2
   redis:
     addr: 127.0.0.1:6379
+    password: ""
+    db: 0
+    pool_size: 100
     read_timeout: 0.2s
     write_timeout: 0.2s
+
+log:
+  # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
+  level: -1
+  # json or console
+  format: console
+
+chain:
+  network: testnet
+  lcd_endpoint: https://sentry.lcd.injective.network
+  tm_endpoint: https://sentry.tm.injective.network:443
+  chain_grpc_endpoint: sentry.chain.grpc.injective.network:443
+  chain_stream_grpc_endpoint: sentry.chain.stream.injective.network:443
+  exchange_grpc_endpoint: sentry.exchange.grpc.injective.network:443
+  explorer_grpc_endpoint: sentry.explorer.grpc.injective.network:443
+  chain_id: injective-1
+  fee_denom: inj
+  name: mainnet
+  official_tokens_list_url: https://github.com/InjectiveLabs/injective-lists/raw/master/json/tokens/testnet.json
