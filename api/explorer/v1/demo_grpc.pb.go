@@ -37,7 +37,7 @@ type DemoClient interface {
 	GetLatestBlocks(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
 	GetBlockByHeight(ctx context.Context, in *GetBlockByHeightRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetLatestBlockHeight(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
-	GetLatestTransactions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
+	GetLatestTransactions(ctx context.Context, in *LimitRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetTransactionByHash(ctx context.Context, in *GetTransactionByHashRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountInfo(ctx context.Context, in *GetAccountInfoRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
@@ -82,7 +82,7 @@ func (c *demoClient) GetLatestBlockHeight(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
-func (c *demoClient) GetLatestTransactions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
+func (c *demoClient) GetLatestTransactions(ctx context.Context, in *LimitRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
 	err := c.cc.Invoke(ctx, Demo_GetLatestTransactions_FullMethodName, in, out, cOpts...)
@@ -139,7 +139,7 @@ type DemoServer interface {
 	GetLatestBlocks(context.Context, *emptypb.Empty) (*Reply, error)
 	GetBlockByHeight(context.Context, *GetBlockByHeightRequest) (*Reply, error)
 	GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error)
-	GetLatestTransactions(context.Context, *emptypb.Empty) (*Reply, error)
+	GetLatestTransactions(context.Context, *LimitRequest) (*Reply, error)
 	GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error)
 	GetAccountInfo(context.Context, *GetAccountInfoRequest) (*Reply, error)
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
@@ -163,7 +163,7 @@ func (UnimplementedDemoServer) GetBlockByHeight(context.Context, *GetBlockByHeig
 func (UnimplementedDemoServer) GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLatestBlockHeight not implemented")
 }
-func (UnimplementedDemoServer) GetLatestTransactions(context.Context, *emptypb.Empty) (*Reply, error) {
+func (UnimplementedDemoServer) GetLatestTransactions(context.Context, *LimitRequest) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLatestTransactions not implemented")
 }
 func (UnimplementedDemoServer) GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error) {
@@ -254,7 +254,7 @@ func _Demo_GetLatestBlockHeight_Handler(srv interface{}, ctx context.Context, de
 }
 
 func _Demo_GetLatestTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(LimitRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -266,7 +266,7 @@ func _Demo_GetLatestTransactions_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: Demo_GetLatestTransactions_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetLatestTransactions(ctx, req.(*emptypb.Empty))
+		return srv.(DemoServer).GetLatestTransactions(ctx, req.(*LimitRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

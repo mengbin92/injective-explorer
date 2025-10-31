@@ -50,6 +50,11 @@ paths:
                   in: query
                   schema:
                     type: string
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
             responses:
                 "200":
                     description: OK
@@ -120,6 +125,12 @@ paths:
             tags:
                 - Demo
             operationId: Demo_GetLatestTransactions
+            parameters:
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
             responses:
                 "200":
                     description: OK

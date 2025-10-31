@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
@@ -27,6 +29,20 @@ import (
 // creating them lazily when needed and reusing them across requests.
 type DemoService struct {
 	pb.UnimplementedDemoServer
+
+	// Cached clients to avoid recreating connections
+	explorerClient explorerclient.ExplorerClient
+	chainClient    chainclient.ChainClientV2
+	tmClient       tmclient.TendermintClient
+
+	// Mutexes for thread-safe client initialization
+	explorerClientOnce sync.Once
+	chainClientOnce    sync.Once
+	tmClientOnce       sync.Once
+
+	// Errors from client initialization
+	explorerClientErr error
+	chainClientErr    error
 }
 
 // NewDemoService creates a new instance of DemoService.
@@ -54,7 +70,11 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *emptypb.Empty) (
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	blocks, err := client.GetBlocks(ctx)
+	// Use context with longer timeout for gRPC operations
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	blocks, err := client.GetBlocks(callCtx)
 	if err != nil {
 		global.Logger.Errorf("get blocks error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get blocks error", err), err
@@ -89,7 +109,11 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	block, err := client.GetBlock(ctx, fmt.Sprintf("%d", req.Height))
+	// Use context with longer timeout for gRPC operations
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	block, err := client.GetBlock(callCtx, fmt.Sprintf("%d", req.Height))
 	if err != nil {
 		global.Logger.Errorf("get block error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get block error", err), err
@@ -137,7 +161,7 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 // Returns:
 //   - *pb.Reply: Response containing the latest transactions data
 //   - error: Error if the operation fails
-func (s *DemoService) GetLatestTransactions(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.LimitRequest) (*pb.Reply, error) {
 	global.Logger.Infof("get latest transactions")
 
 	client, err := s.getExplorerClient()
@@ -145,7 +169,11 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *emptypb.Em
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	transactions, err := client.GetTxs(ctx, &injective_explorer_rpcpb.GetTxsRequest{Limit: 100})
+	// Use context with longer timeout for gRPC operations
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	transactions, err := client.GetTxs(callCtx, &injective_explorer_rpcpb.GetTxsRequest{Limit: req.Limit})
 	if err != nil {
 		global.Logger.Errorf("get transactions error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get transactions error", err), err
@@ -183,7 +211,11 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	transaction, err := client.GetTxByTxHash(ctx, req.Hash)
+	// Use context with longer timeout for gRPC operations
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	transaction, err := client.GetTxByTxHash(callCtx, req.Hash)
 	if err != nil {
 		global.Logger.Errorf("get transaction error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get transaction error", err), err
@@ -259,9 +291,13 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	transactions, err := client.GetAccountTxs(ctx, &injective_explorer_rpcpb.GetAccountTxsRequest{
+	// Use context with longer timeout for gRPC operations
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	transactions, err := client.GetAccountTxs(callCtx, &injective_explorer_rpcpb.GetAccountTxsRequest{
 		Address: req.Address,
-		Limit:   100,
+		Limit:   req.Limit,
 	})
 	if err != nil {
 		global.Logger.Errorf("get account transactions error: %v", err)
@@ -331,43 +367,65 @@ func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply 
 
 // getExplorerClient returns a cached or newly created explorer client.
 // This method is thread-safe and uses lazy initialization for better performance.
+// The client is created once and reused across requests to avoid connection overhead.
 //
 // Returns:
 //   - ExplorerClient: The explorer client instance
 //   - error: Error if client creation fails
 func (s *DemoService) getExplorerClient() (explorerclient.ExplorerClient, error) {
+	s.explorerClientOnce.Do(func() {
+		global.Logger.Infof("initializing explorer client (one-time setup)")
+		client, err := explorerclient.NewExplorerClient(global.ChainConfig)
+		if err != nil {
+			global.Logger.Errorf("create explorer client error: %v", err)
+			s.explorerClientErr = errors.Wrap(err, "create explorer client error")
+			return
+		}
+		s.explorerClient = client
+	})
 
-	client, err := explorerclient.NewExplorerClient(global.ChainConfig)
-	if err != nil {
-		global.Logger.Errorf("create explorer client error: %v", err)
-		return nil, errors.Wrap(err, "create explorer client error")
+	if s.explorerClientErr != nil {
+		return nil, s.explorerClientErr
 	}
-	return client, nil
+	return s.explorerClient, nil
 }
 
 // getChainClient returns a cached or newly created chain client.
 // This method is thread-safe and uses lazy initialization for better performance.
+// The client is created once and reused across requests to avoid connection overhead.
 //
 // Returns:
 //   - ChainClient: The chain client instance
 //   - error: Error if client creation fails
 func (s *DemoService) getChainClient() (chainclient.ChainClientV2, error) {
-	client, err := buildChainClientV2Query()
-	if err != nil {
-		global.Logger.Errorf("build chain client error: %v", err)
-		return nil, errors.Wrap(err, "build chain client error")
+	s.chainClientOnce.Do(func() {
+		global.Logger.Infof("initializing chain client (one-time setup)")
+		client, err := buildChainClientV2Query()
+		if err != nil {
+			global.Logger.Errorf("build chain client error: %v", err)
+			s.chainClientErr = errors.Wrap(err, "build chain client error")
+			return
+		}
+		s.chainClient = client
+	})
+
+	if s.chainClientErr != nil {
+		return nil, s.chainClientErr
 	}
-	return client, nil
+	return s.chainClient, nil
 }
 
 // getTMClient returns a cached or newly created Tendermint client.
 // This method is thread-safe and uses lazy initialization for better performance.
+// The client is created once and reused across requests.
 //
 // Returns:
 //   - TMClient: The Tendermint client instance
 func (s *DemoService) getTMClient() tmclient.TendermintClient {
-
-	return tmclient.NewRPCClient(global.ChainConfig.TmEndpoint)
+	s.tmClientOnce.Do(func() {
+		s.tmClient = tmclient.NewRPCClient(global.ChainConfig.TmEndpoint)
+	})
+	return s.tmClient
 }
 
 // buildChainClientV2Query creates a new ChainClientV2 for query operations.

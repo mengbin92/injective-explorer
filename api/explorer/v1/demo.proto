@@ -27,7 +27,7 @@ service Demo {
     };
   }
 
-  rpc GetLatestTransactions(google.protobuf.Empty) returns (Reply) {
+  rpc GetLatestTransactions(LimitRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/demo/transaction/latest"
     };
@@ -63,6 +63,11 @@ message GetTransactionByHashRequest { string hash = 1; }
 
 message GetAccountInfoRequest { string address = 1; }
 
-message GetAccountTransactionsRequest { string address = 1; }
+message GetAccountTransactionsRequest {
+  string address = 1;
+  int32 limit = 2;
+}
 
 message GetAccountBalancesRequest { string address = 1; }
+
+message LimitRequest { int32 limit = 1; }

@@ -36,7 +36,7 @@ type DemoHTTPServer interface {
 	GetBlockByHeight(context.Context, *GetBlockByHeightRequest) (*Reply, error)
 	GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error)
 	GetLatestBlocks(context.Context, *emptypb.Empty) (*Reply, error)
-	GetLatestTransactions(context.Context, *emptypb.Empty) (*Reply, error)
+	GetLatestTransactions(context.Context, *LimitRequest) (*Reply, error)
 	GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error)
 }
 
@@ -111,13 +111,13 @@ func _Demo_GetLatestBlockHeight0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.
 
 func _Demo_GetLatestTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in LimitRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationDemoGetLatestTransactions)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetLatestTransactions(ctx, req.(*emptypb.Empty))
+			return srv.GetLatestTransactions(ctx, req.(*LimitRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -211,7 +211,7 @@ type DemoHTTPClient interface {
 	GetBlockByHeight(ctx context.Context, req *GetBlockByHeightRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestBlocks(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
-	GetLatestTransactions(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
+	GetLatestTransactions(ctx context.Context, req *LimitRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetTransactionByHash(ctx context.Context, req *GetTransactionByHashRequest, opts ...http.CallOption) (rsp *Reply, err error)
 }
 
@@ -301,7 +301,7 @@ func (c *DemoHTTPClientImpl) GetLatestBlocks(ctx context.Context, in *emptypb.Em
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetLatestTransactions(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
+func (c *DemoHTTPClientImpl) GetLatestTransactions(ctx context.Context, in *LimitRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
 	pattern := "/demo/transaction/latest"
 	path := binding.EncodeURL(pattern, in, true)
