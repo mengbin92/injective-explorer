@@ -1,0 +1,18 @@
+services:
+  injective-explorer:
+    image: injective-explorer:latest
+    container_name: injective-explorer
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    ports:
+      - 8000:8000
+      - 9000:9000
+    volumes:
+      - ./configs:/data/conf
+    networks:
+      - injective-explorer-network
+      
+networks:
+  injective-explorer-network:
+    driver: bridge
