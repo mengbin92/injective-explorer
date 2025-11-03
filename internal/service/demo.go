@@ -17,6 +17,7 @@ import (
 	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -80,10 +81,16 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *emptypb.Empty) (
 		return s.errorReply(http.StatusInternalServerError, "get blocks error", err), err
 	}
 
+	blocksJson, err := sonic.Marshal(blocks)
+	if err != nil {
+		global.Logger.Errorf("marshal blocks error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal blocks error", err), err
+	}
+
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    blocks.String(),
+		Data:    string(blocksJson),
 	}, nil
 }
 
@@ -119,10 +126,16 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusInternalServerError, "get block error", err), err
 	}
 
+	blockJson, err := sonic.Marshal(block)
+	if err != nil {
+		global.Logger.Errorf("marshal block error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal block error", err), err
+	}
+
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    block.String(),
+		Data:    string(blockJson),
 	}, nil
 }
 
@@ -179,10 +192,16 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.LimitRe
 		return s.errorReply(http.StatusInternalServerError, "get transactions error", err), err
 	}
 
+	transactionsJson, err := sonic.Marshal(transactions)
+	if err != nil {
+		global.Logger.Errorf("marshal transactions error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal transactions error", err), err
+	}
+
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    transactions.String(),
+		Data:    string(transactionsJson),
 	}, nil
 }
 
@@ -221,10 +240,16 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		return s.errorReply(http.StatusInternalServerError, "get transaction error", err), err
 	}
 
+	transactionJson, err := sonic.Marshal(transaction)
+	if err != nil {
+		global.Logger.Errorf("marshal transaction error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal transaction error", err), err
+	}
+
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    transaction.String(),
+		Data:    string(transactionJson),
 	}, nil
 }
 
@@ -259,10 +284,16 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		return s.errorReply(http.StatusInternalServerError, "get account error", err), err
 	}
 
+	accountJson, err := sonic.Marshal(account)
+	if err != nil {
+		global.Logger.Errorf("marshal account error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal account error", err), err
+	}
+
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    account.String(),
+		Data:    string(accountJson),
 	}, nil
 }
 
@@ -304,10 +335,16 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		return s.errorReply(http.StatusInternalServerError, "get account transactions error", err), err
 	}
 
+	transactionsJson, err := sonic.Marshal(transactions)
+	if err != nil {
+		global.Logger.Errorf("marshal transactions error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal transactions error", err), err
+	}
+
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    transactions.String(),
+		Data:    string(transactionsJson),
 	}, nil
 }
 
@@ -342,10 +379,16 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 		return s.errorReply(http.StatusInternalServerError, "get account balances error", err), err
 	}
 
+	balancesJson, err := sonic.Marshal(balances)
+	if err != nil {
+		global.Logger.Errorf("marshal balances error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal balances error", err), err
+	}
+
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    balances.String(),
+		Data:    string(balancesJson),
 	}, nil
 }
 
