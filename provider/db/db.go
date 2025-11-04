@@ -49,14 +49,34 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 	gormLogger := NewGormLogger(logKratos, logger.Error)
 
 	initDBOnce.Do(func() {
-		switch cfg.Driver {
-		case "postgre":
-			gdb, initErr = postgres.InitDB(cfg.Source, gormLogger)
-		case "sqlite":
-			gdb, initErr = sqlite3.InitDB(cfg.Source, gormLogger)
-		default:
-			// MySQL is the default driver
-			gdb, initErr = mysql.InitDB(cfg.Source, gormLogger)
+		// Retry connection with exponential backoff
+		maxRetries := 10
+		retryDelay := 2 * time.Second
+
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			switch cfg.Driver {
+			case "postgre":
+				gdb, initErr = postgres.InitDB(cfg.Source, gormLogger)
+			case "sqlite":
+				gdb, initErr = sqlite3.InitDB(cfg.Source, gormLogger)
+			default:
+				// MySQL is the default driver
+				gdb, initErr = mysql.InitDB(cfg.Source, gormLogger)
+			}
+
+			if initErr == nil {
+				// Connection successful
+				break
+			}
+
+			// Log retry attempt
+			logHelper := log.NewHelper(logKratos)
+			if attempt < maxRetries-1 {
+				logHelper.Warnf("database connection attempt %d/%d failed: %v, retrying in %v...",
+					attempt+1, maxRetries, initErr, retryDelay)
+				time.Sleep(retryDelay)
+				retryDelay *= 2 // Exponential backoff
+			}
 		}
 	})
 
@@ -77,6 +97,11 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// Test the connection
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return errors.Wrap(err, "ping database error")
+	}
 
 	return nil
 }

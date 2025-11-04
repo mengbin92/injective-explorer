@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
@@ -53,8 +54,21 @@ func (gl *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (str
 	sql, rows := fc()
 
 	switch {
-	case err != nil && gl.logLevel >= logger.Error:
-		gl.log.Errorf("SQL Error: %s | rows: %d | err: %v | took: %v", sql, rows, err, elapsed)
+	case err != nil:
+		// Record not found is a normal case, don't log it as error
+		if err == gorm.ErrRecordNotFound {
+			// Skip logging record not found errors as they are expected in normal operations
+			// Only log at debug level if log level is Info or higher
+			if gl.logLevel >= logger.Info {
+				gl.log.Debugf("SQL: %s | rows: %d | err: record not found | took: %v", sql, rows, elapsed)
+			}
+			// Otherwise, just skip logging
+			return
+		}
+		// Other errors are logged at error level
+		if gl.logLevel >= logger.Error {
+			gl.log.Errorf("SQL Error: %s | rows: %d | err: %v | took: %v", sql, rows, err, elapsed)
+		}
 	case gl.logLevel >= logger.Info:
 		gl.log.Infof("SQL: %s | rows: %d | took: %v", sql, rows, elapsed)
 	}

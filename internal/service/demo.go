@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
 
+	"github.com/InjectiveLabs/sdk-go/chain/types"
 	"github.com/InjectiveLabs/sdk-go/client"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
 	"github.com/InjectiveLabs/sdk-go/client/common"
@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"gorm.io/gorm"
 )
 
 // DemoService implements the explorer API service.
@@ -111,8 +112,41 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
+	// Validate block height
+	if err := ValidateBlockHeight(req.Height); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid block height", err), err
+	}
+
 	global.Logger.Infof("get block by height: height=%d", req.Height)
 
+	// First, try to query from database
+	var dbBlock models.Block
+	err := db.Get().WithContext(ctx).Where("height = ?", req.Height).First(&dbBlock).Error
+	if err == nil {
+		// Found in database, convert to protobuf format and return
+		global.Logger.Infof("block found in database: height=%d", req.Height)
+		blockDetail := models.BlockToProto(&dbBlock)
+		if blockDetail == nil {
+			global.Logger.Warnf("failed to convert block to proto, querying from chain: height=%d", req.Height)
+			// Continue to query from chain
+		} else {
+			blockResp := &injective_explorer_rpcpb.GetBlockResponse{
+				Data: blockDetail,
+			}
+			data, err := s.marshalToJSON(blockResp)
+			if err != nil {
+				global.Logger.Errorf("marshal block error: %v", err)
+				return s.errorReply(http.StatusInternalServerError, "marshal block error", err), err
+			}
+			return s.successReply(data), nil
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), log and continue to query from chain
+		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v", req.Height, err)
+	}
+
+	// Not found in database or conversion failed, query from chain
+	global.Logger.Infof("block not found in database or conversion failed, querying from chain: height=%d", req.Height)
 	client, err := s.getExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -134,10 +168,11 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusInternalServerError, "marshal block error", err), err
 	}
 
+	// Save to database for future queries
 	err = db.Get().Create(models.BlockFromProto(block.Data)).Error
 	if err != nil {
 		global.Logger.Errorf("create block error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "create block error", err), err
+		// Don't return error, just log it since we already have the data
 	}
 
 	return s.successReply(data), nil
@@ -179,7 +214,18 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 //   - *pb.Reply: Response containing the latest transactions data
 //   - error: Error if the operation fails
 func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.LimitRequest) (*pb.Reply, error) {
-	global.Logger.Infof("get latest transactions")
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	// Validate limit (maximum 1000 transactions per request)
+	const maxLimit = 1000
+	if err := ValidateLimit(req.Limit, maxLimit); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid limit", err), err
+	}
+
+	global.Logger.Infof("get latest transactions with limit=%d", req.Limit)
 
 	client, err := s.getExplorerClient()
 	if err != nil {
@@ -219,12 +265,43 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
-	if req.Hash == "" {
-		return s.errorReply(http.StatusBadRequest, "transaction hash cannot be empty", errors.New("empty hash")), errors.New("empty hash")
+
+	// Sanitize and validate transaction hash
+	hash := SanitizeHash(req.Hash)
+	if err := ValidateTransactionHash(hash); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid transaction hash", err), err
 	}
 
-	global.Logger.Infof("get transaction by hash: hash=%s", req.Hash)
+	global.Logger.Infof("get transaction by hash: hash=%s", hash)
 
+	// First, try to query from database
+	var dbTx models.Transaction
+	err := db.Get().WithContext(ctx).Where("hash = ?", hash).First(&dbTx).Error
+	if err == nil {
+		// Found in database, convert to protobuf format and return
+		global.Logger.Infof("transaction found in database: hash=%s", hash)
+		txDetail := models.TransactionToProto(&dbTx)
+		if txDetail == nil {
+			global.Logger.Warnf("failed to convert transaction to proto, querying from chain: hash=%s", hash)
+			// Continue to query from chain
+		} else {
+			txResp := &injective_explorer_rpcpb.GetTxByTxHashResponse{
+				Data: txDetail,
+			}
+			data, err := s.marshalToJSON(txResp)
+			if err != nil {
+				global.Logger.Errorf("marshal transaction error: %v", err)
+				return s.errorReply(http.StatusInternalServerError, "marshal transaction error", err), err
+			}
+			return s.successReply(data), nil
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), log and continue to query from chain
+		global.Logger.Warnf("database query error (not record not found), querying from chain: hash=%s, error=%v", hash, err)
+	}
+
+	// Not found in database or conversion failed, query from chain
+	global.Logger.Infof("transaction not found in database or conversion failed, querying from chain: hash=%s", hash)
 	client, err := s.getExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -234,7 +311,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	transaction, err := client.GetTxByTxHash(callCtx, req.Hash)
+	transaction, err := client.GetTxByTxHash(callCtx, hash)
 	if err != nil {
 		global.Logger.Errorf("get transaction error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get transaction error", err), err
@@ -246,10 +323,11 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		return s.errorReply(http.StatusInternalServerError, "marshal transaction error", err), err
 	}
 
+	// Save to database for future queries
 	err = db.Get().Create(models.TransactionFromProto(transaction.Data)).Error
 	if err != nil {
 		global.Logger.Errorf("create transaction error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "create transaction error", err), err
+		// Don't return error, just log it since we already have the data
 	}
 
 	return s.successReply(data), nil
@@ -269,43 +347,116 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
-	if req.Address == "" {
-		return s.errorReply(http.StatusBadRequest, "address cannot be empty", errors.New("empty address")), errors.New("empty address")
+
+	// Sanitize and validate address
+	address := SanitizeAddress(req.Address)
+	if err := ValidateAddress(address); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
-	global.Logger.Infof("get account info: address=%s", req.Address)
+	global.Logger.Infof("get account info: address=%s", address)
 
+	// First, try to query from database using the original address
+	var dbAccount models.Account
+	err := db.Get().WithContext(ctx).Where("address = ?", address).First(&dbAccount).Error
+	if err == nil {
+		// Found in database, convert to JSON and return
+		global.Logger.Infof("account found in database: address=%s", address)
+		data, err := models.AccountToEthAccountJSON(&dbAccount)
+		if err != nil {
+			global.Logger.Warnf("convert account to JSON error, querying from chain: address=%s, error=%v", address, err)
+			// Continue to query from chain
+		} else {
+			return s.successReply(data), nil
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), log and continue to query from chain
+		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
+	}
+
+	// Not found in database or conversion failed, query from chain
+	global.Logger.Infof("account not found in database or conversion failed, querying from chain: address=%s", address)
 	client, err := s.getChainClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
 	}
 
-	account, err := client.GetAccount(ctx, req.Address)
+	// Determine address type and convert if needed
+	queryAddress := address
+	if strings.HasPrefix(queryAddress, "0x") {
+		// Ethereum address, need to convert to Injective address
+		evmAccountResp, err := client.FetchEVMCosmosAccount(ctx, queryAddress)
+		if err != nil {
+			global.Logger.Errorf("failed to fetch EVM cosmos account for %s: %v", queryAddress, err)
+			return s.errorReply(http.StatusInternalServerError, "failed to convert Ethereum address to Injective address", err), err
+		}
+		if evmAccountResp == nil || evmAccountResp.CosmosAddress == "" {
+			global.Logger.Errorf("empty cosmos address response for Ethereum address: %s", queryAddress)
+			return s.errorReply(http.StatusNotFound, "Injective address not found for Ethereum address", errors.New("cosmos address not found")), errors.New("cosmos address not found")
+		}
+		queryAddress = evmAccountResp.CosmosAddress
+		global.Logger.Infof("converted Ethereum address %s to Injective address %s", address, queryAddress)
+
+		// Try to query database again with converted address
+		err = db.Get().WithContext(ctx).Where("address = ?", address).First(&dbAccount).Error
+		if err == nil {
+			// Found in database with converted address
+			global.Logger.Infof("account found in database with converted address: address=%s", address)
+			data, err := models.AccountToEthAccountJSON(&dbAccount)
+			if err != nil {
+				global.Logger.Warnf("convert account to JSON error, querying from chain: address=%s, error=%v", address, err)
+				// Continue to query from chain
+			} else {
+				return s.successReply(data), nil
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			// Database error (not just record not found), log and continue
+			global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
+		}
+	} else if !strings.HasPrefix(queryAddress, "inj1") {
+		// Unknown address format, try to use as-is
+		global.Logger.Warnf("unknown address format, attempting to use as-is: %s", queryAddress)
+	}
+
+	account, err := client.GetAccount(ctx, queryAddress)
 	if err != nil {
 		global.Logger.Errorf("get account error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get account error", err), err
 	}
 
-	accountModel := map[string]interface{}{
-		"account": map[string]string{
-			"type_url": account.Account.TypeUrl,
-			"value":    hex.EncodeToString(account.Account.Value),
-		},
+	// Check if account or account.Account is nil
+	if account == nil || account.Account == nil {
+		global.Logger.Errorf("account or account.Account is nil for address: %s", queryAddress)
+		return s.errorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account is nil")), errors.New("account is nil")
 	}
 
-	data, err := s.marshalToJSON(accountModel)
+	// Check if account value is empty
+	if len(account.Account.Value) == 0 {
+		global.Logger.Errorf("account value is empty for address: %s", queryAddress)
+		return s.errorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account value is empty")), errors.New("account value is empty")
+	}
+
+	ethAccount := &types.EthAccount{}
+	err = client.ClientContext().Codec.Unmarshal(account.Account.Value, ethAccount)
 	if err != nil {
-		global.Logger.Errorf("marshal account error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal account error", err), err
+		global.Logger.Errorf("unmarshal eth account error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "unmarshal eth account error", err), err
 	}
 
-	err = db.Get().Create(models.AccountFromProto(account, req.Address)).Error
+	data, err := client.ClientContext().Codec.MarshalJSON(ethAccount)
+	if err != nil {
+		global.Logger.Errorf("marshal eth account error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal eth account error", err), err
+	}
+
+	// Save to database for future queries (use original address for storage)
+	err = db.Get().Create(models.AccountFromProto(ethAccount, address)).Error
 	if err != nil {
 		global.Logger.Errorf("create account error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "create account error", err), err
+		// Don't return error, just log it since we already have the data
 	}
 
-	return s.successReply(data), nil
+	return s.successReply(string(data)), nil
 }
 
 // GetAccountTransactions retrieves transactions for a given account address.
@@ -322,11 +473,22 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
-	if req.Address == "" {
-		return s.errorReply(http.StatusBadRequest, "address cannot be empty", errors.New("empty address")), errors.New("empty address")
+
+	// Sanitize and validate address
+	address := SanitizeAddress(req.Address)
+	if err := ValidateAddress(address); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
-	global.Logger.Infof("get account transactions: address=%s", req.Address)
+	// Validate limit if provided
+	if req.Limit > 0 {
+		const maxLimit = 1000
+		if err := ValidateLimit(req.Limit, maxLimit); err != nil {
+			return s.errorReply(http.StatusBadRequest, "invalid limit", err), err
+		}
+	}
+
+	global.Logger.Infof("get account transactions: address=%s, limit=%d", address, req.Limit)
 
 	client, err := s.getExplorerClient()
 	if err != nil {
@@ -338,7 +500,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	defer cancel()
 
 	transactions, err := client.GetAccountTxs(callCtx, &injective_explorer_rpcpb.GetAccountTxsRequest{
-		Address: req.Address,
+		Address: address,
 		Limit:   req.Limit,
 	})
 	if err != nil {
@@ -377,18 +539,21 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
-	if req.Address == "" {
-		return s.errorReply(http.StatusBadRequest, "address cannot be empty", errors.New("empty address")), errors.New("empty address")
+
+	// Sanitize and validate address
+	address := SanitizeAddress(req.Address)
+	if err := ValidateAddress(address); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
-	global.Logger.Infof("get account balances: address=%s", req.Address)
+	global.Logger.Infof("get account balances: address=%s", address)
 
 	client, err := s.getChainClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
 	}
 
-	balances, err := client.GetBankBalances(ctx, req.Address)
+	balances, err := client.GetBankBalances(ctx, address)
 	if err != nil {
 		global.Logger.Errorf("get account balances error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get account balances error", err), err
@@ -401,7 +566,7 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	}
 
 	for _, balance := range balances.Balances {
-		err = db.Get().Create(models.AccountBalanceFromProto(balance, req.Address)).Error
+		err = db.Get().Create(models.AccountBalanceFromProto(balance, address)).Error
 		if err != nil {
 			global.Logger.Errorf("create account balance error: %v", err)
 			return s.errorReply(http.StatusInternalServerError, "create account balance error", err), err

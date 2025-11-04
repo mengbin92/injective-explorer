@@ -82,7 +82,6 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	if err != nil {
 		panic(err)
 	}
-	
 
 	err = cache.InitRedis(context.Background(), bc.Data.Redis, logger)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"injective-explorer/internal/conf"
 	"injective-explorer/internal/global"
+	"injective-explorer/internal/service"
 	"injective-explorer/provider/logger"
 
 	"github.com/go-kratos/kratos/v2"
@@ -104,6 +105,28 @@ func main() {
 
 	// Initialize global variables
 	global.Init(&bc, logger)
+
+	// Enable pprof in development/staging (only if explicitly enabled via environment variable)
+	// In production, this should be disabled for security reasons
+	if os.Getenv("ENABLE_PPROF") == "true" {
+		if err := service.EnablePprof("localhost:6060"); err != nil {
+			log.NewHelper(logger).Warnf("Failed to enable pprof: %v", err)
+		} else {
+			log.NewHelper(logger).Infof("pprof enabled on localhost:6060")
+		}
+	}
+
+	// Start blockchain sync service
+	syncService := service.NewSyncService()
+	if err := syncService.Start(); err != nil {
+		log.NewHelper(logger).Errorf("Failed to start sync service: %v", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := syncService.Stop(); err != nil {
+			log.NewHelper(logger).Errorf("Failed to stop sync service: %v", err)
+		}
+	}()
 
 	app, cleanup, err := wireApp(bc.Server, bc.Data, logger)
 	if err != nil {

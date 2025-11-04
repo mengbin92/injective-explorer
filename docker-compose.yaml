@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    environment:
+      - ENABLE_PPROF=false
     ports:
       - 8000:8000
       - 9000:9000
@@ -35,7 +37,7 @@ services:
       retries: 5
 
   injective-explorer-mysql:
-    image: mysql
+    image: mysql:8.0
     container_name: injective-explorer-mysql
     restart: unless-stopped
     ports:
@@ -43,22 +45,23 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=jKBrZHGcsNG5fMc52EWz
       - MYSQL_DATABASE=explorer
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
     volumes:
       - injective-explorer-mysql:/var/lib/mysql
     networks:
       - injective-explorer-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pjKBrZHGcsNG5fMc52EWz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
 
 networks:
   injective-explorer-network:
     driver: bridge
 
 volumes:
-  injective-explorer-data:
   injective-explorer-redis:
   injective-explorer-mysql:

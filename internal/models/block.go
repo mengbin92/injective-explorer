@@ -59,3 +59,37 @@ func BlockFromProto(detail *injective_explorer_rpcpb.BlockDetailInfo) *Block {
 		Txs:                txs,
 	}
 }
+
+// BlockToProto converts a Block model back to a protobuf BlockDetailInfo.
+//
+// Parameters:
+//   - block: The Block model from database
+//
+// Returns:
+//   - *injective_explorer_rpcpb.BlockDetailInfo: A new BlockDetailInfo instance with data from the Block model
+func BlockToProto(block *Block) *injective_explorer_rpcpb.BlockDetailInfo {
+	if block == nil {
+		return nil
+	}
+
+	// Convert Txs from string slice back to protobuf format
+	// Note: Since Txs are stored as strings, we need to parse them back
+	// For simplicity, we'll create empty Txs array as the original format is lost
+	txs := make([]*injective_explorer_rpcpb.TxData, 0, len(block.Txs))
+	// Note: We cannot fully reconstruct the original TxData from strings,
+	// so we'll leave Txs empty or minimal
+
+	return &injective_explorer_rpcpb.BlockDetailInfo{
+		Height:             block.Height,
+		Proposer:           block.Proposer,
+		Moniker:            block.Moniker,
+		BlockHash:          block.BlockHash,
+		ParentHash:         block.ParentHash,
+		NumPreCommits:      block.NumPrecommits,
+		NumTxs:             block.NumTxs,
+		TotalTxs:           block.TotalTxs,
+		Timestamp:          block.Timestamp,
+		BlockUnixTimestamp: block.BlockUnixTimestamp,
+		Txs:                txs,
+	}
+}

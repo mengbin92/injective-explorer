@@ -2,6 +2,9 @@
 package models
 
 import (
+	"encoding/base64"
+	"unicode/utf8"
+
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"gorm.io/gorm"
 )
@@ -66,13 +69,20 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 	if detail.GasFee != nil {
 		gasFee = detail.GasFee.String()
 	}
+
+	// Convert binary data to base64 to avoid encoding issues
+	// Data, Messages, and Logs may contain binary data that cannot be stored as UTF-8 strings
+	dataStr := encodeBinaryData(detail.Data)
+	messagesStr := encodeBinaryData(detail.Messages)
+	logsStr := encodeBinaryData(detail.Logs)
+
 	return &Transaction{
 		Id:                 detail.Id,
 		BlockNumber:        detail.BlockNumber,
 		BlockTimestamp:     detail.BlockTimestamp,
 		Hash:               detail.Hash,
 		Code:               detail.Code,
-		Data:               string(detail.Data),
+		Data:               dataStr,
 		Info:               detail.Info,
 		GasWanted:          detail.GasWanted,
 		GasUsed:            detail.GasUsed,
@@ -80,13 +90,112 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		Codespace:          detail.Codespace,
 		Events:             events,
 		TxType:             detail.TxType,
-		Messages:           string(detail.Messages),
+		Messages:           messagesStr,
 		Signatures:         signatures,
 		Memo:               detail.Memo,
 		TxNumber:           detail.TxNumber,
 		BlockUnixTimestamp: detail.BlockUnixTimestamp,
 		ErrorLog:           detail.ErrorLog,
-		Logs:               string(detail.Logs),
+		Logs:               logsStr,
 		ClaimIds:           detail.ClaimIds,
+	}
+}
+
+// encodeBinaryData encodes binary data to base64 if it contains invalid UTF-8 characters.
+// This ensures the data can be safely stored in a UTF-8 database column.
+func encodeBinaryData(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	// Check if data is valid UTF-8
+	if !isValidUTF8(data) {
+		// Encode as base64 if it contains binary data
+		return base64.StdEncoding.EncodeToString(data)
+	}
+
+	// If it's valid UTF-8, return as string
+	return string(data)
+}
+
+// isValidUTF8 checks if the byte slice contains valid UTF-8 encoded text.
+func isValidUTF8(data []byte) bool {
+	if len(data) == 0 {
+		return true
+	}
+	return utf8.Valid(data)
+}
+
+// decodeBinaryData decodes base64-encoded data back to bytes if needed.
+func decodeBinaryData(dataStr string) []byte {
+	if dataStr == "" {
+		return nil
+	}
+
+	// Try to decode as base64 first
+	if decoded, err := base64.StdEncoding.DecodeString(dataStr); err == nil {
+		return decoded
+	}
+
+	// If not base64, return as bytes
+	return []byte(dataStr)
+}
+
+// TransactionToProto converts a Transaction model back to a protobuf TxDetailData.
+//
+// Parameters:
+//   - tx: The Transaction model from database
+//
+// Returns:
+//   - *injective_explorer_rpcpb.TxDetailData: A new TxDetailData instance with data from the Transaction model
+func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData {
+	if tx == nil {
+		return nil
+	}
+
+	// Decode binary data fields
+	dataBytes := decodeBinaryData(tx.Data)
+	messagesBytes := decodeBinaryData(tx.Messages)
+	logsBytes := decodeBinaryData(tx.Logs)
+
+	// Convert events from string slice back to protobuf format
+	// Note: We cannot fully reconstruct the original Event format from strings,
+	// so we'll create a minimal structure
+	events := make([]*injective_explorer_rpcpb.Event, 0, len(tx.Events))
+	// Note: Event reconstruction from strings is complex, leaving empty for now
+
+	// Convert signatures from string slice back to protobuf format
+	signatures := make([]*injective_explorer_rpcpb.Signature, 0, len(tx.Signatures))
+	// Note: Signature reconstruction from strings is complex, leaving empty for now
+
+	// Parse GasFee if it exists
+	var gasFee *injective_explorer_rpcpb.GasFee
+	if tx.GasFee != "" {
+		// Note: GasFee parsing is complex, leaving nil for now
+		// The original structure would need to be reconstructed
+	}
+
+	return &injective_explorer_rpcpb.TxDetailData{
+		Id:                 tx.Id,
+		BlockNumber:        tx.BlockNumber,
+		BlockTimestamp:     tx.BlockTimestamp,
+		Hash:               tx.Hash,
+		Code:               tx.Code,
+		Data:               dataBytes,
+		Info:               tx.Info,
+		GasWanted:          tx.GasWanted,
+		GasUsed:            tx.GasUsed,
+		GasFee:             gasFee,
+		Codespace:          tx.Codespace,
+		Events:             events,
+		TxType:             tx.TxType,
+		Messages:           messagesBytes,
+		Signatures:         signatures,
+		Memo:               tx.Memo,
+		TxNumber:           tx.TxNumber,
+		BlockUnixTimestamp: tx.BlockUnixTimestamp,
+		ErrorLog:           tx.ErrorLog,
+		Logs:               logsBytes,
+		ClaimIds:           tx.ClaimIds,
 	}
 }
