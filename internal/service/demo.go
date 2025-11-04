@@ -12,6 +12,8 @@ import (
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
+	"injective-explorer/internal/models"
+	"injective-explorer/provider/db"
 
 	"github.com/InjectiveLabs/sdk-go/client"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
@@ -132,6 +134,12 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusInternalServerError, "marshal block error", err), err
 	}
 
+	err = db.Get().Create(models.BlockFromProto(block.Data)).Error
+	if err != nil {
+		global.Logger.Errorf("create block error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "create block error", err), err
+	}
+
 	return s.successReply(data), nil
 }
 
@@ -238,6 +246,12 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		return s.errorReply(http.StatusInternalServerError, "marshal transaction error", err), err
 	}
 
+	err = db.Get().Create(models.TransactionFromProto(transaction.Data)).Error
+	if err != nil {
+		global.Logger.Errorf("create transaction error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "create transaction error", err), err
+	}
+
 	return s.successReply(data), nil
 }
 
@@ -283,6 +297,12 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	if err != nil {
 		global.Logger.Errorf("marshal account error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal account error", err), err
+	}
+
+	err = db.Get().Create(models.AccountFromProto(account, req.Address)).Error
+	if err != nil {
+		global.Logger.Errorf("create account error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "create account error", err), err
 	}
 
 	return s.successReply(data), nil
@@ -332,6 +352,14 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		return s.errorReply(http.StatusInternalServerError, "marshal transactions error", err), err
 	}
 
+	for _, transaction := range transactions.Data {
+		err = db.Get().Create(models.TransactionFromProto(transaction)).Error
+		if err != nil {
+			global.Logger.Errorf("create transaction error: %v", err)
+			return s.errorReply(http.StatusInternalServerError, "create transaction error", err), err
+		}
+	}
+
 	return s.successReply(data), nil
 }
 
@@ -370,6 +398,14 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	if err != nil {
 		global.Logger.Errorf("marshal balances error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal balances error", err), err
+	}
+
+	for _, balance := range balances.Balances {
+		err = db.Get().Create(models.AccountBalanceFromProto(balance, req.Address)).Error
+		if err != nil {
+			global.Logger.Errorf("create account balance error: %v", err)
+			return s.errorReply(http.StatusInternalServerError, "create account balance error", err), err
+		}
 	}
 
 	return s.successReply(data), nil

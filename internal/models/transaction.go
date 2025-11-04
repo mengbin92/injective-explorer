@@ -26,16 +26,16 @@ type Transaction struct {
 	GasUsed            int64    `json:"gas_used" gorm:"column:gas_used"`                         // GasUsed is the actual gas used by the transaction
 	GasFee             string   `json:"gas_fee" gorm:"column:gas_fee"`                           // GasFee is the gas fee paid for the transaction
 	Codespace          string   `json:"codespace" gorm:"column:codespace"`                       // Codespace is the error codespace if the transaction failed
-	Events             []string `json:"events" gorm:"column:events"`                             // Events is a list of events emitted by the transaction
+	Events             []string `json:"events" gorm:"column:events;serializer:json"`             // Events is a list of events emitted by the transaction (stored as JSON)
 	TxType             string   `json:"tx_type" gorm:"column:tx_type"`                           // TxType is the type of the transaction
 	Messages           string   `json:"messages" gorm:"column:messages"`                         // Messages contains the transaction messages (stored as string, originally []byte)
-	Signatures         []string `json:"signatures" gorm:"column:signatures"`                     // Signatures is a list of transaction signatures
+	Signatures         []string `json:"signatures" gorm:"column:signatures;serializer:json"`     // Signatures is a list of transaction signatures (stored as JSON)
 	Memo               string   `json:"memo" gorm:"column:memo"`                                 // Memo is the memo field of the transaction
 	TxNumber           uint64   `json:"tx_number" gorm:"column:tx_number"`                       // TxNumber is the transaction number
 	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp"` // BlockUnixTimestamp is the Unix timestamp of the block containing this transaction
 	ErrorLog           string   `json:"error_log" gorm:"column:error_log"`                       // ErrorLog contains error information if the transaction failed
 	Logs               string   `json:"logs" gorm:"column:logs"`                                 // Logs contains execution logs (stored as string, originally []byte)
-	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;type:jsonb"`            // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
+	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`       // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
 }
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.

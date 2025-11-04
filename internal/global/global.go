@@ -4,6 +4,10 @@ package global
 
 import (
 	"injective-explorer/internal/conf"
+	"injective-explorer/internal/models"
+	"injective-explorer/provider/cache"
+	"injective-explorer/provider/db"
+	"context"
 	"crypto/tls"
 
 	"github.com/InjectiveLabs/sdk-go/client/common"
@@ -66,4 +70,22 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	}
 
 	Logger.Infof("chain configuration initialized for network: %s", bc.Chain.Network)
+
+	Logger.Infof("database initialized")
+	err := db.Init(context.Background(), bc.Data.Database, logger)
+	if err != nil {
+		panic(err)
+	}
+
+	Logger.Infof("database migrated")
+	err = db.Get().AutoMigrate(&models.Block{}, &models.Transaction{}, &models.Account{}, &models.AccountBalance{})
+	if err != nil {
+		panic(err)
+	}
+	
+
+	err = cache.InitRedis(context.Background(), bc.Data.Redis, logger)
+	if err != nil {
+		panic(err)
+	}
 }
