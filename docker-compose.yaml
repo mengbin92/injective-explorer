@@ -1,10 +1,10 @@
 services:
   injective-explorer:
-    image: injective-explorer:latest
+    # image: injective-explorer:latest
     container_name: injective-explorer
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - 8000:8000
       - 9000:9000
@@ -12,7 +12,53 @@ services:
       - ./configs:/data/conf
     networks:
       - injective-explorer-network
+    depends_on:
+      injective-explorer-mysql:
+        condition: service_healthy
+      injective-explorer-redis:
+        condition: service_healthy
       
+  injective-explorer-redis:
+    image: redis
+    container_name: injective-explorer-redis
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    volumes:
+      - injective-explorer-redis:/data
+    networks:
+      - injective-explorer-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  injective-explorer-mysql:
+    image: mysql
+    container_name: injective-explorer-mysql
+    restart: unless-stopped
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=jKBrZHGcsNG5fMc52EWz
+      - MYSQL_DATABASE=explorer
+    volumes:
+      - injective-explorer-mysql:/var/lib/mysql
+    networks:
+      - injective-explorer-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pjKBrZHGcsNG5fMc52EWz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 networks:
   injective-explorer-network:
     driver: bridge
+
+volumes:
+  injective-explorer-data:
+  injective-explorer-redis:
+  injective-explorer-mysql:
