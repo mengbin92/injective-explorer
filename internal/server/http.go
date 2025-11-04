@@ -9,6 +9,7 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/gorilla/handlers"
 )
 
 // NewHTTPServer creates and configures a new HTTP server instance.
@@ -26,6 +27,12 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *http.Server {
 		http.Middleware(
 			recovery.Recovery(),
 		),
+		http.Filter(handlers.CORS(
+			handlers.AllowedOrigins([]string{"*"}),
+			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+			handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With", "Your-Custom-Header"}), // 注意点：包含所有用到的请求头
+			handlers.AllowCredentials(), // 允许携带凭证（如 cookies）
+		)),
 	}
 	if c.Http.Network != "" {
 		opts = append(opts, http.Network(c.Http.Network))

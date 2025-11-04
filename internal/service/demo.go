@@ -3,8 +3,10 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +22,8 @@ import (
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -81,17 +85,13 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *emptypb.Empty) (
 		return s.errorReply(http.StatusInternalServerError, "get blocks error", err), err
 	}
 
-	blocksJson, err := sonic.Marshal(blocks)
+	data, err := s.marshalToJSON(blocks)
 	if err != nil {
 		global.Logger.Errorf("marshal blocks error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal blocks error", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    string(blocksJson),
-	}, nil
+	return s.successReply(data), nil
 }
 
 // GetBlockByHeight retrieves a specific block by its height.
@@ -126,17 +126,13 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusInternalServerError, "get block error", err), err
 	}
 
-	blockJson, err := sonic.Marshal(block)
+	data, err := s.marshalToJSON(block)
 	if err != nil {
 		global.Logger.Errorf("marshal block error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal block error", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    string(blockJson),
-	}, nil
+	return s.successReply(data), nil
 }
 
 // GetLatestBlockHeight retrieves the height of the latest block.
@@ -192,17 +188,13 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.LimitRe
 		return s.errorReply(http.StatusInternalServerError, "get transactions error", err), err
 	}
 
-	transactionsJson, err := sonic.Marshal(transactions)
+	data, err := s.marshalToJSON(transactions)
 	if err != nil {
 		global.Logger.Errorf("marshal transactions error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal transactions error", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    string(transactionsJson),
-	}, nil
+	return s.successReply(data), nil
 }
 
 // GetTransactionByHash retrieves a specific transaction by its hash.
@@ -240,17 +232,13 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		return s.errorReply(http.StatusInternalServerError, "get transaction error", err), err
 	}
 
-	transactionJson, err := sonic.Marshal(transaction)
+	data, err := s.marshalToJSON(transaction)
 	if err != nil {
 		global.Logger.Errorf("marshal transaction error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal transaction error", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    string(transactionJson),
-	}, nil
+	return s.successReply(data), nil
 }
 
 // GetAccountInfo retrieves account information for a given address.
@@ -284,17 +272,20 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		return s.errorReply(http.StatusInternalServerError, "get account error", err), err
 	}
 
-	accountJson, err := sonic.Marshal(account)
+	accountModel := map[string]interface{}{
+		"account": map[string]string{
+			"type_url": account.Account.TypeUrl,
+			"value":    hex.EncodeToString(account.Account.Value),
+		},
+	}
+
+	data, err := s.marshalToJSON(accountModel)
 	if err != nil {
 		global.Logger.Errorf("marshal account error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal account error", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    string(accountJson),
-	}, nil
+	return s.successReply(data), nil
 }
 
 // GetAccountTransactions retrieves transactions for a given account address.
@@ -335,17 +326,13 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		return s.errorReply(http.StatusInternalServerError, "get account transactions error", err), err
 	}
 
-	transactionsJson, err := sonic.Marshal(transactions)
+	data, err := s.marshalToJSON(transactions)
 	if err != nil {
 		global.Logger.Errorf("marshal transactions error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal transactions error", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    string(transactionsJson),
-	}, nil
+	return s.successReply(data), nil
 }
 
 // GetAccountBalances retrieves account balances for a given address.
@@ -379,33 +366,125 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 		return s.errorReply(http.StatusInternalServerError, "get account balances error", err), err
 	}
 
-	balancesJson, err := sonic.Marshal(balances)
+	data, err := s.marshalToJSON(balances)
 	if err != nil {
 		global.Logger.Errorf("marshal balances error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "marshal balances error", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    string(balancesJson),
-	}, nil
+	return s.successReply(data), nil
 }
 
-// errorReply creates a standardized error reply.
+// errorReply creates a standardized error reply with sanitized error messages.
+// This function ensures that sensitive information is not exposed to clients.
 //
 // Parameters:
 //   - code: HTTP status code
-//   - message: Error message prefix
-//   - err: The underlying error
+//   - message: Error message prefix (user-friendly message)
+//   - err: The underlying error (may contain sensitive information)
 //
 // Returns:
-//   - *pb.Reply: A reply with error information
+//   - *pb.Reply: A reply with sanitized error information
 func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply {
+	// Sanitize error message to prevent sensitive information leakage
+	sanitizedErr := s.sanitizeError(err)
 	return &pb.Reply{
 		Code:    int32(code),
-		Message: fmt.Sprintf("%s: %v", message, err),
+		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
 	}
+}
+
+// successReply creates a standardized success reply.
+//
+// Parameters:
+//   - data: The JSON string data to return
+//
+// Returns:
+//   - *pb.Reply: A reply with success status and data
+func (s *DemoService) successReply(data string) *pb.Reply {
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    data,
+	}
+}
+
+// marshalToJSON serializes the given value to a JSON string.
+// This function is optimized for performance and reduces code duplication.
+//
+// Parameters:
+//   - v: The value to marshal (any type that can be serialized to JSON)
+//
+// Returns:
+//   - string: The JSON string representation of the value
+//   - error: Error if marshaling fails
+func (s *DemoService) marshalToJSON(v interface{}) (string, error) {
+	if msg, ok := v.(proto.Message); ok {
+		// Use protojson for protobuf messages to properly handle Any types
+		jsonBytes, err := protojson.Marshal(msg)
+		if err != nil {
+			return "", errors.Wrap(err, "failed to marshal protobuf message to JSON")
+		}
+		return string(jsonBytes), nil
+	}
+	jsonBytes, err := sonic.Marshal(v)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to marshal to JSON")
+	}
+	return string(jsonBytes), nil
+
+}
+
+// sanitizeError removes sensitive information from error messages.
+// This prevents leaking internal details like file paths, connection strings, etc.
+//
+// Parameters:
+//   - err: The original error that may contain sensitive information
+//
+// Returns:
+//   - string: A sanitized error message safe to return to clients
+func (s *DemoService) sanitizeError(err error) string {
+	if err == nil {
+		return "unknown error"
+	}
+
+	errMsg := err.Error()
+
+	// Remove common sensitive patterns
+	sensitivePatterns := []string{
+		// File paths
+		"/Users/",
+		"/home/",
+		"C:\\",
+		// Connection strings
+		"@tcp(",
+		"postgres://",
+		"redis://",
+		// API keys and tokens
+		"Bearer ",
+		"Authorization:",
+		// Stack traces (keep only first line)
+	}
+
+	for _, pattern := range sensitivePatterns {
+		if strings.Contains(errMsg, pattern) {
+			// Return a generic error message if sensitive patterns are detected
+			return "internal server error"
+		}
+	}
+
+	// If error contains stack trace, only return the first line
+	if idx := strings.Index(errMsg, "\n"); idx > 0 {
+		errMsg = errMsg[:idx]
+	}
+
+	// Limit error message length to prevent information leakage
+	const maxErrorLength = 200
+	if len(errMsg) > maxErrorLength {
+		errMsg = errMsg[:maxErrorLength] + "..."
+	}
+
+	return errMsg
 }
 
 // getExplorerClient returns a cached or newly created explorer client.
