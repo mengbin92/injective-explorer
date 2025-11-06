@@ -8,6 +8,8 @@ import (
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	"github.com/bytedance/sonic"
+	"github.com/cosmos/cosmos-sdk/codec"
+	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	github_com_cosmos_cosmos_sdk_types "github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -24,7 +26,7 @@ type Account struct {
 	// Address is the blockchain address (indexed for faster lookups)
 	Address string `json:"address" gorm:"column:address;index"`
 	// BaseAccount contains serialized base account information (stored as JSON)
-	BaseAccount string `json:"base_account" gorm:"column:base_account;serializer:json"`
+	BaseAccount string `json:"base_account" gorm:"column:base_account"`
 	// CodeHash is the hash of the account's code (if it's a contract account)
 	CodeHash string `json:"code_hash" gorm:"column:code_hash"`
 }
@@ -42,6 +44,12 @@ type BaseAccount struct {
 	Sequence uint64 `json:"sequence" gorm:"column:sequence"`
 }
 
+type PubKey struct {
+	Type    string `json:"type" gorm:"column:type"`
+	Value   string `json:"value" gorm:"column:value"`
+	Address string `json:"address" gorm:"column:address"`
+}
+
 // AccountFromProto converts a protobuf EthAccount to an Account model.
 //
 // Parameters:
@@ -50,10 +58,58 @@ type BaseAccount struct {
 //
 // Returns:
 //   - *Account: A new Account instance with data from the protobuf message
-func AccountFromProto(account *types.EthAccount, address string) *Account {
+func AccountFromProto(account *types.EthAccount, address string, codec codec.Codec) *Account {
+	if account == nil {
+		return nil
+	}
+
+	// Handle case where PubKey might be nil
+	var pub *PubKey
+	if account.PubKey != nil {
+		var pubKey cryptotypes.PubKey
+		err := codec.UnpackAny(account.PubKey, &pubKey)
+		if err != nil {
+			return nil
+		}
+
+		// Safely check if pubKey is nil and extract values
+		// Use recover to handle panics when calling methods on nil interface values
+		var pubType string
+		var pubValue string
+		var pubAddress string
+
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// pubKey is nil or invalid, use empty values
+					pubType = ""
+					pubValue = ""
+					pubAddress = ""
+				}
+			}()
+			pubType = pubKey.Type()
+			pubValue = hex.EncodeToString(pubKey.Bytes())
+			pubAddress = pubKey.Address().String()
+		}()
+
+		pub = &PubKey{
+			Type:    pubType,
+			Value:   pubValue,
+			Address: pubAddress,
+		}
+	} else {
+		// Create a PubKey with empty values when PubKey is nil
+		pub = &PubKey{
+			Type:    "",
+			Value:   "",
+			Address: "",
+		}
+	}
+
+	pubKeyJSON, _ := sonic.Marshal(pub)
 	baseAccount := &BaseAccount{
 		Address:       address,
-		PubKey:        account.PubKey.String(),
+		PubKey:        string(pubKeyJSON),
 		AccountNumber: account.AccountNumber,
 		Sequence:      account.Sequence,
 	}

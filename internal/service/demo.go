@@ -443,17 +443,17 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		return s.errorReply(http.StatusInternalServerError, "unmarshal eth account error", err), err
 	}
 
-	data, err := client.ClientContext().Codec.MarshalJSON(ethAccount)
-	if err != nil {
-		global.Logger.Errorf("marshal eth account error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal eth account error", err), err
-	}
-
 	// Save to database for future queries (use original address for storage)
-	err = db.Get().Create(models.AccountFromProto(ethAccount, address)).Error
+	accountModel := models.AccountFromProto(ethAccount, address, client.ClientContext().Codec)
+	err = db.Get().Create(accountModel).Error
 	if err != nil {
 		global.Logger.Errorf("create account error: %v", err)
 		// Don't return error, just log it since we already have the data
+	}
+	data, err := s.marshalToJSON(accountModel)
+	if err != nil {
+		global.Logger.Errorf("marshal account error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "marshal account error", err), err
 	}
 
 	return s.successReply(string(data)), nil

@@ -796,7 +796,7 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 
 
 		// Save or update account in database
-		accountModel := models.AccountFromProto(ethAccount, address)
+		accountModel := models.AccountFromProto(ethAccount, address, s.chainClient.ClientContext().Codec)
 		if accountModel == nil {
 			global.Logger.Warnf("failed to convert account %s to model", address)
 			continue
