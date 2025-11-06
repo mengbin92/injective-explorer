@@ -21,7 +21,7 @@ services:
         condition: service_healthy
       
   injective-explorer-redis:
-    image: redis
+    image: redis:latest
     container_name: injective-explorer-redis
     restart: unless-stopped
     ports:

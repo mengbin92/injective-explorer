@@ -117,7 +117,8 @@ func main() {
 	}
 
 	// Start blockchain sync service
-	syncService := service.NewSyncService()
+	syncConfig := service.LoadSyncConfig(&bc)
+	syncService := service.NewSyncService(syncConfig)
 	if err := syncService.Start(); err != nil {
 		log.NewHelper(logger).Errorf("Failed to start sync service: %v", err)
 		os.Exit(1)

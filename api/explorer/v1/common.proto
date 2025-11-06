@@ -6,12 +6,32 @@ option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.explorer.v1";
 
-// 分页请求参数
+// 分页请求参数（支持基于页数和基于游标两种方式）
 message PaginationRequest {
-  // 页码，从1开始
+  // 页码，从1开始，默认1（基于页数的分页）
   int32 page = 1;
   // 每页大小，默认20，最大100
   int32 page_size = 2;
+  // 游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+  // 对于区块：使用区块高度(height)
+  // 对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+  string cursor = 3;
+}
+
+// 分页响应信息
+message PaginationInfo {
+  // 当前页码
+  int32 page = 1;
+  // 每页大小
+  int32 page_size = 2;
+  // 总记录数
+  int64 total = 3;
+  // 总页数
+  int32 total_pages = 4;
+  // 是否有上一页
+  bool has_prev = 5;
+  // 是否有下一页
+  bool has_next = 6;
 }
 
 // 通用响应结构

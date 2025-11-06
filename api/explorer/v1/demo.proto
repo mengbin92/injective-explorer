@@ -11,7 +11,7 @@ option java_multiple_files = true;
 option java_package = "api.explorer.v1";
 
 service Demo {
-  rpc GetLatestBlocks(google.protobuf.Empty) returns (Reply) {
+  rpc GetLatestBlocks(PaginationRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/demo/block/latest"
     };
@@ -27,7 +27,7 @@ service Demo {
     };
   }
 
-  rpc GetLatestTransactions(LimitRequest) returns (Reply) {
+  rpc GetLatestTransactions(PaginationRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/demo/transaction/latest"
     };
@@ -65,9 +65,7 @@ message GetAccountInfoRequest { string address = 1; }
 
 message GetAccountTransactionsRequest {
   string address = 1;
-  int32 limit = 2;
+  PaginationRequest pagination = 2;
 }
 
 message GetAccountBalancesRequest { string address = 1; }
-
-message LimitRequest { int32 limit = 1; }

@@ -4,9 +4,12 @@ A comprehensive blockchain explorer API service for the Injective network, built
 
 ## Features
 
-- **Block Queries**: Get latest blocks, query blocks by height, and retrieve latest block height
-- **Transaction Queries**: Get latest transactions and query transactions by hash
-- **Account Queries**: Get account information, transactions, and balances
+- **Block Queries**: Get latest blocks with pagination, query blocks by height, and retrieve latest block height
+- **Transaction Queries**: Get latest transactions with pagination and query transactions by hash
+- **Account Queries**: Get account information, transactions with pagination, and balances
+- **Database-First Strategy**: Prioritizes database queries over direct blockchain API calls for improved performance
+- **Pagination Support**: Both page-based and cursor-based pagination for efficient data retrieval
+- **Block Synchronization**: Real-time block synchronization with historical block backfill
 - **Dual Protocol Support**: Both gRPC and HTTP/REST APIs
 - **Multiple Database Support**: MySQL, PostgreSQL, and SQLite
 - **Caching**: Redis support for improved performance
@@ -29,6 +32,10 @@ injective-explorer/
 │   ├── models/       # Data models
 │   ├── server/       # gRPC and HTTP server setup
 │   └── service/      # Service implementations
+│       ├── clients.go      # Shared blockchain client initialization
+│       ├── constants.go    # Service-level constants
+│       ├── demo.go         # API service implementation
+│       └── sync.go         # Block synchronization service
 └── provider/         # External service providers
     ├── cache/        # Redis cache provider
     ├── chain/        # Blockchain client providers
@@ -145,8 +152,13 @@ The service supports three network modes:
 #### Get Latest Blocks
 
 ```http
-GET /demo/block/latest
+GET /demo/block/latest?pagination.page=1&pagination.page_size=20
 ```
+
+**Query Parameters**:
+- `pagination.page` (int32, optional): Page number (default: 1, min: 1)
+- `pagination.page_size` (int32, optional): Page size (default: 20, min: 1, max: 100)
+- `pagination.cursor` (string, optional): Cursor for cursor-based pagination (takes priority over page)
 
 **Response**:
 
@@ -158,7 +170,7 @@ GET /demo/block/latest
 }
 ```
 
-Returns the latest blocks from the blockchain.
+Returns the latest blocks from the blockchain with pagination support. The service uses a database-first strategy, querying from the local database first and falling back to the blockchain API if needed.
 
 #### Get Block by Height
 ```http
@@ -201,10 +213,15 @@ Returns the height of the latest block.
 
 #### Get Latest Transactions
 ```http
-GET /demo/transaction/latest?limit=1
+GET /demo/transaction/latest?pagination.page=1&pagination.page_size=20
 ```
 
-Returns the latest transactions from the blockchain.
+**Query Parameters**:
+- `pagination.page` (int32, optional): Page number (default: 1, min: 1)
+- `pagination.page_size` (int32, optional): Page size (default: 20, min: 1, max: 100)
+- `pagination.cursor` (string, optional): Cursor for cursor-based pagination (takes priority over page)
+
+Returns the latest transactions from the blockchain with pagination support. The service uses a database-first strategy for improved performance.
 
 **Response**:
 
@@ -260,13 +277,16 @@ Returns account information.
 
 #### Get Account Transactions
 ```http
-GET /demo/account/transactions?address={address}&limit=1
+GET /demo/account/transactions?address={address}&pagination.page=1&pagination.page_size=20
 ```
 
-Parameters:
-- `address` (string): Account address
+**Query Parameters**:
+- `address` (string, required): Account address
+- `pagination.page` (int32, optional): Page number (default: 1, min: 1)
+- `pagination.page_size` (int32, optional): Page size (default: 20, min: 1, max: 100)
+- `pagination.cursor` (string, optional): Cursor for cursor-based pagination (takes priority over page)
 
-Returns transactions associated with the account.
+Returns transactions associated with the account with pagination support. The service uses a database-first strategy for improved performance.
 
 **Response**:
 
@@ -310,9 +330,30 @@ All APIs return a standard response format:
 }
 ```
 
+For paginated endpoints, the response includes pagination information:
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "data": [...], // Array of items
+    "pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total": 1000,
+      "total_pages": 50,
+      "has_prev": false,
+      "has_next": true,
+      "approximate": false // true if total is an approximation
+    }
+  }
+}
+```
+
 - `code`: Status code, same as HTTP Status code
 - `message`: Response message
-- `data`: Response data as JSON string
+- `data`: Response data as JSON string or object (for paginated endpoints)
 
 ## gRPC API
 
@@ -320,23 +361,31 @@ The service also provides gRPC APIs. You can use any gRPC client to connect to t
 
 Service definition: `api/explorer/v1/demo.proto`
 
-## Development
+## Architecture Details
 
-### Generate Code
+### Database-First Strategy
 
-After modifying `.proto` files:
+The service implements a database-first query strategy for improved performance:
 
-```bash
-make api        # Generate API code from proto files
-make config     # Generate config code
-make generate   # Run go generate
-```
+1. **Query from Database**: First attempts to retrieve data from the local database
+2. **Fallback to Chain**: If data is not found in the database, queries the blockchain API
+3. **Automatic Caching**: Data fetched from the chain is automatically saved to the database for future queries
 
-### Project Structure
+This approach significantly reduces external API calls and improves response times.
 
-- `api/`: Protocol Buffer definitions
-- `cmd/injective-explorer/`: Application entry point
-- `internal/`: Internal application code
-- `provider/`: External service providers
-- `configs/`: Configuration files
+### Block Synchronization
 
+The service includes a comprehensive block synchronization system:
+
+- **Real-time Sync**: Continuously synchronizes new blocks as they are produced
+- **Backward Sync**: Efficiently syncs missing blocks when the service starts
+- **Historical Sync**: Gradually syncs historical blocks in the background without affecting new block synchronization
+- **Gap Detection**: Automatically detects and fills gaps in block data
+- **Concurrent Processing**: Uses worker pools for efficient parallel block processing
+
+### Pagination
+
+The service supports two pagination strategies:
+
+1. **Page-based Pagination**: Traditional offset-based pagination using `page` and `page_size`
+2. **Cursor-based Pagination**: More efficient for large datasets using `cursor` (recommended for datasets with >10,000 records)

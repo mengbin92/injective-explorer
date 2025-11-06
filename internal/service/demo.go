@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -15,14 +14,11 @@ import (
 	"injective-explorer/provider/db"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
-	"github.com/InjectiveLabs/sdk-go/client"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
-	"github.com/InjectiveLabs/sdk-go/client/common"
 	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
-	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -37,20 +33,6 @@ import (
 // creating them lazily when needed and reusing them across requests.
 type DemoService struct {
 	pb.UnimplementedDemoServer
-
-	// Cached clients to avoid recreating connections
-	explorerClient explorerclient.ExplorerClient
-	chainClient    chainclient.ChainClientV2
-	tmClient       tmclient.TendermintClient
-
-	// Mutexes for thread-safe client initialization
-	explorerClientOnce sync.Once
-	chainClientOnce    sync.Once
-	tmClientOnce       sync.Once
-
-	// Errors from client initialization
-	explorerClientErr error
-	chainClientErr    error
 }
 
 // NewDemoService creates a new instance of DemoService.
@@ -61,25 +43,120 @@ func NewDemoService() *DemoService {
 	return &DemoService{}
 }
 
-// GetLatestBlocks retrieves the latest blocks from the blockchain.
+// GetLatestBlocks retrieves the latest blocks from the blockchain with pagination.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
-//   - req: Empty request
+//   - req: Pagination request containing page and page_size
 //
 // Returns:
-//   - *pb.Reply: Response containing the latest blocks data
+//   - *pb.Reply: Response containing the latest blocks data with pagination info
 //   - error: Error if the operation fails
-func (s *DemoService) GetLatestBlocks(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
-	global.Logger.Infof("get latest blocks")
+func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
 
+	// Normalize pagination parameters
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+
+	global.Logger.Infof("get latest blocks: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
+
+	// First, try to query from database with pagination
+	var dbBlocks []models.Block
+	var total int64
+	var isExactCount bool
+
+	// Get approximate or exact count (optimized for performance)
+	total, isExactCount = getApproximateCount(db.Get(), &models.Block{}, ctx)
+
+	// Build query based on pagination type
+	query := db.Get().WithContext(ctx).Model(&models.Block{})
+
+	if useCursor {
+		// Use cursor-based pagination (more efficient for large datasets)
+		query = query.Where("height < ?", cursorValue).
+			Order("height DESC").
+			Limit(int(pageSize))
+	} else {
+		// Use page-based pagination
+		query = query.Order("height DESC").
+			Offset(offset).
+			Limit(int(pageSize))
+	}
+
+	startTime := time.Now()
+	err := query.Find(&dbBlocks).Error
+	queryDuration := time.Since(startTime)
+
+	if err == nil && len(dbBlocks) > 0 {
+		// Found in database, convert to protobuf format and return
+		global.Logger.Infof("blocks found in database: count=%d, query_time=%v", len(dbBlocks), queryDuration)
+
+		// Convert database blocks to response format
+		blockList := make([]map[string]interface{}, 0, len(dbBlocks))
+		var nextCursor string
+
+		for _, dbBlock := range dbBlocks {
+			blockMap := map[string]interface{}{
+				"height":               dbBlock.Height,
+				"proposer":             dbBlock.Proposer,
+				"moniker":              dbBlock.Moniker,
+				"block_hash":           dbBlock.BlockHash,
+				"parent_hash":          dbBlock.ParentHash,
+				"num_pre_commits":      dbBlock.NumPrecommits,
+				"num_txs":              dbBlock.NumTxs,
+				"total_txs":            dbBlock.TotalTxs,
+				"timestamp":            dbBlock.Timestamp,
+				"block_unix_timestamp": dbBlock.BlockUnixTimestamp,
+			}
+			blockList = append(blockList, blockMap)
+
+			// Set next cursor to the smallest height in this page (for next page)
+			if useCursor {
+				if nextCursor == "" || dbBlock.Height < cursorValue {
+					nextCursor = fmt.Sprintf("%d", dbBlock.Height)
+				}
+			}
+		}
+
+		if len(blockList) > 0 {
+			// Build pagination info
+			paginationInfo := buildPaginationInfo(page, pageSize, total)
+			if !isExactCount {
+				paginationInfo["approximate"] = true
+			}
+
+			// Add cursor info if using cursor-based pagination
+			if useCursor {
+				paginationInfo["cursor"] = cursorValue
+				if nextCursor != "" {
+					paginationInfo["next_cursor"] = nextCursor
+				}
+				paginationInfo["has_next"] = len(dbBlocks) == int(pageSize) // If we got full page, likely has more
+			}
+
+			blocksResp := map[string]interface{}{
+				"data":       blockList,
+				"pagination": paginationInfo,
+			}
+			return s.marshalAndReply(blocksResp, "marshal blocks error")
+		}
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), log and continue to query from chain
+		global.Logger.Warnf("database query error (not record not found), querying from chain: error=%v", err)
+	}
+
+	// Not found in database or conversion failed, query from chain
+	global.Logger.Infof("blocks not found in database or conversion failed, querying from chain")
 	client, err := s.getExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	callCtx, cancel := withGRPCTimeout(ctx, 0)
 	defer cancel()
 
 	blocks, err := client.GetBlocks(callCtx)
@@ -88,13 +165,12 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *emptypb.Empty) (
 		return s.errorReply(http.StatusInternalServerError, "get blocks error", err), err
 	}
 
-	data, err := s.marshalToJSON(blocks)
-	if err != nil {
-		global.Logger.Errorf("marshal blocks error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal blocks error", err), err
-	}
+	// Save to database for future queries
+	// Note: GetBlocks returns BlockInfo, but we need BlockDetailInfo for BlockFromProto
+	// We'll skip saving individual blocks from GetBlocks response since they don't have full detail
+	// Individual blocks will be saved when queried by height via GetBlockByHeight
 
-	return s.successReply(data), nil
+	return s.marshalAndReply(blocks, "marshal blocks error")
 }
 
 // GetBlockByHeight retrieves a specific block by its height.
@@ -133,12 +209,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 			blockResp := &injective_explorer_rpcpb.GetBlockResponse{
 				Data: blockDetail,
 			}
-			data, err := s.marshalToJSON(blockResp)
-			if err != nil {
-				global.Logger.Errorf("marshal block error: %v", err)
-				return s.errorReply(http.StatusInternalServerError, "marshal block error", err), err
-			}
-			return s.successReply(data), nil
+			return s.marshalAndReply(blockResp, "marshal block error")
 		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -153,19 +224,13 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	}
 
 	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	callCtx, cancel := withGRPCTimeout(ctx, 0)
 	defer cancel()
 
 	block, err := client.GetBlock(callCtx, fmt.Sprintf("%d", req.Height))
 	if err != nil {
 		global.Logger.Errorf("get block error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get block error", err), err
-	}
-
-	data, err := s.marshalToJSON(block)
-	if err != nil {
-		global.Logger.Errorf("marshal block error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal block error", err), err
 	}
 
 	// Save to database for future queries
@@ -175,7 +240,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		// Don't return error, just log it since we already have the data
 	}
 
-	return s.successReply(data), nil
+	return s.marshalAndReply(block, "marshal block error")
 }
 
 // GetLatestBlockHeight retrieves the height of the latest block.
@@ -204,51 +269,126 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 	}, nil
 }
 
-// GetLatestTransactions retrieves the latest transactions from the blockchain.
+// GetLatestTransactions retrieves the latest transactions from the blockchain with pagination.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
-//   - req: Empty request
+//   - req: Pagination request containing page and page_size
 //
 // Returns:
-//   - *pb.Reply: Response containing the latest transactions data
+//   - *pb.Reply: Response containing the latest transactions data with pagination info
 //   - error: Error if the operation fails
-func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.LimitRequest) (*pb.Reply, error) {
+func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
-	// Validate limit (maximum 1000 transactions per request)
-	const maxLimit = 1000
-	if err := ValidateLimit(req.Limit, maxLimit); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid limit", err), err
+	// Normalize pagination parameters
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+
+	global.Logger.Infof("get latest transactions: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
+
+	// First, try to query from database with pagination
+	var dbTxs []models.Transaction
+	var total int64
+	var isExactCount bool
+
+	// Get approximate or exact count (optimized for performance)
+	total, isExactCount = getApproximateCount(db.Get(), &models.Transaction{}, ctx)
+
+	// Build query based on pagination type
+	query := db.Get().WithContext(ctx).Model(&models.Transaction{})
+
+	if useCursor {
+		// Use cursor-based pagination (more efficient for large datasets)
+		// Cursor is tx_number, find transactions with tx_number < cursor
+		query = query.Where("tx_number < ?", cursorValue).
+			Order("block_unix_timestamp DESC, tx_number DESC").
+			Limit(int(pageSize))
+	} else {
+		// Use page-based pagination
+		query = query.Order("block_unix_timestamp DESC, tx_number DESC").
+			Offset(offset).
+			Limit(int(pageSize))
 	}
 
-	global.Logger.Infof("get latest transactions with limit=%d", req.Limit)
+	startTime := time.Now()
+	err := query.Find(&dbTxs).Error
+	queryDuration := time.Since(startTime)
 
+	if err == nil && len(dbTxs) > 0 {
+		// Found in database, convert to protobuf format and return
+		global.Logger.Infof("transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
+
+		// Convert database transactions to response format
+		txList := make([]*injective_explorer_rpcpb.TxDetailData, 0, len(dbTxs))
+		var nextCursor string
+
+		for _, dbTx := range dbTxs {
+			txMap := models.TransactionToProto(&dbTx)
+			txList = append(txList, txMap)
+
+			// Set next cursor to the smallest tx_number in this page
+			if useCursor {
+				if nextCursor == "" || dbTx.TxNumber < cursorValue {
+					nextCursor = fmt.Sprintf("%d", dbTx.TxNumber)
+				}
+			}
+		}
+
+		if len(txList) > 0 {
+			// Build pagination info
+			paginationInfo := buildPaginationInfo(page, pageSize, total)
+			if !isExactCount {
+				paginationInfo["approximate"] = true
+			}
+
+			// Add cursor info if using cursor-based pagination
+			if useCursor {
+				paginationInfo["cursor"] = cursorValue
+				if nextCursor != "" {
+					paginationInfo["next_cursor"] = nextCursor
+				}
+				paginationInfo["has_next"] = len(dbTxs) == int(pageSize)
+			}
+
+			txsResp := map[string]interface{}{
+				"data":       txList,
+				"pagination": paginationInfo,
+			}
+			return s.marshalAndReply(txsResp, "marshal transactions error")
+		}
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), log and continue to query from chain
+		global.Logger.Warnf("database query error (not record not found), querying from chain: error=%v", err)
+	}
+
+	// Not found in database or conversion failed, query from chain
+	// Note: Chain API doesn't support pagination, so we'll return first page with limited results
+	global.Logger.Infof("transactions not found in database or conversion failed, querying from chain")
 	client, err := s.getExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	callCtx, cancel := withGRPCTimeout(ctx, 0)
 	defer cancel()
 
-	transactions, err := client.GetTxs(callCtx, &injective_explorer_rpcpb.GetTxsRequest{Limit: req.Limit})
+	// Use page_size as limit for chain query
+	transactions, err := client.GetTxs(callCtx, &injective_explorer_rpcpb.GetTxsRequest{Limit: pageSize})
 	if err != nil {
 		global.Logger.Errorf("get transactions error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get transactions error", err), err
 	}
 
-	data, err := s.marshalToJSON(transactions)
-	if err != nil {
-		global.Logger.Errorf("marshal transactions error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal transactions error", err), err
-	}
+	// Save to database for future queries
+	// Note: GetTxs returns TxData, but we need TxDetailData for TransactionFromProto
+	// We'll skip saving individual transactions from GetTxs response since they don't have full detail
+	// Individual transactions will be saved when queried by hash via GetTransactionByHash
 
-	return s.successReply(data), nil
+	return s.marshalAndReply(transactions, "marshal transactions error")
 }
 
 // GetTransactionByHash retrieves a specific transaction by its hash.
@@ -288,12 +428,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 			txResp := &injective_explorer_rpcpb.GetTxByTxHashResponse{
 				Data: txDetail,
 			}
-			data, err := s.marshalToJSON(txResp)
-			if err != nil {
-				global.Logger.Errorf("marshal transaction error: %v", err)
-				return s.errorReply(http.StatusInternalServerError, "marshal transaction error", err), err
-			}
-			return s.successReply(data), nil
+			return s.marshalAndReply(txResp, "marshal transaction error")
 		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -308,19 +443,13 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	}
 
 	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	callCtx, cancel := withGRPCTimeout(ctx, 0)
 	defer cancel()
 
 	transaction, err := client.GetTxByTxHash(callCtx, hash)
 	if err != nil {
 		global.Logger.Errorf("get transaction error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get transaction error", err), err
-	}
-
-	data, err := s.marshalToJSON(transaction)
-	if err != nil {
-		global.Logger.Errorf("marshal transaction error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal transaction error", err), err
 	}
 
 	// Save to database for future queries
@@ -330,7 +459,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		// Don't return error, just log it since we already have the data
 	}
 
-	return s.successReply(data), nil
+	return s.marshalAndReply(transaction, "marshal transaction error")
 }
 
 // GetAccountInfo retrieves account information for a given address.
@@ -459,14 +588,14 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	return s.successReply(string(data)), nil
 }
 
-// GetAccountTransactions retrieves transactions for a given account address.
+// GetAccountTransactions retrieves transactions for a given account address with pagination.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
-//   - req: Request containing the account address
+//   - req: Request containing the account address and pagination info
 //
 // Returns:
-//   - *pb.Reply: Response containing the account transactions
+//   - *pb.Reply: Response containing the account transactions with pagination info
 //   - error: Error if the operation fails or validation fails
 func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAccountTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
@@ -480,49 +609,129 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
-	// Validate limit if provided
-	if req.Limit > 0 {
-		const maxLimit = 1000
-		if err := ValidateLimit(req.Limit, maxLimit); err != nil {
-			return s.errorReply(http.StatusBadRequest, "invalid limit", err), err
-		}
+	// Normalize pagination parameters
+	var page, pageSize int32 = MinPage, DefaultPageSize
+	var offset int
+	var useCursor bool
+	var cursorValue uint64
+	if req.Pagination != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
 	}
 
-	global.Logger.Infof("get account transactions: address=%s, limit=%d", address, req.Limit)
+	global.Logger.Infof("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v", address, page, pageSize, useCursor)
 
+	// First, try to query from database with pagination
+	// Note: For better performance, we use LIKE query on messages/events fields
+	// In production, consider creating a separate account_transactions table for better indexing
+	var dbTxs []models.Transaction
+	var total int64
+	var isExactCount bool
+
+	// Build base query with address filter
+	baseQuery := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("payer = ?", address)
+
+	// Get approximate count (optimized for performance)
+	// For address-specific queries, exact count can be slow
+	total, isExactCount = getApproximateCountForAddress(baseQuery, address)
+
+	// Build query based on pagination type
+	query := baseQuery
+
+	if useCursor {
+		// Use cursor-based pagination (more efficient for large datasets)
+		query = query.Where("tx_number < ?", cursorValue).
+			Order("block_unix_timestamp DESC, tx_number DESC").
+			Limit(int(pageSize))
+	} else {
+		// Use page-based pagination
+		query = query.Order("block_unix_timestamp DESC, tx_number DESC").
+			Offset(offset).
+			Limit(int(pageSize))
+	}
+
+	startTime := time.Now()
+	err := query.Find(&dbTxs).Error
+	queryDuration := time.Since(startTime)
+
+	if err == nil && len(dbTxs) > 0 {
+		global.Logger.Infof("account transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
+
+		// Convert to response format
+		txList := make([]*injective_explorer_rpcpb.TxDetailData, 0, len(dbTxs))
+		var nextCursor string
+
+		for _, dbTx := range dbTxs {
+			txMap := models.TransactionToProto(&dbTx)
+			txList = append(txList, txMap)
+
+			// Set next cursor to the smallest tx_number in this page
+			if useCursor {
+				if nextCursor == "" || dbTx.TxNumber < cursorValue {
+					nextCursor = fmt.Sprintf("%d", dbTx.TxNumber)
+				}
+			}
+		}
+
+		if len(txList) > 0 {
+			// Build pagination info
+			paginationInfo := buildPaginationInfo(page, pageSize, total)
+			if !isExactCount {
+				paginationInfo["approximate"] = true
+			}
+
+			// Add cursor info if using cursor-based pagination
+			if useCursor {
+				paginationInfo["cursor"] = cursorValue
+				if nextCursor != "" {
+					paginationInfo["next_cursor"] = nextCursor
+				}
+				paginationInfo["has_next"] = len(dbTxs) == int(pageSize)
+			}
+
+			txsResp := map[string]interface{}{
+				"data":       txList,
+				"pagination": paginationInfo,
+			}
+			return s.marshalAndReply(txsResp, "marshal transactions error")
+		}
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), log and continue to query from chain
+		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
+	}
+
+	// Not found in database or conversion failed, query from chain
+	global.Logger.Infof("account transactions not found in database or conversion failed, querying from chain: address=%s", address)
 	client, err := s.getExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	callCtx, cancel := withGRPCTimeout(ctx, 0)
 	defer cancel()
 
 	transactions, err := client.GetAccountTxs(callCtx, &injective_explorer_rpcpb.GetAccountTxsRequest{
 		Address: address,
-		Limit:   req.Limit,
+		Limit:   pageSize,
 	})
 	if err != nil {
 		global.Logger.Errorf("get account transactions error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get account transactions error", err), err
 	}
 
-	data, err := s.marshalToJSON(transactions)
-	if err != nil {
-		global.Logger.Errorf("marshal transactions error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal transactions error", err), err
-	}
-
-	for _, transaction := range transactions.Data {
-		err = db.Get().Create(models.TransactionFromProto(transaction)).Error
-		if err != nil {
-			global.Logger.Errorf("create transaction error: %v", err)
-			return s.errorReply(http.StatusInternalServerError, "create transaction error", err), err
+	// Save to database for future queries
+	if transactions != nil && transactions.Data != nil {
+		for _, transaction := range transactions.Data {
+			err = db.Get().Create(models.TransactionFromProto(transaction)).Error
+			if err != nil {
+				global.Logger.Errorf("create transaction error: %v", err)
+				// Don't return error, just log it
+			}
 		}
 	}
 
-	return s.successReply(data), nil
+	return s.marshalAndReply(transactions, "marshal transactions error")
 }
 
 // GetAccountBalances retrieves account balances for a given address.
@@ -548,6 +757,38 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 
 	global.Logger.Infof("get account balances: address=%s", address)
 
+	// First, try to query from database
+	var dbBalances []models.AccountBalance
+	err := db.Get().WithContext(ctx).
+		Where("address = ?", address).
+		Find(&dbBalances).Error
+	if err == nil && len(dbBalances) > 0 {
+		// Found in database, convert to protobuf format and return
+		global.Logger.Infof("account balances found in database: address=%s, count=%d", address, len(dbBalances))
+		// Convert from AccountBalance models to response format
+		balancesList := make([]map[string]interface{}, 0, len(dbBalances))
+		for _, dbBalance := range dbBalances {
+			balance := map[string]interface{}{
+				"denom":  dbBalance.Denom,
+				"amount": dbBalance.Amount,
+			}
+			balancesList = append(balancesList, balance)
+		}
+		if len(balancesList) > 0 {
+			// Create response similar to GetBankBalances response
+			balancesResp := map[string]interface{}{
+				"balances": balancesList,
+			}
+			return s.marshalAndReply(balancesResp, "marshal balances error")
+		}
+		global.Logger.Warnf("no valid balances found in database, querying from chain: address=%s", address)
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), log and continue to query from chain
+		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
+	}
+
+	// Not found in database or conversion failed, query from chain
+	global.Logger.Infof("account balances not found in database or conversion failed, querying from chain: address=%s", address)
 	client, err := s.getChainClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
@@ -559,21 +800,18 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 		return s.errorReply(http.StatusInternalServerError, "get account balances error", err), err
 	}
 
-	data, err := s.marshalToJSON(balances)
-	if err != nil {
-		global.Logger.Errorf("marshal balances error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "marshal balances error", err), err
-	}
-
-	for _, balance := range balances.Balances {
-		err = db.Get().Create(models.AccountBalanceFromProto(balance, address)).Error
-		if err != nil {
-			global.Logger.Errorf("create account balance error: %v", err)
-			return s.errorReply(http.StatusInternalServerError, "create account balance error", err), err
+	// Save to database for future queries
+	if balances != nil && balances.Balances != nil {
+		for _, balance := range balances.Balances {
+			err = db.Get().Create(models.AccountBalanceFromProto(balance, address)).Error
+			if err != nil {
+				global.Logger.Errorf("create account balance error: %v", err)
+				// Don't return error, just log it since we already have the data
+			}
 		}
 	}
 
-	return s.successReply(data), nil
+	return s.marshalAndReply(balances, "marshal balances error")
 }
 
 // errorReply creates a standardized error reply with sanitized error messages.
@@ -595,6 +833,23 @@ func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply 
 	}
 }
 
+// withGRPCTimeout creates a context with timeout for gRPC operations.
+// This is a helper function to reduce code duplication.
+//
+// Parameters:
+//   - ctx: The parent context
+//   - timeout: The timeout duration (defaults to 60 seconds if 0)
+//
+// Returns:
+//   - context.Context: A context with timeout
+//   - context.CancelFunc: A cancel function to cancel the context
+func withGRPCTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout == 0 {
+		timeout = GRPCTimeout
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
 // successReply creates a standardized success reply.
 //
 // Parameters:
@@ -607,6 +862,137 @@ func (s *DemoService) successReply(data string) *pb.Reply {
 		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
+	}
+}
+
+// normalizePagination normalizes pagination parameters with default values and validation.
+// Supports both page-based and cursor-based pagination.
+//
+// Parameters:
+//   - page: The page number (1-based, used if cursor is empty)
+//   - pageSize: The page size
+//   - cursor: The cursor for cursor-based pagination (optional, takes priority over page)
+//   - maxPageSize: Maximum allowed page size
+//
+// Returns:
+//   - normalizedPage: The normalized page number (0 if using cursor)
+//   - normalizedPageSize: The normalized page size
+//   - offset: The offset for database queries (0 if using cursor)
+//   - useCursor: Whether to use cursor-based pagination
+//   - cursorValue: The parsed cursor value (0 if not using cursor)
+func normalizePagination(page, pageSize int32, cursor string, maxPageSize int32) (int32, int32, int, bool, uint64) {
+	// Normalize page size (must be between min and max)
+	normalizedPageSize := pageSize
+	if normalizedPageSize < MinPageSize {
+		normalizedPageSize = DefaultPageSize
+	}
+	if normalizedPageSize > maxPageSize {
+		normalizedPageSize = maxPageSize
+	}
+
+	// Check if using cursor-based pagination
+	if cursor != "" {
+		// Parse cursor (assuming it's a numeric value representing height or tx_number)
+		var cursorValue uint64
+		if _, err := fmt.Sscanf(cursor, "%d", &cursorValue); err == nil {
+			return 0, normalizedPageSize, 0, true, cursorValue
+		}
+		// If cursor parsing fails, fall back to page-based
+	}
+
+	// Normalize page (must be >= 1)
+	normalizedPage := page
+	if normalizedPage < MinPage {
+		normalizedPage = MinPage
+	}
+
+	// Calculate offset (0-based)
+	offset := int((normalizedPage - 1) * normalizedPageSize)
+
+	return normalizedPage, normalizedPageSize, offset, false, 0
+}
+
+// getApproximateCount gets an approximate count for large datasets to improve performance.
+// For very large datasets, exact COUNT(*) can be slow, so we use an optimized approach.
+//
+// Parameters:
+//   - db: The database connection
+//   - model: The model to count
+//   - ctx: Context for the query
+//
+// Returns:
+//   - approximate count and whether it's an exact count
+func getApproximateCount(db *gorm.DB, model interface{}, ctx context.Context) (int64, bool) {
+	var count int64
+
+	// Try to get exact count first (with timeout)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
+	defer cancel()
+
+	err := db.WithContext(ctxWithTimeout).Model(model).Count(&count).Error
+	if err == nil {
+		return count, true
+	}
+
+	// If exact count times out or fails, try to get approximate count
+	// For PostgreSQL, we can use pg_class.reltuples
+	// For MySQL, we can use information_schema
+	// For now, we'll return a large estimate and mark as approximate
+	global.Logger.Warnf("exact count failed, using approximate: %v", err)
+	return ApproximateCountFallback, false
+}
+
+// getApproximateCountForAddress gets an approximate count for address-specific queries.
+// This is optimized for queries that filter by address in messages/events fields.
+//
+// Parameters:
+//   - baseQuery: The base query with address filter
+//   - address: The address to count
+//
+// Returns:
+//   - approximate count and whether it's an exact count
+func getApproximateCountForAddress(baseQuery *gorm.DB, address string) (int64, bool) {
+	var count int64
+
+	// Try to get exact count first (with timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), CountQueryTimeout)
+	defer cancel()
+
+	err := baseQuery.WithContext(ctx).Count(&count).Error
+	if err == nil && count < ApproximateCountThreshold {
+		// If count is reasonable, return exact count
+		return count, true
+	}
+
+	// For larger datasets or timeouts, return approximate
+	if err != nil {
+		global.Logger.Warnf("exact count for address failed, using approximate: %v", err)
+	}
+	return ApproximateCountForAddress, false
+}
+
+// buildPaginationInfo builds pagination information for response.
+//
+// Parameters:
+//   - page: Current page number (1-based)
+//   - pageSize: Page size
+//   - total: Total number of records
+//
+// Returns:
+//   - map[string]interface{}: Pagination information map
+func buildPaginationInfo(page, pageSize int32, total int64) map[string]interface{} {
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	return map[string]interface{}{
+		"page":        page,
+		"page_size":   pageSize,
+		"total":       total,
+		"total_pages": totalPages,
+		"has_prev":    page > 1,
+		"has_next":    page < totalPages,
 	}
 }
 
@@ -633,7 +1019,25 @@ func (s *DemoService) marshalToJSON(v interface{}) (string, error) {
 		return "", errors.Wrap(err, "failed to marshal to JSON")
 	}
 	return string(jsonBytes), nil
+}
 
+// marshalAndReply serializes the value to JSON and returns a success reply.
+// This helper function reduces code duplication for JSON serialization error handling.
+//
+// Parameters:
+//   - v: The value to marshal
+//   - errorMsg: Error message prefix if marshaling fails
+//
+// Returns:
+//   - *pb.Reply: Success reply with JSON data, or error reply if marshaling fails
+//   - error: Error if marshaling fails
+func (s *DemoService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
+	data, err := s.marshalToJSON(v)
+	if err != nil {
+		global.Logger.Errorf("%s: %v", errorMsg, err)
+		return s.errorReply(http.StatusInternalServerError, errorMsg, err), err
+	}
+	return s.successReply(data), nil
 }
 
 // sanitizeError removes sensitive information from error messages.
@@ -680,114 +1084,38 @@ func (s *DemoService) sanitizeError(err error) string {
 	}
 
 	// Limit error message length to prevent information leakage
-	const maxErrorLength = 200
-	if len(errMsg) > maxErrorLength {
-		errMsg = errMsg[:maxErrorLength] + "..."
+	if len(errMsg) > MaxErrorLength {
+		errMsg = errMsg[:MaxErrorLength] + "..."
 	}
 
 	return errMsg
 }
 
 // getExplorerClient returns a cached or newly created explorer client.
-// This method is thread-safe and uses lazy initialization for better performance.
-// The client is created once and reused across requests to avoid connection overhead.
+// This method uses shared client instances for better resource utilization.
 //
 // Returns:
 //   - ExplorerClient: The explorer client instance
 //   - error: Error if client creation fails
 func (s *DemoService) getExplorerClient() (explorerclient.ExplorerClient, error) {
-	s.explorerClientOnce.Do(func() {
-		global.Logger.Infof("initializing explorer client (one-time setup)")
-		client, err := explorerclient.NewExplorerClient(global.ChainConfig)
-		if err != nil {
-			global.Logger.Errorf("create explorer client error: %v", err)
-			s.explorerClientErr = errors.Wrap(err, "create explorer client error")
-			return
-		}
-		s.explorerClient = client
-	})
-
-	if s.explorerClientErr != nil {
-		return nil, s.explorerClientErr
-	}
-	return s.explorerClient, nil
+	return GetSharedExplorerClient()
 }
 
 // getChainClient returns a cached or newly created chain client.
-// This method is thread-safe and uses lazy initialization for better performance.
-// The client is created once and reused across requests to avoid connection overhead.
+// This method uses shared client instances for better resource utilization.
 //
 // Returns:
 //   - ChainClient: The chain client instance
 //   - error: Error if client creation fails
 func (s *DemoService) getChainClient() (chainclient.ChainClientV2, error) {
-	s.chainClientOnce.Do(func() {
-		global.Logger.Infof("initializing chain client (one-time setup)")
-		client, err := buildChainClientV2Query()
-		if err != nil {
-			global.Logger.Errorf("build chain client error: %v", err)
-			s.chainClientErr = errors.Wrap(err, "build chain client error")
-			return
-		}
-		s.chainClient = client
-	})
-
-	if s.chainClientErr != nil {
-		return nil, s.chainClientErr
-	}
-	return s.chainClient, nil
+	return GetSharedChainClient()
 }
 
 // getTMClient returns a cached or newly created Tendermint client.
-// This method is thread-safe and uses lazy initialization for better performance.
-// The client is created once and reused across requests.
+// This method uses shared client instances for better resource utilization.
 //
 // Returns:
 //   - TMClient: The Tendermint client instance
 func (s *DemoService) getTMClient() tmclient.TendermintClient {
-	s.tmClientOnce.Do(func() {
-		s.tmClient = tmclient.NewRPCClient(global.ChainConfig.TmEndpoint)
-	})
-	return s.tmClient
-}
-
-// buildChainClientV2Query creates a new ChainClientV2 for query operations.
-// This client does not require a keyring as it is only used for queries, not transactions.
-//
-// Returns:
-//   - chainclient.ChainClientV2: A configured chain client
-//   - error: Error if client creation fails
-func buildChainClientV2Query() (chainclient.ChainClientV2, error) {
-	// Create Tendermint RPC client
-	tmClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
-	if err != nil {
-		global.Logger.Errorf("create tm client error: %v", err)
-		return nil, errors.Wrap(err, "create tm client error")
-	}
-
-	// Create client context (no keyring needed for queries)
-	// Note: This client cannot sign transactions, only perform queries
-	clientCtx, err := chainclient.NewClientContext(
-		global.ChainConfig.ChainId,
-		"",  // Sender address can be empty (query only)
-		nil, // Keyring can be nil (query only)
-	)
-	if err != nil {
-		return nil, errors.Wrap(err, "create client context error")
-	}
-
-	// Configure node URI and RPC client
-	clientCtx = clientCtx.WithNodeURI(global.ChainConfig.TmEndpoint).WithClient(tmClient)
-
-	// Create ChainClientV2
-	chainClient, err := chainclient.NewChainClientV2(
-		clientCtx,
-		global.ChainConfig,
-		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
-	)
-	if err != nil {
-		return nil, errors.Wrap(err, "create chain client error")
-	}
-
-	return chainClient, nil
+	return GetSharedTmClient()
 }

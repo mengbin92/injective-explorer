@@ -170,7 +170,8 @@ func SanitizeAddress(address string) string {
 	return address
 }
 
-// SanitizeHash sanitizes a hash string by removing whitespace and converting to lowercase.
+// SanitizeHash sanitizes a hash string by removing whitespace, converting to lowercase,
+// and removing the 0x prefix if present.
 //
 // Parameters:
 //   - hash: The hash string to sanitize
@@ -180,5 +181,7 @@ func SanitizeAddress(address string) string {
 func SanitizeHash(hash string) string {
 	hash = strings.TrimSpace(hash)
 	hash = strings.ToLower(hash)
+	// Remove 0x prefix if present
+	hash = strings.TrimPrefix(hash, "0x")
 	return hash
 }

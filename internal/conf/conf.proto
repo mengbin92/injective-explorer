@@ -11,6 +11,7 @@ message Bootstrap {
   Node node = 3;
   Log log = 4;
   Chain chain = 5;
+  Sync sync = 6;
 }
 
 message Server {
@@ -71,4 +72,49 @@ message Chain {
   string fee_denom = 9;
   string name = 10;
   string official_tokens_list_url = 11;
+}
+
+message Sync {
+  Redis redis = 1;
+  Intervals intervals = 2;
+  Timeouts timeouts = 3;
+  Concurrency concurrency = 4;
+  BatchSize batch_size = 5;
+  Retry retry = 6;
+  Blocks blocks = 7;
+
+  message Redis {
+    string queue_key = 1; // Redis 队列键名
+  }
+
+  message Intervals {
+    google.protobuf.Duration block_poll = 1;
+    google.protobuf.Duration tx_process = 2;
+    google.protobuf.Duration historical_sync = 3;
+    google.protobuf.Duration historical_batch_delay = 4;
+    google.protobuf.Duration backward_sync_log = 5;
+    google.protobuf.Duration rpc_status_retry = 6;
+  }
+
+  message Timeouts { google.protobuf.Duration block_query = 1; }
+
+  message Concurrency {
+    int32 tx_processors = 1;
+    int32 backward_sync_workers = 2;
+    int32 historical_sync_workers = 3;
+  }
+
+  message BatchSize {
+    int32 backward_sync = 1;
+    int32 historical_sync = 2;
+    int32 missing_block_check = 3;
+    int32 backward_sync_log = 4;
+  }
+
+  message Retry {
+    int32 max_attempts = 1;
+    google.protobuf.Duration initial_delay = 2;
+  }
+
+  message Blocks { uint64 earliest_height = 1; }
 }

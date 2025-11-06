@@ -50,11 +50,26 @@ paths:
                   in: query
                   schema:
                     type: string
-                - name: limit
+                - name: pagination.page
                   in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
                   schema:
                     type: integer
                     format: int32
+                - name: pagination.pageSize
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -84,6 +99,27 @@ paths:
             tags:
                 - Demo
             operationId: Demo_GetLatestBlocks
+            parameters:
+                - name: page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageSize
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -126,11 +162,26 @@ paths:
                 - Demo
             operationId: Demo_GetLatestTransactions
             parameters:
-                - name: limit
+                - name: page
                   in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
                   schema:
                     type: integer
                     format: int32
+                - name: pageSize
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK

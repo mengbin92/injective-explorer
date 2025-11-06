@@ -21,13 +21,17 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// 分页请求参数
+// 分页请求参数（支持基于页数和基于游标两种方式）
 type PaginationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// 页码，从1开始
+	// 页码，从1开始，默认1（基于页数的分页）
 	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// 每页大小，默认20，最大100
-	PageSize      int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// 游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+	// 对于区块：使用区块高度(height)
+	// 对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+	Cursor        string `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -76,6 +80,104 @@ func (x *PaginationRequest) GetPageSize() int32 {
 	return 0
 }
 
+func (x *PaginationRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+// 分页响应信息
+type PaginationInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 当前页码
+	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	// 每页大小
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// 总记录数
+	Total int64 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	// 总页数
+	TotalPages int32 `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
+	// 是否有上一页
+	HasPrev bool `protobuf:"varint,5,opt,name=has_prev,json=hasPrev,proto3" json:"has_prev,omitempty"`
+	// 是否有下一页
+	HasNext       bool `protobuf:"varint,6,opt,name=has_next,json=hasNext,proto3" json:"has_next,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PaginationInfo) Reset() {
+	*x = PaginationInfo{}
+	mi := &file_explorer_v1_common_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PaginationInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PaginationInfo) ProtoMessage() {}
+
+func (x *PaginationInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_common_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PaginationInfo.ProtoReflect.Descriptor instead.
+func (*PaginationInfo) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_common_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PaginationInfo) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *PaginationInfo) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *PaginationInfo) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *PaginationInfo) GetTotalPages() int32 {
+	if x != nil {
+		return x.TotalPages
+	}
+	return 0
+}
+
+func (x *PaginationInfo) GetHasPrev() bool {
+	if x != nil {
+		return x.HasPrev
+	}
+	return false
+}
+
+func (x *PaginationInfo) GetHasNext() bool {
+	if x != nil {
+		return x.HasNext
+	}
+	return false
+}
+
 // 通用响应结构
 type Reply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -91,7 +193,7 @@ type Reply struct {
 
 func (x *Reply) Reset() {
 	*x = Reply{}
-	mi := &file_explorer_v1_common_proto_msgTypes[1]
+	mi := &file_explorer_v1_common_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -103,7 +205,7 @@ func (x *Reply) String() string {
 func (*Reply) ProtoMessage() {}
 
 func (x *Reply) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_common_proto_msgTypes[1]
+	mi := &file_explorer_v1_common_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -116,7 +218,7 @@ func (x *Reply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Reply.ProtoReflect.Descriptor instead.
 func (*Reply) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_common_proto_rawDescGZIP(), []int{1}
+	return file_explorer_v1_common_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Reply) GetCode() int32 {
@@ -144,10 +246,19 @@ var File_explorer_v1_common_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x18explorer/v1/common.proto\x12\x0fapi.explorer.v1\"D\n" +
+	"\x18explorer/v1/common.proto\x12\x0fapi.explorer.v1\"\\\n" +
 	"\x11PaginationRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\"I\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\xae\x01\n" +
+	"\x0ePaginationInfo\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x03R\x05total\x12\x1f\n" +
+	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
+	"totalPages\x12\x19\n" +
+	"\bhas_prev\x18\x05 \x01(\bR\ahasPrev\x12\x19\n" +
+	"\bhas_next\x18\x06 \x01(\bR\ahasNext\"I\n" +
 	"\x05Reply\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
@@ -166,10 +277,11 @@ func file_explorer_v1_common_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_common_proto_rawDescData
 }
 
-var file_explorer_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_explorer_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_explorer_v1_common_proto_goTypes = []any{
 	(*PaginationRequest)(nil), // 0: api.explorer.v1.PaginationRequest
-	(*Reply)(nil),             // 1: api.explorer.v1.Reply
+	(*PaginationInfo)(nil),    // 1: api.explorer.v1.PaginationInfo
+	(*Reply)(nil),             // 2: api.explorer.v1.Reply
 }
 var file_explorer_v1_common_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -190,7 +302,7 @@ func file_explorer_v1_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_common_proto_rawDesc), len(file_explorer_v1_common_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

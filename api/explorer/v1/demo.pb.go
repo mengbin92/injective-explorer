@@ -158,7 +158,7 @@ func (x *GetAccountInfoRequest) GetAddress() string {
 type GetAccountTransactionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Pagination    *PaginationRequest     `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -200,11 +200,11 @@ func (x *GetAccountTransactionsRequest) GetAddress() string {
 	return ""
 }
 
-func (x *GetAccountTransactionsRequest) GetLimit() int32 {
+func (x *GetAccountTransactionsRequest) GetPagination() *PaginationRequest {
 	if x != nil {
-		return x.Limit
+		return x.Pagination
 	}
-	return 0
+	return nil
 }
 
 type GetAccountBalancesRequest struct {
@@ -251,50 +251,6 @@ func (x *GetAccountBalancesRequest) GetAddress() string {
 	return ""
 }
 
-type LimitRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LimitRequest) Reset() {
-	*x = LimitRequest{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LimitRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LimitRequest) ProtoMessage() {}
-
-func (x *LimitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LimitRequest.ProtoReflect.Descriptor instead.
-func (*LimitRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *LimitRequest) GetLimit() int32 {
-	if x != nil {
-		return x.Limit
-	}
-	return 0
-}
-
 var File_explorer_v1_demo_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_demo_proto_rawDesc = "" +
@@ -305,19 +261,19 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x1bGetTransactionByHashRequest\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\"1\n" +
 	"\x15GetAccountInfoRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\"O\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\"}\n" +
 	"\x1dGetAccountTransactionsRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"5\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12B\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\".api.explorer.v1.PaginationRequestR\n" +
+	"pagination\"5\n" +
 	"\x19GetAccountBalancesRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\"$\n" +
-	"\fLimitRequest\x12\x14\n" +
-	"\x05limit\x18\x01 \x01(\x05R\x05limit2\xa7\a\n" +
-	"\x04Demo\x12]\n" +
-	"\x0fGetLatestBlocks\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress2\xb8\a\n" +
+	"\x04Demo\x12i\n" +
+	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +
-	"\x14GetLatestBlockHeight\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/block/latest-height\x12p\n" +
-	"\x15GetLatestTransactions\x12\x1d.api.explorer.v1.LimitRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/demo/transaction/latest\x12\x7f\n" +
+	"\x14GetLatestBlockHeight\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/block/latest-height\x12u\n" +
+	"\x15GetLatestTransactions\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/demo/transaction/latest\x12\x7f\n" +
 	"\x14GetTransactionByHash\x12,.api.explorer.v1.GetTransactionByHashRequest\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/transaction/by-hash\x12l\n" +
 	"\x0eGetAccountInfo\x12&.api.explorer.v1.GetAccountInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/account/info\x12\x84\x01\n" +
 	"\x16GetAccountTransactions\x12..api.explorer.v1.GetAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/account/transactions\x12x\n" +
@@ -336,39 +292,40 @@ func file_explorer_v1_demo_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_demo_proto_rawDescData
 }
 
-var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_explorer_v1_demo_proto_goTypes = []any{
 	(*GetBlockByHeightRequest)(nil),       // 0: api.explorer.v1.GetBlockByHeightRequest
 	(*GetTransactionByHashRequest)(nil),   // 1: api.explorer.v1.GetTransactionByHashRequest
 	(*GetAccountInfoRequest)(nil),         // 2: api.explorer.v1.GetAccountInfoRequest
 	(*GetAccountTransactionsRequest)(nil), // 3: api.explorer.v1.GetAccountTransactionsRequest
 	(*GetAccountBalancesRequest)(nil),     // 4: api.explorer.v1.GetAccountBalancesRequest
-	(*LimitRequest)(nil),                  // 5: api.explorer.v1.LimitRequest
+	(*PaginationRequest)(nil),             // 5: api.explorer.v1.PaginationRequest
 	(*emptypb.Empty)(nil),                 // 6: google.protobuf.Empty
 	(*Reply)(nil),                         // 7: api.explorer.v1.Reply
 }
 var file_explorer_v1_demo_proto_depIdxs = []int32{
-	6, // 0: api.explorer.v1.Demo.GetLatestBlocks:input_type -> google.protobuf.Empty
-	0, // 1: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
-	6, // 2: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
-	5, // 3: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.LimitRequest
-	1, // 4: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
-	2, // 5: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
-	3, // 6: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
-	4, // 7: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
-	7, // 8: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
-	7, // 9: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
-	7, // 10: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
-	7, // 11: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
-	7, // 12: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
-	7, // 13: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
-	7, // 14: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
-	7, // 15: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	8, // [8:16] is the sub-list for method output_type
-	0, // [0:8] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	5, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
+	5, // 1: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
+	0, // 2: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
+	6, // 3: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
+	5, // 4: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
+	1, // 5: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
+	2, // 6: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
+	3, // 7: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
+	4, // 8: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
+	7, // 9: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
+	7, // 10: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
+	7, // 11: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
+	7, // 12: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
+	7, // 13: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
+	7, // 14: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
+	7, // 15: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
+	7, // 16: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
+	9, // [9:17] is the sub-list for method output_type
+	1, // [1:9] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_explorer_v1_demo_proto_init() }
@@ -383,7 +340,7 @@ func file_explorer_v1_demo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_demo_proto_rawDesc), len(file_explorer_v1_demo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
