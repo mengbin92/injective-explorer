@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
@@ -54,22 +55,48 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		return nil
 	}
 
-	// Convert events from protobuf format to string slice
+	// Store events as base64-encoded protobuf binary for reversible conversion
 	events := make([]string, 0, len(detail.Events))
 	for _, event := range detail.Events {
-		events = append(events, event.String())
+		if event != nil {
+			// Marshal protobuf to binary
+			if data, err := proto.Marshal(event); err == nil {
+				// Encode as base64 for storage
+				events = append(events, base64.StdEncoding.EncodeToString(data))
+			} else {
+				// Fallback to string representation if marshaling fails
+				events = append(events, event.String())
+			}
+		}
 	}
 
-	// Convert signatures from protobuf format to string slice
+	// Store signatures as base64-encoded protobuf binary for reversible conversion
 	signatures := make([]string, 0, len(detail.Signatures))
 	for _, sig := range detail.Signatures {
-		signatures = append(signatures, sig.String())
+		if sig != nil {
+			// Marshal protobuf to binary
+			if data, err := proto.Marshal(sig); err == nil {
+				// Encode as base64 for storage
+				signatures = append(signatures, base64.StdEncoding.EncodeToString(data))
+			} else {
+				// Fallback to string representation if marshaling fails
+				signatures = append(signatures, sig.String())
+			}
+		}
 	}
 
+	// Store GasFee as base64-encoded protobuf binary for reversible conversion
 	gasFee := ""
 	payer := ""
 	if detail.GasFee != nil {
-		gasFee = detail.GasFee.String()
+		// Marshal protobuf to binary
+		if data, err := proto.Marshal(detail.GasFee); err == nil {
+			// Encode as base64 for storage
+			gasFee = base64.StdEncoding.EncodeToString(data)
+		} else {
+			// Fallback to string representation if marshaling fails
+			gasFee = detail.GasFee.String()
+		}
 		payer = detail.GasFee.Payer
 	}
 
@@ -162,21 +189,69 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	messagesBytes := decodeBinaryData(tx.Messages)
 	logsBytes := decodeBinaryData(tx.Logs)
 
-	// Convert events from string slice back to protobuf format
-	// Note: We cannot fully reconstruct the original Event format from strings,
-	// so we'll create a minimal structure
+	// Convert events from base64-encoded protobuf binary back to protobuf format
 	events := make([]*injective_explorer_rpcpb.Event, 0, len(tx.Events))
-	// Note: Event reconstruction from strings is complex, leaving empty for now
+	for _, eventStr := range tx.Events {
+		if eventStr == "" {
+			continue
+		}
 
-	// Convert signatures from string slice back to protobuf format
+		// Try to decode from base64
+		data, err := base64.StdEncoding.DecodeString(eventStr)
+		if err == nil {
+			// Successfully decoded, try to unmarshal protobuf
+			var event injective_explorer_rpcpb.Event
+			if err := proto.Unmarshal(data, &event); err == nil {
+				events = append(events, &event)
+				continue
+			}
+		}
+
+		// If base64 decode or unmarshal fails, the string might be in text format
+		// from old data. We'll create an empty Event to maintain compatibility
+		// Note: This is a fallback for backward compatibility with old data format
+		events = append(events, &injective_explorer_rpcpb.Event{})
+	}
+
+	// Convert signatures from base64-encoded protobuf binary back to protobuf format
 	signatures := make([]*injective_explorer_rpcpb.Signature, 0, len(tx.Signatures))
-	// Note: Signature reconstruction from strings is complex, leaving empty for now
+	for _, sigStr := range tx.Signatures {
+		if sigStr == "" {
+			continue
+		}
 
-	// Parse GasFee if it exists
+		// Try to decode from base64
+		data, err := base64.StdEncoding.DecodeString(sigStr)
+		if err == nil {
+			// Successfully decoded, try to unmarshal protobuf
+			var sig injective_explorer_rpcpb.Signature
+			if err := proto.Unmarshal(data, &sig); err == nil {
+				signatures = append(signatures, &sig)
+				continue
+			}
+		}
+
+		// If base64 decode or unmarshal fails, the string might be in text format
+		// from old data. We'll create an empty Signature to maintain compatibility
+		// Note: This is a fallback for backward compatibility with old data format
+		signatures = append(signatures, &injective_explorer_rpcpb.Signature{})
+	}
+
+	// Parse GasFee from base64-encoded protobuf binary back to protobuf format
 	var gasFee *injective_explorer_rpcpb.GasFee
 	if tx.GasFee != "" {
-		// Note: GasFee parsing is complex, leaving nil for now
-		// The original structure would need to be reconstructed
+		// Try to decode from base64
+		data, err := base64.StdEncoding.DecodeString(tx.GasFee)
+		if err == nil {
+			// Successfully decoded, try to unmarshal protobuf
+			var gasFeeData injective_explorer_rpcpb.GasFee
+			if err := proto.Unmarshal(data, &gasFeeData); err == nil {
+				gasFee = &gasFeeData
+			}
+		}
+		// If base64 decode or unmarshal fails, the string might be in text format
+		// from old data. We'll leave gasFee as nil to maintain compatibility
+		// Note: This is a fallback for backward compatibility with old data format
 	}
 
 	return &injective_explorer_rpcpb.TxDetailData{

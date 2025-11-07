@@ -1587,3 +1587,7 @@ func (s *SyncService) recoverProcessingQueue() error {
 	global.Logger.Infof("recovered %d transaction hashes from processing queue", len(txHashes))
 	return nil
 }
+
+func (s *SyncService) processValidator()error{
+	return nil
+}

@@ -28,6 +28,9 @@ const OperationDemoGetLatestBlockHeight = "/api.explorer.v1.Demo/GetLatestBlockH
 const OperationDemoGetLatestBlocks = "/api.explorer.v1.Demo/GetLatestBlocks"
 const OperationDemoGetLatestTransactions = "/api.explorer.v1.Demo/GetLatestTransactions"
 const OperationDemoGetTransactionByHash = "/api.explorer.v1.Demo/GetTransactionByHash"
+const OperationDemoGetValidatorByHeigth = "/api.explorer.v1.Demo/GetValidatorByHeigth"
+const OperationDemoGetValidatorByValidatorAddress = "/api.explorer.v1.Demo/GetValidatorByValidatorAddress"
+const OperationDemoGetValidators = "/api.explorer.v1.Demo/GetValidators"
 
 type DemoHTTPServer interface {
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
@@ -38,6 +41,9 @@ type DemoHTTPServer interface {
 	GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error)
 	GetLatestTransactions(context.Context, *PaginationRequest) (*Reply, error)
 	GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error)
+	GetValidatorByHeigth(context.Context, *GetValidatorByHeigthRequest) (*Reply, error)
+	GetValidatorByValidatorAddress(context.Context, *GetValidatorByValidatorAddressRequest) (*Reply, error)
+	GetValidators(context.Context, *PaginationRequest) (*Reply, error)
 }
 
 func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
@@ -50,6 +56,9 @@ func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
 	r.GET("/demo/account/info", _Demo_GetAccountInfo0_HTTP_Handler(srv))
 	r.GET("/demo/account/transactions", _Demo_GetAccountTransactions0_HTTP_Handler(srv))
 	r.GET("/demo/account/balances", _Demo_GetAccountBalances0_HTTP_Handler(srv))
+	r.GET("/demo/validator/validators", _Demo_GetValidators0_HTTP_Handler(srv))
+	r.GET("/demo/validator/by-address", _Demo_GetValidatorByValidatorAddress0_HTTP_Handler(srv))
+	r.GET("/demo/validator/by-height", _Demo_GetValidatorByHeigth0_HTTP_Handler(srv))
 }
 
 func _Demo_GetLatestBlocks0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
@@ -204,6 +213,63 @@ func _Demo_GetAccountBalances0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Co
 	}
 }
 
+func _Demo_GetValidators0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in PaginationRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetValidators)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetValidators(ctx, req.(*PaginationRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _Demo_GetValidatorByValidatorAddress0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetValidatorByValidatorAddressRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetValidatorByValidatorAddress)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetValidatorByValidatorAddress(ctx, req.(*GetValidatorByValidatorAddressRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _Demo_GetValidatorByHeigth0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetValidatorByHeigthRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetValidatorByHeigth)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetValidatorByHeigth(ctx, req.(*GetValidatorByHeigthRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
 type DemoHTTPClient interface {
 	GetAccountBalances(ctx context.Context, req *GetAccountBalancesRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetAccountInfo(ctx context.Context, req *GetAccountInfoRequest, opts ...http.CallOption) (rsp *Reply, err error)
@@ -213,6 +279,9 @@ type DemoHTTPClient interface {
 	GetLatestBlocks(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestTransactions(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetTransactionByHash(ctx context.Context, req *GetTransactionByHashRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	GetValidatorByHeigth(ctx context.Context, req *GetValidatorByHeigthRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	GetValidatorByValidatorAddress(ctx context.Context, req *GetValidatorByValidatorAddressRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	GetValidators(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 }
 
 type DemoHTTPClientImpl struct {
@@ -319,6 +388,45 @@ func (c *DemoHTTPClientImpl) GetTransactionByHash(ctx context.Context, in *GetTr
 	pattern := "/demo/transaction/by-hash"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetTransactionByHash))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *DemoHTTPClientImpl) GetValidatorByHeigth(ctx context.Context, in *GetValidatorByHeigthRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/demo/validator/by-height"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetValidatorByHeigth))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *DemoHTTPClientImpl) GetValidatorByValidatorAddress(ctx context.Context, in *GetValidatorByValidatorAddressRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/demo/validator/by-address"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetValidatorByValidatorAddress))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *DemoHTTPClientImpl) GetValidators(ctx context.Context, in *PaginationRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/demo/validator/validators"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetValidators))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

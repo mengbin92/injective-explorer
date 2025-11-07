@@ -2,7 +2,10 @@
 package models
 
 import (
+	"encoding/base64"
+
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
@@ -39,9 +42,19 @@ func BlockFromProto(detail *injective_explorer_rpcpb.BlockDetailInfo) *Block {
 		return nil
 	}
 
+	// Store Txs as base64-encoded protobuf binary for reversible conversion
 	txs := make([]string, len(detail.Txs))
 	for i, tx := range detail.Txs {
-		txs[i] = tx.String()
+		if tx != nil {
+			// Marshal protobuf to binary
+			if data, err := proto.Marshal(tx); err == nil {
+				// Encode as base64 for storage
+				txs[i] = base64.StdEncoding.EncodeToString(data)
+			} else {
+				// Fallback to string representation if marshaling fails
+				txs[i] = tx.String()
+			}
+		}
 	}
 
 	return &Block{
@@ -71,12 +84,29 @@ func BlockToProto(block *Block) *injective_explorer_rpcpb.BlockDetailInfo {
 		return nil
 	}
 
-	// Convert Txs from string slice back to protobuf format
-	// Note: Since Txs are stored as strings, we need to parse them back
-	// For simplicity, we'll create empty Txs array as the original format is lost
+	// Convert Txs from base64-encoded protobuf binary back to protobuf format
 	txs := make([]*injective_explorer_rpcpb.TxData, 0, len(block.Txs))
-	// Note: We cannot fully reconstruct the original TxData from strings,
-	// so we'll leave Txs empty or minimal
+	for _, txStr := range block.Txs {
+		if txStr == "" {
+			continue
+		}
+
+		// Try to decode from base64
+		data, err := base64.StdEncoding.DecodeString(txStr)
+		if err == nil {
+			// Successfully decoded, try to unmarshal protobuf
+			var txData injective_explorer_rpcpb.TxData
+			if err := proto.Unmarshal(data, &txData); err == nil {
+				txs = append(txs, &txData)
+				continue
+			}
+		}
+
+		// If base64 decode or unmarshal fails, the string might be in text format
+		// from old data. We'll create an empty TxData to maintain compatibility
+		// Note: This is a fallback for backward compatibility with old data format
+		txs = append(txs, &injective_explorer_rpcpb.TxData{})
+	}
 
 	return &injective_explorer_rpcpb.BlockDetailInfo{
 		Height:             block.Height,

@@ -78,7 +78,13 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	}
 
 	Logger.Infof("database migrated")
-	err = db.Get().AutoMigrate(&models.Block{}, &models.Transaction{}, &models.Account{}, &models.AccountBalance{})
+	err = db.Get().AutoMigrate(
+		&models.Block{},
+		&models.Transaction{},
+		&models.Account{},
+		&models.AccountBalance{},
+		&models.Validator{},
+	)
 	if err != nil {
 		panic(err)
 	}

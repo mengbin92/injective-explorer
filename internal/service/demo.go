@@ -95,23 +95,12 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 		global.Logger.Infof("blocks found in database: count=%d, query_time=%v", len(dbBlocks), queryDuration)
 
 		// Convert database blocks to response format
-		blockList := make([]map[string]interface{}, 0, len(dbBlocks))
+		blockList := make([]*injective_explorer_rpcpb.BlockDetailInfo, 0, len(dbBlocks))
 		var nextCursor string
 
 		for _, dbBlock := range dbBlocks {
-			blockMap := map[string]interface{}{
-				"height":               dbBlock.Height,
-				"proposer":             dbBlock.Proposer,
-				"moniker":              dbBlock.Moniker,
-				"block_hash":           dbBlock.BlockHash,
-				"parent_hash":          dbBlock.ParentHash,
-				"num_pre_commits":      dbBlock.NumPrecommits,
-				"num_txs":              dbBlock.NumTxs,
-				"total_txs":            dbBlock.TotalTxs,
-				"timestamp":            dbBlock.Timestamp,
-				"block_unix_timestamp": dbBlock.BlockUnixTimestamp,
-			}
-			blockList = append(blockList, blockMap)
+			block := models.BlockToProto(&dbBlock)
+			blockList = append(blockList, block)
 
 			// Set next cursor to the smallest height in this page (for next page)
 			if useCursor {
@@ -166,9 +155,31 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	}
 
 	// Save to database for future queries
-	// Note: GetBlocks returns BlockInfo, but we need BlockDetailInfo for BlockFromProto
-	// We'll skip saving individual blocks from GetBlocks response since they don't have full detail
-	// Individual blocks will be saved when queried by height via GetBlockByHeight
+	blockDetails := make([]*injective_explorer_rpcpb.BlockDetailInfo, 0, len(blocks.Data))
+	for _, block := range blocks.Data {
+		client, err := s.getExplorerClient()
+		if err != nil {
+			return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+		}
+
+		// Use context with longer timeout for gRPC operations
+		callCtx, cancel := withGRPCTimeout(ctx, 0)
+		defer cancel()
+
+		blockDetail, err := client.GetBlock(callCtx, fmt.Sprintf("%d", block.Height))
+		if err != nil {
+			global.Logger.Errorf("get block error: %v", err)
+			return s.errorReply(http.StatusInternalServerError, "get block error", err), err
+		}
+
+		// Save to database for future queries
+		err = db.Get().Create(models.BlockFromProto(blockDetail.Data)).Error
+		if err != nil {
+			global.Logger.Errorf("create block error: %v", err)
+			// Don't return error, just log it since we already have the data
+		}
+		blockDetails = append(blockDetails, blockDetail.Data)
+	}
 
 	return s.marshalAndReply(blocks, "marshal blocks error")
 }
@@ -201,13 +212,13 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	if err == nil {
 		// Found in database, convert to protobuf format and return
 		global.Logger.Infof("block found in database: height=%d", req.Height)
-		blockDetail := models.BlockToProto(&dbBlock)
-		if blockDetail == nil {
+		block := models.BlockToProto(&dbBlock)
+		if block == nil {
 			global.Logger.Warnf("failed to convert block to proto, querying from chain: height=%d", req.Height)
 			// Continue to query from chain
 		} else {
 			blockResp := &injective_explorer_rpcpb.GetBlockResponse{
-				Data: blockDetail,
+				Data: block,
 			}
 			return s.marshalAndReply(blockResp, "marshal block error")
 		}
@@ -812,6 +823,45 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	}
 
 	return s.marshalAndReply(balances, "marshal balances error")
+}
+
+// GetValidators retrieves validators from the blockchain with pagination.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Pagination request containing page and page_size
+//
+// Returns:
+//   - *pb.Reply: Response containing the validators data with pagination info
+//   - error: Error if the operation fails
+func (s *DemoService) GetValidators(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
+	return &pb.Reply{}, nil
+}
+
+// GetValidatorByValidatorAddress retrieves a validator by validator address.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the validator address
+//
+// Returns:
+//   - *pb.Reply: Response containing the validator data
+//   - error: Error if the operation fails
+func (s *DemoService) GetValidatorByValidatorAddress(ctx context.Context, req *pb.GetValidatorByValidatorAddressRequest) (*pb.Reply, error) {
+	return &pb.Reply{}, nil
+}
+
+// GetValidatorByHeigth retrieves a validator by height.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the height
+//
+// Returns:
+//   - *pb.Reply: Response containing the validator data
+//   - error: Error if the operation fails
+func (s *DemoService) GetValidatorByHeigth(ctx context.Context, req *pb.GetValidatorByHeigthRequest) (*pb.Reply, error) {
+	return &pb.Reply{}, nil
 }
 
 // errorReply creates a standardized error reply with sanitized error messages.
