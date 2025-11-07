@@ -1,39 +1,67 @@
+// Package models provides data models for blockchain entities.
+// This file defines the Validator model and its conversion functions.
 package models
 
 import (
-	"encoding/base64"
-
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
+// Validator represents a blockchain validator in the database.
+// It embeds gorm.Model which provides ID, CreatedAt, UpdatedAt, and DeletedAt fields.
+//
+// The struct stores validator information from the Injective blockchain,
+// including validator address, status, commission rates, and performance metrics.
 type Validator struct {
 	gorm.Model
 
-	Id                      string   `json:"id" gorm:"column:validator_id"`
-	Moniker                 string   `json:"moniker" gorm:"column:moniker"`
-	OperatorAddress         string   `json:"operator_address" gorm:"column:operator_address"`
-	ConsensusAddress        string   `json:"consensus_address" gorm:"column:consensus_address"`
-	Jailed                  bool     `json:"jailed" gorm:"column:jailed"`
-	Status                  int32    `json:"status" gorm:"column:status"`
-	Tokens                  string   `json:"tokens" gorm:"column:tokens"`
-	DelegatorShares         string   `json:"delegator_shares" gorm:"column:delegator_shares"`
-	Description             string   `json:"description" gorm:"column:description"`
-	UnbondingHeight         int64    `json:"unbonding_height" gorm:"column:unbonding_height"`
-	UnbondingTime           string   `json:"unbonding_time" gorm:"column:unbonding_time"`
-	CommissionRate          string   `json:"commission_rate" gorm:"column:commission_rate"`
-	CommissionMaxRate       string   `json:"commission_max_rate" gorm:"column:commission_max_rate"`
-	CommissionMaxChangeRate string   `json:"commission_max_change_rate" gorm:"column:commission_max_change_rate"`
-	CommissionUpdateTime    string   `json:"commission_update_time" gorm:"column:commission_update_time"`
-	Proposed                uint64   `json:"proposed" gorm:"column:proposed"`
-	Signed                  uint64   `json:"signed" gorm:"column:signed"`
-	Missed                  uint64   `json:"missed" gorm:"column:missed"`
-	Timestamp               string   `json:"timestamp" gorm:"column:timestamp"`
-	Uptimes                 []string `json:"uptimes" gorm:"column:uptimes;serializer:json"`
-	SlashingEvents          []string `json:"slashing_events" gorm:"column:slashing_events;serializer:json"`
-	UptimePercentage        float64  `json:"uptime_percentage" gorm:"column:uptime_percentage"`
-	ImageUrl                string   `json:"image_url" gorm:"column:image_url"`
+	// Id is the validator's unique identifier
+	Id string `json:"id" gorm:"column:validator_id"`
+	// Moniker is the validator's display name
+	Moniker string `json:"moniker" gorm:"column:moniker"`
+	// OperatorAddress is the validator's operator address (indexed for faster lookups)
+	OperatorAddress string `json:"operator_address" gorm:"column:operator_address;index"`
+	// ConsensusAddress is the validator's consensus address
+	ConsensusAddress string `json:"consensus_address" gorm:"column:consensus_address"`
+	// Jailed indicates whether the validator is jailed
+	Jailed bool `json:"jailed" gorm:"column:jailed"`
+	// Status is the validator's status code
+	Status int32 `json:"status" gorm:"column:status"`
+	// Tokens is the amount of tokens delegated to the validator
+	Tokens string `json:"tokens" gorm:"column:tokens"`
+	// DelegatorShares is the total delegator shares
+	DelegatorShares string `json:"delegator_shares" gorm:"column:delegator_shares"`
+	// Description contains the validator's description (stored as base64-encoded protobuf)
+	Description string `json:"description" gorm:"column:description"`
+	// UnbondingHeight is the height at which unbonding started
+	UnbondingHeight int64 `json:"unbonding_height" gorm:"column:unbonding_height"`
+	// UnbondingTime is the time when unbonding completes
+	UnbondingTime string `json:"unbonding_time" gorm:"column:unbonding_time"`
+	// CommissionRate is the validator's commission rate
+	CommissionRate string `json:"commission_rate" gorm:"column:commission_rate"`
+	// CommissionMaxRate is the maximum commission rate
+	CommissionMaxRate string `json:"commission_max_rate" gorm:"column:commission_max_rate"`
+	// CommissionMaxChangeRate is the maximum change rate per period
+	CommissionMaxChangeRate string `json:"commission_max_change_rate" gorm:"column:commission_max_change_rate"`
+	// CommissionUpdateTime is when the commission was last updated
+	CommissionUpdateTime string `json:"commission_update_time" gorm:"column:commission_update_time"`
+	// Proposed is the number of blocks proposed
+	Proposed uint64 `json:"proposed" gorm:"column:proposed"`
+	// Signed is the number of blocks signed
+	Signed uint64 `json:"signed" gorm:"column:signed"`
+	// Missed is the number of blocks missed
+	Missed uint64 `json:"missed" gorm:"column:missed"`
+	// Timestamp is when the validator information was last updated
+	Timestamp string `json:"timestamp" gorm:"column:timestamp"`
+	// Uptimes contains validator uptime information (stored as base64-encoded protobuf array)
+	Uptimes []string `json:"uptimes" gorm:"column:uptimes;serializer:json"`
+	// SlashingEvents contains slashing event information (stored as base64-encoded protobuf array)
+	SlashingEvents []string `json:"slashing_events" gorm:"column:slashing_events;serializer:json"`
+	// UptimePercentage is the validator's uptime percentage
+	UptimePercentage float64 `json:"uptime_percentage" gorm:"column:uptime_percentage"`
+	// ImageUrl is the validator's image URL
+	ImageUrl string `json:"image_url" gorm:"column:image_url"`
 }
 
 // ValidatorFromProto converts a protobuf Validator to a Validator model.
@@ -49,12 +77,12 @@ func ValidatorFromProto(validator *injective_explorer_rpcpb.Validator) *Validato
 	}
 
 	// Store Description as base64-encoded protobuf binary for reversible conversion
+	// Use shared utility function to eliminate code duplication
 	description := ""
 	if validator.Description != nil {
-		// Marshal protobuf to binary
-		if data, err := proto.Marshal(validator.Description); err == nil {
-			// Encode as base64 for storage
-			description = base64.StdEncoding.EncodeToString(data)
+		encoded, err := MarshalProtoToBase64(validator.Description)
+		if err == nil {
+			description = encoded
 		} else {
 			// Fallback to string representation if marshaling fails
 			description = validator.Description.String()
@@ -62,34 +90,20 @@ func ValidatorFromProto(validator *injective_explorer_rpcpb.Validator) *Validato
 	}
 
 	// Store Uptimes as base64-encoded protobuf binary for reversible conversion
-	uptimes := make([]string, 0, len(validator.Uptimes))
+	// Use shared utility function to eliminate code duplication
+	uptimeMessages := make([]proto.Message, 0, len(validator.Uptimes))
 	for _, uptime := range validator.Uptimes {
-		if uptime != nil {
-			// Marshal protobuf to binary
-			if data, err := proto.Marshal(uptime); err == nil {
-				// Encode as base64 for storage
-				uptimes = append(uptimes, base64.StdEncoding.EncodeToString(data))
-			} else {
-				// Fallback to string representation if marshaling fails
-				uptimes = append(uptimes, uptime.String())
-			}
-		}
+		uptimeMessages = append(uptimeMessages, uptime)
 	}
+	uptimes, _ := MarshalProtoSliceToBase64(uptimeMessages)
 
 	// Store SlashingEvents as base64-encoded protobuf binary for reversible conversion
-	slashingEvents := make([]string, 0, len(validator.SlashingEvents))
+	// Use shared utility function to eliminate code duplication
+	slashingEventMessages := make([]proto.Message, 0, len(validator.SlashingEvents))
 	for _, slashingEvent := range validator.SlashingEvents {
-		if slashingEvent != nil {
-			// Marshal protobuf to binary
-			if data, err := proto.Marshal(slashingEvent); err == nil {
-				// Encode as base64 for storage
-				slashingEvents = append(slashingEvents, base64.StdEncoding.EncodeToString(data))
-			} else {
-				// Fallback to string representation if marshaling fails
-				slashingEvents = append(slashingEvents, slashingEvent.String())
-			}
-		}
+		slashingEventMessages = append(slashingEventMessages, slashingEvent)
 	}
+	slashingEvents, _ := MarshalProtoSliceToBase64(slashingEventMessages)
 
 	return &Validator{
 		Id:                      validator.Id,
@@ -131,16 +145,12 @@ func ValidatorToProto(validator *Validator) *injective_explorer_rpcpb.Validator 
 	}
 
 	// Parse Description from base64-encoded protobuf binary back to protobuf format
+	// Use shared utility function to eliminate code duplication
 	var description *injective_explorer_rpcpb.ValidatorDescription
 	if validator.Description != "" {
-		// Try to decode from base64
-		data, err := base64.StdEncoding.DecodeString(validator.Description)
-		if err == nil {
-			// Successfully decoded, try to unmarshal protobuf
-			var desc injective_explorer_rpcpb.ValidatorDescription
-			if err := proto.Unmarshal(data, &desc); err == nil {
-				description = &desc
-			}
+		var desc injective_explorer_rpcpb.ValidatorDescription
+		if err := UnmarshalProtoFromBase64(validator.Description, &desc); err == nil {
+			description = &desc
 		}
 		// If base64 decode or unmarshal fails, the string might be in text format
 		// from old data. We'll leave description as nil to maintain compatibility
@@ -148,21 +158,17 @@ func ValidatorToProto(validator *Validator) *injective_explorer_rpcpb.Validator 
 	}
 
 	// Convert Uptimes from base64-encoded protobuf binary back to protobuf format
+	// Use shared utility function to eliminate code duplication
 	uptimes := make([]*injective_explorer_rpcpb.ValidatorUptime, 0, len(validator.Uptimes))
 	for _, uptimeStr := range validator.Uptimes {
 		if uptimeStr == "" {
 			continue
 		}
 
-		// Try to decode from base64
-		data, err := base64.StdEncoding.DecodeString(uptimeStr)
-		if err == nil {
-			// Successfully decoded, try to unmarshal protobuf
-			var uptime injective_explorer_rpcpb.ValidatorUptime
-			if err := proto.Unmarshal(data, &uptime); err == nil {
-				uptimes = append(uptimes, &uptime)
-				continue
-			}
+		var uptime injective_explorer_rpcpb.ValidatorUptime
+		if err := UnmarshalProtoFromBase64(uptimeStr, &uptime); err == nil {
+			uptimes = append(uptimes, &uptime)
+			continue
 		}
 
 		// If base64 decode or unmarshal fails, the string might be in text format
@@ -172,21 +178,17 @@ func ValidatorToProto(validator *Validator) *injective_explorer_rpcpb.Validator 
 	}
 
 	// Convert SlashingEvents from base64-encoded protobuf binary back to protobuf format
+	// Use shared utility function to eliminate code duplication
 	slashingEvents := make([]*injective_explorer_rpcpb.SlashingEvent, 0, len(validator.SlashingEvents))
 	for _, slashingEventStr := range validator.SlashingEvents {
 		if slashingEventStr == "" {
 			continue
 		}
 
-		// Try to decode from base64
-		data, err := base64.StdEncoding.DecodeString(slashingEventStr)
-		if err == nil {
-			// Successfully decoded, try to unmarshal protobuf
-			var slashingEvent injective_explorer_rpcpb.SlashingEvent
-			if err := proto.Unmarshal(data, &slashingEvent); err == nil {
-				slashingEvents = append(slashingEvents, &slashingEvent)
-				continue
-			}
+		var slashingEvent injective_explorer_rpcpb.SlashingEvent
+		if err := UnmarshalProtoFromBase64(slashingEventStr, &slashingEvent); err == nil {
+			slashingEvents = append(slashingEvents, &slashingEvent)
+			continue
 		}
 
 		// If base64 decode or unmarshal fails, the string might be in text format

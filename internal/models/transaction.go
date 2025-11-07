@@ -56,43 +56,29 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 	}
 
 	// Store events as base64-encoded protobuf binary for reversible conversion
-	events := make([]string, 0, len(detail.Events))
+	// Use shared utility function to eliminate code duplication
+	eventMessages := make([]proto.Message, 0, len(detail.Events))
 	for _, event := range detail.Events {
-		if event != nil {
-			// Marshal protobuf to binary
-			if data, err := proto.Marshal(event); err == nil {
-				// Encode as base64 for storage
-				events = append(events, base64.StdEncoding.EncodeToString(data))
-			} else {
-				// Fallback to string representation if marshaling fails
-				events = append(events, event.String())
-			}
-		}
+		eventMessages = append(eventMessages, event)
 	}
+	events, _ := MarshalProtoSliceToBase64(eventMessages)
 
 	// Store signatures as base64-encoded protobuf binary for reversible conversion
-	signatures := make([]string, 0, len(detail.Signatures))
+	// Use shared utility function to eliminate code duplication
+	sigMessages := make([]proto.Message, 0, len(detail.Signatures))
 	for _, sig := range detail.Signatures {
-		if sig != nil {
-			// Marshal protobuf to binary
-			if data, err := proto.Marshal(sig); err == nil {
-				// Encode as base64 for storage
-				signatures = append(signatures, base64.StdEncoding.EncodeToString(data))
-			} else {
-				// Fallback to string representation if marshaling fails
-				signatures = append(signatures, sig.String())
-			}
-		}
+		sigMessages = append(sigMessages, sig)
 	}
+	signatures, _ := MarshalProtoSliceToBase64(sigMessages)
 
 	// Store GasFee as base64-encoded protobuf binary for reversible conversion
 	gasFee := ""
 	payer := ""
 	if detail.GasFee != nil {
-		// Marshal protobuf to binary
-		if data, err := proto.Marshal(detail.GasFee); err == nil {
-			// Encode as base64 for storage
-			gasFee = base64.StdEncoding.EncodeToString(data)
+		// Use shared utility function to eliminate code duplication
+		encoded, err := MarshalProtoToBase64(detail.GasFee)
+		if err == nil {
+			gasFee = encoded
 		} else {
 			// Fallback to string representation if marshaling fails
 			gasFee = detail.GasFee.String()
@@ -190,21 +176,17 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	logsBytes := decodeBinaryData(tx.Logs)
 
 	// Convert events from base64-encoded protobuf binary back to protobuf format
+	// Use shared utility function to eliminate code duplication
 	events := make([]*injective_explorer_rpcpb.Event, 0, len(tx.Events))
 	for _, eventStr := range tx.Events {
 		if eventStr == "" {
 			continue
 		}
 
-		// Try to decode from base64
-		data, err := base64.StdEncoding.DecodeString(eventStr)
-		if err == nil {
-			// Successfully decoded, try to unmarshal protobuf
-			var event injective_explorer_rpcpb.Event
-			if err := proto.Unmarshal(data, &event); err == nil {
-				events = append(events, &event)
-				continue
-			}
+		var event injective_explorer_rpcpb.Event
+		if err := UnmarshalProtoFromBase64(eventStr, &event); err == nil {
+			events = append(events, &event)
+			continue
 		}
 
 		// If base64 decode or unmarshal fails, the string might be in text format
@@ -214,21 +196,17 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	}
 
 	// Convert signatures from base64-encoded protobuf binary back to protobuf format
+	// Use shared utility function to eliminate code duplication
 	signatures := make([]*injective_explorer_rpcpb.Signature, 0, len(tx.Signatures))
 	for _, sigStr := range tx.Signatures {
 		if sigStr == "" {
 			continue
 		}
 
-		// Try to decode from base64
-		data, err := base64.StdEncoding.DecodeString(sigStr)
-		if err == nil {
-			// Successfully decoded, try to unmarshal protobuf
-			var sig injective_explorer_rpcpb.Signature
-			if err := proto.Unmarshal(data, &sig); err == nil {
-				signatures = append(signatures, &sig)
-				continue
-			}
+		var sig injective_explorer_rpcpb.Signature
+		if err := UnmarshalProtoFromBase64(sigStr, &sig); err == nil {
+			signatures = append(signatures, &sig)
+			continue
 		}
 
 		// If base64 decode or unmarshal fails, the string might be in text format
@@ -238,16 +216,12 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	}
 
 	// Parse GasFee from base64-encoded protobuf binary back to protobuf format
+	// Use shared utility function to eliminate code duplication
 	var gasFee *injective_explorer_rpcpb.GasFee
 	if tx.GasFee != "" {
-		// Try to decode from base64
-		data, err := base64.StdEncoding.DecodeString(tx.GasFee)
-		if err == nil {
-			// Successfully decoded, try to unmarshal protobuf
-			var gasFeeData injective_explorer_rpcpb.GasFee
-			if err := proto.Unmarshal(data, &gasFeeData); err == nil {
-				gasFee = &gasFeeData
-			}
+		var gasFeeData injective_explorer_rpcpb.GasFee
+		if err := UnmarshalProtoFromBase64(tx.GasFee, &gasFeeData); err == nil {
+			gasFee = &gasFeeData
 		}
 		// If base64 decode or unmarshal fails, the string might be in text format
 		// from old data. We'll leave gasFee as nil to maintain compatibility

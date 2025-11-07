@@ -8,9 +8,9 @@ server:
 data:
   database:
     driver: mysql
-    source: root:jKBrZHGcsNG5fMc52EWz@tcp(localhost:3306)/explorer?charset=utf8mb4&parseTime=True&loc=Local
+    source: root:jKBrZHGcsNG5fMc52EWz@tcp(injective-explorer-mysql:3306)/explorer?charset=utf8mb4&parseTime=True&loc=Local
   redis:
-    addr: localhost:6379
+    addr: injective-explorer-redis:6379
     password: ""
     db: 0
     pool_size: 100

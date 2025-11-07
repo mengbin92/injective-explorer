@@ -245,13 +245,14 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	}
 
 	// Save to database for future queries
-	err = db.Get().Create(models.BlockFromProto(block.Data)).Error
+	blockModel := models.BlockFromProto(block.Data)
+	err = db.Get().Create(blockModel).Error
 	if err != nil {
 		global.Logger.Errorf("create block error: %v", err)
 		// Don't return error, just log it since we already have the data
 	}
 
-	return s.marshalAndReply(block, "marshal block error")
+	return s.marshalAndReply(blockModel, "marshal block error")
 }
 
 // GetLatestBlockHeight retrieves the height of the latest block.
@@ -464,13 +465,14 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	}
 
 	// Save to database for future queries
-	err = db.Get().Create(models.TransactionFromProto(transaction.Data)).Error
+	transactionModel := models.TransactionFromProto(transaction.Data)
+	err = db.Get().Create(transactionModel).Error
 	if err != nil {
 		global.Logger.Errorf("create transaction error: %v", err)
 		// Don't return error, just log it since we already have the data
 	}
 
-	return s.marshalAndReply(transaction, "marshal transaction error")
+	return s.marshalAndReply(transactionModel, "marshal transaction error")
 }
 
 // GetAccountInfo retrieves account information for a given address.

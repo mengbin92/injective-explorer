@@ -2,8 +2,6 @@
 package models
 
 import (
-	"encoding/base64"
-
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
@@ -43,17 +41,17 @@ func BlockFromProto(detail *injective_explorer_rpcpb.BlockDetailInfo) *Block {
 	}
 
 	// Store Txs as base64-encoded protobuf binary for reversible conversion
-	txs := make([]string, len(detail.Txs))
+	// Use shared utility function to eliminate code duplication
+	txMessages := make([]proto.Message, len(detail.Txs))
 	for i, tx := range detail.Txs {
-		if tx != nil {
-			// Marshal protobuf to binary
-			if data, err := proto.Marshal(tx); err == nil {
-				// Encode as base64 for storage
-				txs[i] = base64.StdEncoding.EncodeToString(data)
-			} else {
-				// Fallback to string representation if marshaling fails
-				txs[i] = tx.String()
-			}
+		txMessages[i] = tx
+	}
+	txs, _ := MarshalProtoSliceToBase64(txMessages)
+	// Ensure slice has correct length (handle nil messages)
+	if len(txs) < len(detail.Txs) {
+		// Pad with empty strings for nil messages
+		for len(txs) < len(detail.Txs) {
+			txs = append(txs, "")
 		}
 	}
 
@@ -85,21 +83,17 @@ func BlockToProto(block *Block) *injective_explorer_rpcpb.BlockDetailInfo {
 	}
 
 	// Convert Txs from base64-encoded protobuf binary back to protobuf format
+	// Use shared utility function to eliminate code duplication
 	txs := make([]*injective_explorer_rpcpb.TxData, 0, len(block.Txs))
 	for _, txStr := range block.Txs {
 		if txStr == "" {
 			continue
 		}
 
-		// Try to decode from base64
-		data, err := base64.StdEncoding.DecodeString(txStr)
-		if err == nil {
-			// Successfully decoded, try to unmarshal protobuf
-			var txData injective_explorer_rpcpb.TxData
-			if err := proto.Unmarshal(data, &txData); err == nil {
-				txs = append(txs, &txData)
-				continue
-			}
+		var txData injective_explorer_rpcpb.TxData
+		if err := UnmarshalProtoFromBase64(txStr, &txData); err == nil {
+			txs = append(txs, &txData)
+			continue
 		}
 
 		// If base64 decode or unmarshal fails, the string might be in text format

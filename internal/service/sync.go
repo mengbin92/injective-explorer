@@ -2010,12 +2010,14 @@ func (s *SyncService) processStakingInfo(address string) error {
 				}
 
 				// Convert protobuf to model
-				delegationRewardModel := models.DelegationRewardFromProto(&reward, address)
+				delegationRewardModel, err := models.DelegationRewardFromProto(&reward, address)
+				if err != nil {
+					global.Logger.Warnf("failed to convert delegation reward to model for %s -> %s: %v", address, reward.ValidatorAddress, err)
+					continue
+				}
 				if delegationRewardModel != nil {
 					delegationRewardsToSave[reward.ValidatorAddress] = delegationRewardModel
 					global.Logger.Debugf("collected delegation reward for %s -> %s", address, reward.ValidatorAddress)
-				} else {
-					global.Logger.Warnf("failed to convert delegation reward to model for %s -> %s", address, reward.ValidatorAddress)
 				}
 			}
 		} else {
@@ -2079,7 +2081,11 @@ func (s *SyncService) processStakingInfo(address string) error {
 				global.Logger.Debugf("delegation rewards for %s -> %s: %s", address, validatorAddr, delegationRewardsResp.Rewards.String())
 
 				// Convert DecCoins to model
-				delegationRewardModel := models.DelegationRewardFromDecCoins(delegationRewardsResp.Rewards, address, validatorAddr)
+				delegationRewardModel, err := models.DelegationRewardFromDecCoins(delegationRewardsResp.Rewards, address, validatorAddr)
+				if err != nil {
+					global.Logger.Warnf("failed to convert delegation reward from DecCoins for %s -> %s: %v", address, validatorAddr, err)
+					continue
+				}
 				if delegationRewardModel != nil {
 					delegationRewardsToSave[validatorAddr] = delegationRewardModel
 				}

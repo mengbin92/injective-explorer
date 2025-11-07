@@ -2,8 +2,9 @@
 package models
 
 import (
-	"encoding/json"
+	"fmt"
 
+	"github.com/bytedance/sonic"
 	"github.com/cosmos/cosmos-sdk/types"
 	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"gorm.io/gorm"
@@ -14,6 +15,9 @@ import (
 //
 // The struct stores delegation reward information from the Injective blockchain,
 // including the delegator address, validator address, and reward details.
+//
+// Note: TotalReward field has been removed as it was misleading in multi-coin reward scenarios.
+// Clients should calculate totals from the Rewards JSON field based on their specific needs.
 type DelegationReward struct {
 	gorm.Model
 
@@ -22,9 +26,8 @@ type DelegationReward struct {
 	// ValidatorAddress is the validator's blockchain address (indexed for faster lookups)
 	ValidatorAddress string `json:"validator_address" gorm:"column:validator_address;index"`
 	// Rewards contains the reward details stored as JSON
+	// The JSON structure contains a "coins" array with denomination and amount for each reward coin
 	Rewards string `json:"rewards" gorm:"column:rewards;type:text"`
-	// TotalReward is the total reward amount as a string (for quick access)
-	TotalReward string `json:"total_reward" gorm:"column:total_reward"`
 }
 
 // DelegationRewardDetail represents the detailed reward information stored as JSON.
@@ -47,24 +50,22 @@ type RewardCoin struct {
 //
 // Returns:
 //   - *DelegationReward: A new DelegationReward instance with data from the protobuf message
-func DelegationRewardFromProto(reward *distributiontypes.DelegationDelegatorReward, delegatorAddress string) *DelegationReward {
+//   - error: Error if JSON marshaling fails
+//
+// Note: This function returns an error if JSON marshaling fails, allowing the caller
+// to handle the error appropriately (e.g., log, retry, or skip the record).
+func DelegationRewardFromProto(reward *distributiontypes.DelegationDelegatorReward, delegatorAddress string) (*DelegationReward, error) {
 	if reward == nil {
-		return nil
+		return nil, fmt.Errorf("reward cannot be nil")
 	}
 
 	// Convert DecCoins to RewardCoin list
 	coins := make([]RewardCoin, 0, len(reward.Reward))
-	var totalAmount string
 	for _, coin := range reward.Reward {
 		coins = append(coins, RewardCoin{
 			Denom:  coin.Denom,
 			Amount: coin.Amount.String(),
 		})
-		// For simplicity, we'll store the first coin's amount as total
-		// In practice, you might want to sum all coins or store them separately
-		if totalAmount == "" {
-			totalAmount = coin.Amount.String()
-		}
 	}
 
 	// Create reward detail
@@ -72,19 +73,17 @@ func DelegationRewardFromProto(reward *distributiontypes.DelegationDelegatorRewa
 		Coins: coins,
 	}
 
-	// Marshal to JSON
-	rewardsJSON, err := json.Marshal(rewardDetail)
+	// Marshal to JSON - return error if marshaling fails
+	rewardsJSON, err := sonic.Marshal(rewardDetail)
 	if err != nil {
-		// If marshaling fails, store empty string
-		rewardsJSON = []byte("{}")
+		return nil, fmt.Errorf("failed to marshal reward detail to JSON: %w", err)
 	}
 
 	return &DelegationReward{
 		DelegatorAddress: delegatorAddress,
 		ValidatorAddress: reward.ValidatorAddress,
 		Rewards:          string(rewardsJSON),
-		TotalReward:      totalAmount,
-	}
+	}, nil
 }
 
 // DelegationRewardFromDecCoins converts DecCoins to a DelegationReward model.
@@ -97,18 +96,18 @@ func DelegationRewardFromProto(reward *distributiontypes.DelegationDelegatorRewa
 //
 // Returns:
 //   - *DelegationReward: A new DelegationReward instance
-func DelegationRewardFromDecCoins(rewards types.DecCoins, delegatorAddress, validatorAddress string) *DelegationReward {
+//   - error: Error if JSON marshaling fails
+//
+// Note: This function returns an error if JSON marshaling fails, allowing the caller
+// to handle the error appropriately (e.g., log, retry, or skip the record).
+func DelegationRewardFromDecCoins(rewards types.DecCoins, delegatorAddress, validatorAddress string) (*DelegationReward, error) {
 	// Convert DecCoins to RewardCoin list
 	coins := make([]RewardCoin, 0, len(rewards))
-	var totalAmount string
 	for _, coin := range rewards {
 		coins = append(coins, RewardCoin{
 			Denom:  coin.Denom,
 			Amount: coin.Amount.String(),
 		})
-		if totalAmount == "" {
-			totalAmount = coin.Amount.String()
-		}
 	}
 
 	// Create reward detail
@@ -116,16 +115,15 @@ func DelegationRewardFromDecCoins(rewards types.DecCoins, delegatorAddress, vali
 		Coins: coins,
 	}
 
-	// Marshal to JSON
-	rewardsJSON, err := json.Marshal(rewardDetail)
+	// Marshal to JSON - return error if marshaling fails
+	rewardsJSON, err := sonic.Marshal(rewardDetail)
 	if err != nil {
-		rewardsJSON = []byte("{}")
+		return nil, fmt.Errorf("failed to marshal reward detail to JSON: %w", err)
 	}
 
 	return &DelegationReward{
 		DelegatorAddress: delegatorAddress,
 		ValidatorAddress: validatorAddress,
 		Rewards:          string(rewardsJSON),
-		TotalReward:      totalAmount,
-	}
+	}, nil
 }
