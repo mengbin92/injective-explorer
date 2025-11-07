@@ -181,7 +181,7 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 		blockDetails = append(blockDetails, blockDetail.Data)
 	}
 
-	return s.marshalAndReply(blocks, "marshal blocks error")
+	return s.marshalAndReply(blockDetails, "marshal blocks error")
 }
 
 // GetBlockByHeight retrieves a specific block by its height.
@@ -825,7 +825,7 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	return s.marshalAndReply(balances, "marshal balances error")
 }
 
-// GetValidators retrieves validators from the blockchain with pagination.
+// GetValidators retrieves validators from the database with pagination.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
@@ -835,33 +835,127 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 //   - *pb.Reply: Response containing the validators data with pagination info
 //   - error: Error if the operation fails
 func (s *DemoService) GetValidators(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
-	return &pb.Reply{}, nil
-}
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
 
-// GetValidatorByValidatorAddress retrieves a validator by validator address.
-//
-// Parameters:
-//   - ctx: Context for request cancellation and timeout
-//   - req: Request containing the validator address
-//
-// Returns:
-//   - *pb.Reply: Response containing the validator data
-//   - error: Error if the operation fails
-func (s *DemoService) GetValidatorByValidatorAddress(ctx context.Context, req *pb.GetValidatorByValidatorAddressRequest) (*pb.Reply, error) {
-	return &pb.Reply{}, nil
-}
+	// Normalize pagination parameters
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
 
-// GetValidatorByHeigth retrieves a validator by height.
-//
-// Parameters:
-//   - ctx: Context for request cancellation and timeout
-//   - req: Request containing the height
-//
-// Returns:
-//   - *pb.Reply: Response containing the validator data
-//   - error: Error if the operation fails
-func (s *DemoService) GetValidatorByHeigth(ctx context.Context, req *pb.GetValidatorByHeigthRequest) (*pb.Reply, error) {
-	return &pb.Reply{}, nil
+	global.Logger.Infof("get validators: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
+
+	// Query validators from database with pagination
+	var dbValidators []models.Validator
+	var total int64
+	var isExactCount bool
+
+	// Get approximate or exact count (optimized for performance)
+	total, isExactCount = getApproximateCount(db.Get(), &models.Validator{}, ctx)
+
+	// Build query based on pagination type
+	query := db.Get().WithContext(ctx).Model(&models.Validator{})
+
+	if useCursor {
+		// Use cursor-based pagination (more efficient for large datasets)
+		// For validators, we can use ID as cursor (assuming ID is numeric or can be used for ordering)
+		// Since validators don't have a natural ordering like height, we'll use created_at or ID
+		query = query.Where("id < ?", cursorValue).
+			Order("id DESC").
+			Limit(int(pageSize))
+	} else {
+		// Use page-based pagination
+		// Order by operator_address for consistent ordering
+		query = query.Order("operator_address ASC").
+			Offset(offset).
+			Limit(int(pageSize))
+	}
+
+	startTime := time.Now()
+	err := query.Find(&dbValidators).Error
+	queryDuration := time.Since(startTime)
+
+	if err == nil && len(dbValidators) > 0 {
+		// Found in database, convert to protobuf format and return
+		global.Logger.Infof("validators found in database: count=%d, query_time=%v", len(dbValidators), queryDuration)
+
+		// Convert database validators to response format
+		validatorList := make([]*injective_explorer_rpcpb.Validator, 0, len(dbValidators))
+		var nextCursor string
+
+		for _, dbValidator := range dbValidators {
+			validator := models.ValidatorToProto(&dbValidator)
+			if validator == nil {
+				global.Logger.Warnf("failed to convert validator to proto, skipping: operator_address=%s", dbValidator.OperatorAddress)
+				continue
+			}
+			validatorList = append(validatorList, validator)
+
+			// Set next cursor to the smallest ID in this page (for next page)
+			if useCursor {
+				// For cursor-based pagination, we can use the validator's database ID
+				// Since we're using id < cursorValue, we need to track the minimum ID
+				if nextCursor == "" || dbValidator.ID < uint(cursorValue) {
+					nextCursor = fmt.Sprintf("%d", dbValidator.ID)
+				}
+			}
+		}
+
+		if len(validatorList) > 0 {
+			// Build pagination info
+			paginationInfo := buildPaginationInfo(page, pageSize, total)
+			if !isExactCount {
+				paginationInfo["approximate"] = true
+			}
+
+			// Add cursor info if using cursor-based pagination
+			if useCursor {
+				paginationInfo["cursor"] = cursorValue
+				if nextCursor != "" {
+					paginationInfo["next_cursor"] = nextCursor
+				}
+				paginationInfo["has_next"] = len(dbValidators) == int(pageSize) // If we got full page, likely has more
+			}
+
+			validatorsResp := map[string]interface{}{
+				"data":       validatorList,
+				"pagination": paginationInfo,
+			}
+			return s.marshalAndReply(validatorsResp, "marshal validators error")
+		}
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error (not just record not found), return error
+		global.Logger.Errorf("database query error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
+	}
+
+	// Not found in database, return empty result
+	global.Logger.Infof("no validators found in database")
+	client, err := s.getExplorerClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+	}
+
+	// Use context with longer timeout for gRPC operations
+	callCtx, cancel := withGRPCTimeout(ctx, 0)
+	defer cancel()
+
+	validators, err := client.FetchValidators(callCtx)
+	if err != nil {
+		global.Logger.Errorf("get block error: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "get block error", err), err
+	}
+
+	// Save to database for future queries
+	for _, validator := range validators.Data {
+		err = db.Get().Create(models.ValidatorFromProto(validator)).Error
+		if err != nil {
+			global.Logger.Errorf("create validator error: %v", err)
+			// Don't return error, just log it since we already have the data
+		}
+	}
+
+	return s.marshalAndReply(validators, "marshal block error")
 }
 
 // errorReply creates a standardized error reply with sanitized error messages.

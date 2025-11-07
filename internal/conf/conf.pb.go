@@ -849,6 +849,7 @@ type Sync_Intervals struct {
 	HistoricalBatchDelay *durationpb.Duration   `protobuf:"bytes,4,opt,name=historical_batch_delay,json=historicalBatchDelay,proto3" json:"historical_batch_delay,omitempty"`
 	BackwardSyncLog      *durationpb.Duration   `protobuf:"bytes,5,opt,name=backward_sync_log,json=backwardSyncLog,proto3" json:"backward_sync_log,omitempty"`
 	RpcStatusRetry       *durationpb.Duration   `protobuf:"bytes,6,opt,name=rpc_status_retry,json=rpcStatusRetry,proto3" json:"rpc_status_retry,omitempty"`
+	ValidatorSync        *durationpb.Duration   `protobuf:"bytes,7,opt,name=validator_sync,json=validatorSync,proto3" json:"validator_sync,omitempty"` // Validator 同步间隔
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -921,6 +922,13 @@ func (x *Sync_Intervals) GetBackwardSyncLog() *durationpb.Duration {
 func (x *Sync_Intervals) GetRpcStatusRetry() *durationpb.Duration {
 	if x != nil {
 		return x.RpcStatusRetry
+	}
+	return nil
+}
+
+func (x *Sync_Intervals) GetValidatorSync() *durationpb.Duration {
+	if x != nil {
+		return x.ValidatorSync
 	}
 	return nil
 }
@@ -1250,7 +1258,7 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\tfee_denom\x18\t \x01(\tR\bfeeDenom\x12\x12\n" +
 	"\x04name\x18\n" +
 	" \x01(\tR\x04name\x127\n" +
-	"\x18official_tokens_list_url\x18\v \x01(\tR\x15officialTokensListUrl\"\x88\v\n" +
+	"\x18official_tokens_list_url\x18\v \x01(\tR\x15officialTokensListUrl\"\xca\v\n" +
 	"\x04Sync\x12,\n" +
 	"\x05redis\x18\x01 \x01(\v2\x16.kratos.api.Sync.RedisR\x05redis\x128\n" +
 	"\tintervals\x18\x02 \x01(\v2\x1a.kratos.api.Sync.IntervalsR\tintervals\x125\n" +
@@ -1261,7 +1269,7 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x05retry\x18\x06 \x01(\v2\x16.kratos.api.Sync.RetryR\x05retry\x12/\n" +
 	"\x06blocks\x18\a \x01(\v2\x17.kratos.api.Sync.BlocksR\x06blocks\x1a$\n" +
 	"\x05Redis\x12\x1b\n" +
-	"\tqueue_key\x18\x01 \x01(\tR\bqueueKey\x1a\xa0\x03\n" +
+	"\tqueue_key\x18\x01 \x01(\tR\bqueueKey\x1a\xe2\x03\n" +
 	"\tIntervals\x128\n" +
 	"\n" +
 	"block_poll\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\tblockPoll\x128\n" +
@@ -1270,7 +1278,8 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x0fhistorical_sync\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x0ehistoricalSync\x12O\n" +
 	"\x16historical_batch_delay\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x14historicalBatchDelay\x12E\n" +
 	"\x11backward_sync_log\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x0fbackwardSyncLog\x12C\n" +
-	"\x10rpc_status_retry\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x0erpcStatusRetry\x1aF\n" +
+	"\x10rpc_status_retry\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x0erpcStatusRetry\x12@\n" +
+	"\x0evalidator_sync\x18\a \x01(\v2\x19.google.protobuf.DurationR\rvalidatorSync\x1aF\n" +
 	"\bTimeouts\x12:\n" +
 	"\vblock_query\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\n" +
 	"blockQuery\x1a\x9e\x01\n" +
@@ -1351,13 +1360,14 @@ var file_conf_conf_proto_depIdxs = []int32{
 	18, // 24: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
 	18, // 25: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
 	18, // 26: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
-	18, // 27: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
-	18, // 28: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
-	29, // [29:29] is the sub-list for method output_type
-	29, // [29:29] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	18, // 27: kratos.api.Sync.Intervals.validator_sync:type_name -> google.protobuf.Duration
+	18, // 28: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
+	18, // 29: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }

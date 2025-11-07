@@ -49,6 +49,7 @@ sync:
     historical_batch_delay: 1s # 历史同步批次延迟
     backward_sync_log: 10s # 向后同步进度日志时间间隔
     rpc_status_retry: 5s # RPC 状态获取失败重试延迟
+    validator_sync: 600s # Validator 同步间隔（默认10分钟）
 
   # 超时配置
   timeouts:

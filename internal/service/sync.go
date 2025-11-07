@@ -21,6 +21,7 @@ import (
 	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -112,6 +113,14 @@ func (s *SyncService) Start() error {
 	// Start historical block sync goroutine (low priority, runs in background)
 	s.wg.Add(1)
 	go s.historicalBlockSync()
+
+	// Start validator sync goroutine (periodic updates)
+	s.wg.Add(1)
+	go s.validatorSync()
+
+	// Start staking info sync goroutine (periodic updates)
+	s.wg.Add(1)
+	go s.stakingInfoSync()
 
 	// Recover transactions from processing queue (in case of crash)
 	if err := s.recoverProcessingQueue(); err != nil {
@@ -926,6 +935,25 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	// Transaction saved successfully, remove from processing queue
 	redisClient.LRem(ctx, s.config.TxHashProcessingQueueKey, 0, txHash)
 
+	// Check if transaction contains staking-related messages and update staking info
+	// This is done asynchronously to avoid blocking transaction processing
+	if s.isStakingRelatedTransaction(txData) {
+		// Extract addresses from transaction
+		addresses := s.extractAddressesFromTransaction(txData)
+		// Process staking info for each address asynchronously
+		for address := range addresses {
+			if address == "" || !isValidAddress(address) {
+				continue
+			}
+			// Process staking info in a separate goroutine to avoid blocking
+			go func(addr string) {
+				if err := s.processStakingInfo(addr); err != nil {
+					global.Logger.Warnf("failed to process staking info for address %s: %v", addr, err)
+				}
+			}(address)
+		}
+	}
+
 	return nil
 }
 
@@ -1213,6 +1241,113 @@ func extractAddressesFromString(s string) []string {
 func isValidAddress(addr string) bool {
 	// Injective addresses start with "inj1" and are 42 characters long
 	return strings.HasPrefix(addr, "inj1") && len(addr) == 42
+}
+
+// isStakingRelatedTransaction checks if a transaction contains staking-related messages.
+// It checks for common staking message types like MsgDelegate, MsgUndelegate, MsgBeginRedelegate, etc.
+func (s *SyncService) isStakingRelatedTransaction(txData *injective_explorer_rpcpb.TxDetailData) bool {
+	if txData == nil {
+		return false
+	}
+
+	// Check messages field for staking-related message types
+	if len(txData.Messages) > 0 {
+		messagesStr := strings.ToLower(string(txData.Messages))
+		// Check for common staking message types
+		stakingKeywords := []string{
+			"msgdelegate",
+			"msgundelegate",
+			"msgbeginredelegate",
+			"msgwithdrawdelegatorreward",
+			"msgwithdrawvalidatorcommission",
+			"/cosmos.staking.v1beta1",
+			"/cosmos.distribution.v1beta1",
+			"delegate",
+			"undelegate",
+			"redelegate",
+			"withdraw",
+		}
+		for _, keyword := range stakingKeywords {
+			if strings.Contains(messagesStr, keyword) {
+				return true
+			}
+		}
+	}
+
+	// Check events for staking-related events
+	if len(txData.Events) > 0 {
+		for _, event := range txData.Events {
+			if event == nil {
+				continue
+			}
+			eventStr := strings.ToLower(event.String())
+			// Check for staking-related event types
+			stakingEventKeywords := []string{
+				"delegate",
+				"undelegate",
+				"redelegate",
+				"withdraw",
+				"reward",
+				"commission",
+				"staking",
+				"distribution",
+			}
+			for _, keyword := range stakingEventKeywords {
+				if strings.Contains(eventStr, keyword) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// extractAddressesFromTransaction extracts all addresses from a transaction.
+// It extracts addresses from events, messages, and signatures.
+func (s *SyncService) extractAddressesFromTransaction(txData *injective_explorer_rpcpb.TxDetailData) map[string]bool {
+	addresses := make(map[string]bool)
+
+	if txData == nil {
+		return addresses
+	}
+
+	// Extract addresses from events
+	for _, event := range txData.Events {
+		if event == nil {
+			continue
+		}
+		eventStr := event.String()
+		addressesFromEvent := extractAddressesFromString(eventStr)
+		for _, addr := range addressesFromEvent {
+			if isValidAddress(addr) {
+				addresses[addr] = true
+			}
+		}
+	}
+
+	// Extract addresses from messages
+	if len(txData.Messages) > 0 {
+		messagesStr := string(txData.Messages)
+		addressesFromMessages := extractAddressesFromString(messagesStr)
+		for _, addr := range addressesFromMessages {
+			if isValidAddress(addr) {
+				addresses[addr] = true
+			}
+		}
+	}
+
+	// Extract addresses from signatures
+	for _, signer := range txData.Signatures {
+		if signer == nil {
+			continue
+		}
+		if isValidAddress(signer.Address) {
+			addresses[signer.Address] = true
+		}
+	}
+
+	return addresses
 }
 
 // isRetryableError checks if an error is retryable.
@@ -1588,6 +1723,547 @@ func (s *SyncService) recoverProcessingQueue() error {
 	return nil
 }
 
-func (s *SyncService) processValidator()error{
+// validatorSync continuously syncs validators from the blockchain.
+// It periodically fetches validators and updates them in the database.
+func (s *SyncService) validatorSync() {
+	defer func() {
+		global.Logger.Infof("validator sync exiting")
+		s.wg.Done()
+	}()
+
+	global.Logger.Infof("validator sync started, update interval: %v", s.config.ValidatorSyncInterval)
+
+	// Process validators immediately on startup
+	if err := s.processValidator(); err != nil {
+		global.Logger.Errorf("error processing validators on startup: %v", err)
+	}
+
+	ticker := time.NewTicker(s.config.ValidatorSyncInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			global.Logger.Infof("validator sync stopped by context")
+			return
+		case <-ticker.C:
+			if err := s.processValidator(); err != nil {
+				global.Logger.Errorf("error processing validators: %v", err)
+				// Continue even if processing fails, will retry on next interval
+			}
+		}
+	}
+}
+
+// processValidator processes validators from the blockchain.
+// It fetches all validators, converts them to models, and saves/updates them in the database.
+func (s *SyncService) processValidator() error {
+	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
+	defer cancel()
+
+	// Fetch validators with retry logic
+	var validatorsResp *injective_explorer_rpcpb.GetValidatorsResponse
+
+	delay := s.config.RetryDelay
+	var err error
+	for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
+		validatorsResp, err = s.explorerClient.FetchValidators(ctx)
+		if err == nil {
+			break
+		}
+
+		// Check if error is due to context cancellation or timeout
+		errStr := err.Error()
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+			strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context deadline exceeded") {
+			return err
+		}
+
+		// Check if error is retryable (5xx errors, Unavailable, etc.)
+		if isRetryableError(err) {
+			if attempt < s.config.MaxRetryAttempts-1 {
+				global.Logger.Warnf("retryable error fetching validators (attempt %d/%d): %v, retrying in %v...",
+					attempt+1, s.config.MaxRetryAttempts, err, delay)
+				time.Sleep(delay)
+				delay *= 2 // Exponential backoff
+				continue
+			}
+		}
+
+		// Non-retryable error or max retries reached
+		return errors.Wrap(err, "failed to fetch validators")
+	}
+
+	if err != nil {
+		return errors.Wrapf(err, "failed to fetch validators after %d attempts", s.config.MaxRetryAttempts)
+	}
+
+	if validatorsResp == nil || validatorsResp.Data == nil {
+		return errors.New("validators response is nil")
+	}
+
+	if len(validatorsResp.Data) == 0 {
+		global.Logger.Debugf("no validators found")
+		return nil
+	}
+
+	global.Logger.Infof("processing %d validators", len(validatorsResp.Data))
+
+	// Process validators in a database transaction for atomicity
+	err = db.Get().Transaction(func(tx *gorm.DB) error {
+		processedCount := 0
+		createdCount := 0
+		updatedCount := 0
+		skippedCount := 0
+		errorCount := 0
+
+		for idx, validatorProto := range validatorsResp.Data {
+			if validatorProto == nil {
+				global.Logger.Warnf("validator at index %d is nil, skipping", idx)
+				skippedCount++
+				continue
+			}
+
+			// Log validator info for debugging
+			global.Logger.Debugf("processing validator %d/%d: id=%s, operator_address=%s, moniker=%s",
+				idx+1, len(validatorsResp.Data), validatorProto.Id, validatorProto.OperatorAddress, validatorProto.Moniker)
+
+			// Convert protobuf to model
+			validatorModel := models.ValidatorFromProto(validatorProto)
+			if validatorModel == nil {
+				global.Logger.Warnf("failed to convert validator to model: id=%s, operator_address=%s, skipping",
+					validatorProto.Id, validatorProto.OperatorAddress)
+				skippedCount++
+				continue
+			}
+
+			// Check if validator already exists (use OperatorAddress as unique identifier)
+			var existingValidator models.Validator
+			err := tx.Where("operator_address = ?", validatorModel.OperatorAddress).First(&existingValidator).Error
+			if err == nil {
+				// Validator exists, update it
+				err = tx.Model(&existingValidator).Updates(validatorModel).Error
+				if err != nil {
+					global.Logger.Warnf("failed to update validator %s (operator_address: %s): %v",
+						validatorModel.Id, validatorModel.OperatorAddress, err)
+					errorCount++
+					// Continue processing other validators even if one fails
+					continue
+				}
+				updatedCount++
+				global.Logger.Debugf("updated validator %s (operator_address: %s)", validatorModel.Id, validatorModel.OperatorAddress)
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Validator doesn't exist, create it
+				err = tx.Create(validatorModel).Error
+				if err != nil {
+					global.Logger.Warnf("failed to create validator %s (operator_address: %s): %v",
+						validatorModel.Id, validatorModel.OperatorAddress, err)
+					errorCount++
+					// Continue processing other validators even if one fails
+					continue
+				}
+				createdCount++
+				global.Logger.Debugf("created validator %s (operator_address: %s)", validatorModel.Id, validatorModel.OperatorAddress)
+			} else {
+				// Database error
+				global.Logger.Warnf("failed to check validator existence %s (operator_address: %s): %v",
+					validatorModel.Id, validatorModel.OperatorAddress, err)
+				errorCount++
+				// Continue processing other validators even if one fails
+				continue
+			}
+			processedCount++
+		}
+
+		global.Logger.Infof("processed %d validators: %d created, %d updated, %d skipped, %d errors (total fetched: %d)",
+			processedCount, createdCount, updatedCount, skippedCount, errorCount, len(validatorsResp.Data))
+		return nil
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "failed to save validators to database")
+	}
+
 	return nil
+}
+
+// processStakingInfo processes staking information for a given address.
+// It fetches delegation rewards, delegator validators, and other staking-related information.
+func (s *SyncService) processStakingInfo(address string) error {
+	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
+	defer cancel()
+
+	// Validate address
+	if address == "" {
+		return errors.New("address cannot be empty")
+	}
+
+	if !isValidAddress(address) {
+		return errors.Errorf("invalid address format: %s", address)
+	}
+
+	global.Logger.Infof("processing staking info for address: %s", address)
+
+	// Fetch delegation total rewards with retry logic
+	var totalRewardsResp *distributiontypes.QueryDelegationTotalRewardsResponse
+
+	delay := s.config.RetryDelay
+	var err error
+	for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
+		totalRewardsResp, err = s.chainClient.FetchDelegationTotalRewards(ctx, address)
+		if err == nil {
+			global.Logger.Debugf("successfully fetched delegation total rewards for address %s", address)
+			break
+		}
+
+		// Check if error is due to context cancellation or timeout
+		errStr := err.Error()
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+			strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context deadline exceeded") {
+			global.Logger.Warnf("context cancelled or timeout while fetching delegation total rewards for address %s: %v", address, err)
+			return err
+		}
+
+		// Check if error is retryable (5xx errors, Unavailable, etc.)
+		if isRetryableError(err) {
+			if attempt < s.config.MaxRetryAttempts-1 {
+				global.Logger.Warnf("retryable error fetching delegation total rewards for address %s (attempt %d/%d): %v, retrying in %v...",
+					address, attempt+1, s.config.MaxRetryAttempts, err, delay)
+				time.Sleep(delay)
+				delay *= 2 // Exponential backoff
+				continue
+			}
+		}
+
+		// If delegation not found, this is not an error - address might not have any delegations
+		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "no delegations") ||
+			strings.Contains(errStr, "does not exist") || strings.Contains(errStr, "doesn't exist") {
+			global.Logger.Debugf("no delegations found for address %s (error: %v)", address, err)
+			return nil
+		}
+
+		// Non-retryable error or max retries reached
+		global.Logger.Warnf("non-retryable error fetching delegation total rewards for address %s (attempt %d/%d): %v",
+			address, attempt+1, s.config.MaxRetryAttempts, err)
+		if attempt == s.config.MaxRetryAttempts-1 {
+			// Last attempt failed, return error
+			return errors.Wrapf(err, "failed to fetch delegation total rewards for address %s after %d attempts", address, s.config.MaxRetryAttempts)
+		}
+	}
+
+	if err != nil {
+		global.Logger.Warnf("failed to fetch delegation total rewards for address %s after %d attempts: %v", address, s.config.MaxRetryAttempts, err)
+		return errors.Wrapf(err, "failed to fetch delegation total rewards for address %s after %d attempts", address, s.config.MaxRetryAttempts)
+	}
+
+	// Fetch delegator validators with retry logic
+	var delegatorValidatorsResp *distributiontypes.QueryDelegatorValidatorsResponse
+
+	delay = s.config.RetryDelay
+	for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
+		delegatorValidatorsResp, err = s.chainClient.FetchDelegatorValidators(ctx, address)
+		if err == nil {
+			break
+		}
+
+		// Check if error is due to context cancellation or timeout
+		errStr := err.Error()
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+			strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context deadline exceeded") {
+			return err
+		}
+
+		// Check if error is retryable
+		if isRetryableError(err) {
+			if attempt < s.config.MaxRetryAttempts-1 {
+				global.Logger.Warnf("retryable error fetching delegator validators for address %s (attempt %d/%d): %v, retrying in %v...",
+					address, attempt+1, s.config.MaxRetryAttempts, err, delay)
+				time.Sleep(delay)
+				delay *= 2 // Exponential backoff
+				continue
+			}
+		}
+
+		// If delegator validators not found, this is not an error
+		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "no validators") {
+			global.Logger.Debugf("no validators found for delegator %s", address)
+			break
+		}
+
+		// Non-retryable error or max retries reached
+		global.Logger.Warnf("failed to fetch delegator validators for address %s: %v", address, err)
+		break
+	}
+
+	// Collect all delegation rewards to save
+	// First, collect from total rewards response
+	delegationRewardsToSave := make(map[string]*models.DelegationReward) // key: validator_address
+
+	if totalRewardsResp != nil {
+		if len(totalRewardsResp.Rewards) > 0 {
+			global.Logger.Infof("staking info for address %s: total rewards count: %d", address, len(totalRewardsResp.Rewards))
+
+			for _, reward := range totalRewardsResp.Rewards {
+				if reward.ValidatorAddress == "" {
+					global.Logger.Debugf("skipping reward with empty validator address for address %s", address)
+					continue
+				}
+
+				// Convert protobuf to model
+				delegationRewardModel := models.DelegationRewardFromProto(&reward, address)
+				if delegationRewardModel != nil {
+					delegationRewardsToSave[reward.ValidatorAddress] = delegationRewardModel
+					global.Logger.Debugf("collected delegation reward for %s -> %s", address, reward.ValidatorAddress)
+				} else {
+					global.Logger.Warnf("failed to convert delegation reward to model for %s -> %s", address, reward.ValidatorAddress)
+				}
+			}
+		} else {
+			global.Logger.Debugf("total rewards response is empty for address %s", address)
+		}
+	} else {
+		global.Logger.Debugf("total rewards response is nil for address %s", address)
+	}
+
+	// Fetch individual delegation rewards for each validator (if not already collected)
+	if delegatorValidatorsResp != nil && len(delegatorValidatorsResp.Validators) > 0 {
+		global.Logger.Infof("delegator %s has %d validators", address, len(delegatorValidatorsResp.Validators))
+
+		for _, validatorAddr := range delegatorValidatorsResp.Validators {
+			// Skip if already collected from total rewards
+			if _, exists := delegationRewardsToSave[validatorAddr]; exists {
+				global.Logger.Debugf("delegation reward for %s -> %s already collected from total rewards", address, validatorAddr)
+				continue
+			}
+
+			global.Logger.Debugf("delegator %s has delegation to validator %s", address, validatorAddr)
+
+			// Fetch individual delegation rewards for each validator
+			var delegationRewardsResp *distributiontypes.QueryDelegationRewardsResponse
+			delay = s.config.RetryDelay
+			for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
+				delegationRewardsResp, err = s.chainClient.FetchDelegationRewards(ctx, address, validatorAddr)
+				if err == nil {
+					break
+				}
+
+				// Check if error is due to context cancellation or timeout
+				errStr := err.Error()
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+					strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context deadline exceeded") {
+					return err
+				}
+
+				// Check if error is retryable
+				if isRetryableError(err) {
+					if attempt < s.config.MaxRetryAttempts-1 {
+						time.Sleep(delay)
+						delay *= 2 // Exponential backoff
+						continue
+					}
+				}
+
+				// If delegation rewards not found, skip this validator
+				if strings.Contains(errStr, "not found") {
+					global.Logger.Debugf("no rewards found for delegation %s -> %s", address, validatorAddr)
+					break
+				}
+
+				// Non-retryable error, skip this validator
+				global.Logger.Warnf("failed to fetch delegation rewards for %s -> %s: %v", address, validatorAddr, err)
+				break
+			}
+
+			// Save individual delegation rewards if we got them
+			if delegationRewardsResp != nil && len(delegationRewardsResp.Rewards) > 0 {
+				global.Logger.Debugf("delegation rewards for %s -> %s: %s", address, validatorAddr, delegationRewardsResp.Rewards.String())
+
+				// Convert DecCoins to model
+				delegationRewardModel := models.DelegationRewardFromDecCoins(delegationRewardsResp.Rewards, address, validatorAddr)
+				if delegationRewardModel != nil {
+					delegationRewardsToSave[validatorAddr] = delegationRewardModel
+				}
+			}
+		}
+	}
+
+	// Save all collected delegation rewards to database in a transaction
+	if len(delegationRewardsToSave) > 0 {
+		global.Logger.Infof("saving %d delegation rewards to database for address %s", len(delegationRewardsToSave), address)
+		err = db.Get().Transaction(func(tx *gorm.DB) error {
+			processedCount := 0
+			createdCount := 0
+			updatedCount := 0
+
+			for validatorAddr, delegationRewardModel := range delegationRewardsToSave {
+				if delegationRewardModel == nil {
+					global.Logger.Warnf("delegation reward model is nil for %s -> %s", address, validatorAddr)
+					continue
+				}
+
+				// Check if delegation reward already exists
+				var existingReward models.DelegationReward
+				err := tx.Where("delegator_address = ? AND validator_address = ?",
+					delegationRewardModel.DelegatorAddress, delegationRewardModel.ValidatorAddress).First(&existingReward).Error
+				if err == nil {
+					// Delegation reward exists, update it
+					err = tx.Model(&existingReward).Updates(delegationRewardModel).Error
+					if err != nil {
+						global.Logger.Warnf("failed to update delegation reward %s -> %s: %v",
+							delegationRewardModel.DelegatorAddress, delegationRewardModel.ValidatorAddress, err)
+						// Continue processing other rewards even if one fails
+						continue
+					}
+					updatedCount++
+					global.Logger.Debugf("updated delegation reward %s -> %s", delegationRewardModel.DelegatorAddress, delegationRewardModel.ValidatorAddress)
+				} else if errors.Is(err, gorm.ErrRecordNotFound) {
+					// Delegation reward doesn't exist, create it
+					err = tx.Create(delegationRewardModel).Error
+					if err != nil {
+						global.Logger.Warnf("failed to create delegation reward %s -> %s: %v",
+							delegationRewardModel.DelegatorAddress, delegationRewardModel.ValidatorAddress, err)
+						// Continue processing other rewards even if one fails
+						continue
+					}
+					createdCount++
+					global.Logger.Debugf("created delegation reward %s -> %s", delegationRewardModel.DelegatorAddress, delegationRewardModel.ValidatorAddress)
+				} else {
+					// Database error
+					global.Logger.Warnf("failed to check delegation reward existence %s -> %s: %v",
+						delegationRewardModel.DelegatorAddress, delegationRewardModel.ValidatorAddress, err)
+					// Continue processing other rewards even if one fails
+					continue
+				}
+				processedCount++
+			}
+
+			global.Logger.Infof("processed %d delegation rewards for address %s: %d created, %d updated", processedCount, address, createdCount, updatedCount)
+			return nil
+		})
+
+		if err != nil {
+			global.Logger.Errorf("failed to save staking info to database for address %s: %v", address, err)
+			return errors.Wrap(err, "failed to save staking info to database")
+		}
+	} else {
+		global.Logger.Debugf("no delegation rewards to save for address %s (address may not have any delegations)", address)
+	}
+
+	global.Logger.Infof("successfully processed staking info for address: %s", address)
+	return nil
+}
+
+// stakingInfoSync continuously syncs staking information for all accounts.
+// It periodically queries accounts from the database and updates their staking info.
+func (s *SyncService) stakingInfoSync() {
+	defer func() {
+		global.Logger.Infof("staking info sync exiting")
+		s.wg.Done()
+	}()
+
+	// Use validator sync interval for staking info sync (same frequency)
+	interval := s.config.ValidatorSyncInterval
+	global.Logger.Infof("staking info sync started, update interval: %v", interval)
+
+	// Wait a bit before first sync to ensure database is ready
+	time.Sleep(5 * time.Second)
+
+	// Process staking info immediately on startup
+	s.syncStakingInfoForAllAccounts()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			global.Logger.Infof("staking info sync stopped by context")
+			return
+		case <-ticker.C:
+			s.syncStakingInfoForAllAccounts()
+		}
+	}
+}
+
+// syncStakingInfoForAllAccounts syncs staking info for all accounts in the database.
+// It processes accounts in batches to avoid overwhelming the system.
+func (s *SyncService) syncStakingInfoForAllAccounts() {
+	global.Logger.Infof("syncing staking info for all accounts")
+
+	// Query all distinct addresses from accounts table
+	var addresses []string
+	err := db.Get().Model(&models.Account{}).
+		Distinct("address").
+		Pluck("address", &addresses).Error
+	if err != nil {
+		global.Logger.Errorf("failed to query addresses from database: %v", err)
+		return
+	}
+
+	if len(addresses) == 0 {
+		global.Logger.Warnf("no addresses found in database, skipping staking info sync")
+		return
+	}
+
+	global.Logger.Infof("found %d addresses to sync staking info", len(addresses))
+
+	// Log first few addresses for debugging
+	if len(addresses) > 0 {
+		logCount := 5
+		if len(addresses) < logCount {
+			logCount = len(addresses)
+		}
+		global.Logger.Debugf("sample addresses to sync: %v", addresses[:logCount])
+	}
+
+	// Process addresses in batches to avoid overwhelming the system
+	batchSize := 10 // Process 10 addresses at a time
+	processedCount := 0
+	errorCount := 0
+
+	for i := 0; i < len(addresses); i += batchSize {
+		// Check if context is cancelled
+		select {
+		case <-s.ctx.Done():
+			global.Logger.Infof("staking info sync cancelled")
+			return
+		default:
+		}
+
+		// Get batch of addresses
+		end := i + batchSize
+		if end > len(addresses) {
+			end = len(addresses)
+		}
+		batch := addresses[i:end]
+
+		// Process batch concurrently
+		var wg sync.WaitGroup
+		for _, address := range batch {
+			if address == "" || !isValidAddress(address) {
+				continue
+			}
+
+			wg.Add(1)
+			go func(addr string) {
+				defer wg.Done()
+				if err := s.processStakingInfo(addr); err != nil {
+					global.Logger.Warnf("failed to process staking info for address %s: %v", addr, err)
+					errorCount++
+				} else {
+					processedCount++
+				}
+			}(address)
+		}
+
+		// Wait for batch to complete
+		wg.Wait()
+
+		// Add delay between batches to avoid overwhelming the RPC node
+		if i+batchSize < len(addresses) {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	global.Logger.Infof("staking info sync completed: %d processed, %d errors", processedCount, errorCount)
 }

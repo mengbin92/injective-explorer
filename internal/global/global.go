@@ -84,6 +84,7 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		&models.Account{},
 		&models.AccountBalance{},
 		&models.Validator{},
+		&models.DelegationReward{},
 	)
 	if err != nil {
 		panic(err)

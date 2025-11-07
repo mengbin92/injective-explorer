@@ -61,18 +61,6 @@ service Demo {
       get : "/demo/validator/validators"
     };
   }
-  rpc GetValidatorByValidatorAddress(GetValidatorByValidatorAddressRequest)
-      returns (Reply) {
-    option (google.api.http) = {
-      get : "/demo/validator/by-address"
-    };
-  }
-  rpc GetValidatorByHeigth(GetValidatorByHeigthRequest)
-      returns (Reply) {
-    option (google.api.http) = {
-      get : "/demo/validator/by-height"
-    };
-  }
 }
 
 message GetBlockByHeightRequest { int64 height = 1; }
@@ -87,7 +75,3 @@ message GetAccountTransactionsRequest {
 }
 
 message GetAccountBalancesRequest { string address = 1; }
-
-message GetValidatorByValidatorAddressRequest { string address = 1; }
-
-message GetValidatorByHeigthRequest { int64 height = 1; }

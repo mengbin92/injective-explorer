@@ -193,3 +193,81 @@ func TestGetAccountInfo(t *testing.T) {
 	str, _ := json.Marshal(reply)
 	fmt.Println(string(str))
 }
+
+func TestGetValidators(t *testing.T) {
+	network := common.LoadNetwork("mainnet", "lb")
+	explorerClient, err := explorerclient.NewExplorerClient(network)
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := context.Background()
+	validators, err := explorerClient.FetchValidators(ctx)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(validators.String())
+	fmt.Println(len(validators.Data))
+}
+
+func TestGetValidatorByValidatorAddress(t *testing.T) {
+	network := common.LoadNetwork("mainnet", "lb")
+	explorerClient, err := explorerclient.NewExplorerClient(network)
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := context.Background()
+	validator, err := explorerClient.FetchValidator(ctx, "injvaloper13v0sulppc8pgtk4907p3vaqgq54vyl9yqmf7av")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(validator.String())
+}
+
+func TestChainClientFetchValidator(t *testing.T) {
+	network := common.LoadNetwork("mainnet", "lb")
+	tmClient, _ := rpchttp.New(network.TmEndpoint)
+
+	senderAddress, cosmosKeyring, err := chainclient.InitCosmosKeyring(
+		"",
+		"injectived",
+		"file",
+		"inj-user",
+		"12345678",
+		"5d386fbdbf11f1141010f81a46b40f94887367562bd33b452bbaa6ce1cd1381e",
+		false,
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	clientCtx, err := chainclient.NewClientContext(
+		network.ChainId,
+		senderAddress.String(),
+		cosmosKeyring,
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
+
+	chainClient, err := chainclient.NewChainClientV2(
+		clientCtx,
+		network,
+		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	validatorAddr := "injvaloper13v0sulppc8pgtk4907p3vaqgq54vyl9yqmf7av"
+	validator, err := chainClient.FetchValidatorDistributionInfo(context.Background(), validatorAddr)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(validator.String())
+}

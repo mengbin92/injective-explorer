@@ -251,94 +251,6 @@ func (x *GetAccountBalancesRequest) GetAddress() string {
 	return ""
 }
 
-type GetValidatorByValidatorAddressRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetValidatorByValidatorAddressRequest) Reset() {
-	*x = GetValidatorByValidatorAddressRequest{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetValidatorByValidatorAddressRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetValidatorByValidatorAddressRequest) ProtoMessage() {}
-
-func (x *GetValidatorByValidatorAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetValidatorByValidatorAddressRequest.ProtoReflect.Descriptor instead.
-func (*GetValidatorByValidatorAddressRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *GetValidatorByValidatorAddressRequest) GetAddress() string {
-	if x != nil {
-		return x.Address
-	}
-	return ""
-}
-
-type GetValidatorByHeigthRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Height        int64                  `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetValidatorByHeigthRequest) Reset() {
-	*x = GetValidatorByHeigthRequest{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetValidatorByHeigthRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetValidatorByHeigthRequest) ProtoMessage() {}
-
-func (x *GetValidatorByHeigthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetValidatorByHeigthRequest.ProtoReflect.Descriptor instead.
-func (*GetValidatorByHeigthRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *GetValidatorByHeigthRequest) GetHeight() int64 {
-	if x != nil {
-		return x.Height
-	}
-	return 0
-}
-
 var File_explorer_v1_demo_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_demo_proto_rawDesc = "" +
@@ -356,12 +268,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"pagination\x18\x02 \x01(\v2\".api.explorer.v1.PaginationRequestR\n" +
 	"pagination\"5\n" +
 	"\x19GetAccountBalancesRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\"A\n" +
-	"%GetValidatorByValidatorAddressRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\"5\n" +
-	"\x1bGetValidatorByHeigthRequest\x12\x16\n" +
-	"\x06height\x18\x01 \x01(\x03R\x06height2\xc1\n" +
-	"\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress2\xa9\b\n" +
 	"\x04Demo\x12i\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +
@@ -371,9 +278,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x0eGetAccountInfo\x12&.api.explorer.v1.GetAccountInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/account/info\x12\x84\x01\n" +
 	"\x16GetAccountTransactions\x12..api.explorer.v1.GetAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/account/transactions\x12x\n" +
 	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12o\n" +
-	"\rGetValidators\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/validator/validators\x12\x94\x01\n" +
-	"\x1eGetValidatorByValidatorAddress\x126.api.explorer.v1.GetValidatorByValidatorAddressRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/validator/by-address\x12\x7f\n" +
-	"\x14GetValidatorByHeigth\x12,.api.explorer.v1.GetValidatorByHeigthRequest\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/validator/by-heightB5\n" +
+	"\rGetValidators\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/validator/validatorsB5\n" +
 	"\x0fapi.explorer.v1P\x01Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (
@@ -388,45 +293,39 @@ func file_explorer_v1_demo_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_demo_proto_rawDescData
 }
 
-var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_explorer_v1_demo_proto_goTypes = []any{
-	(*GetBlockByHeightRequest)(nil),               // 0: api.explorer.v1.GetBlockByHeightRequest
-	(*GetTransactionByHashRequest)(nil),           // 1: api.explorer.v1.GetTransactionByHashRequest
-	(*GetAccountInfoRequest)(nil),                 // 2: api.explorer.v1.GetAccountInfoRequest
-	(*GetAccountTransactionsRequest)(nil),         // 3: api.explorer.v1.GetAccountTransactionsRequest
-	(*GetAccountBalancesRequest)(nil),             // 4: api.explorer.v1.GetAccountBalancesRequest
-	(*GetValidatorByValidatorAddressRequest)(nil), // 5: api.explorer.v1.GetValidatorByValidatorAddressRequest
-	(*GetValidatorByHeigthRequest)(nil),           // 6: api.explorer.v1.GetValidatorByHeigthRequest
-	(*PaginationRequest)(nil),                     // 7: api.explorer.v1.PaginationRequest
-	(*emptypb.Empty)(nil),                         // 8: google.protobuf.Empty
-	(*Reply)(nil),                                 // 9: api.explorer.v1.Reply
+	(*GetBlockByHeightRequest)(nil),       // 0: api.explorer.v1.GetBlockByHeightRequest
+	(*GetTransactionByHashRequest)(nil),   // 1: api.explorer.v1.GetTransactionByHashRequest
+	(*GetAccountInfoRequest)(nil),         // 2: api.explorer.v1.GetAccountInfoRequest
+	(*GetAccountTransactionsRequest)(nil), // 3: api.explorer.v1.GetAccountTransactionsRequest
+	(*GetAccountBalancesRequest)(nil),     // 4: api.explorer.v1.GetAccountBalancesRequest
+	(*PaginationRequest)(nil),             // 5: api.explorer.v1.PaginationRequest
+	(*emptypb.Empty)(nil),                 // 6: google.protobuf.Empty
+	(*Reply)(nil),                         // 7: api.explorer.v1.Reply
 }
 var file_explorer_v1_demo_proto_depIdxs = []int32{
-	7,  // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
-	7,  // 1: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
+	5,  // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
+	5,  // 1: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
 	0,  // 2: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
-	8,  // 3: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
-	7,  // 4: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
+	6,  // 3: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
+	5,  // 4: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
 	1,  // 5: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
 	2,  // 6: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
 	3,  // 7: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
 	4,  // 8: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
-	7,  // 9: api.explorer.v1.Demo.GetValidators:input_type -> api.explorer.v1.PaginationRequest
-	5,  // 10: api.explorer.v1.Demo.GetValidatorByValidatorAddress:input_type -> api.explorer.v1.GetValidatorByValidatorAddressRequest
-	6,  // 11: api.explorer.v1.Demo.GetValidatorByHeigth:input_type -> api.explorer.v1.GetValidatorByHeigthRequest
-	9,  // 12: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
-	9,  // 13: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
-	9,  // 14: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
-	9,  // 15: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
-	9,  // 16: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
-	9,  // 17: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
-	9,  // 18: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
-	9,  // 19: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	9,  // 20: api.explorer.v1.Demo.GetValidators:output_type -> api.explorer.v1.Reply
-	9,  // 21: api.explorer.v1.Demo.GetValidatorByValidatorAddress:output_type -> api.explorer.v1.Reply
-	9,  // 22: api.explorer.v1.Demo.GetValidatorByHeigth:output_type -> api.explorer.v1.Reply
-	12, // [12:23] is the sub-list for method output_type
-	1,  // [1:12] is the sub-list for method input_type
+	5,  // 9: api.explorer.v1.Demo.GetValidators:input_type -> api.explorer.v1.PaginationRequest
+	7,  // 10: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
+	7,  // 11: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
+	7,  // 12: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
+	7,  // 13: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
+	7,  // 14: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
+	7,  // 15: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
+	7,  // 16: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
+	7,  // 17: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
+	7,  // 18: api.explorer.v1.Demo.GetValidators:output_type -> api.explorer.v1.Reply
+	10, // [10:19] is the sub-list for method output_type
+	1,  // [1:10] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -444,7 +343,7 @@ func file_explorer_v1_demo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_demo_proto_rawDesc), len(file_explorer_v1_demo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

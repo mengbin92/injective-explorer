@@ -42,6 +42,7 @@ const (
 	defaultBlockQueryTimeout          = 30 * time.Second       // 区块查询超时
 	defaultBackwardSyncLogInterval    = 10 * time.Second       // 向后同步进度日志时间间隔
 	defaultRpcStatusRetryDelay        = 5 * time.Second        // RPC 节点状态获取失败后的重试延迟
+	defaultValidatorSyncInterval      = 10 * time.Minute       // Validator 同步间隔（默认10分钟）
 	defaultConcurrentTxProcessors     = 5                      // 并发交易处理器数量
 	defaultBackwardSyncWorkers        = 5                      // 向后同步工作线程数
 	defaultHistoricalSyncWorkers      = 2                      // 历史同步工作线程数
@@ -65,6 +66,7 @@ type SyncConfig struct {
 	BlockQueryTimeout          time.Duration
 	BackwardSyncLogInterval    time.Duration
 	RpcStatusRetryDelay        time.Duration
+	ValidatorSyncInterval      time.Duration
 	ConcurrentTxProcessors     int
 	BackwardSyncWorkers        int
 	HistoricalSyncWorkers      int
@@ -90,6 +92,7 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		BlockQueryTimeout:          defaultBlockQueryTimeout,
 		BackwardSyncLogInterval:    defaultBackwardSyncLogInterval,
 		RpcStatusRetryDelay:        defaultRpcStatusRetryDelay,
+		ValidatorSyncInterval:      defaultValidatorSyncInterval,
 		ConcurrentTxProcessors:     defaultConcurrentTxProcessors,
 		BackwardSyncWorkers:        defaultBackwardSyncWorkers,
 		HistoricalSyncWorkers:      defaultHistoricalSyncWorkers,
@@ -132,6 +135,9 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		}
 		if sync.Intervals.RpcStatusRetry != nil {
 			cfg.RpcStatusRetryDelay = sync.Intervals.RpcStatusRetry.AsDuration()
+		}
+		if sync.Intervals.ValidatorSync != nil {
+			cfg.ValidatorSyncInterval = sync.Intervals.ValidatorSync.AsDuration()
 		}
 	}
 

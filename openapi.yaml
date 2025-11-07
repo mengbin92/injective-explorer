@@ -189,40 +189,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/validator/by-address:
-        get:
-            tags:
-                - Demo
-            operationId: Demo_GetValidatorByValidatorAddress
-            parameters:
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/validator/by-height:
-        get:
-            tags:
-                - Demo
-            operationId: Demo_GetValidatorByHeigth
-            parameters:
-                - name: height
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /demo/validator/validators:
         get:
             tags:

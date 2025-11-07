@@ -20,17 +20,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Demo_GetLatestBlocks_FullMethodName                = "/api.explorer.v1.Demo/GetLatestBlocks"
-	Demo_GetBlockByHeight_FullMethodName               = "/api.explorer.v1.Demo/GetBlockByHeight"
-	Demo_GetLatestBlockHeight_FullMethodName           = "/api.explorer.v1.Demo/GetLatestBlockHeight"
-	Demo_GetLatestTransactions_FullMethodName          = "/api.explorer.v1.Demo/GetLatestTransactions"
-	Demo_GetTransactionByHash_FullMethodName           = "/api.explorer.v1.Demo/GetTransactionByHash"
-	Demo_GetAccountInfo_FullMethodName                 = "/api.explorer.v1.Demo/GetAccountInfo"
-	Demo_GetAccountTransactions_FullMethodName         = "/api.explorer.v1.Demo/GetAccountTransactions"
-	Demo_GetAccountBalances_FullMethodName             = "/api.explorer.v1.Demo/GetAccountBalances"
-	Demo_GetValidators_FullMethodName                  = "/api.explorer.v1.Demo/GetValidators"
-	Demo_GetValidatorByValidatorAddress_FullMethodName = "/api.explorer.v1.Demo/GetValidatorByValidatorAddress"
-	Demo_GetValidatorByHeigth_FullMethodName           = "/api.explorer.v1.Demo/GetValidatorByHeigth"
+	Demo_GetLatestBlocks_FullMethodName        = "/api.explorer.v1.Demo/GetLatestBlocks"
+	Demo_GetBlockByHeight_FullMethodName       = "/api.explorer.v1.Demo/GetBlockByHeight"
+	Demo_GetLatestBlockHeight_FullMethodName   = "/api.explorer.v1.Demo/GetLatestBlockHeight"
+	Demo_GetLatestTransactions_FullMethodName  = "/api.explorer.v1.Demo/GetLatestTransactions"
+	Demo_GetTransactionByHash_FullMethodName   = "/api.explorer.v1.Demo/GetTransactionByHash"
+	Demo_GetAccountInfo_FullMethodName         = "/api.explorer.v1.Demo/GetAccountInfo"
+	Demo_GetAccountTransactions_FullMethodName = "/api.explorer.v1.Demo/GetAccountTransactions"
+	Demo_GetAccountBalances_FullMethodName     = "/api.explorer.v1.Demo/GetAccountBalances"
+	Demo_GetValidators_FullMethodName          = "/api.explorer.v1.Demo/GetValidators"
 )
 
 // DemoClient is the client API for Demo service.
@@ -46,8 +44,6 @@ type DemoClient interface {
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetValidators(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error)
-	GetValidatorByValidatorAddress(ctx context.Context, in *GetValidatorByValidatorAddressRequest, opts ...grpc.CallOption) (*Reply, error)
-	GetValidatorByHeigth(ctx context.Context, in *GetValidatorByHeigthRequest, opts ...grpc.CallOption) (*Reply, error)
 }
 
 type demoClient struct {
@@ -148,26 +144,6 @@ func (c *demoClient) GetValidators(ctx context.Context, in *PaginationRequest, o
 	return out, nil
 }
 
-func (c *demoClient) GetValidatorByValidatorAddress(ctx context.Context, in *GetValidatorByValidatorAddressRequest, opts ...grpc.CallOption) (*Reply, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetValidatorByValidatorAddress_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *demoClient) GetValidatorByHeigth(ctx context.Context, in *GetValidatorByHeigthRequest, opts ...grpc.CallOption) (*Reply, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetValidatorByHeigth_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // DemoServer is the server API for Demo service.
 // All implementations must embed UnimplementedDemoServer
 // for forward compatibility.
@@ -181,8 +157,6 @@ type DemoServer interface {
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
 	GetValidators(context.Context, *PaginationRequest) (*Reply, error)
-	GetValidatorByValidatorAddress(context.Context, *GetValidatorByValidatorAddressRequest) (*Reply, error)
-	GetValidatorByHeigth(context.Context, *GetValidatorByHeigthRequest) (*Reply, error)
 	mustEmbedUnimplementedDemoServer()
 }
 
@@ -219,12 +193,6 @@ func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBa
 }
 func (UnimplementedDemoServer) GetValidators(context.Context, *PaginationRequest) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetValidators not implemented")
-}
-func (UnimplementedDemoServer) GetValidatorByValidatorAddress(context.Context, *GetValidatorByValidatorAddressRequest) (*Reply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetValidatorByValidatorAddress not implemented")
-}
-func (UnimplementedDemoServer) GetValidatorByHeigth(context.Context, *GetValidatorByHeigthRequest) (*Reply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetValidatorByHeigth not implemented")
 }
 func (UnimplementedDemoServer) mustEmbedUnimplementedDemoServer() {}
 func (UnimplementedDemoServer) testEmbeddedByValue()              {}
@@ -409,42 +377,6 @@ func _Demo_GetValidators_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetValidatorByValidatorAddress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetValidatorByValidatorAddressRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DemoServer).GetValidatorByValidatorAddress(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Demo_GetValidatorByValidatorAddress_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetValidatorByValidatorAddress(ctx, req.(*GetValidatorByValidatorAddressRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Demo_GetValidatorByHeigth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetValidatorByHeigthRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DemoServer).GetValidatorByHeigth(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Demo_GetValidatorByHeigth_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetValidatorByHeigth(ctx, req.(*GetValidatorByHeigthRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Demo_ServiceDesc is the grpc.ServiceDesc for Demo service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -487,14 +419,6 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetValidators",
 			Handler:    _Demo_GetValidators_Handler,
-		},
-		{
-			MethodName: "GetValidatorByValidatorAddress",
-			Handler:    _Demo_GetValidatorByValidatorAddress_Handler,
-		},
-		{
-			MethodName: "GetValidatorByHeigth",
-			Handler:    _Demo_GetValidatorByHeigth_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
