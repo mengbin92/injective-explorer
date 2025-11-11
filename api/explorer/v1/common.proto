@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package api.explorer.v1;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.explorer.v1";
@@ -40,6 +42,6 @@ message Reply {
   int32 code = 1;
   // 响应消息
   string message = 2;
-  // 响应数据（JSON字符串格式）
-  string data = 3;
+  // 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
+  google.protobuf.Struct data = 3;
 }

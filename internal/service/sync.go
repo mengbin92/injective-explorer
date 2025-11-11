@@ -74,6 +74,8 @@ func NewSyncService(config *SyncConfig) *SyncService {
 
 // Start starts the blockchain synchronization service.
 // It starts goroutines for block monitoring and transaction processing.
+// The initialization and backward sync operations are performed asynchronously
+// to avoid blocking service startup.
 func (s *SyncService) Start() error {
 	global.Logger.Infof("starting blockchain sync service")
 
@@ -82,23 +84,10 @@ func (s *SyncService) Start() error {
 		return errors.Wrap(err, "failed to initialize clients")
 	}
 
-	// Initialize current height from database and verify chain continuity
-	// Then sync backwards from latest block to ensure we have the most recent blocks
-	if err := s.initCurrentHeightWithVerification(); err != nil {
-		global.Logger.Warnf("failed to initialize current height with verification: %v, starting from latest", err)
-		// If failed, start from latest block
-		latestHeight, err := s.getLatestBlockHeight()
-		if err != nil {
-			return errors.Wrap(err, "failed to get latest block height")
-		}
-		s.setCurrentHeight(latestHeight)
-	} else {
-		// Sync backwards from latest block to current height
-		if err := s.syncBackwardsFromLatest(); err != nil {
-			global.Logger.Warnf("failed to sync backwards from latest: %v", err)
-			// Continue anyway, will sync forwards in the normal flow
-		}
-	}
+	// Start initialization and backward sync in background goroutine
+	// This allows the service to start immediately without waiting for sync to complete
+	s.wg.Add(1)
+	go s.initializeAndSync()
 
 	// Start block monitoring goroutine
 	s.wg.Add(1)
@@ -128,8 +117,38 @@ func (s *SyncService) Start() error {
 		// Continue anyway, will process them eventually
 	}
 
-	global.Logger.Infof("blockchain sync service started, current height: %d, %d transaction processors", s.getCurrentHeight(), s.config.ConcurrentTxProcessors)
+	global.Logger.Infof("blockchain sync service started, initialization in progress, %d transaction processors", s.config.ConcurrentTxProcessors)
 	return nil
+}
+
+// initializeAndSync performs initialization and backward sync operations asynchronously.
+// This allows the service to start immediately while sync happens in the background.
+func (s *SyncService) initializeAndSync() {
+	defer s.wg.Done()
+
+	global.Logger.Infof("starting async initialization and sync")
+
+	// Initialize current height from database and verify chain continuity
+	// Then sync backwards from latest block to ensure we have the most recent blocks
+	if err := s.initCurrentHeightWithVerification(); err != nil {
+		global.Logger.Warnf("failed to initialize current height with verification: %v, starting from latest", err)
+		// If failed, start from latest block
+		latestHeight, err := s.getLatestBlockHeight()
+		if err != nil {
+			global.Logger.Errorf("failed to get latest block height: %v", err)
+			return
+		}
+		s.setCurrentHeight(latestHeight)
+		global.Logger.Infof("initialized current height to latest: %d", latestHeight)
+	} else {
+		// Sync backwards from latest block to current height
+		if err := s.syncBackwardsFromLatest(); err != nil {
+			global.Logger.Warnf("failed to sync backwards from latest: %v", err)
+			// Continue anyway, will sync forwards in the normal flow
+		}
+	}
+
+	global.Logger.Infof("async initialization and sync completed, current height: %d", s.getCurrentHeight())
 }
 
 // Stop stops the blockchain synchronization service.

@@ -9,6 +9,7 @@ package v1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -185,8 +186,8 @@ type Reply struct {
 	Code int32 `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	// 响应消息
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	// 响应数据（JSON字符串格式）
-	Data          string `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	// 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
+	Data          *structpb.Struct `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -235,18 +236,18 @@ func (x *Reply) GetMessage() string {
 	return ""
 }
 
-func (x *Reply) GetData() string {
+func (x *Reply) GetData() *structpb.Struct {
 	if x != nil {
 		return x.Data
 	}
-	return ""
+	return nil
 }
 
 var File_explorer_v1_common_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x18explorer/v1/common.proto\x12\x0fapi.explorer.v1\"\\\n" +
+	"\x18explorer/v1/common.proto\x12\x0fapi.explorer.v1\x1a\x1cgoogle/protobuf/struct.proto\"\\\n" +
 	"\x11PaginationRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x16\n" +
@@ -258,11 +259,11 @@ const file_explorer_v1_common_proto_rawDesc = "" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
 	"totalPages\x12\x19\n" +
 	"\bhas_prev\x18\x05 \x01(\bR\ahasPrev\x12\x19\n" +
-	"\bhas_next\x18\x06 \x01(\bR\ahasNext\"I\n" +
+	"\bhas_next\x18\x06 \x01(\bR\ahasNext\"b\n" +
 	"\x05Reply\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
-	"\x04data\x18\x03 \x01(\tR\x04dataB5\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12+\n" +
+	"\x04data\x18\x03 \x01(\v2\x17.google.protobuf.StructR\x04dataB5\n" +
 	"\x0fapi.explorer.v1P\x01Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (
@@ -282,13 +283,15 @@ var file_explorer_v1_common_proto_goTypes = []any{
 	(*PaginationRequest)(nil), // 0: api.explorer.v1.PaginationRequest
 	(*PaginationInfo)(nil),    // 1: api.explorer.v1.PaginationInfo
 	(*Reply)(nil),             // 2: api.explorer.v1.Reply
+	(*structpb.Struct)(nil),   // 3: google.protobuf.Struct
 }
 var file_explorer_v1_common_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	3, // 0: api.explorer.v1.Reply.data:type_name -> google.protobuf.Struct
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_explorer_v1_common_proto_init() }

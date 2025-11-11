@@ -24,7 +24,7 @@ log:
   format: console
 
 chain:
-  network: testnet
+  network: mainnet
   lcd_endpoint: https://sentry.lcd.injective.network
   tm_endpoint: https://sentry.tm.injective.network:443
   chain_grpc_endpoint: sentry.chain.grpc.injective.network:443
@@ -75,4 +75,4 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 99641477 # 最早区块高度的默认值
+    earliest_height: 141021434 # 最早区块高度的默认值

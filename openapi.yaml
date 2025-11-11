@@ -235,8 +235,8 @@ components:
                     type: string
                     description: 响应消息
                 data:
-                    type: string
-                    description: 响应数据（JSON字符串格式）
+                    type: object
+                    description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
             description: 通用响应结构
 tags:
     - name: Demo
