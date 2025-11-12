@@ -88,12 +88,13 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	queryDuration := time.Since(startTime)
 
 	if err == nil && len(dbBlocks) > 0 {
-		// Found in database, convert to protobuf format and return
+		// Found in database, convert to DTO and return
 		global.Logger.Infof("blocks found in database: count=%d, query_time=%v", len(dbBlocks), queryDuration)
 
 		if len(dbBlocks) > 0 {
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbBlocks, func(b models.Block) uint64 { return b.Height })
-			blocksResp := buildPaginatedResponse(dbBlocks, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbBlocks))
+			blockDTOs := models.ToBlockDTOs(dbBlocks)
+			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbBlocks))
 			return s.marshalAndReply(blocksResp, "marshal blocks error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -137,7 +138,8 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	}
 
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbBlocks, func(b models.Block) uint64 { return b.Height })
-	blocksResp := buildPaginatedResponse(dbBlocks, page, pageSize, int64(len(dbBlocks)), true, useCursor, cursorValue, nextCursor, len(dbBlocks))
+	blockDTOs := models.ToBlockDTOs(dbBlocks)
+	blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, int64(len(dbBlocks)), true, useCursor, cursorValue, nextCursor, len(dbBlocks))
 	return s.marshalAndReply(blocksResp, "marshal blocks error")
 }
 
@@ -167,10 +169,11 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	var dbBlock models.Block
 	err := db.Get().WithContext(ctx).Where("height = ?", req.Height).First(&dbBlock).Error
 	if err == nil {
-		// Found in database, convert to protobuf format and return
+		// Found in database, convert to DTO and return
 		global.Logger.Infof("block found in database: height=%d", req.Height)
 
-		return s.marshalAndReply(dbBlock, "marshal block error")
+		blockDTO := models.ToBlockDTO(&dbBlock)
+		return s.marshalAndReply(blockDTO, "marshal block error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
 		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v", req.Height, err)
@@ -197,7 +200,8 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	blockModel := models.BlockFromProto(block.Data)
 	saveToDB(blockModel, "create block error")
 
-	return s.marshalAndReply(blockModel, "marshal block error")
+	blockDTO := models.ToBlockDTO(blockModel)
+	return s.marshalAndReply(blockDTO, "marshal block error")
 }
 
 // GetLatestBlockHeight retrieves the height of the latest block.
@@ -271,12 +275,13 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	queryDuration := time.Since(startTime)
 
 	if err == nil && len(dbTxs) > 0 {
-		// Found in database, convert to protobuf format and return
+		// Found in database, convert to DTO and return
 		global.Logger.Infof("transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
 
 		if len(dbTxs) > 0 {
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-			txsResp := buildPaginatedResponse(dbTxs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
+			txDTOs := models.ToTransactionDTOs(dbTxs)
+			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
 			return s.marshalAndReply(txsResp, "marshal transactions error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -314,7 +319,8 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	}
 
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-	txsResp := buildPaginatedResponse(dbTxs, page, pageSize, int64(len(dbTxs)), true, useCursor, cursorValue, nextCursor, len(dbTxs))
+	txDTOs := models.ToTransactionDTOs(dbTxs)
+	txsResp := buildPaginatedResponse(txDTOs, page, pageSize, int64(len(dbTxs)), true, useCursor, cursorValue, nextCursor, len(dbTxs))
 	return s.marshalAndReply(txsResp, "marshal transactions error")
 }
 
@@ -345,9 +351,10 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	var dbTx models.Transaction
 	err := db.Get().WithContext(ctx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
 	if err == nil {
-		// Found in database, convert to protobuf format and return
+		// Found in database, convert to DTO and return
 		global.Logger.Infof("transaction found in database: hash=0x%s", hash)
-		return s.marshalAndReply(dbTx, "marshal transaction error")
+		txDTO := models.ToTransactionDTO(&dbTx)
+		return s.marshalAndReply(txDTO, "marshal transaction error")
 
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -375,7 +382,8 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	transactionModel := models.TransactionFromProto(transaction.Data)
 	saveToDB(transactionModel, "create transaction error")
 
-	return s.marshalAndReply(transactionModel, "marshal transaction error")
+	txDTO := models.ToTransactionDTO(transactionModel)
+	return s.marshalAndReply(txDTO, "marshal transaction error")
 }
 
 // GetAccountInfo retrieves account information for a given address.
@@ -405,9 +413,10 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	var dbAccount models.Account
 	err := db.Get().WithContext(ctx).Where("address = ?", address).First(&dbAccount).Error
 	if err == nil {
-		// Found in database, convert to JSON and return
+		// Found in database, convert to DTO and return
 		global.Logger.Infof("account found in database: address=%s", address)
-		return s.marshalAndReply(dbAccount, "marshal account error")
+		accountDTO := models.ToAccountDTO(&dbAccount)
+		return s.marshalAndReply(accountDTO, "marshal account error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
 		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
@@ -441,7 +450,8 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		if err == nil {
 			// Found in database with converted address
 			global.Logger.Infof("account found in database with converted address: address=%s", address)
-			return s.marshalAndReply(dbAccount, "marshal account error")
+			accountDTO := models.ToAccountDTO(&dbAccount)
+			return s.marshalAndReply(accountDTO, "marshal account error")
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			// Database error (not just record not found), log and continue
 			global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
@@ -480,7 +490,8 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	accountModel := models.AccountFromProto(ethAccount, address, client.ClientContext().Codec)
 	saveToDB(accountModel, "create account error")
 
-	return s.marshalAndReply(accountModel, "marshal account error")
+	accountDTO := models.ToAccountDTO(accountModel)
+	return s.marshalAndReply(accountDTO, "marshal account error")
 }
 
 // GetAccountTransactions retrieves transactions for a given account address with pagination.
@@ -554,7 +565,8 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 
 		if len(dbTxs) > 0 {
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-			txsResp := buildPaginatedResponse(dbTxs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
+			txDTOs := models.ToTransactionDTOs(dbTxs)
+			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
 			return s.marshalAndReply(txsResp, "marshal transactions error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -590,7 +602,8 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 			dbTxs = append(dbTxs, *dbTx)
 		}
 		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-		transactionsResp := buildPaginatedResponse(dbTxs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
+		txDTOs := models.ToTransactionDTOs(dbTxs)
+		transactionsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
 		return s.marshalAndReply(transactionsResp, "marshal transactions error")
 	}
 	return s.errorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
@@ -733,12 +746,13 @@ func (s *DemoService) GetValidators(ctx context.Context, req *pb.PaginationReque
 	queryDuration := time.Since(startTime)
 
 	if err == nil && len(dbValidators) > 0 {
-		// Found in database, convert to protobuf format and return
+		// Found in database, convert to DTO and return
 		global.Logger.Infof("validators found in database: count=%d, query_time=%v", len(dbValidators), queryDuration)
 
 		if len(dbValidators) > 0 {
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbValidators, func(v models.Validator) uint64 { return uint64(v.ID) })
-			validatorsResp := buildPaginatedResponse(dbValidators, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbValidators))
+			validatorDTOs := models.ToValidatorDTOs(dbValidators)
+			validatorsResp := buildPaginatedResponse(validatorDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbValidators))
 			return s.marshalAndReply(validatorsResp, "marshal validators error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -777,7 +791,8 @@ func (s *DemoService) GetValidators(ctx context.Context, req *pb.PaginationReque
 	}
 
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbValidators, func(v models.Validator) uint64 { return uint64(v.ID) })
-	validatorsResp := buildPaginatedResponse(dbValidators, page, pageSize, int64(len(dbValidators)), true, useCursor, cursorValue, nextCursor, len(dbValidators))
+	validatorDTOs := models.ToValidatorDTOs(dbValidators)
+	validatorsResp := buildPaginatedResponse(validatorDTOs, page, pageSize, int64(len(dbValidators)), true, useCursor, cursorValue, nextCursor, len(dbValidators))
 	return s.marshalAndReply(validatorsResp, "marshal validators error")
 }
 
