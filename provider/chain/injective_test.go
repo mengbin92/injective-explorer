@@ -9,13 +9,17 @@ import (
 
 	pb "injective-explorer/api/explorer/v1"
 
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/sdk-go/client"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
 	"github.com/InjectiveLabs/sdk-go/client/common"
 	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestInjectiveWithSDK(t *testing.T) {
@@ -52,8 +56,6 @@ func TestInjectiveWithSDK(t *testing.T) {
 	str, _ = json.MarshalIndent(res, "", "\t")
 	fmt.Print(string(str))
 }
-
-
 
 func TestGetAccountBalances(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
@@ -145,10 +147,14 @@ func TestGetLatestTransactions(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	structData, err := toStruct(transactions)
+	if err != nil {
+		panic(err)
+	}
 	reply := &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    transactions.String(),
+		Data:    structData,
 	}
 
 	str, _ := json.Marshal(reply)
@@ -178,16 +184,20 @@ func TestGetAccountInfo(t *testing.T) {
 	)
 	if err != nil {
 		panic(err)
-	}	
+	}
 
 	account, err := chainClient.GetAccount(context.Background(), "inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z")
+	if err != nil {
+		panic(err)
+	}
+	structData, err := toStruct(account)
 	if err != nil {
 		panic(err)
 	}
 	reply := &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
-		Data:    account.String(),
+		Data:    structData,
 	}
 
 	str, _ := json.Marshal(reply)
@@ -270,4 +280,36 @@ func TestChainClientFetchValidator(t *testing.T) {
 		panic(err)
 	}
 	fmt.Println(validator.String())
+}
+
+func TestGetTransactionsByHash(t *testing.T) {
+	network := common.LoadNetwork("mainnet", "lb")
+	explorerClient, err := explorerclient.NewExplorerClient(network)
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := context.Background()
+	transaction, err := explorerClient.GetTxByTxHash(ctx, "0xD129861AD54EEDB17E16C456524791258E098F75719C9CCA75C9936A65B692C3")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(transaction.Data.GetClaimIds())
+}
+
+func toStruct(v interface{}) (*structpb.Struct, error) {
+	// Marshal to JSON first
+	jsonBytes, err := sonic.Marshal(v)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal to JSON")
+	}
+
+	// Unmarshal into structpb.Struct
+	var structData structpb.Struct
+	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
+	}
+
+	return &structData, nil
 }
