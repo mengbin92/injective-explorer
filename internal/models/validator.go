@@ -76,34 +76,35 @@ func ValidatorFromProto(validator *injective_explorer_rpcpb.Validator) *Validato
 		return nil
 	}
 
-	// Store Description as base64-encoded protobuf binary for reversible conversion
+	// Store Description as JSON string for reversible conversion
 	// Use shared utility function to eliminate code duplication
 	description := ""
 	if validator.Description != nil {
-		encoded, err := MarshalProtoToBase64(validator.Description)
+		encoded, err := MarshalProtoToJSON(validator.Description)
 		if err == nil {
 			description = encoded
 		} else {
-			// Fallback to string representation if marshaling fails
-			description = validator.Description.String()
+			// Fallback to empty string if marshaling fails
+			// In production, you might want to log this error
+			description = ""
 		}
 	}
 
-	// Store Uptimes as base64-encoded protobuf binary for reversible conversion
+	// Store Uptimes as JSON strings for reversible conversion
 	// Use shared utility function to eliminate code duplication
 	uptimeMessages := make([]proto.Message, 0, len(validator.Uptimes))
 	for _, uptime := range validator.Uptimes {
 		uptimeMessages = append(uptimeMessages, uptime)
 	}
-	uptimes, _ := MarshalProtoSliceToBase64(uptimeMessages)
+	uptimes, _ := MarshalProtoSliceToJSON(uptimeMessages)
 
-	// Store SlashingEvents as base64-encoded protobuf binary for reversible conversion
+	// Store SlashingEvents as JSON strings for reversible conversion
 	// Use shared utility function to eliminate code duplication
 	slashingEventMessages := make([]proto.Message, 0, len(validator.SlashingEvents))
 	for _, slashingEvent := range validator.SlashingEvents {
 		slashingEventMessages = append(slashingEventMessages, slashingEvent)
 	}
-	slashingEvents, _ := MarshalProtoSliceToBase64(slashingEventMessages)
+	slashingEvents, _ := MarshalProtoSliceToJSON(slashingEventMessages)
 
 	return &Validator{
 		Id:                      validator.Id,
@@ -144,20 +145,20 @@ func ValidatorToProto(validator *Validator) *injective_explorer_rpcpb.Validator 
 		return nil
 	}
 
-	// Parse Description from base64-encoded protobuf binary back to protobuf format
+	// Parse Description from JSON string back to protobuf format
 	// Use shared utility function to eliminate code duplication
 	var description *injective_explorer_rpcpb.ValidatorDescription
 	if validator.Description != "" {
 		var desc injective_explorer_rpcpb.ValidatorDescription
-		if err := UnmarshalProtoFromBase64(validator.Description, &desc); err == nil {
+		if err := UnmarshalProtoFromJSON(validator.Description, &desc); err == nil {
 			description = &desc
 		}
-		// If base64 decode or unmarshal fails, the string might be in text format
+		// If JSON unmarshal fails, the string might be in old format
 		// from old data. We'll leave description as nil to maintain compatibility
 		// Note: This is a fallback for backward compatibility with old data format
 	}
 
-	// Convert Uptimes from base64-encoded protobuf binary back to protobuf format
+	// Convert Uptimes from JSON strings back to protobuf format
 	// Use shared utility function to eliminate code duplication
 	uptimes := make([]*injective_explorer_rpcpb.ValidatorUptime, 0, len(validator.Uptimes))
 	for _, uptimeStr := range validator.Uptimes {
@@ -166,18 +167,18 @@ func ValidatorToProto(validator *Validator) *injective_explorer_rpcpb.Validator 
 		}
 
 		var uptime injective_explorer_rpcpb.ValidatorUptime
-		if err := UnmarshalProtoFromBase64(uptimeStr, &uptime); err == nil {
+		if err := UnmarshalProtoFromJSON(uptimeStr, &uptime); err == nil {
 			uptimes = append(uptimes, &uptime)
 			continue
 		}
 
-		// If base64 decode or unmarshal fails, the string might be in text format
+		// If JSON unmarshal fails, the string might be in old format
 		// from old data. We'll create an empty ValidatorUptime to maintain compatibility
 		// Note: This is a fallback for backward compatibility with old data format
 		uptimes = append(uptimes, &injective_explorer_rpcpb.ValidatorUptime{})
 	}
 
-	// Convert SlashingEvents from base64-encoded protobuf binary back to protobuf format
+	// Convert SlashingEvents from JSON strings back to protobuf format
 	// Use shared utility function to eliminate code duplication
 	slashingEvents := make([]*injective_explorer_rpcpb.SlashingEvent, 0, len(validator.SlashingEvents))
 	for _, slashingEventStr := range validator.SlashingEvents {
@@ -186,12 +187,12 @@ func ValidatorToProto(validator *Validator) *injective_explorer_rpcpb.Validator 
 		}
 
 		var slashingEvent injective_explorer_rpcpb.SlashingEvent
-		if err := UnmarshalProtoFromBase64(slashingEventStr, &slashingEvent); err == nil {
+		if err := UnmarshalProtoFromJSON(slashingEventStr, &slashingEvent); err == nil {
 			slashingEvents = append(slashingEvents, &slashingEvent)
 			continue
 		}
 
-		// If base64 decode or unmarshal fails, the string might be in text format
+		// If JSON unmarshal fails, the string might be in old format
 		// from old data. We'll create an empty SlashingEvent to maintain compatibility
 		// Note: This is a fallback for backward compatibility with old data format
 		slashingEvents = append(slashingEvents, &injective_explorer_rpcpb.SlashingEvent{})

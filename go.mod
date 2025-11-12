@@ -3,6 +3,7 @@ module injective-explorer
 go 1.25.3
 
 require (
+	cosmossdk.io/errors v1.0.1
 	github.com/InjectiveLabs/sdk-go v1.58.3
 	github.com/bytedance/sonic v1.14.2
 	github.com/cometbft/cometbft v1.0.1
@@ -29,7 +30,6 @@ require (
 	cosmossdk.io/collections v0.4.0 // indirect
 	cosmossdk.io/core v0.12.1-0.20231114100755-569e3ff6a0d7 // indirect
 	cosmossdk.io/depinject v1.1.0 // indirect
-	cosmossdk.io/errors v1.0.1 // indirect
 	cosmossdk.io/log v1.4.1 // indirect
 	cosmossdk.io/math v1.4.0 // indirect
 	cosmossdk.io/store v1.1.1 // indirect

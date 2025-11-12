@@ -343,10 +343,10 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 
 	// First, try to query from database
 	var dbTx models.Transaction
-	err := db.Get().WithContext(ctx).Where("hash = ?", hash).First(&dbTx).Error
+	err := db.Get().WithContext(ctx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
 	if err == nil {
 		// Found in database, convert to protobuf format and return
-		global.Logger.Infof("transaction found in database: hash=%s", hash)
+		global.Logger.Infof("transaction found in database: hash=0x%s", hash)
 		return s.marshalAndReply(dbTx, "marshal transaction error")
 
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {

@@ -55,33 +55,34 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		return nil
 	}
 
-	// Store events as base64-encoded protobuf binary for reversible conversion
+	// Store events as JSON strings for reversible conversion
 	// Use shared utility function to eliminate code duplication
 	eventMessages := make([]proto.Message, 0, len(detail.Events))
 	for _, event := range detail.Events {
 		eventMessages = append(eventMessages, event)
 	}
-	events, _ := MarshalProtoSliceToBase64(eventMessages)
+	events, _ := MarshalProtoSliceToJSON(eventMessages)
 
-	// Store signatures as base64-encoded protobuf binary for reversible conversion
+	// Store signatures as JSON strings for reversible conversion
 	// Use shared utility function to eliminate code duplication
 	sigMessages := make([]proto.Message, 0, len(detail.Signatures))
 	for _, sig := range detail.Signatures {
 		sigMessages = append(sigMessages, sig)
 	}
-	signatures, _ := MarshalProtoSliceToBase64(sigMessages)
+	signatures, _ := MarshalProtoSliceToJSON(sigMessages)
 
-	// Store GasFee as base64-encoded protobuf binary for reversible conversion
+	// Store GasFee as JSON string for reversible conversion
 	gasFee := ""
 	payer := ""
 	if detail.GasFee != nil {
 		// Use shared utility function to eliminate code duplication
-		encoded, err := MarshalProtoToBase64(detail.GasFee)
+		encoded, err := MarshalProtoToJSON(detail.GasFee)
 		if err == nil {
 			gasFee = encoded
 		} else {
-			// Fallback to string representation if marshaling fails
-			gasFee = detail.GasFee.String()
+			// Fallback to empty string if marshaling fails
+			// In production, you might want to log this error
+			gasFee = ""
 		}
 		payer = detail.GasFee.Payer
 	}
@@ -175,7 +176,7 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	messagesBytes := decodeBinaryData(tx.Messages)
 	logsBytes := decodeBinaryData(tx.Logs)
 
-	// Convert events from base64-encoded protobuf binary back to protobuf format
+	// Convert events from JSON strings back to protobuf format
 	// Use shared utility function to eliminate code duplication
 	events := make([]*injective_explorer_rpcpb.Event, 0, len(tx.Events))
 	for _, eventStr := range tx.Events {
@@ -184,18 +185,18 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 		}
 
 		var event injective_explorer_rpcpb.Event
-		if err := UnmarshalProtoFromBase64(eventStr, &event); err == nil {
+		if err := UnmarshalProtoFromJSON(eventStr, &event); err == nil {
 			events = append(events, &event)
 			continue
 		}
 
-		// If base64 decode or unmarshal fails, the string might be in text format
+		// If JSON unmarshal fails, the string might be in old format
 		// from old data. We'll create an empty Event to maintain compatibility
 		// Note: This is a fallback for backward compatibility with old data format
 		events = append(events, &injective_explorer_rpcpb.Event{})
 	}
 
-	// Convert signatures from base64-encoded protobuf binary back to protobuf format
+	// Convert signatures from JSON strings back to protobuf format
 	// Use shared utility function to eliminate code duplication
 	signatures := make([]*injective_explorer_rpcpb.Signature, 0, len(tx.Signatures))
 	for _, sigStr := range tx.Signatures {
@@ -204,26 +205,26 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 		}
 
 		var sig injective_explorer_rpcpb.Signature
-		if err := UnmarshalProtoFromBase64(sigStr, &sig); err == nil {
+		if err := UnmarshalProtoFromJSON(sigStr, &sig); err == nil {
 			signatures = append(signatures, &sig)
 			continue
 		}
 
-		// If base64 decode or unmarshal fails, the string might be in text format
+		// If JSON unmarshal fails, the string might be in old format
 		// from old data. We'll create an empty Signature to maintain compatibility
 		// Note: This is a fallback for backward compatibility with old data format
 		signatures = append(signatures, &injective_explorer_rpcpb.Signature{})
 	}
 
-	// Parse GasFee from base64-encoded protobuf binary back to protobuf format
+	// Parse GasFee from JSON string back to protobuf format
 	// Use shared utility function to eliminate code duplication
 	var gasFee *injective_explorer_rpcpb.GasFee
 	if tx.GasFee != "" {
 		var gasFeeData injective_explorer_rpcpb.GasFee
-		if err := UnmarshalProtoFromBase64(tx.GasFee, &gasFeeData); err == nil {
+		if err := UnmarshalProtoFromJSON(tx.GasFee, &gasFeeData); err == nil {
 			gasFee = &gasFeeData
 		}
-		// If base64 decode or unmarshal fails, the string might be in text format
+		// If JSON unmarshal fails, the string might be in old format
 		// from old data. We'll leave gasFee as nil to maintain compatibility
 		// Note: This is a fallback for backward compatibility with old data format
 	}
