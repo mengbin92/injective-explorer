@@ -20,15 +20,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Demo_GetLatestBlocks_FullMethodName        = "/api.explorer.v1.Demo/GetLatestBlocks"
-	Demo_GetBlockByHeight_FullMethodName       = "/api.explorer.v1.Demo/GetBlockByHeight"
-	Demo_GetLatestBlockHeight_FullMethodName   = "/api.explorer.v1.Demo/GetLatestBlockHeight"
-	Demo_GetLatestTransactions_FullMethodName  = "/api.explorer.v1.Demo/GetLatestTransactions"
-	Demo_GetTransactionByHash_FullMethodName   = "/api.explorer.v1.Demo/GetTransactionByHash"
-	Demo_GetAccountInfo_FullMethodName         = "/api.explorer.v1.Demo/GetAccountInfo"
-	Demo_GetAccountTransactions_FullMethodName = "/api.explorer.v1.Demo/GetAccountTransactions"
-	Demo_GetAccountBalances_FullMethodName     = "/api.explorer.v1.Demo/GetAccountBalances"
-	Demo_GetValidators_FullMethodName          = "/api.explorer.v1.Demo/GetValidators"
+	Demo_GetLatestBlocks_FullMethodName          = "/api.explorer.v1.Demo/GetLatestBlocks"
+	Demo_GetBlockByHeight_FullMethodName         = "/api.explorer.v1.Demo/GetBlockByHeight"
+	Demo_GetLatestBlockHeight_FullMethodName     = "/api.explorer.v1.Demo/GetLatestBlockHeight"
+	Demo_GetLatestTransactions_FullMethodName    = "/api.explorer.v1.Demo/GetLatestTransactions"
+	Demo_GetTransactionByHash_FullMethodName     = "/api.explorer.v1.Demo/GetTransactionByHash"
+	Demo_GetAccountInfo_FullMethodName           = "/api.explorer.v1.Demo/GetAccountInfo"
+	Demo_GetAccountTransactions_FullMethodName   = "/api.explorer.v1.Demo/GetAccountTransactions"
+	Demo_GetAccountBalances_FullMethodName       = "/api.explorer.v1.Demo/GetAccountBalances"
+	Demo_GetValidators_FullMethodName            = "/api.explorer.v1.Demo/GetValidators"
+	Demo_StreamLatestBlocks_FullMethodName       = "/api.explorer.v1.Demo/StreamLatestBlocks"
+	Demo_StreamLatestTransactions_FullMethodName = "/api.explorer.v1.Demo/StreamLatestTransactions"
+	Demo_StreamAccountUpdates_FullMethodName     = "/api.explorer.v1.Demo/StreamAccountUpdates"
 )
 
 // DemoClient is the client API for Demo service.
@@ -44,6 +47,13 @@ type DemoClient interface {
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetValidators(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error)
+	// Streaming RPCs for real-time updates
+	// Stream latest blocks as they are added to the chain
+	StreamLatestBlocks(ctx context.Context, in *StreamLatestBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BlockUpdate], error)
+	// Stream latest transactions as they are added to the chain
+	StreamLatestTransactions(ctx context.Context, in *StreamLatestTransactionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TransactionUpdate], error)
+	// Stream account updates (balance changes, new transactions, etc.)
+	StreamAccountUpdates(ctx context.Context, in *StreamAccountUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AccountUpdate], error)
 }
 
 type demoClient struct {
@@ -144,6 +154,63 @@ func (c *demoClient) GetValidators(ctx context.Context, in *PaginationRequest, o
 	return out, nil
 }
 
+func (c *demoClient) StreamLatestBlocks(ctx context.Context, in *StreamLatestBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BlockUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Demo_ServiceDesc.Streams[0], Demo_StreamLatestBlocks_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamLatestBlocksRequest, BlockUpdate]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Demo_StreamLatestBlocksClient = grpc.ServerStreamingClient[BlockUpdate]
+
+func (c *demoClient) StreamLatestTransactions(ctx context.Context, in *StreamLatestTransactionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TransactionUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Demo_ServiceDesc.Streams[1], Demo_StreamLatestTransactions_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamLatestTransactionsRequest, TransactionUpdate]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Demo_StreamLatestTransactionsClient = grpc.ServerStreamingClient[TransactionUpdate]
+
+func (c *demoClient) StreamAccountUpdates(ctx context.Context, in *StreamAccountUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AccountUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Demo_ServiceDesc.Streams[2], Demo_StreamAccountUpdates_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamAccountUpdatesRequest, AccountUpdate]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Demo_StreamAccountUpdatesClient = grpc.ServerStreamingClient[AccountUpdate]
+
 // DemoServer is the server API for Demo service.
 // All implementations must embed UnimplementedDemoServer
 // for forward compatibility.
@@ -157,6 +224,13 @@ type DemoServer interface {
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
 	GetValidators(context.Context, *PaginationRequest) (*Reply, error)
+	// Streaming RPCs for real-time updates
+	// Stream latest blocks as they are added to the chain
+	StreamLatestBlocks(*StreamLatestBlocksRequest, grpc.ServerStreamingServer[BlockUpdate]) error
+	// Stream latest transactions as they are added to the chain
+	StreamLatestTransactions(*StreamLatestTransactionsRequest, grpc.ServerStreamingServer[TransactionUpdate]) error
+	// Stream account updates (balance changes, new transactions, etc.)
+	StreamAccountUpdates(*StreamAccountUpdatesRequest, grpc.ServerStreamingServer[AccountUpdate]) error
 	mustEmbedUnimplementedDemoServer()
 }
 
@@ -193,6 +267,15 @@ func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBa
 }
 func (UnimplementedDemoServer) GetValidators(context.Context, *PaginationRequest) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetValidators not implemented")
+}
+func (UnimplementedDemoServer) StreamLatestBlocks(*StreamLatestBlocksRequest, grpc.ServerStreamingServer[BlockUpdate]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamLatestBlocks not implemented")
+}
+func (UnimplementedDemoServer) StreamLatestTransactions(*StreamLatestTransactionsRequest, grpc.ServerStreamingServer[TransactionUpdate]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamLatestTransactions not implemented")
+}
+func (UnimplementedDemoServer) StreamAccountUpdates(*StreamAccountUpdatesRequest, grpc.ServerStreamingServer[AccountUpdate]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamAccountUpdates not implemented")
 }
 func (UnimplementedDemoServer) mustEmbedUnimplementedDemoServer() {}
 func (UnimplementedDemoServer) testEmbeddedByValue()              {}
@@ -377,6 +460,39 @@ func _Demo_GetValidators_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Demo_StreamLatestBlocks_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamLatestBlocksRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DemoServer).StreamLatestBlocks(m, &grpc.GenericServerStream[StreamLatestBlocksRequest, BlockUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Demo_StreamLatestBlocksServer = grpc.ServerStreamingServer[BlockUpdate]
+
+func _Demo_StreamLatestTransactions_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamLatestTransactionsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DemoServer).StreamLatestTransactions(m, &grpc.GenericServerStream[StreamLatestTransactionsRequest, TransactionUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Demo_StreamLatestTransactionsServer = grpc.ServerStreamingServer[TransactionUpdate]
+
+func _Demo_StreamAccountUpdates_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamAccountUpdatesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DemoServer).StreamAccountUpdates(m, &grpc.GenericServerStream[StreamAccountUpdatesRequest, AccountUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Demo_StreamAccountUpdatesServer = grpc.ServerStreamingServer[AccountUpdate]
+
 // Demo_ServiceDesc is the grpc.ServiceDesc for Demo service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -421,6 +537,22 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Demo_GetValidators_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamLatestBlocks",
+			Handler:       _Demo_StreamLatestBlocks_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamLatestTransactions",
+			Handler:       _Demo_StreamLatestTransactions_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamAccountUpdates",
+			Handler:       _Demo_StreamAccountUpdates_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "explorer/v1/demo.proto",
 }

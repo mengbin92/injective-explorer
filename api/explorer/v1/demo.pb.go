@@ -11,6 +11,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -251,11 +252,358 @@ func (x *GetAccountBalancesRequest) GetAddress() string {
 	return ""
 }
 
+// Streaming request messages
+type StreamLatestBlocksRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional: start streaming from a specific block height
+	// If 0, streams from the latest blocks
+	FromHeight    int64 `protobuf:"varint,1,opt,name=from_height,json=fromHeight,proto3" json:"from_height,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamLatestBlocksRequest) Reset() {
+	*x = StreamLatestBlocksRequest{}
+	mi := &file_explorer_v1_demo_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamLatestBlocksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamLatestBlocksRequest) ProtoMessage() {}
+
+func (x *StreamLatestBlocksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_demo_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamLatestBlocksRequest.ProtoReflect.Descriptor instead.
+func (*StreamLatestBlocksRequest) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *StreamLatestBlocksRequest) GetFromHeight() int64 {
+	if x != nil {
+		return x.FromHeight
+	}
+	return 0
+}
+
+type StreamLatestTransactionsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional: filter by transaction types
+	// If empty, streams all transaction types
+	Types         []string `protobuf:"bytes,1,rep,name=types,proto3" json:"types,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamLatestTransactionsRequest) Reset() {
+	*x = StreamLatestTransactionsRequest{}
+	mi := &file_explorer_v1_demo_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamLatestTransactionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamLatestTransactionsRequest) ProtoMessage() {}
+
+func (x *StreamLatestTransactionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_demo_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamLatestTransactionsRequest.ProtoReflect.Descriptor instead.
+func (*StreamLatestTransactionsRequest) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *StreamLatestTransactionsRequest) GetTypes() []string {
+	if x != nil {
+		return x.Types
+	}
+	return nil
+}
+
+type StreamAccountUpdatesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Required: account address to monitor
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// Optional: start streaming from a specific timestamp
+	// If 0, streams from recent transactions
+	FromTimestamp int64 `protobuf:"varint,2,opt,name=from_timestamp,json=fromTimestamp,proto3" json:"from_timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamAccountUpdatesRequest) Reset() {
+	*x = StreamAccountUpdatesRequest{}
+	mi := &file_explorer_v1_demo_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamAccountUpdatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamAccountUpdatesRequest) ProtoMessage() {}
+
+func (x *StreamAccountUpdatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_demo_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamAccountUpdatesRequest.ProtoReflect.Descriptor instead.
+func (*StreamAccountUpdatesRequest) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *StreamAccountUpdatesRequest) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *StreamAccountUpdatesRequest) GetFromTimestamp() int64 {
+	if x != nil {
+		return x.FromTimestamp
+	}
+	return 0
+}
+
+// Streaming response messages
+type BlockUpdate struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Block data as a flexible struct
+	Block *structpb.Struct `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
+	// Update type: "new" or "update"
+	UpdateType string `protobuf:"bytes,2,opt,name=update_type,json=updateType,proto3" json:"update_type,omitempty"`
+	// Timestamp of the update
+	Timestamp     int64 `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockUpdate) Reset() {
+	*x = BlockUpdate{}
+	mi := &file_explorer_v1_demo_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockUpdate) ProtoMessage() {}
+
+func (x *BlockUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_demo_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockUpdate.ProtoReflect.Descriptor instead.
+func (*BlockUpdate) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *BlockUpdate) GetBlock() *structpb.Struct {
+	if x != nil {
+		return x.Block
+	}
+	return nil
+}
+
+func (x *BlockUpdate) GetUpdateType() string {
+	if x != nil {
+		return x.UpdateType
+	}
+	return ""
+}
+
+func (x *BlockUpdate) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+type TransactionUpdate struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Transaction data as a flexible struct
+	Transaction *structpb.Struct `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
+	// Update type: "new" or "update"
+	UpdateType string `protobuf:"bytes,2,opt,name=update_type,json=updateType,proto3" json:"update_type,omitempty"`
+	// Timestamp of the update
+	Timestamp     int64 `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionUpdate) Reset() {
+	*x = TransactionUpdate{}
+	mi := &file_explorer_v1_demo_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransactionUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransactionUpdate) ProtoMessage() {}
+
+func (x *TransactionUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_demo_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransactionUpdate.ProtoReflect.Descriptor instead.
+func (*TransactionUpdate) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *TransactionUpdate) GetTransaction() *structpb.Struct {
+	if x != nil {
+		return x.Transaction
+	}
+	return nil
+}
+
+func (x *TransactionUpdate) GetUpdateType() string {
+	if x != nil {
+		return x.UpdateType
+	}
+	return ""
+}
+
+func (x *TransactionUpdate) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+type AccountUpdate struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Account address
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// Update type: "transaction", "balance", etc.
+	UpdateType string `protobuf:"bytes,2,opt,name=update_type,json=updateType,proto3" json:"update_type,omitempty"`
+	// Update data as a flexible struct
+	Data *structpb.Struct `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	// Timestamp of the update
+	Timestamp     int64 `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountUpdate) Reset() {
+	*x = AccountUpdate{}
+	mi := &file_explorer_v1_demo_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountUpdate) ProtoMessage() {}
+
+func (x *AccountUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_demo_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountUpdate.ProtoReflect.Descriptor instead.
+func (*AccountUpdate) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *AccountUpdate) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *AccountUpdate) GetUpdateType() string {
+	if x != nil {
+		return x.UpdateType
+	}
+	return ""
+}
+
+func (x *AccountUpdate) GetData() *structpb.Struct {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *AccountUpdate) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
 var File_explorer_v1_demo_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\n" +
-	"\x16explorer/v1/demo.proto\x12\x0fapi.explorer.v1\x1a\x18explorer/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\"1\n" +
+	"\x16explorer/v1/demo.proto\x12\x0fapi.explorer.v1\x1a\x18explorer/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\"1\n" +
 	"\x17GetBlockByHeightRequest\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\x03R\x06height\"1\n" +
 	"\x1bGetTransactionByHashRequest\x12\x12\n" +
@@ -268,7 +616,31 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"pagination\x18\x02 \x01(\v2\".api.explorer.v1.PaginationRequestR\n" +
 	"pagination\"5\n" +
 	"\x19GetAccountBalancesRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress2\xa9\b\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\"<\n" +
+	"\x19StreamLatestBlocksRequest\x12\x1f\n" +
+	"\vfrom_height\x18\x01 \x01(\x03R\n" +
+	"fromHeight\"7\n" +
+	"\x1fStreamLatestTransactionsRequest\x12\x14\n" +
+	"\x05types\x18\x01 \x03(\tR\x05types\"^\n" +
+	"\x1bStreamAccountUpdatesRequest\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12%\n" +
+	"\x0efrom_timestamp\x18\x02 \x01(\x03R\rfromTimestamp\"{\n" +
+	"\vBlockUpdate\x12-\n" +
+	"\x05block\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x05block\x12\x1f\n" +
+	"\vupdate_type\x18\x02 \x01(\tR\n" +
+	"updateType\x12\x1c\n" +
+	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"\x8d\x01\n" +
+	"\x11TransactionUpdate\x129\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x17.google.protobuf.StructR\vtransaction\x12\x1f\n" +
+	"\vupdate_type\x18\x02 \x01(\tR\n" +
+	"updateType\x12\x1c\n" +
+	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"\x95\x01\n" +
+	"\rAccountUpdate\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1f\n" +
+	"\vupdate_type\x18\x02 \x01(\tR\n" +
+	"updateType\x12+\n" +
+	"\x04data\x18\x03 \x01(\v2\x17.google.protobuf.StructR\x04data\x12\x1c\n" +
+	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp2\xc7\v\n" +
 	"\x04Demo\x12i\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +
@@ -278,7 +650,10 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x0eGetAccountInfo\x12&.api.explorer.v1.GetAccountInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/account/info\x12\x84\x01\n" +
 	"\x16GetAccountTransactions\x12..api.explorer.v1.GetAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/account/transactions\x12x\n" +
 	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12o\n" +
-	"\rGetValidators\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/validator/validatorsB5\n" +
+	"\rGetValidators\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/validator/validators\x12}\n" +
+	"\x12StreamLatestBlocks\x12*.api.explorer.v1.StreamLatestBlocksRequest\x1a\x1c.api.explorer.v1.BlockUpdate\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/demo/stream/blocks0\x01\x12\x95\x01\n" +
+	"\x18StreamLatestTransactions\x120.api.explorer.v1.StreamLatestTransactionsRequest\x1a\".api.explorer.v1.TransactionUpdate\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/stream/transactions0\x01\x12\x84\x01\n" +
+	"\x14StreamAccountUpdates\x12,.api.explorer.v1.StreamAccountUpdatesRequest\x1a\x1e.api.explorer.v1.AccountUpdate\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/demo/stream/account0\x01B5\n" +
 	"\x0fapi.explorer.v1P\x01Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (
@@ -293,42 +668,58 @@ func file_explorer_v1_demo_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_demo_proto_rawDescData
 }
 
-var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_explorer_v1_demo_proto_goTypes = []any{
-	(*GetBlockByHeightRequest)(nil),       // 0: api.explorer.v1.GetBlockByHeightRequest
-	(*GetTransactionByHashRequest)(nil),   // 1: api.explorer.v1.GetTransactionByHashRequest
-	(*GetAccountInfoRequest)(nil),         // 2: api.explorer.v1.GetAccountInfoRequest
-	(*GetAccountTransactionsRequest)(nil), // 3: api.explorer.v1.GetAccountTransactionsRequest
-	(*GetAccountBalancesRequest)(nil),     // 4: api.explorer.v1.GetAccountBalancesRequest
-	(*PaginationRequest)(nil),             // 5: api.explorer.v1.PaginationRequest
-	(*emptypb.Empty)(nil),                 // 6: google.protobuf.Empty
-	(*Reply)(nil),                         // 7: api.explorer.v1.Reply
+	(*GetBlockByHeightRequest)(nil),         // 0: api.explorer.v1.GetBlockByHeightRequest
+	(*GetTransactionByHashRequest)(nil),     // 1: api.explorer.v1.GetTransactionByHashRequest
+	(*GetAccountInfoRequest)(nil),           // 2: api.explorer.v1.GetAccountInfoRequest
+	(*GetAccountTransactionsRequest)(nil),   // 3: api.explorer.v1.GetAccountTransactionsRequest
+	(*GetAccountBalancesRequest)(nil),       // 4: api.explorer.v1.GetAccountBalancesRequest
+	(*StreamLatestBlocksRequest)(nil),       // 5: api.explorer.v1.StreamLatestBlocksRequest
+	(*StreamLatestTransactionsRequest)(nil), // 6: api.explorer.v1.StreamLatestTransactionsRequest
+	(*StreamAccountUpdatesRequest)(nil),     // 7: api.explorer.v1.StreamAccountUpdatesRequest
+	(*BlockUpdate)(nil),                     // 8: api.explorer.v1.BlockUpdate
+	(*TransactionUpdate)(nil),               // 9: api.explorer.v1.TransactionUpdate
+	(*AccountUpdate)(nil),                   // 10: api.explorer.v1.AccountUpdate
+	(*PaginationRequest)(nil),               // 11: api.explorer.v1.PaginationRequest
+	(*structpb.Struct)(nil),                 // 12: google.protobuf.Struct
+	(*emptypb.Empty)(nil),                   // 13: google.protobuf.Empty
+	(*Reply)(nil),                           // 14: api.explorer.v1.Reply
 }
 var file_explorer_v1_demo_proto_depIdxs = []int32{
-	5,  // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
-	5,  // 1: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
-	0,  // 2: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
-	6,  // 3: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
-	5,  // 4: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
-	1,  // 5: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
-	2,  // 6: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
-	3,  // 7: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
-	4,  // 8: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
-	5,  // 9: api.explorer.v1.Demo.GetValidators:input_type -> api.explorer.v1.PaginationRequest
-	7,  // 10: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
-	7,  // 11: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
-	7,  // 12: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
-	7,  // 13: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
-	7,  // 14: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
-	7,  // 15: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
-	7,  // 16: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
-	7,  // 17: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	7,  // 18: api.explorer.v1.Demo.GetValidators:output_type -> api.explorer.v1.Reply
-	10, // [10:19] is the sub-list for method output_type
-	1,  // [1:10] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	11, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
+	12, // 1: api.explorer.v1.BlockUpdate.block:type_name -> google.protobuf.Struct
+	12, // 2: api.explorer.v1.TransactionUpdate.transaction:type_name -> google.protobuf.Struct
+	12, // 3: api.explorer.v1.AccountUpdate.data:type_name -> google.protobuf.Struct
+	11, // 4: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
+	0,  // 5: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
+	13, // 6: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
+	11, // 7: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
+	1,  // 8: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
+	2,  // 9: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
+	3,  // 10: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
+	4,  // 11: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
+	11, // 12: api.explorer.v1.Demo.GetValidators:input_type -> api.explorer.v1.PaginationRequest
+	5,  // 13: api.explorer.v1.Demo.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
+	6,  // 14: api.explorer.v1.Demo.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
+	7,  // 15: api.explorer.v1.Demo.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
+	14, // 16: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
+	14, // 17: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
+	14, // 18: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
+	14, // 19: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
+	14, // 20: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
+	14, // 21: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
+	14, // 22: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
+	14, // 23: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
+	14, // 24: api.explorer.v1.Demo.GetValidators:output_type -> api.explorer.v1.Reply
+	8,  // 25: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
+	9,  // 26: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
+	10, // 27: api.explorer.v1.Demo.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
+	16, // [16:28] is the sub-list for method output_type
+	4,  // [4:16] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_explorer_v1_demo_proto_init() }
@@ -343,7 +734,7 @@ func file_explorer_v1_demo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_demo_proto_rawDesc), len(file_explorer_v1_demo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

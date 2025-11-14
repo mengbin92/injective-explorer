@@ -5,6 +5,7 @@ package api.explorer.v1;
 import "explorer/v1/common.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
@@ -61,6 +62,31 @@ service Demo {
       get : "/demo/validator/validators"
     };
   }
+
+  // Streaming RPCs for real-time updates
+  // Stream latest blocks as they are added to the chain
+  rpc StreamLatestBlocks(StreamLatestBlocksRequest)
+      returns (stream BlockUpdate) {
+    option (google.api.http) = {
+      get : "/demo/stream/blocks"
+    };
+  }
+
+  // Stream latest transactions as they are added to the chain
+  rpc StreamLatestTransactions(StreamLatestTransactionsRequest)
+      returns (stream TransactionUpdate) {
+    option (google.api.http) = {
+      get : "/demo/stream/transactions"
+    };
+  }
+
+  // Stream account updates (balance changes, new transactions, etc.)
+  rpc StreamAccountUpdates(StreamAccountUpdatesRequest)
+      returns (stream AccountUpdate) {
+    option (google.api.http) = {
+      get : "/demo/stream/account"
+    };
+  }
 }
 
 message GetBlockByHeightRequest { int64 height = 1; }
@@ -75,3 +101,54 @@ message GetAccountTransactionsRequest {
 }
 
 message GetAccountBalancesRequest { string address = 1; }
+
+// Streaming request messages
+message StreamLatestBlocksRequest {
+  // Optional: start streaming from a specific block height
+  // If 0, streams from the latest blocks
+  int64 from_height = 1;
+}
+
+message StreamLatestTransactionsRequest {
+  // Optional: filter by transaction types
+  // If empty, streams all transaction types
+  repeated string types = 1;
+}
+
+message StreamAccountUpdatesRequest {
+  // Required: account address to monitor
+  string address = 1;
+  // Optional: start streaming from a specific timestamp
+  // If 0, streams from recent transactions
+  int64 from_timestamp = 2;
+}
+
+// Streaming response messages
+message BlockUpdate {
+  // Block data as a flexible struct
+  google.protobuf.Struct block = 1;
+  // Update type: "new" or "update"
+  string update_type = 2;
+  // Timestamp of the update
+  int64 timestamp = 3;
+}
+
+message TransactionUpdate {
+  // Transaction data as a flexible struct
+  google.protobuf.Struct transaction = 1;
+  // Update type: "new" or "update"
+  string update_type = 2;
+  // Timestamp of the update
+  int64 timestamp = 3;
+}
+
+message AccountUpdate {
+  // Account address
+  string address = 1;
+  // Update type: "transaction", "balance", etc.
+  string update_type = 2;
+  // Update data as a flexible struct
+  google.protobuf.Struct data = 3;
+  // Timestamp of the update
+  int64 timestamp = 4;
+}

@@ -724,18 +724,21 @@ func (s *SyncService) processBlockOptimized(height uint64) error {
 	}
 
 	// Use transaction to ensure atomicity
+	var isUpdate bool
 	err = db.Get().Transaction(func(tx *gorm.DB) error {
 		// Check if block already exists
 		var existingBlock models.Block
 		err := tx.Where("height = ?", height).First(&existingBlock).Error
 		if err == nil {
 			// Block exists, update it
+			isUpdate = true
 			err = tx.Model(&existingBlock).Updates(blockModel).Error
 			if err != nil {
 				return errors.Wrapf(err, "failed to update block at height %d", height)
 			}
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Block doesn't exist, create it
+			isUpdate = false
 			err = tx.Create(blockModel).Error
 			if err != nil {
 				return errors.Wrapf(err, "failed to create block at height %d", height)
@@ -749,6 +752,17 @@ func (s *SyncService) processBlockOptimized(height uint64) error {
 	if err != nil {
 		return err
 	}
+
+	// Publish block event for streaming
+	eventBus := GetEventBus()
+	eventType := EventTypeBlockNew
+	if isUpdate {
+		eventType = EventTypeBlockUpdate
+	}
+	eventBus.PublishBlock(&BlockEvent{
+		Block: blockModel,
+		Type:  eventType,
+	})
 
 	// Extract transaction hashes and push to Redis queue (batch push for better performance)
 	if len(block.Txs) > 0 {
@@ -912,18 +926,21 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	}
 
 	// Use database transaction to ensure atomicity
+	var isTxUpdate bool
 	err = db.Get().Transaction(func(tx *gorm.DB) error {
 		// Check if transaction already exists
 		var existingTx models.Transaction
 		err := tx.Where("hash = ?", txHash).First(&existingTx).Error
 		if err == nil {
 			// Transaction exists, update it
+			isTxUpdate = true
 			err = tx.Model(&existingTx).Updates(txModel).Error
 			if err != nil {
 				return errors.Wrapf(err, "failed to update transaction %s", txHash)
 			}
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Transaction doesn't exist, create it
+			isTxUpdate = false
 			err = tx.Create(txModel).Error
 			if err != nil {
 				return errors.Wrapf(err, "failed to create transaction %s", txHash)
@@ -953,6 +970,29 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Transaction saved successfully, remove from processing queue
 	redisClient.LRem(ctx, s.config.TxHashProcessingQueueKey, 0, txHash)
+
+	// Publish transaction event for streaming
+	eventBus := GetEventBus()
+	txEventType := EventTypeTransactionNew
+	if isTxUpdate {
+		txEventType = EventTypeTransactionUpdate
+	}
+	eventBus.PublishTransaction(&TransactionEvent{
+		Transaction: txModel,
+		Type:        txEventType,
+	})
+
+	// Publish account events for addresses involved in the transaction
+	addresses := s.extractAddressesFromTransaction(txData)
+	for address := range addresses {
+		if address != "" && isValidAddress(address) {
+			eventBus.PublishAccount(address, &AccountEvent{
+				Address: address,
+				Type:    EventTypeAccountUpdate,
+				Data:    map[string]interface{}{"transaction": txModel, "type": "update"},
+			})
+		}
+	}
 
 	// Check if transaction contains staking-related messages and update staking info
 	// This is done asynchronously to avoid blocking transaction processing

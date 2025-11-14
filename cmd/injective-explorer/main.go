@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 
 	"injective-explorer/internal/conf"
@@ -17,7 +18,7 @@ import (
 	"github.com/go-kratos/kratos/v2/config/file"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
-	"github.com/go-kratos/kratos/v2/transport/http"
+	khttp "github.com/go-kratos/kratos/v2/transport/http"
 
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -46,10 +47,19 @@ func init() {
 //   - logger: The logger instance for application logging
 //   - gs: The gRPC server instance
 //   - hs: The HTTP server instance
+//   - grpcWebServer: The gRPC-Web server instance
 //
 // Returns:
 //   - *kratos.App: A configured kratos application ready to run
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
+func newApp(logger log.Logger, gs *grpc.Server, hs *khttp.Server, grpcWebServer *http.Server) *kratos.App {
+	// Start gRPC-Web server in a goroutine since it's a standard http.Server
+	// and not managed by Kratos
+	go func() {
+		if err := grpcWebServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.NewHelper(logger).Errorf("gRPC-Web server error: %v", err)
+		}
+	}()
+
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),

@@ -17,6 +17,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 
 	grpcServer := server.NewGRPCServer(confServer, logger)
 	httpServer := server.NewHTTPServer(confServer, logger)
-	app := newApp(logger, grpcServer, httpServer)
+	grpcWebServer := server.NewGRPCWebServer(confServer, grpcServer, logger)
+	app := newApp(logger, grpcServer, httpServer, grpcWebServer)
 	return app, nil, nil
 }

@@ -172,7 +172,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("block found in database: height=%d", req.Height)
 
-		blockDTO := models.ToBlockDTO(&dbBlock,models.DTOModeWithDetail)
+		blockDTO := models.ToBlockDTO(&dbBlock, models.DTOModeWithDetail)
 		return s.marshalAndReply(blockDTO, "marshal block error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -200,7 +200,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	blockModel := models.BlockFromProto(block.Data)
 	saveToDB(blockModel, "create block error")
 
-	blockDTO := models.ToBlockDTO(blockModel,models.DTOModeWithDetail)
+	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
 	return s.marshalAndReply(blockDTO, "marshal block error")
 }
 
@@ -353,7 +353,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("transaction found in database: hash=0x%s", hash)
-		txDTO := models.ToTransactionDTO(&dbTx,models.DTOModeWithDetail)
+		txDTO := models.ToTransactionDTO(&dbTx, models.DTOModeWithDetail)
 		return s.marshalAndReply(txDTO, "marshal transaction error")
 
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -382,7 +382,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	transactionModel := models.TransactionFromProto(transaction.Data)
 	saveToDB(transactionModel, "create transaction error")
 
-	txDTO := models.ToTransactionDTO(transactionModel,models.DTOModeWithDetail)
+	txDTO := models.ToTransactionDTO(transactionModel, models.DTOModeWithDetail)
 	return s.marshalAndReply(txDTO, "marshal transaction error")
 }
 
@@ -1114,4 +1114,337 @@ func (s *DemoService) sanitizeError(err error) string {
 	}
 
 	return errMsg
+}
+
+// StreamLatestBlocks streams the latest blocks as they are added to the chain.
+// This method subscribes to block events from the event bus and streams them to the client.
+func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stream pb.Demo_StreamLatestBlocksServer) error {
+	global.Logger.Infof("stream latest blocks: from_height=%d", req.GetFromHeight())
+
+	// Subscribe to block events
+	eventBus := GetEventBus()
+	blockChan := eventBus.SubscribeBlocks()
+	defer eventBus.UnsubscribeBlocks(blockChan)
+
+	// Send initial/historical blocks
+	// If from_height is specified, send blocks from that height
+	// Otherwise, send the latest blocks (e.g., last 10 blocks)
+	var dbBlocks []models.Block
+	var err error
+
+	if req.GetFromHeight() > 0 {
+		// Query blocks from database starting from from_height
+		global.Logger.Debugf("querying blocks from height %d", req.GetFromHeight())
+		err = db.Get().WithContext(stream.Context()).
+			Where("height >= ?", req.GetFromHeight()).
+			Order("height ASC").
+			Limit(100). // Limit to avoid sending too much data
+			Find(&dbBlocks).Error
+	} else {
+		// If no from_height specified, send the latest blocks to show something immediately
+		global.Logger.Debugf("querying latest blocks from database")
+		err = db.Get().WithContext(stream.Context()).
+			Order("height DESC").
+			Limit(10). // Send last 10 blocks as initial data
+			Find(&dbBlocks).Error
+		// Reverse the order to send from oldest to newest
+		for i, j := 0, len(dbBlocks)-1; i < j; i, j = i+1, j-1 {
+			dbBlocks[i], dbBlocks[j] = dbBlocks[j], dbBlocks[i]
+		}
+	}
+
+	// Log query result for debugging
+	if err != nil {
+		global.Logger.Warnf("database query error in StreamLatestBlocks: %v", err)
+	} else {
+		global.Logger.Infof("database query successful: found %d blocks", len(dbBlocks))
+	}
+
+	// Check if database has any blocks at all (for debugging)
+	if len(dbBlocks) == 0 {
+		var totalCount int64
+		countErr := db.Get().WithContext(stream.Context()).Model(&models.Block{}).Count(&totalCount).Error
+		if countErr != nil {
+			global.Logger.Warnf("failed to count total blocks: %v", countErr)
+		} else {
+			global.Logger.Infof("no blocks found in query, total blocks in database: %d", totalCount)
+		}
+	}
+
+	if err == nil && len(dbBlocks) > 0 {
+		sentCount := 0
+		for _, block := range dbBlocks {
+			blockDTO := models.ToBlockDTO(&block, models.DTOModeWithoutDetail)
+			blockStruct, err := s.toStruct(blockDTO)
+			if err != nil {
+				global.Logger.Warnf("failed to convert block to struct (height=%d): %v", block.Height, err)
+				continue
+			}
+
+			update := &pb.BlockUpdate{
+				Block:      blockStruct,
+				UpdateType: "new",
+				Timestamp:  time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send block update (height=%d) to stream: %v", block.Height, err)
+				return err
+			}
+			sentCount++
+		}
+		global.Logger.Infof("sent %d/%d initial blocks to stream", sentCount, len(dbBlocks))
+	} else if len(dbBlocks) == 0 {
+		global.Logger.Warnf("no blocks to send: query returned %d blocks", len(dbBlocks))
+	}
+
+	// Stream new blocks from event bus
+	for {
+		select {
+		case <-stream.Context().Done():
+			global.Logger.Infof("stream context cancelled for StreamLatestBlocks")
+			return stream.Context().Err()
+		case blockEvent := <-blockChan:
+			if blockEvent == nil {
+				continue
+			}
+
+			// Filter by from_height if specified
+			if req.GetFromHeight() > 0 && blockEvent.Block.Height < uint64(req.GetFromHeight()) {
+				continue
+			}
+
+			blockDTO := models.ToBlockDTO(blockEvent.Block, models.DTOModeWithoutDetail)
+			blockStruct, err := s.toStruct(blockDTO)
+			if err != nil {
+				global.Logger.Warnf("failed to convert block to struct: %v", err)
+				continue
+			}
+
+			updateType := "new"
+			if blockEvent.Type == EventTypeBlockUpdate {
+				updateType = "update"
+			}
+
+			update := &pb.BlockUpdate{
+				Block:      blockStruct,
+				UpdateType: updateType,
+				Timestamp:  time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send block update: %v", err)
+				return err
+			}
+		}
+	}
+}
+
+// StreamLatestTransactions streams the latest transactions as they are added to the chain.
+// This method subscribes to transaction events from the event bus and streams them to the client.
+func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsRequest, stream pb.Demo_StreamLatestTransactionsServer) error {
+	global.Logger.Infof("stream latest transactions: types=%v", req.GetTypes())
+
+	// Subscribe to transaction events
+	eventBus := GetEventBus()
+	txChan := eventBus.SubscribeTransactions()
+	defer eventBus.UnsubscribeTransactions(txChan)
+
+	// Send initial/historical transactions
+	// Always send the latest transactions to show something immediately
+	var dbTxs []models.Transaction
+	query := db.Get().WithContext(stream.Context()).
+		Order("created_at DESC").
+		Limit(20) // Send last 20 transactions as initial data
+
+	// Apply type filter if specified
+	if len(req.GetTypes()) > 0 {
+		// Build OR condition for transaction types
+		conditions := make([]string, 0, len(req.GetTypes()))
+		args := make([]interface{}, 0, len(req.GetTypes()))
+		for _, txType := range req.GetTypes() {
+			conditions = append(conditions, "tx_type LIKE ?")
+			args = append(args, "%"+strings.ToLower(txType)+"%")
+		}
+		if len(conditions) > 0 {
+			query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+		}
+	}
+
+	err := query.Find(&dbTxs).Error
+	if err == nil && len(dbTxs) > 0 {
+		// Reverse the order to send from oldest to newest
+		for i, j := 0, len(dbTxs)-1; i < j; i, j = i+1, j-1 {
+			dbTxs[i], dbTxs[j] = dbTxs[j], dbTxs[i]
+		}
+
+		for _, tx := range dbTxs {
+			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
+			txStruct, err := s.toStruct(txDTO)
+			if err != nil {
+				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
+				continue
+			}
+
+			update := &pb.TransactionUpdate{
+				Transaction: txStruct,
+				UpdateType:  "new",
+				Timestamp:   tx.CreatedAt.Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				return err
+			}
+		}
+		global.Logger.Infof("sent %d initial transactions to stream", len(dbTxs))
+	}
+
+	// Stream new transactions from event bus
+	for {
+		select {
+		case <-stream.Context().Done():
+			global.Logger.Infof("stream context cancelled for StreamLatestTransactions")
+			return stream.Context().Err()
+		case txEvent := <-txChan:
+			if txEvent == nil {
+				continue
+			}
+
+			// Filter by transaction types if specified
+			if len(req.GetTypes()) > 0 {
+				// Check if transaction type matches (simplified, you may need to enhance this)
+				txType := txEvent.Transaction.TxType
+				matched := false
+				for _, filterType := range req.GetTypes() {
+					if strings.Contains(strings.ToLower(txType), strings.ToLower(filterType)) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
+			}
+
+			txDTO := models.ToTransactionDTO(txEvent.Transaction, models.DTOModeWithDetail)
+			txStruct, err := s.toStruct(txDTO)
+			if err != nil {
+				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
+				continue
+			}
+
+			updateType := "new"
+			if txEvent.Type == EventTypeTransactionUpdate {
+				updateType = "update"
+			}
+
+			update := &pb.TransactionUpdate{
+				Transaction: txStruct,
+				UpdateType:  updateType,
+				Timestamp:   time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send transaction update: %v", err)
+				return err
+			}
+		}
+	}
+}
+
+// StreamAccountUpdates streams account updates (balance changes, new transactions, etc.) for a specific account.
+// This method subscribes to account events from the event bus and streams them to the client.
+func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, stream pb.Demo_StreamAccountUpdatesServer) error {
+	address := req.GetAddress()
+	if address == "" {
+		return errors.New("address is required")
+	}
+
+	global.Logger.Infof("stream account updates: address=%s, from_timestamp=%d", address, req.GetFromTimestamp())
+
+	// Subscribe to account events for this specific address
+	eventBus := GetEventBus()
+	accountChan := eventBus.SubscribeAccount(address)
+	defer eventBus.UnsubscribeAccount(address, accountChan)
+
+	// Send initial/historical transactions for this account
+	// Always send recent transactions to show something immediately
+	var dbTxs []models.Transaction
+	query := db.Get().WithContext(stream.Context()).
+		Where("payer = ?", address).
+		Order("block_unix_timestamp DESC, tx_number DESC")
+
+	// Apply timestamp filter if specified
+	if req.GetFromTimestamp() > 0 {
+		query = query.Where("block_unix_timestamp >= ?", req.GetFromTimestamp())
+	}
+
+	// Limit to avoid sending too much data
+	query = query.Limit(50)
+
+	err := query.Find(&dbTxs).Error
+	if err == nil && len(dbTxs) > 0 {
+		// Reverse the order to send from oldest to newest
+		for i, j := 0, len(dbTxs)-1; i < j; i, j = i+1, j-1 {
+			dbTxs[i], dbTxs[j] = dbTxs[j], dbTxs[i]
+		}
+
+		for _, tx := range dbTxs {
+			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
+			txStruct, err := s.toStruct(txDTO)
+			if err != nil {
+				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
+				continue
+			}
+
+			update := &pb.AccountUpdate{
+				Address:    address,
+				UpdateType: "transaction",
+				Data:       txStruct,
+				Timestamp:  tx.CreatedAt.Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				return err
+			}
+		}
+		global.Logger.Infof("sent %d initial account transactions to stream for address %s", len(dbTxs), address)
+	}
+
+	// Stream new account updates from event bus
+	for {
+		select {
+		case <-stream.Context().Done():
+			global.Logger.Infof("stream context cancelled for StreamAccountUpdates")
+			return stream.Context().Err()
+		case accountEvent := <-accountChan:
+			if accountEvent == nil {
+				continue
+			}
+
+			// Filter by timestamp if specified
+			if req.GetFromTimestamp() > 0 && accountEvent.Data != nil {
+				// Check timestamp if available in the event data
+				// This is a simplified check, you may need to enhance this
+			}
+
+			dataStruct, err := s.toStruct(accountEvent.Data)
+			if err != nil {
+				global.Logger.Warnf("failed to convert account event data to struct: %v", err)
+				continue
+			}
+
+			update := &pb.AccountUpdate{
+				Address:    accountEvent.Address,
+				UpdateType: string(accountEvent.Type),
+				Data:       dataStruct,
+				Timestamp:  time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send account update: %v", err)
+				return err
+			}
+		}
+	}
 }

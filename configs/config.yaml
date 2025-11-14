@@ -5,12 +5,18 @@ server:
   grpc:
     addr: 0.0.0.0:9000
     timeout: 1s
+  grpc_web:
+    addr: 0.0.0.0:9001
+    timeout: 1s
+    enable_cors: true
+    allowed_origins:
+      - "*"
 data:
   database:
     driver: mysql
-    source: root:jKBrZHGcsNG5fMc52EWz@tcp(injective-explorer-mysql:3306)/explorer?charset=utf8mb4&parseTime=True&loc=Local
+    source: root:jKBrZHGcsNG5fMc52EWz@tcp(localhost:3306)/explorer?charset=utf8mb4&parseTime=True&loc=Local
   redis:
-    addr: injective-explorer-redis:6379
+    addr: localhost:6379
     password: ""
     db: 0
     pool_size: 100
@@ -75,4 +81,4 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 141021434 # 最早区块高度的默认值
+    earliest_height: 141554771 # 最早区块高度的默认值
