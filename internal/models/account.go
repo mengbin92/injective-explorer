@@ -5,6 +5,7 @@ package models
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
@@ -90,7 +91,7 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 			}()
 			pubType = pubKey.Type()
 			pubValue = hex.EncodeToString(pubKey.Bytes())
-			pubAddress = "0x" + strings.ToLower(pubKey.Address().String())
+			pubAddress = fmt.Sprintf("0x%s",strings.ToLower(pubKey.Address().String()))
 		}()
 
 		pub = &PubKey{

@@ -3,6 +3,11 @@
 // sensitive database information to clients.
 package models
 
+const(
+	DTOModeWithDetail = true
+	DTOModeWithoutDetail = false
+)
+
 // AccountDTO represents account information for API responses.
 // It excludes gorm.Model fields (ID, CreatedAt, UpdatedAt, DeletedAt).
 type AccountDTO struct {
@@ -164,7 +169,7 @@ func ToBlockDTOs(blocks []Block) []*BlockDTO {
 	}
 	dtos := make([]*BlockDTO, 0, len(blocks))
 	for _, block := range blocks {
-		dtos = append(dtos, ToBlockDTO(&block, false))
+		dtos = append(dtos, ToBlockDTO(&block, DTOModeWithoutDetail))
 	}
 	return dtos
 }
@@ -218,7 +223,7 @@ func ToTransactionDTOs(txs []Transaction) []*TransactionDTO {
 	}
 	dtos := make([]*TransactionDTO, 0, len(txs))
 	for _, tx := range txs {
-		dtos = append(dtos, ToTransactionDTO(&tx, false))
+		dtos = append(dtos, ToTransactionDTO(&tx, DTOModeWithoutDetail))
 	}
 	return dtos
 }
