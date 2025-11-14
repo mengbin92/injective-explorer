@@ -26,6 +26,17 @@ go.work.sum
 
 # env file
 .env
+.env.local
+.env.*.local
+
+# Configuration files with sensitive information
+# DO NOT commit config.yaml with real credentials
+# Use config.yaml.example as a template
+# Note: This is commented out to allow docker-compose usage
+# Uncomment if you want to exclude config.yaml from version control
+configs/config.yaml
+configs/*.yaml
+!configs/config.yaml.example
 
 # Editor/IDE
 .idea/

@@ -172,7 +172,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("block found in database: height=%d", req.Height)
 
-		blockDTO := models.ToBlockDTO(&dbBlock)
+		blockDTO := models.ToBlockDTO(&dbBlock,true)
 		return s.marshalAndReply(blockDTO, "marshal block error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -200,7 +200,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	blockModel := models.BlockFromProto(block.Data)
 	saveToDB(blockModel, "create block error")
 
-	blockDTO := models.ToBlockDTO(blockModel)
+	blockDTO := models.ToBlockDTO(blockModel,true)
 	return s.marshalAndReply(blockDTO, "marshal block error")
 }
 
@@ -353,7 +353,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("transaction found in database: hash=0x%s", hash)
-		txDTO := models.ToTransactionDTO(&dbTx)
+		txDTO := models.ToTransactionDTO(&dbTx,true)
 		return s.marshalAndReply(txDTO, "marshal transaction error")
 
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -382,7 +382,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	transactionModel := models.TransactionFromProto(transaction.Data)
 	saveToDB(transactionModel, "create transaction error")
 
-	txDTO := models.ToTransactionDTO(transactionModel)
+	txDTO := models.ToTransactionDTO(transactionModel,true)
 	return s.marshalAndReply(txDTO, "marshal transaction error")
 }
 

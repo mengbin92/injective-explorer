@@ -5,6 +5,7 @@ package models
 
 import (
 	"encoding/hex"
+	"strings"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	"github.com/bytedance/sonic"
@@ -47,7 +48,7 @@ type BaseAccount struct {
 type PubKey struct {
 	Type    string `json:"type" gorm:"column:type"`
 	Value   string `json:"value" gorm:"column:value"`
-	Address string `json:"address" gorm:"column:address"`
+	Address string `json:"evm_address" gorm:"column:evm_address"`
 }
 
 // AccountFromProto converts a protobuf EthAccount to an Account model.
@@ -89,7 +90,7 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 			}()
 			pubType = pubKey.Type()
 			pubValue = hex.EncodeToString(pubKey.Bytes())
-			pubAddress = pubKey.Address().String()
+			pubAddress = "0x" + strings.ToLower(pubKey.Address().String())
 		}()
 
 		pub = &PubKey{
