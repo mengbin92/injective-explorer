@@ -68,8 +68,12 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	// Get approximate or exact count (optimized for performance)
 	total, isExactCount = getApproximateCount(db.Get(), &models.Block{}, ctx)
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// Build query based on pagination type
-	query := db.Get().WithContext(ctx).Model(&models.Block{})
+	query := db.Get().WithContext(dbCtx).Model(&models.Block{})
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
@@ -109,7 +113,8 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	callCtx, cancel := context.WithTimeout(ctx, GRPCTimeout)
+	// Use independent context for RPC calls to avoid HTTP timeout issues
+	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
 	blocks, err := client.GetBlocks(callCtx)
@@ -165,14 +170,18 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 
 	global.Logger.Infof("get block by height: height=%d", req.Height)
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// First, try to query from database
 	var dbBlock models.Block
-	err := db.Get().WithContext(ctx).Where("height = ?", req.Height).First(&dbBlock).Error
+	err := db.Get().WithContext(dbCtx).Where("height = ?", req.Height).First(&dbBlock).Error
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("block found in database: height=%d", req.Height)
 
-		blockDTO := models.ToBlockDTO(&dbBlock,models.DTOModeWithDetail)
+		blockDTO := models.ToBlockDTO(&dbBlock, models.DTOModeWithDetail)
 		return s.marshalAndReply(blockDTO, "marshal block error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -186,8 +195,8 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, GRPCTimeout)
+	// Use independent context for RPC calls to avoid HTTP timeout issues
+	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
 	block, err := client.GetBlock(callCtx, fmt.Sprintf("%d", req.Height))
@@ -200,7 +209,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	blockModel := models.BlockFromProto(block.Data)
 	saveToDB(blockModel, "create block error")
 
-	blockDTO := models.ToBlockDTO(blockModel,models.DTOModeWithDetail)
+	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
 	return s.marshalAndReply(blockDTO, "marshal block error")
 }
 
@@ -254,8 +263,12 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	// Get approximate or exact count (optimized for performance)
 	total, isExactCount = getApproximateCount(db.Get(), &models.Transaction{}, ctx)
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// Build query based on pagination type
-	query := db.Get().WithContext(ctx).Model(&models.Transaction{})
+	query := db.Get().WithContext(dbCtx).Model(&models.Transaction{})
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
@@ -296,7 +309,8 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	callCtx, cancel := context.WithTimeout(ctx, GRPCTimeout)
+	// Use independent context for RPC calls to avoid HTTP timeout issues
+	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
 	transactions, err := client.GetTxs(callCtx, &injective_explorer_rpcpb.GetTxsRequest{Limit: pageSize})
@@ -347,13 +361,17 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 
 	global.Logger.Infof("get transaction by hash: hash=%s", hash)
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// First, try to query from database
 	var dbTx models.Transaction
-	err := db.Get().WithContext(ctx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
+	err := db.Get().WithContext(dbCtx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("transaction found in database: hash=0x%s", hash)
-		txDTO := models.ToTransactionDTO(&dbTx,models.DTOModeWithDetail)
+		txDTO := models.ToTransactionDTO(&dbTx, models.DTOModeWithDetail)
 		return s.marshalAndReply(txDTO, "marshal transaction error")
 
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -368,8 +386,8 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, GRPCTimeout)
+	// Use independent context for RPC calls to avoid HTTP timeout issues
+	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
 	transaction, err := client.GetTxByTxHash(callCtx, hash)
@@ -382,7 +400,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	transactionModel := models.TransactionFromProto(transaction.Data)
 	saveToDB(transactionModel, "create transaction error")
 
-	txDTO := models.ToTransactionDTO(transactionModel,models.DTOModeWithDetail)
+	txDTO := models.ToTransactionDTO(transactionModel, models.DTOModeWithDetail)
 	return s.marshalAndReply(txDTO, "marshal transaction error")
 }
 
@@ -409,9 +427,13 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 
 	global.Logger.Infof("get account info: address=%s", address)
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// First, try to query from database using the original address
 	var dbAccount models.Account
-	err := db.Get().WithContext(ctx).Where("address = ?", address).First(&dbAccount).Error
+	err := db.Get().WithContext(dbCtx).Where("address = ?", address).First(&dbAccount).Error
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("account found in database: address=%s", address)
@@ -446,7 +468,7 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		global.Logger.Infof("converted Ethereum address %s to Injective address %s", address, queryAddress)
 
 		// Try to query database again with converted address
-		err = db.Get().WithContext(ctx).Where("address = ?", address).First(&dbAccount).Error
+		err = db.Get().WithContext(dbCtx).Where("address = ?", address).First(&dbAccount).Error
 		if err == nil {
 			// Found in database with converted address
 			global.Logger.Infof("account found in database with converted address: address=%s", address)
@@ -533,8 +555,12 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	var total int64
 	var isExactCount bool
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// Build base query with address filter
-	baseQuery := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
 		Where("payer = ?", address)
 
 	// Get approximate count (optimized for performance)
@@ -581,8 +607,8 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	// Use context with longer timeout for gRPC operations
-	callCtx, cancel := context.WithTimeout(ctx, GRPCTimeout)
+	// Use independent context for RPC calls to avoid HTTP timeout issues
+	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
 	transactions, err := client.GetAccountTxs(callCtx, &injective_explorer_rpcpb.GetAccountTxsRequest{
@@ -632,9 +658,13 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 
 	global.Logger.Infof("get account balances: address=%s", address)
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// First, try to query from database
 	var dbBalances []models.AccountBalance
-	err := db.Get().WithContext(ctx).
+	err := db.Get().WithContext(dbCtx).
 		Where("address = ?", address).
 		Find(&dbBalances).Error
 	if err == nil && len(dbBalances) > 0 {
@@ -723,8 +753,12 @@ func (s *DemoService) GetValidators(ctx context.Context, req *pb.PaginationReque
 	// Get approximate or exact count (optimized for performance)
 	total, isExactCount = getApproximateCount(db.Get(), &models.Validator{}, ctx)
 
+	// Create independent context for database query to avoid HTTP timeout issues
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer dbCancel()
+
 	// Build query based on pagination type
-	query := db.Get().WithContext(ctx).Model(&models.Validator{})
+	query := db.Get().WithContext(dbCtx).Model(&models.Validator{})
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
@@ -768,7 +802,8 @@ func (s *DemoService) GetValidators(ctx context.Context, req *pb.PaginationReque
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
-	callCtx, cancel := context.WithTimeout(ctx, GRPCTimeout)
+	// Use independent context for RPC calls to avoid HTTP timeout issues
+	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
 	validators, err := client.FetchValidators(callCtx)

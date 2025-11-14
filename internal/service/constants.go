@@ -18,6 +18,7 @@ const (
 	GRPCTimeout       = 60 * time.Second
 	CountQueryTimeout = 2 * time.Second
 	BlockQueryTimeout = 30 * time.Second
+	DBQueryTimeout    = 10 * time.Second // Database query timeout
 
 	// Approximate count constants
 	ApproximateCountThreshold  = 10000
