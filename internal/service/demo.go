@@ -19,6 +19,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
@@ -224,7 +225,7 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 		return s.errorReply(http.StatusInternalServerError, "get latest block height error", err), err
 	}
 
-	return s.marshalAndReply(map[string]interface{}{"height": height}, "marshal height error")
+	return s.marshalAndReply(&pb.LatestBlockHeightResponse{Height: height}, "marshal height error")
 }
 
 // GetLatestTransactions retrieves the latest transactions from the blockchain with pagination.
@@ -948,6 +949,38 @@ func (s *DemoService) toStruct(v interface{}) (*structpb.Struct, error) {
 	return &structData, nil
 }
 
+// protoMessageToStructWithOptions converts a protobuf message to google.protobuf.Struct
+// with customizable marshaling options.
+//
+// Parameters:
+//   - msg: The protobuf message to convert
+//   - options: Marshaling options (nil to use defaults)
+//
+// Returns:
+//   - *structpb.Struct: The converted struct
+//   - error: Error if conversion fails
+func (s *DemoService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
+	// Use default options or custom options
+	if options == nil {
+		options = &protojson.MarshalOptions{
+			UseProtoNames:   true,  // Use proto field names instead of JSON names
+			EmitUnpopulated: false, // Don't output unset fields
+		}
+	}
+
+	jsonBytes, err := options.Marshal(msg)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal proto to JSON")
+	}
+
+	var structData structpb.Struct
+	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
+	}
+
+	return &structData, nil
+}
+
 // normalizePagination normalizes pagination parameters with default values and validation.
 // Supports both page-based and cursor-based pagination.
 //
@@ -1062,7 +1095,13 @@ func getApproximateCountForAddress(baseQuery *gorm.DB, address string) (int64, b
 //   - total: Total number of records
 //
 // Returns:
-//   - map[string]interface{}: Pagination information map
+//   - map[string]interface{}: Pagination information map containing:
+//   - page: Current page number
+//   - page_size: Page size
+//   - total: Total number of records
+//   - total_pages: Total number of pages
+//   - has_prev: Whether there is a previous page
+//   - has_next: Whether there is a next page
 func buildPaginationInfo(page, pageSize int32, total int64) map[string]interface{} {
 	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
 	if totalPages == 0 {
@@ -1161,7 +1200,17 @@ func saveToDB(model interface{}, errorMsg string) {
 //   - *pb.Reply: Success reply with data as Struct, or error reply if marshaling fails
 //   - error: Error if marshaling fails
 func (s *DemoService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
-	structData, err := s.toStruct(v)
+	var structData *structpb.Struct
+	var err error
+
+	// Check if v is a proto.Message, use protoMessageToStructWithOptions if so
+	if msg, ok := v.(proto.Message); ok {
+		structData, err = s.protoMessageToStructWithOptions(msg, nil)
+	} else {
+		// For non-proto types (maps, etc.), use toStruct
+		structData, err = s.toStruct(v)
+	}
+
 	if err != nil {
 		global.Logger.Errorf("%s: %v", errorMsg, err)
 		return s.errorReply(http.StatusInternalServerError, errorMsg, err), err
@@ -1283,7 +1332,7 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 		sentCount := 0
 		for _, block := range dbBlocks {
 			blockDTO := models.ToBlockDTO(&block, models.DTOModeWithoutDetail)
-			blockStruct, err := s.toStruct(blockDTO)
+			blockStruct, err := s.protoMessageToStructWithOptions(blockDTO, nil)
 			if err != nil {
 				global.Logger.Warnf("failed to convert block to struct (height=%d): %v", block.Height, err)
 				continue
@@ -1307,23 +1356,38 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 	}
 
 	// Stream new blocks from event bus
+	// Add a ticker to log that we're waiting for new blocks (helps with debugging)
+	heartbeatTicker := time.NewTicker(30 * time.Second)
+	defer heartbeatTicker.Stop()
+
+	global.Logger.Infof("StreamLatestBlocks: waiting for new block events...")
+
 	for {
 		select {
 		case <-stream.Context().Done():
 			global.Logger.Infof("stream context cancelled for StreamLatestBlocks")
 			return stream.Context().Err()
+		case <-heartbeatTicker.C:
+			// Log that we're still waiting (helps debug if connection is alive but no blocks)
+			global.Logger.Debugf("StreamLatestBlocks: still waiting for new blocks...")
 		case blockEvent := <-blockChan:
 			if blockEvent == nil {
+				global.Logger.Warnf("StreamLatestBlocks: received nil block event, skipping")
 				continue
 			}
 
+			global.Logger.Infof("StreamLatestBlocks: received block event: height=%d, type=%s",
+				blockEvent.Block.Height, blockEvent.Type)
+
 			// Filter by from_height if specified
 			if req.GetFromHeight() > 0 && blockEvent.Block.Height < uint64(req.GetFromHeight()) {
+				global.Logger.Debugf("StreamLatestBlocks: filtering block height %d (from_height=%d)",
+					blockEvent.Block.Height, req.GetFromHeight())
 				continue
 			}
 
 			blockDTO := models.ToBlockDTO(blockEvent.Block, models.DTOModeWithoutDetail)
-			blockStruct, err := s.toStruct(blockDTO)
+			blockStruct, err := s.protoMessageToStructWithOptions(blockDTO, nil)
 			if err != nil {
 				global.Logger.Warnf("failed to convert block to struct: %v", err)
 				continue
@@ -1344,6 +1408,8 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 				global.Logger.Errorf("failed to send block update: %v", err)
 				return err
 			}
+
+			global.Logger.Infof("StreamLatestBlocks: successfully sent block update: height=%d", blockEvent.Block.Height)
 		}
 	}
 }
@@ -1388,7 +1454,7 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 
 		for _, tx := range dbTxs {
 			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
-			txStruct, err := s.toStruct(txDTO)
+			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
 			if err != nil {
 				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
 				continue
@@ -1435,7 +1501,7 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 			}
 
 			txDTO := models.ToTransactionDTO(txEvent.Transaction, models.DTOModeWithDetail)
-			txStruct, err := s.toStruct(txDTO)
+			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
 			if err != nil {
 				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
 				continue
@@ -1499,7 +1565,7 @@ func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, 
 
 		for _, tx := range dbTxs {
 			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
-			txStruct, err := s.toStruct(txDTO)
+			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
 			if err != nil {
 				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
 				continue
@@ -1536,7 +1602,8 @@ func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, 
 				// This is a simplified check, you may need to enhance this
 			}
 
-			dataStruct, err := s.toStruct(accountEvent.Data)
+			// accountEvent.Data is map[string]interface{}, use structpb.NewStruct directly
+			dataStruct, err := structpb.NewStruct(accountEvent.Data)
 			if err != nil {
 				global.Logger.Warnf("failed to convert account event data to struct: %v", err)
 				continue

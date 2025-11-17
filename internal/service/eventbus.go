@@ -5,6 +5,7 @@
 package service
 
 import (
+	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"sync"
 )
@@ -98,13 +99,33 @@ func (eb *EventBus) PublishBlock(event *BlockEvent) {
 	eb.blockMutex.RLock()
 	defer eb.blockMutex.RUnlock()
 
+	subscriberCount := len(eb.blockSubscribers)
+	if subscriberCount == 0 {
+		// No subscribers, nothing to do
+		return
+	}
+
+	global.Logger.Debugf("PublishBlock: publishing event for block height=%d to %d subscribers",
+		event.Block.Height, subscriberCount)
+
+	skippedCount := 0
 	for ch := range eb.blockSubscribers {
 		select {
 		case ch <- event:
+			// Successfully sent
 		default:
 			// Channel is full, skip this subscriber to avoid blocking
-			// In production, you might want to log this
+			skippedCount++
+			global.Logger.Warnf("PublishBlock: channel full, skipping subscriber (block height=%d)",
+				event.Block.Height)
 		}
+	}
+
+	if skippedCount > 0 {
+		global.Logger.Warnf("PublishBlock: %d/%d subscribers skipped due to full channels",
+			skippedCount, subscriberCount)
+	} else {
+		global.Logger.Debugf("PublishBlock: successfully published to all %d subscribers", subscriberCount)
 	}
 }
 
