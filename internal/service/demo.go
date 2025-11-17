@@ -11,6 +11,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
@@ -813,6 +814,113 @@ func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply 
 		Code:    int32(code),
 		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
 	}
+}
+
+// CheckHealthy performs a health check on the service and its dependencies.
+// This endpoint can be used by load balancers, monitoring systems, and clients
+// to verify that the service is operational.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Health check request (optional service name)
+//
+// Returns:
+//   - *pb.CheckHealthyResponse: Health status information
+//   - error: Error if the health check fails critically
+func (s *DemoService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequest) (*pb.CheckHealthyResponse, error) {
+	global.Logger.Debugf("health check requested: service=%s", req.GetService())
+
+	// Default service name
+	serviceName := "injective-explorer"
+	if req.GetService() != "" {
+		serviceName = req.GetService()
+	}
+
+	// Initialize health status
+	status := "healthy"
+	details := make(map[string]interface{})
+
+	// Check database connection
+	dbHealthy := true
+	if db.Get() != nil {
+		sqlDB, err := db.Get().DB()
+		if err == nil {
+			pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			err := sqlDB.PingContext(pingCtx)
+			cancel()
+			if err != nil {
+				dbHealthy = false
+				status = "degraded"
+				details["database"] = map[string]interface{}{
+					"status": "unhealthy",
+					"error":  err.Error(),
+				}
+			} else {
+				details["database"] = map[string]interface{}{
+					"status": "healthy",
+				}
+			}
+		} else {
+			dbHealthy = false
+			status = "degraded"
+			details["database"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  "failed to get database instance",
+			}
+		}
+	} else {
+		dbHealthy = false
+		status = "unhealthy"
+		details["database"] = map[string]interface{}{
+			"status": "unavailable",
+			"error":  "database instance is nil",
+		}
+	}
+
+	// Check Redis connection (if available)
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		redisCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		_, err := redisClient.Ping(redisCtx).Result()
+		cancel()
+		if err != nil {
+			status = "degraded"
+			details["redis"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  err.Error(),
+			}
+		} else {
+			details["redis"] = map[string]interface{}{
+				"status": "healthy",
+			}
+		}
+	} else {
+		details["redis"] = map[string]interface{}{
+			"status": "not_configured",
+		}
+	}
+
+	// If database is critical and unhealthy, mark as unhealthy
+	if !dbHealthy {
+		status = "unhealthy"
+	}
+
+	// Convert details to Struct
+	detailsStruct, err := structpb.NewStruct(details)
+	if err != nil {
+		global.Logger.Warnf("failed to create details struct: %v", err)
+		detailsStruct = nil
+	}
+
+	response := &pb.CheckHealthyResponse{
+		Status:    status,
+		Service:   serviceName,
+		Timestamp: time.Now().Unix(),
+		Details:   detailsStruct,
+	}
+
+	global.Logger.Debugf("health check completed: status=%s, service=%s", status, serviceName)
+	return response, nil
 }
 
 // toStruct converts any value to google.protobuf.Struct.

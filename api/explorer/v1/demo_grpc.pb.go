@@ -29,6 +29,7 @@ const (
 	Demo_GetAccountTransactions_FullMethodName   = "/api.explorer.v1.Demo/GetAccountTransactions"
 	Demo_GetAccountBalances_FullMethodName       = "/api.explorer.v1.Demo/GetAccountBalances"
 	Demo_GetValidators_FullMethodName            = "/api.explorer.v1.Demo/GetValidators"
+	Demo_CheckHealthy_FullMethodName             = "/api.explorer.v1.Demo/CheckHealthy"
 	Demo_StreamLatestBlocks_FullMethodName       = "/api.explorer.v1.Demo/StreamLatestBlocks"
 	Demo_StreamLatestTransactions_FullMethodName = "/api.explorer.v1.Demo/StreamLatestTransactions"
 	Demo_StreamAccountUpdates_FullMethodName     = "/api.explorer.v1.Demo/StreamAccountUpdates"
@@ -47,6 +48,8 @@ type DemoClient interface {
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetValidators(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error)
+	// Health check endpoint for gRPC-Web
+	CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
 	// Stream latest blocks as they are added to the chain
 	StreamLatestBlocks(ctx context.Context, in *StreamLatestBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BlockUpdate], error)
@@ -154,6 +157,16 @@ func (c *demoClient) GetValidators(ctx context.Context, in *PaginationRequest, o
 	return out, nil
 }
 
+func (c *demoClient) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckHealthyResponse)
+	err := c.cc.Invoke(ctx, Demo_CheckHealthy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *demoClient) StreamLatestBlocks(ctx context.Context, in *StreamLatestBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BlockUpdate], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Demo_ServiceDesc.Streams[0], Demo_StreamLatestBlocks_FullMethodName, cOpts...)
@@ -224,6 +237,8 @@ type DemoServer interface {
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
 	GetValidators(context.Context, *PaginationRequest) (*Reply, error)
+	// Health check endpoint for gRPC-Web
+	CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
 	// Stream latest blocks as they are added to the chain
 	StreamLatestBlocks(*StreamLatestBlocksRequest, grpc.ServerStreamingServer[BlockUpdate]) error
@@ -267,6 +282,9 @@ func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBa
 }
 func (UnimplementedDemoServer) GetValidators(context.Context, *PaginationRequest) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetValidators not implemented")
+}
+func (UnimplementedDemoServer) CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckHealthy not implemented")
 }
 func (UnimplementedDemoServer) StreamLatestBlocks(*StreamLatestBlocksRequest, grpc.ServerStreamingServer[BlockUpdate]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamLatestBlocks not implemented")
@@ -460,6 +478,24 @@ func _Demo_GetValidators_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Demo_CheckHealthy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckHealthyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServer).CheckHealthy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Demo_CheckHealthy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServer).CheckHealthy(ctx, req.(*CheckHealthyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Demo_StreamLatestBlocks_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(StreamLatestBlocksRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -535,6 +571,10 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetValidators",
 			Handler:    _Demo_GetValidators_Handler,
+		},
+		{
+			MethodName: "CheckHealthy",
+			Handler:    _Demo_CheckHealthy_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

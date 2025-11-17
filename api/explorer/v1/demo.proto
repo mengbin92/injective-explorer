@@ -63,6 +63,13 @@ service Demo {
     };
   }
 
+  // Health check endpoint for gRPC-Web
+  rpc CheckHealthy(CheckHealthyRequest) returns (CheckHealthyResponse) {
+    option (google.api.http) = {
+      get : "/demo/health"
+    };
+  }
+
   // Streaming RPCs for real-time updates
   // Stream latest blocks as they are added to the chain
   rpc StreamLatestBlocks(StreamLatestBlocksRequest)
@@ -101,6 +108,23 @@ message GetAccountTransactionsRequest {
 }
 
 message GetAccountBalancesRequest { string address = 1; }
+
+// Health check messages
+message CheckHealthyRequest {
+  // Optional: service name to check
+  string service = 1;
+}
+
+message CheckHealthyResponse {
+  // Health status: "healthy", "degraded", "unhealthy"
+  string status = 1;
+  // Service name
+  string service = 2;
+  // Timestamp of the health check
+  int64 timestamp = 3;
+  // Optional: additional health information
+  google.protobuf.Struct details = 4;
+}
 
 // Streaming request messages
 message StreamLatestBlocksRequest {

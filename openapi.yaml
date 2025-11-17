@@ -139,6 +139,25 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/health:
+        get:
+            tags:
+                - Demo
+            description: Health check endpoint for gRPC-Web
+            operationId: Demo_CheckHealthy
+            parameters:
+                - name: service
+                  in: query
+                  description: 'Optional: service name to check'
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.CheckHealthyResponse'
     /demo/stream/account:
         get:
             tags:
@@ -324,6 +343,21 @@ components:
                     type: string
                     description: Timestamp of the update
             description: Streaming response messages
+        api.explorer.v1.CheckHealthyResponse:
+            type: object
+            properties:
+                status:
+                    type: string
+                    description: 'Health status: "healthy", "degraded", "unhealthy"'
+                service:
+                    type: string
+                    description: Service name
+                timestamp:
+                    type: string
+                    description: Timestamp of the health check
+                details:
+                    type: object
+                    description: 'Optional: additional health information'
         api.explorer.v1.Reply:
             type: object
             properties:
