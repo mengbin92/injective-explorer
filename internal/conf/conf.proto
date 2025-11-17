@@ -25,8 +25,18 @@ message Server {
     string addr = 2;
     google.protobuf.Duration timeout = 3;
   }
+  message GRPC_WEB {
+    string network = 1;
+    string addr = 2;
+    google.protobuf.Duration timeout = 3;
+    // Enable CORS for gRPC-Web
+    bool enable_cors = 4;
+    // Allowed origins for CORS (comma-separated, "*" for all)
+    repeated string allowed_origins = 5;
+  }
   HTTP http = 1;
   GRPC grpc = 2;
+  GRPC_WEB grpc_web = 3;
 }
 
 message Data {

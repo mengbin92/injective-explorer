@@ -5,6 +5,7 @@ package api.explorer.v1;
 import "explorer/v1/common.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
@@ -61,6 +62,38 @@ service Demo {
       get : "/demo/validator/validators"
     };
   }
+
+  // Health check endpoint for gRPC-Web
+  rpc CheckHealthy(CheckHealthyRequest) returns (CheckHealthyResponse) {
+    option (google.api.http) = {
+      get : "/demo/health"
+    };
+  }
+
+  // Streaming RPCs for real-time updates
+  // Stream latest blocks as they are added to the chain
+  rpc StreamLatestBlocks(StreamLatestBlocksRequest)
+      returns (stream BlockUpdate) {
+    option (google.api.http) = {
+      get : "/demo/stream/blocks"
+    };
+  }
+
+  // Stream latest transactions as they are added to the chain
+  rpc StreamLatestTransactions(StreamLatestTransactionsRequest)
+      returns (stream TransactionUpdate) {
+    option (google.api.http) = {
+      get : "/demo/stream/transactions"
+    };
+  }
+
+  // Stream account updates (balance changes, new transactions, etc.)
+  rpc StreamAccountUpdates(StreamAccountUpdatesRequest)
+      returns (stream AccountUpdate) {
+    option (google.api.http) = {
+      get : "/demo/stream/account"
+    };
+  }
 }
 
 message GetBlockByHeightRequest { int64 height = 1; }
@@ -75,3 +108,150 @@ message GetAccountTransactionsRequest {
 }
 
 message GetAccountBalancesRequest { string address = 1; }
+
+// Health check messages
+message CheckHealthyRequest {
+  // Optional: service name to check
+  string service = 1;
+}
+
+message CheckHealthyResponse {
+  // Health status: "healthy", "degraded", "unhealthy"
+  string status = 1;
+  // Service name
+  string service = 2;
+  // Timestamp of the health check
+  int64 timestamp = 3;
+  // Optional: additional health information
+  google.protobuf.Struct details = 4;
+}
+
+// Streaming request messages
+message StreamLatestBlocksRequest {
+  // Optional: start streaming from a specific block height
+  // If 0, streams from the latest blocks
+  int64 from_height = 1;
+}
+
+message StreamLatestTransactionsRequest {
+  // Optional: filter by transaction types
+  // If empty, streams all transaction types
+  repeated string types = 1;
+}
+
+message StreamAccountUpdatesRequest {
+  // Required: account address to monitor
+  string address = 1;
+  // Optional: start streaming from a specific timestamp
+  // If 0, streams from recent transactions
+  int64 from_timestamp = 2;
+}
+
+// Streaming response messages
+message BlockUpdate {
+  // Block data as a flexible struct
+  google.protobuf.Struct block = 1;
+  // Update type: "new" or "update"
+  string update_type = 2;
+  // Timestamp of the update
+  int64 timestamp = 3;
+}
+
+message TransactionUpdate {
+  // Transaction data as a flexible struct
+  google.protobuf.Struct transaction = 1;
+  // Update type: "new" or "update"
+  string update_type = 2;
+  // Timestamp of the update
+  int64 timestamp = 3;
+}
+
+message AccountUpdate {
+  // Account address
+  string address = 1;
+  // Update type: "transaction", "balance", etc.
+  string update_type = 2;
+  // Update data as a flexible struct
+  google.protobuf.Struct data = 3;
+  // Timestamp of the update
+  int64 timestamp = 4;
+}
+
+message LatestBlockHeightResponse { int64 height = 1; }
+
+message AccountDTO {
+  string address = 1;
+  string base_account = 2;
+  string code_hash = 3;
+}
+
+message AccountBalanceDTO {
+  string address = 1;
+  string denom = 2;
+  string amount = 3;
+}
+
+message BlockDTO {
+  uint64 height = 1;
+  string proposer = 2;
+  string moniker = 3;
+  string block_hash = 4;
+  string parent_hash = 5;
+  int64 num_precommits = 6;
+  int64 num_txs = 7;
+  int64 total_txs = 8;
+  repeated string txs = 9;
+  string timestamp = 10;
+  uint64 block_unix_timestamp = 11;
+}
+
+message TransactionDTO {
+  string id = 1;
+  uint64 block_number = 2;
+  string block_timestamp = 3;
+  string hash = 4;
+  uint32 code = 5;
+  string data = 6;
+  string info = 7;
+  int64 gas_wanted = 8;
+  int64 gas_used = 9;
+  string gas_fee = 10;
+  string codespace = 11;
+  repeated string events = 12;
+  string tx_type = 13;
+  string messages = 14;
+  repeated string signatures = 15;
+  string memo = 16;
+  uint64 tx_number = 17;
+  uint64 block_unix_timestamp = 18;
+  string error_log = 19;
+  string logs = 20;
+  repeated int64 claim_ids = 21;
+  string payer = 22;
+}
+
+message ValidatorDTO {
+  string id = 1;
+  string moniker = 2;
+  string operator_address = 3;
+  string consensus_address = 4;
+  bool jailed = 5;
+  int32 status = 6;
+  string tokens = 7;
+  string delegator_shares = 8;
+  string description = 9;
+  int64 unbonding_height = 10;
+  string unbonding_time = 11;
+  string commission_rate = 12;
+  string commission_max_rate = 13;
+  string commission_max_change_rate = 14;
+  string commission_update_time = 15;
+  uint64 proposed = 16;
+  uint64 signed = 17;
+  uint64 missed = 18;
+  string timestamp = 19;
+  repeated string uptimes = 20;
+  repeated string slashing_events = 21;
+  double uptime_percentage = 22;
+  string image_url = 23;
+}

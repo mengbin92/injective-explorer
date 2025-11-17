@@ -11,6 +11,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
@@ -18,6 +19,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
@@ -232,7 +234,7 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 		return s.errorReply(http.StatusInternalServerError, "get latest block height error", err), err
 	}
 
-	return s.marshalAndReply(map[string]interface{}{"height": height}, "marshal height error")
+	return s.marshalAndReply(&pb.LatestBlockHeightResponse{Height: height}, "marshal height error")
 }
 
 // GetLatestTransactions retrieves the latest transactions from the blockchain with pagination.
@@ -850,6 +852,113 @@ func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply 
 	}
 }
 
+// CheckHealthy performs a health check on the service and its dependencies.
+// This endpoint can be used by load balancers, monitoring systems, and clients
+// to verify that the service is operational.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Health check request (optional service name)
+//
+// Returns:
+//   - *pb.CheckHealthyResponse: Health status information
+//   - error: Error if the health check fails critically
+func (s *DemoService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequest) (*pb.CheckHealthyResponse, error) {
+	global.Logger.Debugf("health check requested: service=%s", req.GetService())
+
+	// Default service name
+	serviceName := "injective-explorer"
+	if req.GetService() != "" {
+		serviceName = req.GetService()
+	}
+
+	// Initialize health status
+	status := "healthy"
+	details := make(map[string]interface{})
+
+	// Check database connection
+	dbHealthy := true
+	if db.Get() != nil {
+		sqlDB, err := db.Get().DB()
+		if err == nil {
+			pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			err := sqlDB.PingContext(pingCtx)
+			cancel()
+			if err != nil {
+				dbHealthy = false
+				status = "degraded"
+				details["database"] = map[string]interface{}{
+					"status": "unhealthy",
+					"error":  err.Error(),
+				}
+			} else {
+				details["database"] = map[string]interface{}{
+					"status": "healthy",
+				}
+			}
+		} else {
+			dbHealthy = false
+			status = "degraded"
+			details["database"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  "failed to get database instance",
+			}
+		}
+	} else {
+		dbHealthy = false
+		status = "unhealthy"
+		details["database"] = map[string]interface{}{
+			"status": "unavailable",
+			"error":  "database instance is nil",
+		}
+	}
+
+	// Check Redis connection (if available)
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		redisCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		_, err := redisClient.Ping(redisCtx).Result()
+		cancel()
+		if err != nil {
+			status = "degraded"
+			details["redis"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  err.Error(),
+			}
+		} else {
+			details["redis"] = map[string]interface{}{
+				"status": "healthy",
+			}
+		}
+	} else {
+		details["redis"] = map[string]interface{}{
+			"status": "not_configured",
+		}
+	}
+
+	// If database is critical and unhealthy, mark as unhealthy
+	if !dbHealthy {
+		status = "unhealthy"
+	}
+
+	// Convert details to Struct
+	detailsStruct, err := structpb.NewStruct(details)
+	if err != nil {
+		global.Logger.Warnf("failed to create details struct: %v", err)
+		detailsStruct = nil
+	}
+
+	response := &pb.CheckHealthyResponse{
+		Status:    status,
+		Service:   serviceName,
+		Timestamp: time.Now().Unix(),
+		Details:   detailsStruct,
+	}
+
+	global.Logger.Debugf("health check completed: status=%s, service=%s", status, serviceName)
+	return response, nil
+}
+
 // toStruct converts any value to google.protobuf.Struct.
 // This allows returning JSON objects directly instead of JSON strings.
 //
@@ -867,6 +976,38 @@ func (s *DemoService) toStruct(v interface{}) (*structpb.Struct, error) {
 	}
 
 	// Unmarshal into structpb.Struct
+	var structData structpb.Struct
+	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
+	}
+
+	return &structData, nil
+}
+
+// protoMessageToStructWithOptions converts a protobuf message to google.protobuf.Struct
+// with customizable marshaling options.
+//
+// Parameters:
+//   - msg: The protobuf message to convert
+//   - options: Marshaling options (nil to use defaults)
+//
+// Returns:
+//   - *structpb.Struct: The converted struct
+//   - error: Error if conversion fails
+func (s *DemoService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
+	// Use default options or custom options
+	if options == nil {
+		options = &protojson.MarshalOptions{
+			UseProtoNames:   true,  // Use proto field names instead of JSON names
+			EmitUnpopulated: false, // Don't output unset fields
+		}
+	}
+
+	jsonBytes, err := options.Marshal(msg)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal proto to JSON")
+	}
+
 	var structData structpb.Struct
 	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
@@ -989,7 +1130,13 @@ func getApproximateCountForAddress(baseQuery *gorm.DB, address string) (int64, b
 //   - total: Total number of records
 //
 // Returns:
-//   - map[string]interface{}: Pagination information map
+//   - map[string]interface{}: Pagination information map containing:
+//   - page: Current page number
+//   - page_size: Page size
+//   - total: Total number of records
+//   - total_pages: Total number of pages
+//   - has_prev: Whether there is a previous page
+//   - has_next: Whether there is a next page
 func buildPaginationInfo(page, pageSize int32, total int64) map[string]interface{} {
 	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
 	if totalPages == 0 {
@@ -1088,7 +1235,17 @@ func saveToDB(model interface{}, errorMsg string) {
 //   - *pb.Reply: Success reply with data as Struct, or error reply if marshaling fails
 //   - error: Error if marshaling fails
 func (s *DemoService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
-	structData, err := s.toStruct(v)
+	var structData *structpb.Struct
+	var err error
+
+	// Check if v is a proto.Message, use protoMessageToStructWithOptions if so
+	if msg, ok := v.(proto.Message); ok {
+		structData, err = s.protoMessageToStructWithOptions(msg, nil)
+	} else {
+		// For non-proto types (maps, etc.), use toStruct
+		structData, err = s.toStruct(v)
+	}
+
 	if err != nil {
 		global.Logger.Errorf("%s: %v", errorMsg, err)
 		return s.errorReply(http.StatusInternalServerError, errorMsg, err), err
@@ -1149,4 +1306,355 @@ func (s *DemoService) sanitizeError(err error) string {
 	}
 
 	return errMsg
+}
+
+// StreamLatestBlocks streams the latest blocks as they are added to the chain.
+// This method subscribes to block events from the event bus and streams them to the client.
+func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stream pb.Demo_StreamLatestBlocksServer) error {
+	global.Logger.Infof("stream latest blocks: from_height=%d", req.GetFromHeight())
+
+	// Subscribe to block events
+	eventBus := GetEventBus()
+	blockChan := eventBus.SubscribeBlocks()
+	defer eventBus.UnsubscribeBlocks(blockChan)
+
+	// Send initial/historical blocks
+	// If from_height is specified, send blocks from that height
+	// Otherwise, send the latest blocks (e.g., last 10 blocks)
+	var dbBlocks []models.Block
+	var err error
+
+	if req.GetFromHeight() > 0 {
+		// Query blocks from database starting from from_height
+		global.Logger.Debugf("querying blocks from height %d", req.GetFromHeight())
+		err = db.Get().WithContext(stream.Context()).
+			Where("height >= ?", req.GetFromHeight()).
+			Order("height ASC").
+			Limit(100). // Limit to avoid sending too much data
+			Find(&dbBlocks).Error
+	} else {
+		// If no from_height specified, send the latest blocks to show something immediately
+		global.Logger.Debugf("querying latest blocks from database")
+		err = db.Get().WithContext(stream.Context()).
+			Order("height DESC").
+			Limit(10). // Send last 10 blocks as initial data
+			Find(&dbBlocks).Error
+		// Reverse the order to send from oldest to newest
+		for i, j := 0, len(dbBlocks)-1; i < j; i, j = i+1, j-1 {
+			dbBlocks[i], dbBlocks[j] = dbBlocks[j], dbBlocks[i]
+		}
+	}
+
+	// Log query result for debugging
+	if err != nil {
+		global.Logger.Warnf("database query error in StreamLatestBlocks: %v", err)
+	} else {
+		global.Logger.Infof("database query successful: found %d blocks", len(dbBlocks))
+	}
+
+	// Check if database has any blocks at all (for debugging)
+	if len(dbBlocks) == 0 {
+		var totalCount int64
+		countErr := db.Get().WithContext(stream.Context()).Model(&models.Block{}).Count(&totalCount).Error
+		if countErr != nil {
+			global.Logger.Warnf("failed to count total blocks: %v", countErr)
+		} else {
+			global.Logger.Infof("no blocks found in query, total blocks in database: %d", totalCount)
+		}
+	}
+
+	if err == nil && len(dbBlocks) > 0 {
+		sentCount := 0
+		for _, block := range dbBlocks {
+			blockDTO := models.ToBlockDTO(&block, models.DTOModeWithoutDetail)
+			blockStruct, err := s.protoMessageToStructWithOptions(blockDTO, nil)
+			if err != nil {
+				global.Logger.Warnf("failed to convert block to struct (height=%d): %v", block.Height, err)
+				continue
+			}
+
+			update := &pb.BlockUpdate{
+				Block:      blockStruct,
+				UpdateType: "new",
+				Timestamp:  time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send block update (height=%d) to stream: %v", block.Height, err)
+				return err
+			}
+			sentCount++
+		}
+		global.Logger.Infof("sent %d/%d initial blocks to stream", sentCount, len(dbBlocks))
+	} else if len(dbBlocks) == 0 {
+		global.Logger.Warnf("no blocks to send: query returned %d blocks", len(dbBlocks))
+	}
+
+	// Stream new blocks from event bus
+	// Add a ticker to log that we're waiting for new blocks (helps with debugging)
+	heartbeatTicker := time.NewTicker(30 * time.Second)
+	defer heartbeatTicker.Stop()
+
+	global.Logger.Infof("StreamLatestBlocks: waiting for new block events...")
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			global.Logger.Infof("stream context cancelled for StreamLatestBlocks")
+			return stream.Context().Err()
+		case <-heartbeatTicker.C:
+			// Log that we're still waiting (helps debug if connection is alive but no blocks)
+			global.Logger.Debugf("StreamLatestBlocks: still waiting for new blocks...")
+		case blockEvent := <-blockChan:
+			if blockEvent == nil {
+				global.Logger.Warnf("StreamLatestBlocks: received nil block event, skipping")
+				continue
+			}
+
+			global.Logger.Infof("StreamLatestBlocks: received block event: height=%d, type=%s",
+				blockEvent.Block.Height, blockEvent.Type)
+
+			// Filter by from_height if specified
+			if req.GetFromHeight() > 0 && blockEvent.Block.Height < uint64(req.GetFromHeight()) {
+				global.Logger.Debugf("StreamLatestBlocks: filtering block height %d (from_height=%d)",
+					blockEvent.Block.Height, req.GetFromHeight())
+				continue
+			}
+
+			blockDTO := models.ToBlockDTO(blockEvent.Block, models.DTOModeWithoutDetail)
+			blockStruct, err := s.protoMessageToStructWithOptions(blockDTO, nil)
+			if err != nil {
+				global.Logger.Warnf("failed to convert block to struct: %v", err)
+				continue
+			}
+
+			updateType := "new"
+			if blockEvent.Type == EventTypeBlockUpdate {
+				updateType = "update"
+			}
+
+			update := &pb.BlockUpdate{
+				Block:      blockStruct,
+				UpdateType: updateType,
+				Timestamp:  time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send block update: %v", err)
+				return err
+			}
+
+			global.Logger.Infof("StreamLatestBlocks: successfully sent block update: height=%d", blockEvent.Block.Height)
+		}
+	}
+}
+
+// StreamLatestTransactions streams the latest transactions as they are added to the chain.
+// This method subscribes to transaction events from the event bus and streams them to the client.
+func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsRequest, stream pb.Demo_StreamLatestTransactionsServer) error {
+	global.Logger.Infof("stream latest transactions: types=%v", req.GetTypes())
+
+	// Subscribe to transaction events
+	eventBus := GetEventBus()
+	txChan := eventBus.SubscribeTransactions()
+	defer eventBus.UnsubscribeTransactions(txChan)
+
+	// Send initial/historical transactions
+	// Always send the latest transactions to show something immediately
+	var dbTxs []models.Transaction
+	query := db.Get().WithContext(stream.Context()).
+		Order("created_at DESC").
+		Limit(20) // Send last 20 transactions as initial data
+
+	// Apply type filter if specified
+	if len(req.GetTypes()) > 0 {
+		// Build OR condition for transaction types
+		conditions := make([]string, 0, len(req.GetTypes()))
+		args := make([]interface{}, 0, len(req.GetTypes()))
+		for _, txType := range req.GetTypes() {
+			conditions = append(conditions, "tx_type LIKE ?")
+			args = append(args, "%"+strings.ToLower(txType)+"%")
+		}
+		if len(conditions) > 0 {
+			query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+		}
+	}
+
+	err := query.Find(&dbTxs).Error
+	if err == nil && len(dbTxs) > 0 {
+		// Reverse the order to send from oldest to newest
+		for i, j := 0, len(dbTxs)-1; i < j; i, j = i+1, j-1 {
+			dbTxs[i], dbTxs[j] = dbTxs[j], dbTxs[i]
+		}
+
+		for _, tx := range dbTxs {
+			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
+			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
+			if err != nil {
+				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
+				continue
+			}
+
+			update := &pb.TransactionUpdate{
+				Transaction: txStruct,
+				UpdateType:  "new",
+				Timestamp:   tx.CreatedAt.Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				return err
+			}
+		}
+		global.Logger.Infof("sent %d initial transactions to stream", len(dbTxs))
+	}
+
+	// Stream new transactions from event bus
+	for {
+		select {
+		case <-stream.Context().Done():
+			global.Logger.Infof("stream context cancelled for StreamLatestTransactions")
+			return stream.Context().Err()
+		case txEvent := <-txChan:
+			if txEvent == nil {
+				continue
+			}
+
+			// Filter by transaction types if specified
+			if len(req.GetTypes()) > 0 {
+				// Check if transaction type matches (simplified, you may need to enhance this)
+				txType := txEvent.Transaction.TxType
+				matched := false
+				for _, filterType := range req.GetTypes() {
+					if strings.Contains(strings.ToLower(txType), strings.ToLower(filterType)) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
+			}
+
+			txDTO := models.ToTransactionDTO(txEvent.Transaction, models.DTOModeWithDetail)
+			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
+			if err != nil {
+				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
+				continue
+			}
+
+			updateType := "new"
+			if txEvent.Type == EventTypeTransactionUpdate {
+				updateType = "update"
+			}
+
+			update := &pb.TransactionUpdate{
+				Transaction: txStruct,
+				UpdateType:  updateType,
+				Timestamp:   time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send transaction update: %v", err)
+				return err
+			}
+		}
+	}
+}
+
+// StreamAccountUpdates streams account updates (balance changes, new transactions, etc.) for a specific account.
+// This method subscribes to account events from the event bus and streams them to the client.
+func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, stream pb.Demo_StreamAccountUpdatesServer) error {
+	address := req.GetAddress()
+	if address == "" {
+		return errors.New("address is required")
+	}
+
+	global.Logger.Infof("stream account updates: address=%s, from_timestamp=%d", address, req.GetFromTimestamp())
+
+	// Subscribe to account events for this specific address
+	eventBus := GetEventBus()
+	accountChan := eventBus.SubscribeAccount(address)
+	defer eventBus.UnsubscribeAccount(address, accountChan)
+
+	// Send initial/historical transactions for this account
+	// Always send recent transactions to show something immediately
+	var dbTxs []models.Transaction
+	query := db.Get().WithContext(stream.Context()).
+		Where("payer = ?", address).
+		Order("block_unix_timestamp DESC, tx_number DESC")
+
+	// Apply timestamp filter if specified
+	if req.GetFromTimestamp() > 0 {
+		query = query.Where("block_unix_timestamp >= ?", req.GetFromTimestamp())
+	}
+
+	// Limit to avoid sending too much data
+	query = query.Limit(50)
+
+	err := query.Find(&dbTxs).Error
+	if err == nil && len(dbTxs) > 0 {
+		// Reverse the order to send from oldest to newest
+		for i, j := 0, len(dbTxs)-1; i < j; i, j = i+1, j-1 {
+			dbTxs[i], dbTxs[j] = dbTxs[j], dbTxs[i]
+		}
+
+		for _, tx := range dbTxs {
+			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
+			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
+			if err != nil {
+				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
+				continue
+			}
+
+			update := &pb.AccountUpdate{
+				Address:    address,
+				UpdateType: "transaction",
+				Data:       txStruct,
+				Timestamp:  tx.CreatedAt.Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				return err
+			}
+		}
+		global.Logger.Infof("sent %d initial account transactions to stream for address %s", len(dbTxs), address)
+	}
+
+	// Stream new account updates from event bus
+	for {
+		select {
+		case <-stream.Context().Done():
+			global.Logger.Infof("stream context cancelled for StreamAccountUpdates")
+			return stream.Context().Err()
+		case accountEvent := <-accountChan:
+			if accountEvent == nil {
+				continue
+			}
+
+			// Filter by timestamp if specified
+			if req.GetFromTimestamp() > 0 && accountEvent.Data != nil {
+				// Check timestamp if available in the event data
+				// This is a simplified check, you may need to enhance this
+			}
+
+			// accountEvent.Data is map[string]interface{}, use structpb.NewStruct directly
+			dataStruct, err := structpb.NewStruct(accountEvent.Data)
+			if err != nil {
+				global.Logger.Warnf("failed to convert account event data to struct: %v", err)
+				continue
+			}
+
+			update := &pb.AccountUpdate{
+				Address:    accountEvent.Address,
+				UpdateType: string(accountEvent.Type),
+				Data:       dataStruct,
+				Timestamp:  time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send account update: %v", err)
+				return err
+			}
+		}
+	}
 }

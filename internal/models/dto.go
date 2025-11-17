@@ -1,143 +1,71 @@
 // Package models provides Data Transfer Objects (DTOs) for API responses.
 // DTOs exclude internal database fields like gorm.Model to prevent exposing
 // sensitive database information to clients.
+//
+// Note: DTO types are now defined in proto files (api/explorer/v1/demo.proto)
+// and generated as Go types. This file provides conversion functions from
+// database models to proto DTO messages.
 package models
 
-const(
-	DTOModeWithDetail = true
+import (
+	pb "injective-explorer/api/explorer/v1"
+)
+
+const (
+	DTOModeWithDetail    = true
 	DTOModeWithoutDetail = false
 )
 
-// AccountDTO represents account information for API responses.
-// It excludes gorm.Model fields (ID, CreatedAt, UpdatedAt, DeletedAt).
-type AccountDTO struct {
-	Address     string `json:"address,omitempty"`
-	BaseAccount string `json:"base_account,omitempty"`
-	CodeHash    string `json:"code_hash,omitempty"`
-}
+// DTO types are now defined in proto files:
+// - pb.AccountDTO
+// - pb.AccountBalanceDTO
+// - pb.BlockDTO
+// - pb.TransactionDTO
+// - pb.ValidatorDTO
 
-// AccountBalanceDTO represents account balance information for API responses.
-// It excludes gorm.Model fields (ID, CreatedAt, UpdatedAt, DeletedAt).
-type AccountBalanceDTO struct {
-	Address string `json:"address,omitempty"`
-	Denom   string `json:"denom,omitempty"`
-	Amount  string `json:"amount,omitempty"`
-}
-
-// BlockDTO represents block information for API responses.
-// It excludes gorm.Model fields (ID, CreatedAt, UpdatedAt, DeletedAt).
-type BlockDTO struct {
-	Height             uint64   `json:"height,omitempty"`
-	Proposer           string   `json:"proposer,omitempty"`
-	Moniker            string   `json:"moniker,omitempty"`
-	BlockHash          string   `json:"block_hash,omitempty"`
-	ParentHash         string   `json:"parent_hash,omitempty"`
-	NumPrecommits      int64    `json:"num_precommits,omitempty"`
-	NumTxs             int64    `json:"num_txs,omitempty"`
-	TotalTxs           int64    `json:"total_txs,omitempty"`
-	Txs                []string `json:"txs,omitempty"`
-	Timestamp          string   `json:"timestamp,omitempty"`
-	BlockUnixTimestamp uint64   `json:"block_unix_timestamp,omitempty"`
-}
-
-// TransactionDTO represents transaction information for API responses.
-// It excludes gorm.Model fields (ID, CreatedAt, UpdatedAt, DeletedAt).
-type TransactionDTO struct {
-	Id                 string   `json:"id,omitempty"`
-	BlockNumber        uint64   `json:"block_number,omitempty"`
-	BlockTimestamp     string   `json:"block_timestamp,omitempty"`
-	Hash               string   `json:"hash,omitempty"`
-	Code               uint32   `json:"code,omitempty"`
-	Data               string   `json:"data,omitempty"`
-	Info               string   `json:"info,omitempty"`
-	GasWanted          int64    `json:"gas_wanted,omitempty"`
-	GasUsed            int64    `json:"gas_used,omitempty"`
-	GasFee             string   `json:"gas_fee,omitempty"`
-	Codespace          string   `json:"codespace,omitempty"`
-	Events             []string `json:"events,omitempty"`
-	TxType             string   `json:"tx_type,omitempty"`
-	Messages           string   `json:"messages,omitempty"`
-	Signatures         []string `json:"signatures,omitempty"`
-	Memo               string   `json:"memo,omitempty"`
-	TxNumber           uint64   `json:"tx_number,omitempty"`
-	BlockUnixTimestamp uint64   `json:"block_unix_timestamp,omitempty"`
-	ErrorLog           string   `json:"error_log"`
-	Logs               string   `json:"logs,omitempty"`
-	ClaimIds           []int64  `json:"claim_ids,omitempty"`
-	Payer              string   `json:"payer,omitempty"`
-}
-
-// ValidatorDTO represents validator information for API responses.
-// It excludes gorm.Model fields (ID, CreatedAt, UpdatedAt, DeletedAt).
-type ValidatorDTO struct {
-	Id                      string   `json:"id,omitempty"`
-	Moniker                 string   `json:"moniker,omitempty"`
-	OperatorAddress         string   `json:"operator_address,omitempty"`
-	ConsensusAddress        string   `json:"consensus_address,omitempty"`
-	Jailed                  bool     `json:"jailed,omitempty"`
-	Status                  int32    `json:"status,omitempty"`
-	Tokens                  string   `json:"tokens,omitempty"`
-	DelegatorShares         string   `json:"delegator_shares,omitempty"`
-	Description             string   `json:"description,omitempty"`
-	UnbondingHeight         int64    `json:"unbonding_height,omitempty"`
-	UnbondingTime           string   `json:"unbonding_time,omitempty"`
-	CommissionRate          string   `json:"commission_rate,omitempty"`
-	CommissionMaxRate       string   `json:"commission_max_rate,omitempty"`
-	CommissionMaxChangeRate string   `json:"commission_max_change_rate,omitempty"`
-	CommissionUpdateTime    string   `json:"commission_update_time,omitempty"`
-	Proposed                uint64   `json:"proposed,omitempty"`
-	Signed                  uint64   `json:"signed,omitempty"`
-	Missed                  uint64   `json:"missed,omitempty"`
-	Timestamp               string   `json:"timestamp,omitempty"`
-	Uptimes                 []string `json:"uptimes,omitempty"`
-	SlashingEvents          []string `json:"slashing_events,omitempty"`
-	UptimePercentage        float64  `json:"uptime_percentage,omitempty"`
-	ImageUrl                string   `json:"image_url,omitempty"`
-}
-
-// ToAccountDTO converts an Account model to AccountDTO.
-func ToAccountDTO(account *Account) *AccountDTO {
+// ToAccountDTO converts an Account model to proto AccountDTO.
+func ToAccountDTO(account *Account) *pb.AccountDTO {
 	if account == nil {
 		return nil
 	}
-	return &AccountDTO{
+	return &pb.AccountDTO{
 		Address:     account.Address,
 		BaseAccount: account.BaseAccount,
 		CodeHash:    account.CodeHash,
 	}
 }
 
-// ToAccountBalanceDTO converts an AccountBalance model to AccountBalanceDTO.
-func ToAccountBalanceDTO(balance *AccountBalance) *AccountBalanceDTO {
+// ToAccountBalanceDTO converts an AccountBalance model to proto AccountBalanceDTO.
+func ToAccountBalanceDTO(balance *AccountBalance) *pb.AccountBalanceDTO {
 	if balance == nil {
 		return nil
 	}
-	return &AccountBalanceDTO{
+	return &pb.AccountBalanceDTO{
 		Address: balance.Address,
 		Denom:   balance.Denom,
 		Amount:  balance.Amount,
 	}
 }
 
-// ToAccountBalanceDTOs converts a slice of AccountBalance models to AccountBalanceDTOs.
-func ToAccountBalanceDTOs(balances []AccountBalance) []AccountBalanceDTO {
+// ToAccountBalanceDTOs converts a slice of AccountBalance models to proto AccountBalanceDTOs.
+func ToAccountBalanceDTOs(balances []AccountBalance) []*pb.AccountBalanceDTO {
 	if balances == nil {
 		return nil
 	}
-	dtos := make([]AccountBalanceDTO, 0, len(balances))
+	dtos := make([]*pb.AccountBalanceDTO, 0, len(balances))
 	for _, balance := range balances {
-		dtos = append(dtos, *ToAccountBalanceDTO(&balance))
+		dtos = append(dtos, ToAccountBalanceDTO(&balance))
 	}
 	return dtos
 }
 
-// ToBlockDTO converts a Block model to BlockDTO.
-func ToBlockDTO(block *Block, isDetail bool) *BlockDTO {
+// ToBlockDTO converts a Block model to proto BlockDTO.
+func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 	if block == nil {
 		return nil
 	}
 	if isDetail {
-		return &BlockDTO{
+		return &pb.BlockDTO{
 			Height:             block.Height,
 			Proposer:           block.Proposer,
 			Moniker:            block.Moniker,
@@ -151,7 +79,7 @@ func ToBlockDTO(block *Block, isDetail bool) *BlockDTO {
 			BlockUnixTimestamp: block.BlockUnixTimestamp,
 		}
 	} else {
-		return &BlockDTO{
+		return &pb.BlockDTO{
 			Height:             block.Height,
 			Proposer:           block.Proposer,
 			BlockHash:          block.BlockHash,
@@ -159,28 +87,27 @@ func ToBlockDTO(block *Block, isDetail bool) *BlockDTO {
 			BlockUnixTimestamp: block.BlockUnixTimestamp,
 		}
 	}
-
 }
 
-// ToBlockDTOs converts a slice of Block models to BlockDTOs.
-func ToBlockDTOs(blocks []Block) []*BlockDTO {
+// ToBlockDTOs converts a slice of Block models to proto BlockDTOs.
+func ToBlockDTOs(blocks []Block) []*pb.BlockDTO {
 	if blocks == nil {
 		return nil
 	}
-	dtos := make([]*BlockDTO, 0, len(blocks))
+	dtos := make([]*pb.BlockDTO, 0, len(blocks))
 	for _, block := range blocks {
 		dtos = append(dtos, ToBlockDTO(&block, DTOModeWithoutDetail))
 	}
 	return dtos
 }
 
-// ToTransactionDTO converts a Transaction model to TransactionDTO.
-func ToTransactionDTO(tx *Transaction, isDetail bool) *TransactionDTO {
+// ToTransactionDTO converts a Transaction model to proto TransactionDTO.
+func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 	if tx == nil {
 		return nil
 	}
 	if isDetail {
-		return &TransactionDTO{
+		return &pb.TransactionDTO{
 			Id:                 tx.Id,
 			BlockNumber:        tx.BlockNumber,
 			BlockTimestamp:     tx.BlockTimestamp,
@@ -205,7 +132,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *TransactionDTO {
 			Payer:              tx.Payer,
 		}
 	} else {
-		return &TransactionDTO{
+		return &pb.TransactionDTO{
 			BlockNumber:        tx.BlockNumber,
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
 			Hash:               tx.Hash,
@@ -216,24 +143,24 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *TransactionDTO {
 	}
 }
 
-// ToTransactionDTOs converts a slice of Transaction models to TransactionDTOs.
-func ToTransactionDTOs(txs []Transaction) []*TransactionDTO {
+// ToTransactionDTOs converts a slice of Transaction models to proto TransactionDTOs.
+func ToTransactionDTOs(txs []Transaction) []*pb.TransactionDTO {
 	if txs == nil {
 		return nil
 	}
-	dtos := make([]*TransactionDTO, 0, len(txs))
+	dtos := make([]*pb.TransactionDTO, 0, len(txs))
 	for _, tx := range txs {
 		dtos = append(dtos, ToTransactionDTO(&tx, DTOModeWithoutDetail))
 	}
 	return dtos
 }
 
-// ToValidatorDTO converts a Validator model to ValidatorDTO.
-func ToValidatorDTO(validator *Validator) *ValidatorDTO {
+// ToValidatorDTO converts a Validator model to proto ValidatorDTO.
+func ToValidatorDTO(validator *Validator) *pb.ValidatorDTO {
 	if validator == nil {
 		return nil
 	}
-	return &ValidatorDTO{
+	return &pb.ValidatorDTO{
 		Id:                      validator.Id,
 		Moniker:                 validator.Moniker,
 		OperatorAddress:         validator.OperatorAddress,
@@ -260,14 +187,14 @@ func ToValidatorDTO(validator *Validator) *ValidatorDTO {
 	}
 }
 
-// ToValidatorDTOs converts a slice of Validator models to ValidatorDTOs.
-func ToValidatorDTOs(validators []Validator) []ValidatorDTO {
+// ToValidatorDTOs converts a slice of Validator models to proto ValidatorDTOs.
+func ToValidatorDTOs(validators []Validator) []*pb.ValidatorDTO {
 	if validators == nil {
 		return nil
 	}
-	dtos := make([]ValidatorDTO, 0, len(validators))
+	dtos := make([]*pb.ValidatorDTO, 0, len(validators))
 	for _, validator := range validators {
-		dtos = append(dtos, *ToValidatorDTO(&validator))
+		dtos = append(dtos, ToValidatorDTO(&validator))
 	}
 	return dtos
 }

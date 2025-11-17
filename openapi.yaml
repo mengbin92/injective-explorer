@@ -139,6 +139,97 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/health:
+        get:
+            tags:
+                - Demo
+            description: Health check endpoint for gRPC-Web
+            operationId: Demo_CheckHealthy
+            parameters:
+                - name: service
+                  in: query
+                  description: 'Optional: service name to check'
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.CheckHealthyResponse'
+    /demo/stream/account:
+        get:
+            tags:
+                - Demo
+            description: Stream account updates (balance changes, new transactions, etc.)
+            operationId: Demo_StreamAccountUpdates
+            parameters:
+                - name: address
+                  in: query
+                  description: 'Required: account address to monitor'
+                  schema:
+                    type: string
+                - name: fromTimestamp
+                  in: query
+                  description: |-
+                    Optional: start streaming from a specific timestamp
+                     If 0, streams from recent transactions
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.AccountUpdate'
+    /demo/stream/blocks:
+        get:
+            tags:
+                - Demo
+            description: |-
+                Streaming RPCs for real-time updates
+                 Stream latest blocks as they are added to the chain
+            operationId: Demo_StreamLatestBlocks
+            parameters:
+                - name: fromHeight
+                  in: query
+                  description: |-
+                    Optional: start streaming from a specific block height
+                     If 0, streams from the latest blocks
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.BlockUpdate'
+    /demo/stream/transactions:
+        get:
+            tags:
+                - Demo
+            description: Stream latest transactions as they are added to the chain
+            operationId: Demo_StreamLatestTransactions
+            parameters:
+                - name: types
+                  in: query
+                  description: |-
+                    Optional: filter by transaction types
+                     If empty, streams all transaction types
+                  schema:
+                    type: array
+                    items:
+                        type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.TransactionUpdate'
     /demo/transaction/by-hash:
         get:
             tags:
@@ -224,6 +315,49 @@ paths:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
 components:
     schemas:
+        api.explorer.v1.AccountUpdate:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: Account address
+                updateType:
+                    type: string
+                    description: 'Update type: "transaction", "balance", etc.'
+                data:
+                    type: object
+                    description: Update data as a flexible struct
+                timestamp:
+                    type: string
+                    description: Timestamp of the update
+        api.explorer.v1.BlockUpdate:
+            type: object
+            properties:
+                block:
+                    type: object
+                    description: Block data as a flexible struct
+                updateType:
+                    type: string
+                    description: 'Update type: "new" or "update"'
+                timestamp:
+                    type: string
+                    description: Timestamp of the update
+            description: Streaming response messages
+        api.explorer.v1.CheckHealthyResponse:
+            type: object
+            properties:
+                status:
+                    type: string
+                    description: 'Health status: "healthy", "degraded", "unhealthy"'
+                service:
+                    type: string
+                    description: Service name
+                timestamp:
+                    type: string
+                    description: Timestamp of the health check
+                details:
+                    type: object
+                    description: 'Optional: additional health information'
         api.explorer.v1.Reply:
             type: object
             properties:
@@ -238,5 +372,17 @@ components:
                     type: object
                     description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
             description: 通用响应结构
+        api.explorer.v1.TransactionUpdate:
+            type: object
+            properties:
+                transaction:
+                    type: object
+                    description: Transaction data as a flexible struct
+                updateType:
+                    type: string
+                    description: 'Update type: "new" or "update"'
+                timestamp:
+                    type: string
+                    description: Timestamp of the update
 tags:
     - name: Demo
