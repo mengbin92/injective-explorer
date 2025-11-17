@@ -7,14 +7,18 @@ A comprehensive blockchain explorer API service for the Injective network, built
 - **Block Queries**: Get latest blocks with pagination, query blocks by height, and retrieve latest block height
 - **Transaction Queries**: Get latest transactions with pagination and query transactions by hash
 - **Account Queries**: Get account information, transactions with pagination, and balances
+- **Streaming APIs**: Real-time streaming of blocks, transactions, and account updates via gRPC streaming
+- **Health Check**: Comprehensive health check endpoint with component status and latency metrics
 - **Database-First Strategy**: Prioritizes database queries over direct blockchain API calls for improved performance
 - **Pagination Support**: Both page-based and cursor-based pagination for efficient data retrieval
 - **Block Synchronization**: Real-time block synchronization with historical block backfill
 - **Dual Protocol Support**: Both gRPC and HTTP/REST APIs
+- **gRPC-Web Support**: Browser-compatible gRPC-Web API for web applications
 - **Multiple Database Support**: MySQL, PostgreSQL, and SQLite
 - **Caching**: Redis support for improved performance
 - **Structured Logging**: Comprehensive logging with Zap
 - **Input Validation**: Built-in request validation and error handling
+- **Type-Safe Responses**: Uses Protocol Buffer messages for type-safe API responses
 
 ## Architecture
 
@@ -106,6 +110,10 @@ server:
   grpc:
     addr: 0.0.0.0:9000
     timeout: 1s
+  grpc_web:
+    addr: 0.0.0.0:9001
+    enable_cors: true
+    allowed_origins: ["*"]
 
 data:
   database:
@@ -312,6 +320,8 @@ Returns the height of the latest block.
     }
 }
 ```
+
+**Note**: The response uses the `LatestBlockHeightResponse` proto message type for type safety.
 
 ### Transaction APIs
 
@@ -645,9 +655,151 @@ Returns account balances.
 }
 ```
 
-### validator APIs
+### Health Check API
 
-#### Get validators 
+#### Check Service Health
+```http
+GET /demo/health?service={service_name}
+```
+
+**Query Parameters**:
+- `service` (string, optional): Service name to check (default: "injective-explorer")
+
+Returns the health status of the service and its components (database, Redis, etc.).
+
+**Response**:
+
+```json
+{
+    "status": "healthy",
+    "service": "injective-explorer",
+    "timestamp": 1763085718628,
+    "details": {
+        "database": {
+            "status": "healthy",
+            "latency_ms": 2.5
+        },
+        "redis": {
+            "status": "healthy",
+            "latency_ms": 1.2
+        }
+    }
+}
+```
+
+**Status Values**:
+- `healthy`: All critical components are operational
+- `degraded`: Some non-critical components are unavailable
+- `unhealthy`: Critical components (e.g., database) are unavailable
+
+**HealthDetails Fields**:
+- `status`: Component status ("healthy", "unhealthy", "not_configured")
+- `error`: Error message if component is unhealthy (optional)
+- `latency_ms`: Component response latency in milliseconds (optional)
+
+### Streaming APIs
+
+The service provides real-time streaming APIs for blocks, transactions, and account updates. These APIs use gRPC streaming and are also accessible via gRPC-Web for browser clients.
+
+#### Stream Latest Blocks
+```http
+GET /demo/stream/blocks?from_height={height}
+```
+
+**Query Parameters**:
+- `from_height` (int64, optional): Start streaming from a specific block height. If 0 or not provided, streams from the latest blocks.
+
+Streams block updates as they are added to the blockchain. Returns a stream of `BlockUpdate` messages.
+
+**Response Format** (streaming):
+
+Each message in the stream:
+```json
+{
+    "block": {
+        "height": 141514703,
+        "proposer": "injvalcons1rtejpld5nf6qnvtn2uhumrenqu9hmc06sv6xuq",
+        "block_hash": "0xd666e1d52bbf7bb482e86a9e13139af6df45f6362d3b8db5ee4c298595e523ba",
+        "num_txs": 12,
+        "block_unix_timestamp": 1763085718628
+    },
+    "update_type": "new",
+    "timestamp": 1763085718628
+}
+```
+
+**Update Types**:
+- `new`: A new block was added
+- `update`: An existing block was updated
+
+#### Stream Latest Transactions
+```http
+GET /demo/stream/transactions?types={type1,type2}
+```
+
+**Query Parameters**:
+- `types` (repeated string, optional): Filter by transaction types. If empty, streams all transaction types.
+
+Streams transaction updates as they are added to the blockchain. Returns a stream of `TransactionUpdate` messages.
+
+**Response Format** (streaming):
+
+Each message in the stream:
+```json
+{
+    "transaction": {
+        "hash": "0x75664123c37c239d9d5c14d476b2e16a3ed73b29caad8251f7425fe82d9f8dbf",
+        "block_number": 141512064,
+        "block_unix_timestamp": 1763084056386,
+        "payer": "inj1s7kvd0ql49xt37nx2y4f90zy3hld5t6xpmdxhe",
+        "messages": "...",
+        "error_log": ""
+    },
+    "update_type": "new",
+    "timestamp": 1763084056386
+}
+```
+
+#### Stream Account Updates
+```http
+GET /demo/stream/account?address={address}&from_timestamp={timestamp}
+```
+
+**Query Parameters**:
+- `address` (string, required): Account address to monitor
+- `from_timestamp` (int64, optional): Start streaming from a specific timestamp. If 0 or not provided, streams from recent updates.
+
+Streams account-related updates (transactions, balance changes, etc.) for a specific account. Returns a stream of `AccountUpdate` messages.
+
+**Response Format** (streaming):
+
+Each message in the stream:
+```json
+{
+    "address": "inj1lfycr67vur5gayrakw6xj06sx86f4zf7qex26d",
+    "update_type": "transaction",
+    "data": {
+        "transaction": {
+            "hash": "0x8edc21fd00721bb06c77ed7187fe85c62690cc866afab51e50ced82faf9edf8d",
+            "block_number": 141477796,
+            "payer": "inj1lfycr67vur5gayrakw6xj06sx86f4zf7qex26d"
+        },
+        "metadata": {}
+    },
+    "timestamp": 1763062378197
+}
+```
+
+**Update Types**:
+- `transaction`: A new transaction involving the account
+- `balance`: Account balance changed
+- `account_update`: Other account-related updates
+
+**Note**: Streaming APIs use Protocol Buffer messages (`BlockDTO`, `TransactionDTO`, `AccountUpdateData`) for type-safe data structures. For gRPC-Web clients, the data is automatically serialized/deserialized.
+
+### Validator APIs
+
+#### Get Validators 
 ```http
 GET /demo/validator/validators?page=1&page_size=5
 ```
@@ -874,9 +1026,37 @@ For paginated endpoints, the response includes pagination information:
 
 ## gRPC API
 
-The service also provides gRPC APIs. You can use any gRPC client to connect to the service on the configured gRPC port (default: 9000).
+The service provides gRPC APIs on the configured gRPC port (default: 9000). You can use any gRPC client to connect to the service.
 
 Service definition: `api/explorer/v1/demo.proto`
+
+### gRPC-Web Support
+
+The service also supports gRPC-Web, enabling browser-based clients to interact with gRPC services. gRPC-Web is available on a separate port (default: 9001).
+
+**Features**:
+- Browser-compatible gRPC calls without requiring a proxy
+- Support for both unary and streaming RPCs
+- CORS support for cross-origin requests
+- Automatic Protocol Buffer serialization/deserialization
+
+**Configuration**:
+```yaml
+server:
+  grpc_web:
+    addr: 0.0.0.0:9001
+    enable_cors: true
+    allowed_origins: ["*"]
+```
+
+**Usage Example** (JavaScript):
+```javascript
+// Using gRPC-Web client library
+const client = new DemoClient('http://localhost:9001');
+const response = await client.checkHealthy({ service: 'injective-explorer' });
+```
+
+**Note**: For streaming RPCs via gRPC-Web, use the `application/grpc-web-text` content type for base64-encoded messages.
 
 ## Architecture Details
 
@@ -906,3 +1086,42 @@ The service supports two pagination strategies:
 
 1. **Page-based Pagination**: Traditional offset-based pagination using `page` and `page_size`
 2. **Cursor-based Pagination**: More efficient for large datasets using `cursor` (recommended for datasets with >10,000 records)
+
+### Type-Safe API Responses
+
+The service uses Protocol Buffer messages for all API responses, providing:
+
+- **Type Safety**: Strongly-typed data structures defined in `api/explorer/v1/demo.proto`
+- **Consistency**: Same message types used across gRPC, HTTP/REST, and gRPC-Web APIs
+- **Performance**: Efficient binary serialization for gRPC, with automatic JSON conversion for HTTP
+- **Documentation**: Proto definitions serve as API documentation and contract
+
+**Key Message Types**:
+- `BlockDTO`: Block information
+- `TransactionDTO`: Transaction details
+- `AccountDTO`: Account information
+- `AccountBalanceDTO`: Account balance
+- `ValidatorDTO`: Validator information
+- `HealthDetails`: Component health status
+- `AccountUpdateData`: Account update information
+- `LatestBlockHeightResponse`: Latest block height
+
+### Error Handling
+
+The service uses gRPC status codes for consistent error handling:
+
+- `OK` (0): Success
+- `InvalidArgument` (3): Invalid request parameters
+- `Internal` (13): Internal server error
+- `NotFound` (5): Resource not found
+
+All errors include descriptive messages and are properly serialized for both gRPC and HTTP responses.
+
+### Context Management
+
+The service uses independent contexts for database queries and RPC calls to avoid HTTP timeout issues:
+
+- **Database Queries**: Use independent context with `DBQueryTimeout` to prevent HTTP request cancellation from affecting database operations
+- **RPC Calls**: Use independent context with `GRPCTimeout` for blockchain API calls
+
+This ensures that long-running database queries or external API calls complete successfully even if the HTTP client disconnects.
