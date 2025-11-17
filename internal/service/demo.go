@@ -18,6 +18,8 @@ import (
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -873,89 +875,90 @@ func (s *DemoService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequ
 	}
 
 	// Initialize health status
-	status := "healthy"
-	details := make(map[string]interface{})
+	healthStatus := "healthy"
+	details := make(map[string]*pb.HealthDetails)
 
 	// Check database connection
 	dbHealthy := true
+	startTime := time.Now()
 	if db.Get() != nil {
 		sqlDB, err := db.Get().DB()
 		if err == nil {
 			pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			err := sqlDB.PingContext(pingCtx)
+			latency := time.Since(startTime).Milliseconds()
 			cancel()
 			if err != nil {
 				dbHealthy = false
-				status = "degraded"
-				details["database"] = map[string]interface{}{
-					"status": "unhealthy",
-					"error":  err.Error(),
+				healthStatus = "degraded"
+				details["database"] = &pb.HealthDetails{
+					Status:    "unhealthy",
+					Error:     err.Error(),
+					LatencyMs: float64(latency),
 				}
 			} else {
-				details["database"] = map[string]interface{}{
-					"status": "healthy",
+				details["database"] = &pb.HealthDetails{
+					Status:    "healthy",
+					LatencyMs: float64(latency),
 				}
 			}
 		} else {
 			dbHealthy = false
-			status = "degraded"
-			details["database"] = map[string]interface{}{
-				"status": "unhealthy",
-				"error":  "failed to get database instance",
+			healthStatus = "degraded"
+			details["database"] = &pb.HealthDetails{
+				Status: "unhealthy",
+				Error:  "failed to get database instance",
 			}
 		}
 	} else {
 		dbHealthy = false
-		status = "unhealthy"
-		details["database"] = map[string]interface{}{
-			"status": "unavailable",
-			"error":  "database instance is nil",
+		healthStatus = "unhealthy"
+		details["database"] = &pb.HealthDetails{
+			Status: "unavailable",
+			Error:  "database instance is nil",
 		}
 	}
 
 	// Check Redis connection (if available)
+	redisStartTime := time.Now()
 	redisClient := cache.GetRedisClient()
 	if redisClient != nil {
 		redisCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		_, err := redisClient.Ping(redisCtx).Result()
+		redisLatency := time.Since(redisStartTime).Milliseconds()
 		cancel()
 		if err != nil {
-			status = "degraded"
-			details["redis"] = map[string]interface{}{
-				"status": "unhealthy",
-				"error":  err.Error(),
+			healthStatus = "degraded"
+			details["redis"] = &pb.HealthDetails{
+				Status:    "unhealthy",
+				Error:     err.Error(),
+				LatencyMs: float64(redisLatency),
 			}
 		} else {
-			details["redis"] = map[string]interface{}{
-				"status": "healthy",
+			details["redis"] = &pb.HealthDetails{
+				Status:    "healthy",
+				LatencyMs: float64(redisLatency),
 			}
 		}
 	} else {
-		details["redis"] = map[string]interface{}{
-			"status": "not_configured",
+		details["redis"] = &pb.HealthDetails{
+			Status: "not_configured",
 		}
 	}
 
 	// If database is critical and unhealthy, mark as unhealthy
 	if !dbHealthy {
-		status = "unhealthy"
-	}
-
-	// Convert details to Struct
-	detailsStruct, err := structpb.NewStruct(details)
-	if err != nil {
-		global.Logger.Warnf("failed to create details struct: %v", err)
-		detailsStruct = nil
+		healthStatus = "unhealthy"
 	}
 
 	response := &pb.CheckHealthyResponse{
-		Status:    status,
+		Status:    healthStatus,
 		Service:   serviceName,
 		Timestamp: time.Now().Unix(),
-		Details:   detailsStruct,
+		Details:   details,
 	}
 
-	global.Logger.Debugf("health check completed: status=%s, service=%s", status, serviceName)
+	global.Logger.Debugf("health check completed: status=%s, service=%s", healthStatus, serviceName)
 	return response, nil
 }
 
@@ -1367,21 +1370,16 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 		sentCount := 0
 		for _, block := range dbBlocks {
 			blockDTO := models.ToBlockDTO(&block, models.DTOModeWithoutDetail)
-			blockStruct, err := s.protoMessageToStructWithOptions(blockDTO, nil)
-			if err != nil {
-				global.Logger.Warnf("failed to convert block to struct (height=%d): %v", block.Height, err)
-				continue
-			}
 
 			update := &pb.BlockUpdate{
-				Block:      blockStruct,
+				Block:      blockDTO,
 				UpdateType: "new",
 				Timestamp:  time.Now().Unix(),
 			}
 
 			if err := stream.Send(update); err != nil {
 				global.Logger.Errorf("failed to send block update (height=%d) to stream: %v", block.Height, err)
-				return err
+				return status.Errorf(codes.Internal, "failed to send block update: %v", err)
 			}
 			sentCount++
 		}
@@ -1422,11 +1420,6 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 			}
 
 			blockDTO := models.ToBlockDTO(blockEvent.Block, models.DTOModeWithoutDetail)
-			blockStruct, err := s.protoMessageToStructWithOptions(blockDTO, nil)
-			if err != nil {
-				global.Logger.Warnf("failed to convert block to struct: %v", err)
-				continue
-			}
 
 			updateType := "new"
 			if blockEvent.Type == EventTypeBlockUpdate {
@@ -1434,14 +1427,14 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 			}
 
 			update := &pb.BlockUpdate{
-				Block:      blockStruct,
+				Block:      blockDTO,
 				UpdateType: updateType,
 				Timestamp:  time.Now().Unix(),
 			}
 
 			if err := stream.Send(update); err != nil {
 				global.Logger.Errorf("failed to send block update: %v", err)
-				return err
+				return status.Errorf(codes.Internal, "failed to send block update: %v", err)
 			}
 
 			global.Logger.Infof("StreamLatestBlocks: successfully sent block update: height=%d", blockEvent.Block.Height)
@@ -1489,20 +1482,15 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 
 		for _, tx := range dbTxs {
 			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
-			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
-			if err != nil {
-				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
-				continue
-			}
 
 			update := &pb.TransactionUpdate{
-				Transaction: txStruct,
+				Transaction: txDTO,
 				UpdateType:  "new",
 				Timestamp:   tx.CreatedAt.Unix(),
 			}
 
 			if err := stream.Send(update); err != nil {
-				return err
+				return status.Errorf(codes.Internal, "failed to send transaction update: %v", err)
 			}
 		}
 		global.Logger.Infof("sent %d initial transactions to stream", len(dbTxs))
@@ -1536,11 +1524,6 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 			}
 
 			txDTO := models.ToTransactionDTO(txEvent.Transaction, models.DTOModeWithDetail)
-			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
-			if err != nil {
-				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
-				continue
-			}
 
 			updateType := "new"
 			if txEvent.Type == EventTypeTransactionUpdate {
@@ -1548,14 +1531,14 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 			}
 
 			update := &pb.TransactionUpdate{
-				Transaction: txStruct,
+				Transaction: txDTO,
 				UpdateType:  updateType,
 				Timestamp:   time.Now().Unix(),
 			}
 
 			if err := stream.Send(update); err != nil {
 				global.Logger.Errorf("failed to send transaction update: %v", err)
-				return err
+				return status.Errorf(codes.Internal, "failed to send transaction update: %v", err)
 			}
 		}
 	}
@@ -1566,7 +1549,12 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, stream pb.Demo_StreamAccountUpdatesServer) error {
 	address := req.GetAddress()
 	if address == "" {
-		return errors.New("address is required")
+		return status.Errorf(codes.InvalidArgument, "address is required")
+	}
+
+	// Validate address format
+	if err := ValidateAddress(address); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid address format: %v", err)
 	}
 
 	global.Logger.Infof("stream account updates: address=%s, from_timestamp=%d", address, req.GetFromTimestamp())
@@ -1600,21 +1588,19 @@ func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, 
 
 		for _, tx := range dbTxs {
 			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
-			txStruct, err := s.protoMessageToStructWithOptions(txDTO, nil)
-			if err != nil {
-				global.Logger.Warnf("failed to convert transaction to struct: %v", err)
-				continue
-			}
 
 			update := &pb.AccountUpdate{
 				Address:    address,
 				UpdateType: "transaction",
-				Data:       txStruct,
-				Timestamp:  tx.CreatedAt.Unix(),
+				Data: &pb.AccountUpdateData{
+					Transaction: txDTO,
+					Metadata:    make(map[string]string),
+				},
+				Timestamp: tx.CreatedAt.Unix(),
 			}
 
 			if err := stream.Send(update); err != nil {
-				return err
+				return status.Errorf(codes.Internal, "failed to send account update: %v", err)
 			}
 		}
 		global.Logger.Infof("sent %d initial account transactions to stream for address %s", len(dbTxs), address)
@@ -1637,23 +1623,47 @@ func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, 
 				// This is a simplified check, you may need to enhance this
 			}
 
-			// accountEvent.Data is map[string]interface{}, use structpb.NewStruct directly
-			dataStruct, err := structpb.NewStruct(accountEvent.Data)
-			if err != nil {
-				global.Logger.Warnf("failed to convert account event data to struct: %v", err)
-				continue
+			// Convert account event data to strongly-typed AccountUpdateData
+			updateData := &pb.AccountUpdateData{
+				Metadata: make(map[string]string),
+			}
+
+			// Handle different event types
+			switch accountEvent.Type {
+			case EventTypeTransactionNew, EventTypeTransactionUpdate:
+				// If event contains transaction data, convert it
+				if tx, ok := accountEvent.Data["transaction"].(*models.Transaction); ok {
+					txDTO := models.ToTransactionDTO(tx, models.DTOModeWithDetail)
+					updateData.Transaction = txDTO
+				}
+			case EventTypeAccountUpdate:
+				// If event contains balance data, convert it
+				if balances, ok := accountEvent.Data["balances"].([]models.AccountBalance); ok {
+					balanceDTOs := make([]*pb.AccountBalanceDTO, 0, len(balances))
+					for _, balance := range balances {
+						balanceDTOs = append(balanceDTOs, models.ToAccountBalanceDTO(&balance))
+					}
+					updateData.Balances = balanceDTOs
+				}
+			default:
+				// For other types, store as metadata
+				for k, v := range accountEvent.Data {
+					if str, ok := v.(string); ok {
+						updateData.Metadata[k] = str
+					}
+				}
 			}
 
 			update := &pb.AccountUpdate{
 				Address:    accountEvent.Address,
 				UpdateType: string(accountEvent.Type),
-				Data:       dataStruct,
+				Data:       updateData,
 				Timestamp:  time.Now().Unix(),
 			}
 
 			if err := stream.Send(update); err != nil {
 				global.Logger.Errorf("failed to send account update: %v", err)
-				return err
+				return status.Errorf(codes.Internal, "failed to send account update: %v", err)
 			}
 		}
 	}

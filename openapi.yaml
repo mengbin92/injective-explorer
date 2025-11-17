@@ -315,6 +315,15 @@ paths:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
 components:
     schemas:
+        api.explorer.v1.AccountBalanceDTO:
+            type: object
+            properties:
+                address:
+                    type: string
+                denom:
+                    type: string
+                amount:
+                    type: string
         api.explorer.v1.AccountUpdate:
             type: object
             properties:
@@ -325,17 +334,64 @@ components:
                     type: string
                     description: 'Update type: "transaction", "balance", etc.'
                 data:
-                    type: object
-                    description: Update data as a flexible struct
+                    allOf:
+                        - $ref: '#/components/schemas/api.explorer.v1.AccountUpdateData'
+                    description: Update data using strongly-typed AccountUpdateData
                 timestamp:
                     type: string
                     description: Timestamp of the update
+        api.explorer.v1.AccountUpdateData:
+            type: object
+            properties:
+                transaction:
+                    allOf:
+                        - $ref: '#/components/schemas/api.explorer.v1.TransactionDTO'
+                    description: Transaction data if update_type is "transaction"
+                balances:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.explorer.v1.AccountBalanceDTO'
+                    description: Balance data if update_type is "balance"
+                metadata:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Additional metadata
+            description: AccountUpdateData contains account update information
+        api.explorer.v1.BlockDTO:
+            type: object
+            properties:
+                height:
+                    type: string
+                proposer:
+                    type: string
+                moniker:
+                    type: string
+                blockHash:
+                    type: string
+                parentHash:
+                    type: string
+                numPrecommits:
+                    type: string
+                numTxs:
+                    type: string
+                totalTxs:
+                    type: string
+                txs:
+                    type: array
+                    items:
+                        type: string
+                timestamp:
+                    type: string
+                blockUnixTimestamp:
+                    type: string
         api.explorer.v1.BlockUpdate:
             type: object
             properties:
                 block:
-                    type: object
-                    description: Block data as a flexible struct
+                    allOf:
+                        - $ref: '#/components/schemas/api.explorer.v1.BlockDTO'
+                    description: Block data using strongly-typed BlockDTO
                 updateType:
                     type: string
                     description: 'Update type: "new" or "update"'
@@ -357,7 +413,24 @@ components:
                     description: Timestamp of the health check
                 details:
                     type: object
-                    description: 'Optional: additional health information'
+                    additionalProperties:
+                        $ref: '#/components/schemas/api.explorer.v1.HealthDetails'
+                    description: Health details for each component (database, redis, etc.)
+            description: CheckHealthyResponse contains the health status of the service
+        api.explorer.v1.HealthDetails:
+            type: object
+            properties:
+                status:
+                    type: string
+                    description: 'Component status: "healthy", "unhealthy", "unavailable", "not_configured"'
+                error:
+                    type: string
+                    description: Optional error message if component is unhealthy
+                latencyMs:
+                    type: number
+                    description: Optional latency in milliseconds
+                    format: double
+            description: HealthDetails contains detailed health information for each component
         api.explorer.v1.Reply:
             type: object
             properties:
@@ -372,12 +445,67 @@ components:
                     type: object
                     description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
             description: 通用响应结构
+        api.explorer.v1.TransactionDTO:
+            type: object
+            properties:
+                id:
+                    type: string
+                blockNumber:
+                    type: string
+                blockTimestamp:
+                    type: string
+                hash:
+                    type: string
+                code:
+                    type: integer
+                    format: uint32
+                data:
+                    type: string
+                info:
+                    type: string
+                gasWanted:
+                    type: string
+                gasUsed:
+                    type: string
+                gasFee:
+                    type: string
+                codespace:
+                    type: string
+                events:
+                    type: array
+                    items:
+                        type: string
+                txType:
+                    type: string
+                messages:
+                    type: string
+                signatures:
+                    type: array
+                    items:
+                        type: string
+                memo:
+                    type: string
+                txNumber:
+                    type: string
+                blockUnixTimestamp:
+                    type: string
+                errorLog:
+                    type: string
+                logs:
+                    type: string
+                claimIds:
+                    type: array
+                    items:
+                        type: string
+                payer:
+                    type: string
         api.explorer.v1.TransactionUpdate:
             type: object
             properties:
                 transaction:
-                    type: object
-                    description: Transaction data as a flexible struct
+                    allOf:
+                        - $ref: '#/components/schemas/api.explorer.v1.TransactionDTO'
+                    description: Transaction data using strongly-typed TransactionDTO
                 updateType:
                     type: string
                     description: 'Update type: "new" or "update"'

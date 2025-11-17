@@ -5,7 +5,6 @@ package api.explorer.v1;
 import "explorer/v1/common.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
-import "google/protobuf/struct.proto";
 
 option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
@@ -115,6 +114,17 @@ message CheckHealthyRequest {
   string service = 1;
 }
 
+// HealthDetails contains detailed health information for each component
+message HealthDetails {
+  // Component status: "healthy", "unhealthy", "unavailable", "not_configured"
+  string status = 1;
+  // Optional error message if component is unhealthy
+  string error = 2;
+  // Optional latency in milliseconds
+  double latency_ms = 3;
+}
+
+// CheckHealthyResponse contains the health status of the service
 message CheckHealthyResponse {
   // Health status: "healthy", "degraded", "unhealthy"
   string status = 1;
@@ -122,8 +132,8 @@ message CheckHealthyResponse {
   string service = 2;
   // Timestamp of the health check
   int64 timestamp = 3;
-  // Optional: additional health information
-  google.protobuf.Struct details = 4;
+  // Health details for each component (database, redis, etc.)
+  map<string, HealthDetails> details = 4;
 }
 
 // Streaming request messages
@@ -149,8 +159,8 @@ message StreamAccountUpdatesRequest {
 
 // Streaming response messages
 message BlockUpdate {
-  // Block data as a flexible struct
-  google.protobuf.Struct block = 1;
+  // Block data using strongly-typed BlockDTO
+  BlockDTO block = 1;
   // Update type: "new" or "update"
   string update_type = 2;
   // Timestamp of the update
@@ -158,12 +168,22 @@ message BlockUpdate {
 }
 
 message TransactionUpdate {
-  // Transaction data as a flexible struct
-  google.protobuf.Struct transaction = 1;
+  // Transaction data using strongly-typed TransactionDTO
+  TransactionDTO transaction = 1;
   // Update type: "new" or "update"
   string update_type = 2;
   // Timestamp of the update
   int64 timestamp = 3;
+}
+
+// AccountUpdateData contains account update information
+message AccountUpdateData {
+  // Transaction data if update_type is "transaction"
+  TransactionDTO transaction = 1;
+  // Balance data if update_type is "balance"
+  repeated AccountBalanceDTO balances = 2;
+  // Additional metadata
+  map<string, string> metadata = 3;
 }
 
 message AccountUpdate {
@@ -171,8 +191,8 @@ message AccountUpdate {
   string address = 1;
   // Update type: "transaction", "balance", etc.
   string update_type = 2;
-  // Update data as a flexible struct
-  google.protobuf.Struct data = 3;
+  // Update data using strongly-typed AccountUpdateData
+  AccountUpdateData data = 3;
   // Timestamp of the update
   int64 timestamp = 4;
 }
