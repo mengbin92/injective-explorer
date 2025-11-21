@@ -30,6 +30,17 @@ const (
 
 	// Graceful shutdown timeout
 	GracefulShutdownTimeout = 30 * time.Second
+
+	// Redis cache constants
+	CacheMaxSize = 100 // 缓存最近100条记录
+)
+
+// Redis cache key constants
+const (
+	CacheKeyBlockList         = "cache:block:list"       // 区块列表缓存键
+	CacheKeyTransactionList   = "cache:transaction:list" // 交易列表缓存键
+	CacheKeyBlockPrefix       = "cache:block:"           // 区块缓存键前缀
+	CacheKeyTransactionPrefix = "cache:transaction:"     // 交易缓存键前缀
 )
 
 // Default sync configuration values (used when config is not provided)

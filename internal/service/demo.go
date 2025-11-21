@@ -18,6 +18,7 @@ import (
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -64,7 +65,25 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 
 	global.Logger.Infof("get latest blocks: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
 
-	// First, try to query from database with pagination
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// First, try to query from Redis cache (only for first page without cursor)
+	if !useCursor && page == MinPage {
+		cachedBlocks, err := getBlocksFromCache(queryCtx, int(pageSize))
+		if err == nil && len(cachedBlocks) > 0 {
+			global.Logger.Infof("blocks found in cache: count=%d", len(cachedBlocks))
+			// Get total count from database
+			total, _ := getApproximateCount(db.Get(), &models.Block{}, ctx)
+			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedBlocks, func(b models.Block) uint64 { return b.Height })
+			blockDTOs := models.ToBlockDTOs(cachedBlocks)
+			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, false, useCursor, cursorValue, nextCursor, len(cachedBlocks))
+			return s.marshalAndReply(blocksResp, "marshal blocks error")
+		}
+	}
+
+	// Second, try to query from database with pagination
 	var dbBlocks []models.Block
 	var total int64
 	var isExactCount bool
@@ -72,12 +91,8 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	// Get approximate or exact count (optimized for performance)
 	total, isExactCount = getApproximateCount(db.Get(), &models.Block{}, ctx)
 
-	// Create independent context for database query to avoid HTTP timeout issues
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
-	defer dbCancel()
-
 	// Build query based on pagination type
-	query := db.Get().WithContext(dbCtx).Model(&models.Block{})
+	query := db.Get().WithContext(queryCtx).Model(&models.Block{})
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
@@ -138,6 +153,8 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 
 		dbBlock := models.BlockFromProto(blockDetail.Data)
 		saveToDB(dbBlock, "create block error")
+		// Cache the block
+		cacheBlock(callCtx, dbBlock)
 		dbBlocks = append(dbBlocks, *dbBlock)
 	}
 
@@ -174,16 +191,27 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 
 	global.Logger.Infof("get block by height: height=%d", req.Height)
 
-	// Create independent context for database query to avoid HTTP timeout issues
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
-	defer dbCancel()
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
 
-	// First, try to query from database
+	// First, try to query from Redis cache
+	cachedBlock, err := getBlockFromCache(queryCtx, uint64(req.Height))
+	if err == nil && cachedBlock != nil {
+		global.Logger.Infof("block found in cache: height=%d", req.Height)
+		blockDTO := models.ToBlockDTO(cachedBlock, models.DTOModeWithDetail)
+		return s.marshalAndReply(blockDTO, "marshal block error")
+	}
+
+	// Second, try to query from database
 	var dbBlock models.Block
-	err := db.Get().WithContext(dbCtx).Where("height = ?", req.Height).First(&dbBlock).Error
+	err = db.Get().WithContext(queryCtx).Where("height = ?", req.Height).First(&dbBlock).Error
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("block found in database: height=%d", req.Height)
+
+		// Cache the block for future queries
+		cacheBlock(queryCtx, &dbBlock)
 
 		blockDTO := models.ToBlockDTO(&dbBlock, models.DTOModeWithDetail)
 		return s.marshalAndReply(blockDTO, "marshal block error")
@@ -212,6 +240,9 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	// Save to database for future queries
 	blockModel := models.BlockFromProto(block.Data)
 	saveToDB(blockModel, "create block error")
+
+	// Cache the block
+	cacheBlock(callCtx, blockModel)
 
 	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
 	return s.marshalAndReply(blockDTO, "marshal block error")
@@ -259,7 +290,25 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 
 	global.Logger.Infof("get latest transactions: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
 
-	// First, try to query from database with pagination
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// First, try to query from Redis cache (only for first page without cursor)
+	if !useCursor && page == MinPage {
+		cachedTxs, err := getTransactionsFromCache(queryCtx, int(pageSize))
+		if err == nil && len(cachedTxs) > 0 {
+			global.Logger.Infof("transactions found in cache: count=%d", len(cachedTxs))
+			// Get total count from database
+			total, _ := getApproximateCount(db.Get(), &models.Transaction{}, ctx)
+			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+			txDTOs := models.ToTransactionDTOs(cachedTxs)
+			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, false, useCursor, cursorValue, nextCursor, len(cachedTxs))
+			return s.marshalAndReply(txsResp, "marshal transactions error")
+		}
+	}
+
+	// Second, try to query from database with pagination
 	var dbTxs []models.Transaction
 	var total int64
 	var isExactCount bool
@@ -267,12 +316,8 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	// Get approximate or exact count (optimized for performance)
 	total, isExactCount = getApproximateCount(db.Get(), &models.Transaction{}, ctx)
 
-	// Create independent context for database query to avoid HTTP timeout issues
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
-	defer dbCancel()
-
 	// Build query based on pagination type
-	query := db.Get().WithContext(dbCtx).Model(&models.Transaction{})
+	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{})
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
@@ -333,6 +378,8 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 		}
 		dbTx := models.TransactionFromProto(transaction.Data)
 		saveToDB(dbTx, "create transaction error")
+		// Cache the transaction
+		cacheTransaction(callCtx, dbTx)
 		dbTxs = append(dbTxs, *dbTx)
 	}
 
@@ -365,16 +412,28 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 
 	global.Logger.Infof("get transaction by hash: hash=%s", hash)
 
-	// Create independent context for database query to avoid HTTP timeout issues
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
-	defer dbCancel()
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
 
-	// First, try to query from database
+	// First, try to query from Redis cache
+	cachedTx, err := getTransactionFromCache(queryCtx, "0x"+hash)
+	if err == nil && cachedTx != nil {
+		global.Logger.Infof("transaction found in cache: hash=0x%s", hash)
+		txDTO := models.ToTransactionDTO(cachedTx, models.DTOModeWithDetail)
+		return s.marshalAndReply(txDTO, "marshal transaction error")
+	}
+
+	// Second, try to query from database
 	var dbTx models.Transaction
-	err := db.Get().WithContext(dbCtx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
+	err = db.Get().WithContext(queryCtx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Infof("transaction found in database: hash=0x%s", hash)
+
+		// Cache the transaction for future queries
+		cacheTransaction(queryCtx, &dbTx)
+
 		txDTO := models.ToTransactionDTO(&dbTx, models.DTOModeWithDetail)
 		return s.marshalAndReply(txDTO, "marshal transaction error")
 
@@ -403,6 +462,9 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	// Save to database for future queries
 	transactionModel := models.TransactionFromProto(transaction.Data)
 	saveToDB(transactionModel, "create transaction error")
+
+	// Cache the transaction
+	cacheTransaction(callCtx, transactionModel)
 
 	txDTO := models.ToTransactionDTO(transactionModel, models.DTOModeWithDetail)
 	return s.marshalAndReply(txDTO, "marshal transaction error")
@@ -1667,4 +1729,109 @@ func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, 
 			}
 		}
 	}
+}
+
+// getBlockFromCache retrieves a block from Redis cache by height.
+func getBlockFromCache(ctx context.Context, height uint64) (*models.Block, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
+	}
+
+	key := CacheKeyBlockPrefix + fmt.Sprintf("%d", height)
+	data, err := redisClient.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // Not found in cache
+		}
+		return nil, err
+	}
+
+	var block models.Block
+	if err := sonic.Unmarshal([]byte(data), &block); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal block from cache")
+	}
+
+	return &block, nil
+}
+
+// getTransactionFromCache retrieves a transaction from Redis cache by hash.
+func getTransactionFromCache(ctx context.Context, hash string) (*models.Transaction, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
+	}
+
+	key := CacheKeyTransactionPrefix + hash
+	data, err := redisClient.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // Not found in cache
+		}
+		return nil, err
+	}
+
+	var tx models.Transaction
+	if err := sonic.Unmarshal([]byte(data), &tx); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal transaction from cache")
+	}
+
+	return &tx, nil
+}
+
+// getBlocksFromCache retrieves latest blocks from Redis cache list.
+func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
+	}
+
+	data, err := redisClient.LRange(ctx, CacheKeyBlockList, 0, int64(limit-1)).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	blocks := make([]models.Block, 0, len(data))
+	for _, item := range data {
+		var block models.Block
+		if err := sonic.Unmarshal([]byte(item), &block); err != nil {
+			global.Logger.Warnf("failed to unmarshal block from cache: %v", err)
+			continue
+		}
+		blocks = append(blocks, block)
+	}
+
+	return blocks, nil
+}
+
+// getTransactionsFromCache retrieves latest transactions from Redis cache list.
+func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transaction, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
+	}
+	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, 0, int64(limit-1)).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	txs := make([]models.Transaction, 0, len(data))
+	for _, item := range data {
+		var tx models.Transaction
+		if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
+			global.Logger.Warnf("failed to unmarshal transaction from cache: %v", err)
+			continue
+		}
+		txs = append(txs, tx)
+	}
+
+	return txs, nil
 }

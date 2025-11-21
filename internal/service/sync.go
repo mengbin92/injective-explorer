@@ -21,6 +21,7 @@ import (
 	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"github.com/bytedance/sonic"
 	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -656,6 +657,9 @@ func (s *SyncService) processBlock(height uint64) error {
 		return err
 	}
 
+	// Cache block to Redis
+	cacheBlock(ctx, blockModel)
+
 	return nil
 }
 
@@ -785,6 +789,9 @@ func (s *SyncService) processBlockOptimized(height uint64) error {
 			}
 		}
 	}
+
+	// Cache block to Redis
+	cacheBlock(ctx, blockModel)
 
 	return nil
 }
@@ -970,6 +977,9 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Transaction saved successfully, remove from processing queue
 	redisClient.LRem(ctx, s.config.TxHashProcessingQueueKey, 0, txHash)
+
+	// Cache transaction to Redis
+	cacheTransaction(ctx, txModel)
 
 	// Publish transaction event for streaming
 	eventBus := GetEventBus()
@@ -2331,4 +2341,56 @@ func (s *SyncService) syncStakingInfoForAllAccounts() {
 	}
 
 	global.Logger.Infof("staking info sync completed: %d processed, %d errors", processedCount, errorCount)
+}
+
+// cacheBlock caches a block to Redis, maintaining the latest 100 blocks.
+func cacheBlock(ctx context.Context, block *models.Block) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Serialize block to JSON
+	blockJSON, err := sonic.Marshal(block)
+	if err != nil {
+		global.Logger.Warnf("failed to marshal block to JSON: %v", err)
+		return
+	}
+
+	// Add to list and maintain size
+	pipe := redisClient.Pipeline()
+	pipe.LPush(ctx, CacheKeyBlockList, blockJSON)
+	pipe.LTrim(ctx, CacheKeyBlockList, 0, CacheMaxSize-1)
+	// Also cache by height for direct lookup
+	pipe.Set(ctx, CacheKeyBlockPrefix+fmt.Sprintf("%d", block.Height), blockJSON, 0)
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		global.Logger.Warnf("failed to cache block to Redis: %v", err)
+	}
+}
+
+// cacheTransaction caches a transaction to Redis, maintaining the latest 100 transactions.
+func cacheTransaction(ctx context.Context, tx *models.Transaction) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Serialize transaction to JSON
+	txJSON, err := sonic.Marshal(tx)
+	if err != nil {
+		global.Logger.Warnf("failed to marshal transaction to JSON: %v", err)
+		return
+	}
+
+	// Add to list and maintain size
+	pipe := redisClient.Pipeline()
+	pipe.LPush(ctx, CacheKeyTransactionList, txJSON)
+	pipe.LTrim(ctx, CacheKeyTransactionList, 0, CacheMaxSize-1)
+	// Also cache by hash for direct lookup
+	pipe.Set(ctx, CacheKeyTransactionPrefix+tx.Hash, txJSON, 0)
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		global.Logger.Warnf("failed to cache transaction to Redis: %v", err)
+	}
 }
