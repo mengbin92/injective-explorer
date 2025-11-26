@@ -1859,14 +1859,14 @@ func getTransactionFromCache(ctx context.Context, hash string) (*models.Transact
 	data, err := redisClient.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return nil, nil // Not found in cache
+			return nil, nil // Not found in cache (cache miss)
 		}
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get transaction from cache (key=%s)", key)
 	}
 
 	var tx models.Transaction
 	if err := sonic.Unmarshal([]byte(data), &tx); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal transaction from cache")
+		return nil, errors.Wrapf(err, "failed to unmarshal transaction from cache (key=%s, data_length=%d)", key, len(data))
 	}
 
 	return &tx, nil
@@ -1894,18 +1894,27 @@ func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) 
 		return nil, err
 	}
 
+	// Return empty slice (not nil) if no data found, as documented
 	if len(data) == 0 {
-		return nil, nil
+		return []models.Block{}, nil
 	}
 
 	blocks := make([]models.Block, 0, len(data))
+	unmarshalErrors := 0
 	for _, item := range data {
 		var block models.Block
 		if err := sonic.Unmarshal([]byte(item), &block); err != nil {
-			global.Logger.Warnf("failed to unmarshal block from cache: %v", err)
+			unmarshalErrors++
+			global.Logger.Warnf("failed to unmarshal block from cache (item %d/%d): %v", unmarshalErrors, len(data), err)
 			continue
 		}
 		blocks = append(blocks, block)
+	}
+
+	// If all items failed to unmarshal, log warning but return empty slice (not error)
+	// This allows graceful degradation - cache miss is better than complete failure
+	if len(blocks) == 0 && len(data) > 0 {
+		global.Logger.Warnf("all %d blocks failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
 	return blocks, nil
@@ -1932,18 +1941,27 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 		return nil, err
 	}
 
+	// Return empty slice (not nil) if no data found, as documented
 	if len(data) == 0 {
-		return nil, nil
+		return []models.Transaction{}, nil
 	}
 
 	txs := make([]models.Transaction, 0, len(data))
+	unmarshalErrors := 0
 	for _, item := range data {
 		var tx models.Transaction
 		if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
-			global.Logger.Warnf("failed to unmarshal transaction from cache: %v", err)
+			unmarshalErrors++
+			global.Logger.Warnf("failed to unmarshal transaction from cache (item %d/%d): %v", unmarshalErrors, len(data), err)
 			continue
 		}
 		txs = append(txs, tx)
+	}
+
+	// If all items failed to unmarshal, log warning but return empty slice (not error)
+	// This allows graceful degradation - cache miss is better than complete failure
+	if len(txs) == 0 && len(data) > 0 {
+		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
 	return txs, nil

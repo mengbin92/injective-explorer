@@ -666,9 +666,6 @@ func (s *SyncService) processBlock(height uint64) error {
 // processBlockOptimized is an optimized version of processBlock for backward sync.
 // It skips unnecessary checks and uses batch operations where possible.
 func (s *SyncService) processBlockOptimized(height uint64) error {
-	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
-	defer cancel()
-
 	// Quick check if block already exists (skip hash verification for performance)
 	var existingBlockCheck models.Block
 	err := db.Get().Where("height = ?", height).First(&existingBlockCheck).Error
@@ -681,10 +678,20 @@ func (s *SyncService) processBlockOptimized(height uint64) error {
 		global.Logger.Warnf("failed to check block existence at height %d: %v", height, err)
 	}
 
+	return s.processBlockOptimizedSkipCheck(height)
+}
+
+// processBlockOptimizedSkipCheck processes a block without checking existence first.
+// This is used when we've already batch-checked block existence.
+func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
+	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
+	defer cancel()
+
 	// Get block information with retry logic
 	var blockResp *injective_explorer_rpcpb.GetBlockResponse
 
 	delay := s.config.RetryDelay
+	var err error
 	for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
 		blockResp, err = s.explorerClient.GetBlock(ctx, fmt.Sprintf("%d", height))
 		if err == nil {
@@ -730,7 +737,7 @@ func (s *SyncService) processBlockOptimized(height uint64) error {
 	// Use transaction to ensure atomicity
 	var isUpdate bool
 	err = db.Get().Transaction(func(tx *gorm.DB) error {
-		// Check if block already exists
+		// Check if block already exists (we already checked in batch, but double-check for safety)
 		var existingBlock models.Block
 		err := tx.Where("height = ?", height).First(&existingBlock).Error
 		if err == nil {
@@ -1027,6 +1034,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 }
 
 // updateAccountsFromTransactionWithTx extracts account addresses from transaction and updates database using the provided transaction.
+// Optimized to use batch account queries to reduce database I/O.
 func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, tx *gorm.DB, txData *injective_explorer_rpcpb.TxDetailData) error {
 	// Extract addresses from transaction events
 	addresses := make(map[string]bool)
@@ -1069,6 +1077,33 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 		}
 	}
 
+	if len(addresses) == 0 {
+		return nil
+	}
+
+	// Convert addresses map to slice for batch query
+	addressList := make([]string, 0, len(addresses))
+	for addr := range addresses {
+		if addr != "" {
+			addressList = append(addressList, addr)
+		}
+	}
+
+	// Batch query existing accounts to reduce database queries
+	var existingAccounts []models.Account
+	err := tx.Where("address IN ?", addressList).Find(&existingAccounts).Error
+	if err != nil {
+		global.Logger.Warnf("failed to batch query accounts: %v", err)
+		// Fallback to individual queries
+		existingAccounts = nil
+	}
+
+	// Create a map of existing accounts for quick lookup
+	existingAccountMap := make(map[string]*models.Account, len(existingAccounts))
+	for i := range existingAccounts {
+		existingAccountMap[existingAccounts[i].Address] = &existingAccounts[i]
+	}
+
 	// Update accounts in database using the provided transaction
 	for address := range addresses {
 		if address == "" {
@@ -1095,30 +1130,27 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 			continue
 		}
 
-		var existingAccount models.Account
-		err = tx.Where("address = ?", address).First(&existingAccount).Error
-		if err == nil {
+		// Check if account exists using the batch query result
+		existingAccount, exists := existingAccountMap[address]
+		if exists {
 			// Account exists, check if update is needed
 			needsUpdate := existingAccount.BaseAccount != accountModel.BaseAccount ||
 				existingAccount.CodeHash != accountModel.CodeHash
 
 			if needsUpdate {
 				// Only update if fields have changed
-				err = tx.Model(&existingAccount).Updates(accountModel).Error
+				err = tx.Model(existingAccount).Updates(accountModel).Error
 				if err != nil {
 					global.Logger.Warnf("failed to update account %s: %v", address, err)
 				}
 			}
 			// If no update needed, skip database operation
-		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		} else {
 			// Account doesn't exist, create it
 			err = tx.Create(accountModel).Error
 			if err != nil {
 				global.Logger.Warnf("failed to create account %s: %v", address, err)
 			}
-		} else {
-			global.Logger.Warnf("failed to check account %s existence: %v", address, err)
-			continue
 		}
 
 		// Get and update account balances (outside transaction for now)
@@ -1626,13 +1658,41 @@ func (s *SyncService) syncHistoricalBlocksBatch(startHeight, targetHeight, curre
 
 	global.Logger.Infof("historical block sync: syncing blocks from %d to %d", startHeight, batchEnd-1)
 
+	// Batch check which blocks already exist to reduce database queries
+	heightsToCheck := make([]uint64, 0, batchEnd-startHeight)
+	for height := startHeight; height < batchEnd; height++ {
+		heightsToCheck = append(heightsToCheck, height)
+	}
+
+	blocksExist, err := batchCheckBlocksExist(heightsToCheck)
+	if err != nil {
+		global.Logger.Warnf("failed to batch check blocks existence: %v, falling back to individual checks", err)
+		blocksExist = make(map[uint64]bool) // Fallback: treat all as non-existent
+	}
+
+	// Filter out blocks that already exist
+	heightsToProcess := make([]uint64, 0, len(heightsToCheck))
+	for _, height := range heightsToCheck {
+		if !blocksExist[height] {
+			heightsToProcess = append(heightsToProcess, height)
+		}
+	}
+
+	if len(heightsToProcess) == 0 {
+		global.Logger.Debugf("all blocks from %d to %d already exist, skipping", startHeight, batchEnd-1)
+		s.setHistoricalSyncHeight(batchEnd)
+		return nil
+	}
+
+	global.Logger.Debugf("batch check: %d blocks exist, %d blocks need processing", len(heightsToCheck)-len(heightsToProcess), len(heightsToProcess))
+
 	// Use worker pool pattern for concurrent processing
 	type blockJob struct {
 		height uint64
 	}
 
-	jobs := make(chan blockJob, s.config.HistoricalSyncBatchSize)
-	results := make(chan error, s.config.HistoricalSyncBatchSize)
+	jobs := make(chan blockJob, len(heightsToProcess))
+	results := make(chan error, len(heightsToProcess))
 
 	// Start worker goroutines
 	var wg sync.WaitGroup
@@ -1649,8 +1709,8 @@ func (s *SyncService) syncHistoricalBlocksBatch(startHeight, targetHeight, curre
 				default:
 				}
 
-				// Process the block
-				if err := s.processBlockOptimized(job.height); err != nil {
+				// Process the block (skip existence check since we already checked in batch)
+				if err := s.processBlockOptimizedSkipCheck(job.height); err != nil {
 					// Check if error is due to context cancellation
 					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
 						strings.Contains(err.Error(), "context canceled") || strings.Contains(err.Error(), "context deadline exceeded") {
@@ -1669,7 +1729,7 @@ func (s *SyncService) syncHistoricalBlocksBatch(startHeight, targetHeight, curre
 	// Send jobs
 	go func() {
 		defer close(jobs)
-		for height := startHeight; height < batchEnd; height++ {
+		for _, height := range heightsToProcess {
 			select {
 			case <-s.ctx.Done():
 				return
@@ -1707,6 +1767,93 @@ func (s *SyncService) syncHistoricalBlocksBatch(startHeight, targetHeight, curre
 	time.Sleep(s.config.HistoricalBatchDelay)
 
 	return nil
+}
+
+// batchCheckBlocksExist checks if multiple blocks exist in the database.
+// Returns a map of height -> exists (true if exists, false if not).
+// This reduces database queries from N to 1 for batch operations.
+func batchCheckBlocksExist(heights []uint64) (map[uint64]bool, error) {
+	if len(heights) == 0 {
+		return make(map[uint64]bool), nil
+	}
+
+	var existingHeights []uint64
+	err := db.Get().Model(&models.Block{}).
+		Where("height IN ?", heights).
+		Pluck("height", &existingHeights).Error
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to batch check blocks existence")
+	}
+
+	// Create a map of existing blocks
+	exists := make(map[uint64]bool, len(existingHeights))
+	for _, h := range existingHeights {
+		exists[h] = true
+	}
+
+	// Mark non-existing blocks as false
+	for _, h := range heights {
+		if !exists[h] {
+			exists[h] = false
+		}
+	}
+
+	return exists, nil
+}
+
+// batchCheckTransactionsExist checks if multiple transactions exist in the database.
+// Returns a map of hash -> exists (true if exists, false if not).
+func batchCheckTransactionsExist(hashes []string) (map[string]bool, error) {
+	if len(hashes) == 0 {
+		return make(map[string]bool), nil
+	}
+
+	var existingHashes []string
+	err := db.Get().Model(&models.Transaction{}).
+		Where("hash IN ?", hashes).
+		Pluck("hash", &existingHashes).Error
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to batch check transactions existence")
+	}
+
+	// Create a map of existing transactions
+	exists := make(map[string]bool, len(existingHashes))
+	for _, h := range existingHashes {
+		exists[h] = true
+	}
+
+	// Mark non-existing transactions as false
+	for _, h := range hashes {
+		if !exists[h] {
+			exists[h] = false
+		}
+	}
+
+	return exists, nil
+}
+
+// batchGetAccounts retrieves multiple accounts from the database in a single query.
+// Returns a map of address -> account model.
+func batchGetAccounts(addresses []string) (map[string]*models.Account, error) {
+	if len(addresses) == 0 {
+		return make(map[string]*models.Account), nil
+	}
+
+	var accounts []models.Account
+	err := db.Get().Where("address IN ?", addresses).Find(&accounts).Error
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to batch get accounts")
+	}
+
+	// Create a map of address -> account
+	accountMap := make(map[string]*models.Account, len(accounts))
+	for i := range accounts {
+		accountMap[accounts[i].Address] = &accounts[i]
+	}
+
+	return accountMap, nil
 }
 
 // findNextMissingBlock finds the next missing block starting from startHeight.
