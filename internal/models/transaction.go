@@ -87,11 +87,28 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		payer = detail.GasFee.Payer
 	}
 
-	// Convert binary data to base64 to avoid encoding issues
-	// Data, Messages, and Logs may contain binary data that cannot be stored as UTF-8 strings
-	dataStr := encodeBinaryData(detail.Data)
-	messagesStr := encodeBinaryData(detail.Messages)
-	logsStr := encodeBinaryData(detail.Logs)
+	// Compress binary data directly, then encode to base64 for safe storage
+	// This approach provides better compression ratio than compressing base64-encoded strings
+	// The CompressData function handles:
+	// - Compression of large data (>1KB)
+	// - Base64 encoding of compressed binary data for safe database storage
+	// - Base64 encoding of small binary data
+	// - Plain text for small text data
+	dataStr, err := CompressData(detail.Data)
+	if err != nil {
+		// If compression fails, fallback to base64 encoding for safety
+		dataStr = encodeBinaryData(detail.Data)
+	}
+
+	messagesStr, err := CompressData(detail.Messages)
+	if err != nil {
+		messagesStr = encodeBinaryData(detail.Messages)
+	}
+
+	logsStr, err := CompressData(detail.Logs)
+	if err != nil {
+		logsStr = encodeBinaryData(detail.Logs)
+	}
 
 	return &Transaction{
 		Id:                 detail.Id,
@@ -171,10 +188,24 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 		return nil
 	}
 
-	// Decode binary data fields
-	dataBytes := decodeBinaryData(tx.Data)
-	messagesBytes := decodeBinaryData(tx.Messages)
-	logsBytes := decodeBinaryData(tx.Logs)
+	// Decompress and decode binary data fields
+	// The DecompressData function handles both compressed (with prefix) and uncompressed data
+	// For uncompressed data, it may be base64 encoded (old format) or plain text
+	dataBytes, err := DecompressData(tx.Data)
+	if err != nil {
+		// If decompression fails, try to decode as base64 (backward compatibility with old format)
+		dataBytes = decodeBinaryData(tx.Data)
+	}
+
+	messagesBytes, err := DecompressData(tx.Messages)
+	if err != nil {
+		messagesBytes = decodeBinaryData(tx.Messages)
+	}
+
+	logsBytes, err := DecompressData(tx.Logs)
+	if err != nil {
+		logsBytes = decodeBinaryData(tx.Logs)
+	}
 
 	// Convert events from JSON strings back to protobuf format
 	// Use shared utility function to eliminate code duplication

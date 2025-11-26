@@ -102,18 +102,59 @@ func ToBlockDTOs(blocks []Block) []*pb.BlockDTO {
 }
 
 // ToTransactionDTO converts a Transaction model to proto TransactionDTO.
+// It automatically decompresses compressed data fields before returning.
 func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 	if tx == nil {
 		return nil
 	}
+
+	// Helper function to decompress and format data for DTO
+	// Returns the decompressed data as a string (base64 for binary, plain text for text)
+	// This ensures that compressed data stored in the database is properly decompressed before returning to clients
+	decompressForDTO := func(compressedData string) string {
+		if compressedData == "" {
+			return ""
+		}
+		// Decompress the data (handles both compressed and uncompressed data)
+		decompressed, err := DecompressData(compressedData)
+		if err != nil {
+			// If decompression fails, the data might be in old format (uncompressed)
+			// Try to decode as base64 if it looks like base64, otherwise return as-is
+			decoded := decodeBinaryData(compressedData)
+			if len(decoded) > 0 && len(decoded) != len(compressedData) {
+				// Successfully decoded as base64 (size changed), check if it's text or binary
+				if isValidUTF8(decoded) {
+					return string(decoded)
+				}
+				// Binary data, return base64 encoded (original format)
+				return compressedData
+			}
+			// Not base64 or same size, return as plain text (backward compatibility)
+			return compressedData
+		}
+		// Successfully decompressed, check if it's text or binary
+		if isValidUTF8(decompressed) {
+			// Return as plain text
+			return string(decompressed)
+		}
+		// For binary data, encode to base64 for safe JSON transmission
+		// This matches the original behavior for binary data
+		return encodeBinaryData(decompressed)
+	}
+
 	if isDetail {
+		// Decompress compressed fields before returning
+		dataStr := decompressForDTO(tx.Data)
+		messagesStr := decompressForDTO(tx.Messages)
+		logsStr := decompressForDTO(tx.Logs)
+
 		return &pb.TransactionDTO{
 			Id:                 tx.Id,
 			BlockNumber:        tx.BlockNumber,
 			BlockTimestamp:     tx.BlockTimestamp,
 			Hash:               tx.Hash,
 			Code:               tx.Code,
-			Data:               tx.Data,
+			Data:               dataStr,
 			Info:               tx.Info,
 			GasWanted:          tx.GasWanted,
 			GasUsed:            tx.GasUsed,
@@ -121,23 +162,26 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			Codespace:          tx.Codespace,
 			Events:             tx.Events,
 			TxType:             tx.TxType,
-			Messages:           tx.Messages,
+			Messages:           messagesStr,
 			Signatures:         tx.Signatures,
 			Memo:               tx.Memo,
 			TxNumber:           tx.TxNumber,
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
 			ErrorLog:           tx.ErrorLog,
-			Logs:               tx.Logs,
+			Logs:               logsStr,
 			ClaimIds:           tx.ClaimIds,
 			Payer:              tx.Payer,
 		}
 	} else {
+		// For non-detail mode, also decompress Messages if present
+		messagesStr := decompressForDTO(tx.Messages)
+
 		return &pb.TransactionDTO{
 			BlockNumber:        tx.BlockNumber,
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
 			Hash:               tx.Hash,
 			ErrorLog:           tx.ErrorLog,
-			Messages:           tx.Messages,
+			Messages:           messagesStr,
 			Payer:              tx.Payer,
 		}
 	}

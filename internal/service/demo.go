@@ -72,13 +72,30 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	// First, try to query from Redis cache (only for first page without cursor)
 	if !useCursor && page == MinPage {
 		cachedBlocks, err := getBlocksFromCache(queryCtx, int(pageSize))
-		if err == nil && len(cachedBlocks) > 0 {
+		if err != nil {
+			// Log cache error but continue to database query (graceful degradation)
+			global.Logger.Warnf("failed to get blocks from cache, fallback to DB: %v", err)
+		} else if len(cachedBlocks) > 0 {
 			global.Logger.Infof("blocks found in cache: count=%d", len(cachedBlocks))
-			// Get total count from database
-			total, _ := getApproximateCount(db.Get(), &models.Block{}, ctx)
+			// Try to get total count from cache first to avoid database query
+			total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalBlocks)
+			if total == 0 {
+				// Cache miss for total, query from database and log error if any
+				var countErr error
+				total, isExactCount, countErr = getApproximateCountWithError(db.Get(), &models.Block{}, ctx)
+				if countErr != nil {
+					global.Logger.Warnf("failed to get approximate count for blocks: %v, using fallback value", countErr)
+					// Use fallback value if count query fails
+					total = ApproximateCountFallback
+					isExactCount = false
+				} else {
+					// Cache the total count for future queries
+					cacheTotal(queryCtx, CacheKeyTotalBlocks, total)
+				}
+			}
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedBlocks, func(b models.Block) uint64 { return b.Height })
 			blockDTOs := models.ToBlockDTOs(cachedBlocks)
-			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, false, useCursor, cursorValue, nextCursor, len(cachedBlocks))
+			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedBlocks))
 			return s.marshalAndReply(blocksResp, "marshal blocks error")
 		}
 	}
@@ -89,7 +106,17 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	var isExactCount bool
 
 	// Get approximate or exact count (optimized for performance)
-	total, isExactCount = getApproximateCount(db.Get(), &models.Block{}, ctx)
+	var countErr error
+	total, isExactCount, countErr = getApproximateCountWithError(db.Get(), &models.Block{}, ctx)
+	if countErr != nil {
+		global.Logger.Warnf("failed to get approximate count for blocks: %v, using fallback value", countErr)
+		// Use fallback value if count query fails
+		total = ApproximateCountFallback
+		isExactCount = false
+	} else {
+		// Cache the total count for future queries
+		cacheTotal(queryCtx, CacheKeyTotalBlocks, total)
+	}
 
 	// Build query based on pagination type
 	query := db.Get().WithContext(queryCtx).Model(&models.Block{})
@@ -297,13 +324,30 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	// First, try to query from Redis cache (only for first page without cursor)
 	if !useCursor && page == MinPage {
 		cachedTxs, err := getTransactionsFromCache(queryCtx, int(pageSize))
-		if err == nil && len(cachedTxs) > 0 {
+		if err != nil {
+			// Log cache error but continue to database query (graceful degradation)
+			global.Logger.Warnf("failed to get transactions from cache, fallback to DB: %v", err)
+		} else if len(cachedTxs) > 0 {
 			global.Logger.Infof("transactions found in cache: count=%d", len(cachedTxs))
-			// Get total count from database
-			total, _ := getApproximateCount(db.Get(), &models.Transaction{}, ctx)
+			// Try to get total count from cache first to avoid database query
+			total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalTransactions)
+			if total == 0 {
+				// Cache miss for total, query from database and log error if any
+				var countErr error
+				total, isExactCount, countErr = getApproximateCountWithError(db.Get(), &models.Transaction{}, ctx)
+				if countErr != nil {
+					global.Logger.Warnf("failed to get approximate count for transactions: %v, using fallback value", countErr)
+					// Use fallback value if count query fails
+					total = ApproximateCountFallback
+					isExactCount = false
+				} else {
+					// Cache the total count for future queries
+					cacheTotal(queryCtx, CacheKeyTotalTransactions, total)
+				}
+			}
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 			txDTOs := models.ToTransactionDTOs(cachedTxs)
-			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, false, useCursor, cursorValue, nextCursor, len(cachedTxs))
+			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedTxs))
 			return s.marshalAndReply(txsResp, "marshal transactions error")
 		}
 	}
@@ -314,7 +358,17 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	var isExactCount bool
 
 	// Get approximate or exact count (optimized for performance)
-	total, isExactCount = getApproximateCount(db.Get(), &models.Transaction{}, ctx)
+	var countErr error
+	total, isExactCount, countErr = getApproximateCountWithError(db.Get(), &models.Transaction{}, ctx)
+	if countErr != nil {
+		global.Logger.Warnf("failed to get approximate count for transactions: %v, using fallback value", countErr)
+		// Use fallback value if count query fails
+		total = ApproximateCountFallback
+		isExactCount = false
+	} else {
+		// Cache the total count for future queries
+		cacheTotal(queryCtx, CacheKeyTotalTransactions, total)
+	}
 
 	// Build query based on pagination type
 	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{})
@@ -631,7 +685,14 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 
 	// Get approximate count (optimized for performance)
 	// For address-specific queries, exact count can be slow
-	total, isExactCount = getApproximateCountForAddress(baseQuery, address)
+	var countErr error
+	total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, address)
+	if countErr != nil {
+		global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", address, countErr)
+		// Use fallback value if count query fails
+		total = ApproximateCountForAddress
+		isExactCount = false
+	}
 
 	// Build query based on pagination type
 	query := baseQuery
@@ -1138,7 +1199,26 @@ func normalizePagination(page, pageSize int32, cursor string, maxPageSize int32)
 //
 // Returns:
 //   - approximate count and whether it's an exact count
+//
+// Deprecated: Use getApproximateCountWithError instead to properly handle errors.
 func getApproximateCount(db *gorm.DB, model interface{}, ctx context.Context) (int64, bool) {
+	total, isExactCount, _ := getApproximateCountWithError(db, model, ctx)
+	return total, isExactCount
+}
+
+// getApproximateCountWithError gets an approximate count for large datasets and returns errors.
+// This function properly handles and returns errors instead of ignoring them.
+//
+// Parameters:
+//   - db: The database connection
+//   - model: The model to count
+//   - ctx: Context for the query
+//
+// Returns:
+//   - approximate count
+//   - whether it's an exact count
+//   - error if the count query failed (caller should handle this error)
+func getApproximateCountWithError(db *gorm.DB, model interface{}, ctx context.Context) (int64, bool, error) {
 	var count int64
 
 	// Try to get exact count first (with timeout)
@@ -1147,7 +1227,7 @@ func getApproximateCount(db *gorm.DB, model interface{}, ctx context.Context) (i
 
 	err := db.WithContext(ctxWithTimeout).Model(model).Count(&count).Error
 	if err == nil {
-		return count, true
+		return count, true, nil
 	}
 
 	// If exact count times out or fails, try to get approximate count
@@ -1155,19 +1235,21 @@ func getApproximateCount(db *gorm.DB, model interface{}, ctx context.Context) (i
 	// For MySQL, we can use information_schema
 	// For now, we'll return a large estimate and mark as approximate
 	global.Logger.Warnf("exact count failed, using approximate: %v", err)
-	return ApproximateCountFallback, false
+	return ApproximateCountFallback, false, err
 }
 
-// getApproximateCountForAddress gets an approximate count for address-specific queries.
-// This is optimized for queries that filter by address in messages/events fields.
+// getApproximateCountForAddressWithError gets an approximate count for address-specific queries and returns errors.
+// This function properly handles and returns errors instead of ignoring them.
 //
 // Parameters:
 //   - baseQuery: The base query with address filter
 //   - address: The address to count
 //
 // Returns:
-//   - approximate count and whether it's an exact count
-func getApproximateCountForAddress(baseQuery *gorm.DB, address string) (int64, bool) {
+//   - approximate count
+//   - whether it's an exact count
+//   - error if the count query failed (caller should handle this error)
+func getApproximateCountForAddressWithError(baseQuery *gorm.DB, address string) (int64, bool, error) {
 	var count int64
 
 	// Try to get exact count first (with timeout)
@@ -1177,14 +1259,14 @@ func getApproximateCountForAddress(baseQuery *gorm.DB, address string) (int64, b
 	err := baseQuery.WithContext(ctx).Count(&count).Error
 	if err == nil && count < ApproximateCountThreshold {
 		// If count is reasonable, return exact count
-		return count, true
+		return count, true, nil
 	}
 
 	// For larger datasets or timeouts, return approximate
 	if err != nil {
 		global.Logger.Warnf("exact count for address failed, using approximate: %v", err)
 	}
-	return ApproximateCountForAddress, false
+	return ApproximateCountForAddress, false, err
 }
 
 // buildPaginationInfo builds pagination information for response.
@@ -1756,6 +1838,17 @@ func getBlockFromCache(ctx context.Context, height uint64) (*models.Block, error
 }
 
 // getTransactionFromCache retrieves a transaction from Redis cache by hash.
+// Returns (nil, nil) if the transaction is not found in cache (cache miss).
+// Returns (nil, error) if an error occurred during cache lookup.
+// Returns (*Transaction, nil) if the transaction was successfully retrieved from cache.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - hash: The transaction hash to retrieve (without 0x prefix)
+//
+// Returns:
+//   - *models.Transaction: The cached transaction, or nil if not found
+//   - error: Error if cache lookup failed (not including cache miss)
 func getTransactionFromCache(ctx context.Context, hash string) (*models.Transaction, error) {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
@@ -1780,6 +1873,16 @@ func getTransactionFromCache(ctx context.Context, hash string) (*models.Transact
 }
 
 // getBlocksFromCache retrieves latest blocks from Redis cache list.
+// This function queries the cached list of recent blocks and deserializes them.
+// Returns an empty slice (not nil) if no blocks are found in cache.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - limit: Maximum number of blocks to retrieve
+//
+// Returns:
+//   - []models.Block: List of cached blocks (empty slice if cache miss)
+//   - error: Error if cache lookup failed (not including cache miss)
 func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
@@ -1809,6 +1912,16 @@ func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) 
 }
 
 // getTransactionsFromCache retrieves latest transactions from Redis cache list.
+// This function queries the cached list of recent transactions and deserializes them.
+// Returns an empty slice (not nil) if no transactions are found in cache.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - limit: Maximum number of transactions to retrieve
+//
+// Returns:
+//   - []models.Transaction: List of cached transactions (empty slice if cache miss)
+//   - error: Error if cache lookup failed (not including cache miss)
 func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transaction, error) {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
@@ -1834,4 +1947,58 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 	}
 
 	return txs, nil
+}
+
+// getTotalFromCache retrieves the total count from Redis cache.
+// Returns (0, false) if the total is not found in cache (cache miss).
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - key: The cache key for the total count
+//
+// Returns:
+//   - int64: The cached total count, or 0 if not found
+//   - bool: Whether the count is exact (always false for cached values)
+func getTotalFromCache(ctx context.Context, key string) (int64, bool) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return 0, false
+	}
+
+	data, err := redisClient.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return 0, false // Cache miss
+		}
+		global.Logger.Warnf("failed to get total from cache (key=%s): %v", key, err)
+		return 0, false
+	}
+
+	var total int64
+	if _, err := fmt.Sscanf(data, "%d", &total); err != nil {
+		global.Logger.Warnf("failed to parse total from cache (key=%s, value=%s): %v", key, data, err)
+		return 0, false
+	}
+
+	return total, false // Cached values are always approximate
+}
+
+// cacheTotal stores the total count in Redis cache with TTL.
+// This function is called periodically to update the cached total count.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - key: The cache key for the total count
+//   - total: The total count to cache
+func cacheTotal(ctx context.Context, key string, total int64) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Store total as string with TTL
+	err := redisClient.Set(ctx, key, fmt.Sprintf("%d", total), CacheTotalTTL).Err()
+	if err != nil {
+		global.Logger.Warnf("failed to cache total (key=%s): %v", key, err)
+	}
 }

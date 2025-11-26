@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/provider/cache"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -213,4 +214,51 @@ func TestErrorHandling(t *testing.T) {
 	st, ok := status.FromError(err)
 	require.True(t, ok, "error should be a gRPC status error")
 	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+// TestGetTotalFromCache tests the getTotalFromCache function.
+// Note: This test requires Redis to be available, so it may be skipped in CI.
+func TestGetTotalFromCache(t *testing.T) {
+	// Test cache miss (key doesn't exist)
+	total, isExact := getTotalFromCache(context.Background(), "nonexistent:key")
+	assert.Equal(t, int64(0), total)
+	assert.False(t, isExact)
+
+	// Test with nil Redis client (should return 0, false)
+	// This is tested implicitly when Redis is not available
+}
+
+// TestCacheTotal tests the cacheTotal function.
+// Note: This test requires Redis to be available, so it may be skipped in CI.
+func TestCacheTotal(t *testing.T) {
+	ctx := context.Background()
+
+	// Test caching a total value
+	testKey := "test:total:blocks"
+	testTotal := int64(12345)
+
+	// Cache the total
+	cacheTotal(ctx, testKey, testTotal)
+
+	// Retrieve it
+	total, isExact := getTotalFromCache(ctx, testKey)
+	assert.Equal(t, testTotal, total)
+	assert.False(t, isExact) // Cached values are always approximate
+
+	// Clean up
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		redisClient.Del(ctx, testKey)
+	}
+}
+
+// TestGetApproximateCountWithError tests the getApproximateCountWithError function.
+// Note: This test requires a database connection, so it may be skipped in CI.
+func TestGetApproximateCountWithError(t *testing.T) {
+	t.Skip("Requires database connection and models setup")
+	// This test would require:
+	// 1. Database connection setup
+	// 2. Model initialization
+	// 3. Test data setup
+	// For now, we skip it as it requires full application setup
 }

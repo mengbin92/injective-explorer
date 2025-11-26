@@ -37,10 +37,13 @@ const (
 
 // Redis cache key constants
 const (
-	CacheKeyBlockList         = "cache:block:list"       // 区块列表缓存键
-	CacheKeyTransactionList   = "cache:transaction:list" // 交易列表缓存键
-	CacheKeyBlockPrefix       = "cache:block:"           // 区块缓存键前缀
-	CacheKeyTransactionPrefix = "cache:transaction:"     // 交易缓存键前缀
+	CacheKeyBlockList         = "cache:block:list"         // 区块列表缓存键
+	CacheKeyTransactionList   = "cache:transaction:list"   // 交易列表缓存键
+	CacheKeyBlockPrefix       = "cache:block:"             // 区块缓存键前缀
+	CacheKeyTransactionPrefix = "cache:transaction:"       // 交易缓存键前缀
+	CacheKeyTotalBlocks       = "cache:total:blocks"       // 区块总数缓存键
+	CacheKeyTotalTransactions = "cache:total:transactions" // 交易总数缓存键
+	CacheTotalTTL             = 5 * time.Minute            // 总数缓存过期时间（5分钟）
 )
 
 // Default sync configuration values (used when config is not provided)
