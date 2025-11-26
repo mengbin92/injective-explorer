@@ -45,3 +45,7 @@ configs/*.yaml
 injective_data/
 
 .DS_Store
+
+*.tar.gz
+*.tar
+*.zip

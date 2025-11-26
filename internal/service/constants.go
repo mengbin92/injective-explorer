@@ -44,6 +44,8 @@ const (
 	CacheKeyTotalBlocks       = "cache:total:blocks"       // 区块总数缓存键
 	CacheKeyTotalTransactions = "cache:total:transactions" // 交易总数缓存键
 	CacheTotalTTL             = 5 * time.Minute            // 总数缓存过期时间（5分钟）
+	CacheBlockTTL             = 5 * time.Minute             // 单个区块缓存过期时间（24小时）
+	CacheTransactionTTL       = 5 * time.Minute             // 单个交易缓存过期时间（24小时）
 )
 
 // Default sync configuration values (used when config is not provided)

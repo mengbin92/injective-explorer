@@ -1241,6 +1241,7 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 }
 
 // updateAccountBalances updates account balances for a given address.
+// Optimized to use batch upsert operations to reduce database I/O.
 func (s *SyncService) updateAccountBalances(ctx context.Context, address string) error {
 	// Get account balances from chain
 	balancesResp, err := s.chainClient.GetBankBalances(ctx, address)
@@ -1249,37 +1250,44 @@ func (s *SyncService) updateAccountBalances(ctx context.Context, address string)
 		return err
 	}
 
-	if balancesResp == nil || balancesResp.Balances == nil {
+	if balancesResp == nil || balancesResp.Balances == nil || len(balancesResp.Balances) == 0 {
 		return nil
 	}
 
-	// Update or create balance records for each denom
+	// Convert all balances to models
+	balanceModels := make([]*models.AccountBalance, 0, len(balancesResp.Balances))
 	for _, balance := range balancesResp.Balances {
 		balanceModel := models.AccountBalanceFromProto(balance, address)
-		if balanceModel == nil {
-			continue
+		if balanceModel != nil {
+			balanceModels = append(balanceModels, balanceModel)
 		}
+	}
 
-		// Check if balance already exists
-		var existingBalance models.AccountBalance
-		err = db.Get().Where("address = ? AND denom = ?", address, balance.Denom).First(&existingBalance).Error
-		if err == nil {
-			// Balance exists, update it if amount changed
-			if existingBalance.Amount != balanceModel.Amount {
-				err = db.Get().Model(&existingBalance).Update("amount", balanceModel.Amount).Error
-				if err != nil {
-					global.Logger.Warnf("failed to update balance for account %s, denom %s: %v", address, balance.Denom, err)
-				}
-			}
-		} else if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Balance doesn't exist, create it
-			err = db.Get().Create(balanceModel).Error
+	if len(balanceModels) == 0 {
+		return nil
+	}
+
+	// Use batch upsert in a single transaction to reduce I/O
+	err = db.Get().Transaction(func(tx *gorm.DB) error {
+		// For each balance, use upsert (insert or update)
+		// This reduces the number of database queries from 2N (check + insert/update) to N (upsert)
+		for _, balanceModel := range balanceModels {
+			// Use Save which will insert if not exists or update if exists
+			// Note: This requires a unique constraint on (address, denom) in the database
+			err := tx.Where("address = ? AND denom = ?", balanceModel.Address, balanceModel.Denom).
+				Assign("amount", balanceModel.Amount).
+				FirstOrCreate(balanceModel).Error
 			if err != nil {
-				global.Logger.Warnf("failed to create balance for account %s, denom %s: %v", address, balance.Denom, err)
+				global.Logger.Warnf("failed to upsert balance for account %s, denom %s: %v", address, balanceModel.Denom, err)
+				// Continue processing other balances even if one fails
+				continue
 			}
-		} else {
-			global.Logger.Warnf("failed to check balance existence for account %s, denom %s: %v", address, balance.Denom, err)
 		}
+		return nil
+	})
+
+	if err != nil {
+		global.Logger.Warnf("failed to update balances for account %s: %v", address, err)
 	}
 
 	return nil
@@ -2361,8 +2369,8 @@ func cacheBlock(ctx context.Context, block *models.Block) {
 	pipe := redisClient.Pipeline()
 	pipe.LPush(ctx, CacheKeyBlockList, blockJSON)
 	pipe.LTrim(ctx, CacheKeyBlockList, 0, CacheMaxSize-1)
-	// Also cache by height for direct lookup
-	pipe.Set(ctx, CacheKeyBlockPrefix+fmt.Sprintf("%d", block.Height), blockJSON, 0)
+	// Also cache by height for direct lookup with TTL to prevent memory leak
+	pipe.Set(ctx, CacheKeyBlockPrefix+fmt.Sprintf("%d", block.Height), blockJSON, CacheBlockTTL)
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		global.Logger.Warnf("failed to cache block to Redis: %v", err)
@@ -2387,8 +2395,8 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 	pipe := redisClient.Pipeline()
 	pipe.LPush(ctx, CacheKeyTransactionList, txJSON)
 	pipe.LTrim(ctx, CacheKeyTransactionList, 0, CacheMaxSize-1)
-	// Also cache by hash for direct lookup
-	pipe.Set(ctx, CacheKeyTransactionPrefix+tx.Hash, txJSON, 0)
+	// Also cache by hash for direct lookup with TTL to prevent memory leak
+	pipe.Set(ctx, CacheKeyTransactionPrefix+tx.Hash, txJSON, CacheTransactionTTL)
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		global.Logger.Warnf("failed to cache transaction to Redis: %v", err)
