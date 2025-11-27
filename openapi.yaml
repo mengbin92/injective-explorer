@@ -330,7 +330,7 @@ components:
                 address:
                     type: string
                     description: Account address
-                updateType:
+                update_type:
                     type: string
                     description: 'Update type: "transaction", "balance", etc.'
                 data:
@@ -367,15 +367,15 @@ components:
                     type: string
                 moniker:
                     type: string
-                blockHash:
+                block_hash:
                     type: string
-                parentHash:
+                parent_hash:
                     type: string
-                numPrecommits:
+                num_precommits:
                     type: string
-                numTxs:
+                num_txs:
                     type: string
-                totalTxs:
+                total_txs:
                     type: string
                 txs:
                     type: array
@@ -383,7 +383,7 @@ components:
                         type: string
                 timestamp:
                     type: string
-                blockUnixTimestamp:
+                block_unix_timestamp:
                     type: string
         api.explorer.v1.BlockUpdate:
             type: object
@@ -392,7 +392,7 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/api.explorer.v1.BlockDTO'
                     description: Block data using strongly-typed BlockDTO
-                updateType:
+                update_type:
                     type: string
                     description: 'Update type: "new" or "update"'
                 timestamp:
@@ -450,9 +450,9 @@ components:
             properties:
                 id:
                     type: string
-                blockNumber:
+                block_number:
                     type: string
-                blockTimestamp:
+                block_timestamp:
                     type: string
                 hash:
                     type: string
@@ -463,11 +463,11 @@ components:
                     type: string
                 info:
                     type: string
-                gasWanted:
+                gas_wanted:
                     type: string
-                gasUsed:
+                gas_used:
                     type: string
-                gasFee:
+                gas_fee:
                     type: string
                 codespace:
                     type: string
@@ -475,7 +475,7 @@ components:
                     type: array
                     items:
                         type: string
-                txType:
+                tx_type:
                     type: string
                 messages:
                     type: string
@@ -485,15 +485,15 @@ components:
                         type: string
                 memo:
                     type: string
-                txNumber:
+                tx_number:
                     type: string
-                blockUnixTimestamp:
+                block_unix_timestamp:
                     type: string
-                errorLog:
+                error_log:
                     type: string
                 logs:
                     type: string
-                claimIds:
+                claim_ids:
                     type: array
                     items:
                         type: string
@@ -506,7 +506,7 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/api.explorer.v1.TransactionDTO'
                     description: Transaction data using strongly-typed TransactionDTO
-                updateType:
+                update_type:
                     type: string
                     description: 'Update type: "new" or "update"'
                 timestamp:

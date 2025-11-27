@@ -11,6 +11,8 @@ server:
     enable_cors: true
     allowed_origins:
       - "*"
+  enable_swagger: true
+  
 data:
   database:
     driver: mysql

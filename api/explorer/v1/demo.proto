@@ -162,7 +162,7 @@ message BlockUpdate {
   // Block data using strongly-typed BlockDTO
   BlockDTO block = 1;
   // Update type: "new" or "update"
-  string update_type = 2;
+  string update_type = 2 [ json_name = "update_type" ];
   // Timestamp of the update
   int64 timestamp = 3;
 }
@@ -171,7 +171,7 @@ message TransactionUpdate {
   // Transaction data using strongly-typed TransactionDTO
   TransactionDTO transaction = 1;
   // Update type: "new" or "update"
-  string update_type = 2;
+  string update_type = 2 [ json_name = "update_type" ];
   // Timestamp of the update
   int64 timestamp = 3;
 }
@@ -190,7 +190,7 @@ message AccountUpdate {
   // Account address
   string address = 1;
   // Update type: "transaction", "balance", etc.
-  string update_type = 2;
+  string update_type = 2 [ json_name = "update_type" ];
   // Update data using strongly-typed AccountUpdateData
   AccountUpdateData data = 3;
   // Timestamp of the update
@@ -215,38 +215,38 @@ message BlockDTO {
   uint64 height = 1;
   string proposer = 2;
   string moniker = 3;
-  string block_hash = 4;
-  string parent_hash = 5;
-  int64 num_precommits = 6;
-  int64 num_txs = 7;
-  int64 total_txs = 8;
+  string block_hash = 4 [ json_name = "block_hash" ];
+  string parent_hash = 5 [ json_name = "parent_hash" ];
+  int64 num_precommits = 6 [ json_name = "num_precommits" ];
+  int64 num_txs = 7 [ json_name = "num_txs" ];
+  int64 total_txs = 8 [ json_name = "total_txs" ];
   repeated string txs = 9;
   string timestamp = 10;
-  uint64 block_unix_timestamp = 11;
+  uint64 block_unix_timestamp = 11 [ json_name = "block_unix_timestamp" ];
 }
 
 message TransactionDTO {
   string id = 1;
-  uint64 block_number = 2;
-  string block_timestamp = 3;
+  uint64 block_number = 2 [ json_name = "block_number" ];
+  string block_timestamp = 3 [ json_name = "block_timestamp" ];
   string hash = 4;
   uint32 code = 5;
   string data = 6;
   string info = 7;
-  int64 gas_wanted = 8;
-  int64 gas_used = 9;
-  string gas_fee = 10;
+  int64 gas_wanted = 8 [ json_name = "gas_wanted" ];
+  int64 gas_used = 9 [ json_name = "gas_used" ];
+  string gas_fee = 10 [ json_name = "gas_fee" ];
   string codespace = 11;
   repeated string events = 12;
-  string tx_type = 13;
+  string tx_type = 13 [ json_name = "tx_type" ];
   string messages = 14;
   repeated string signatures = 15;
   string memo = 16;
-  uint64 tx_number = 17;
-  uint64 block_unix_timestamp = 18;
-  string error_log = 19;
+  uint64 tx_number = 17 [ json_name = "tx_number" ];
+  uint64 block_unix_timestamp = 18 [ json_name = "block_unix_timestamp" ];
+  string error_log = 19 [ json_name = "error_log" ];
   string logs = 20;
-  repeated int64 claim_ids = 21;
+  repeated int64 claim_ids = 21 [ json_name = "claim_ids" ];
   string payer = 22;
 }
 

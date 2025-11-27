@@ -588,7 +588,7 @@ type BlockUpdate struct {
 	// Block data using strongly-typed BlockDTO
 	Block *BlockDTO `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
 	// Update type: "new" or "update"
-	UpdateType string `protobuf:"bytes,2,opt,name=update_type,json=updateType,proto3" json:"update_type,omitempty"`
+	UpdateType string `protobuf:"bytes,2,opt,name=update_type,proto3" json:"update_type,omitempty"`
 	// Timestamp of the update
 	Timestamp     int64 `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -651,7 +651,7 @@ type TransactionUpdate struct {
 	// Transaction data using strongly-typed TransactionDTO
 	Transaction *TransactionDTO `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
 	// Update type: "new" or "update"
-	UpdateType string `protobuf:"bytes,2,opt,name=update_type,json=updateType,proto3" json:"update_type,omitempty"`
+	UpdateType string `protobuf:"bytes,2,opt,name=update_type,proto3" json:"update_type,omitempty"`
 	// Timestamp of the update
 	Timestamp     int64 `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -778,7 +778,7 @@ type AccountUpdate struct {
 	// Account address
 	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
 	// Update type: "transaction", "balance", etc.
-	UpdateType string `protobuf:"bytes,2,opt,name=update_type,json=updateType,proto3" json:"update_type,omitempty"`
+	UpdateType string `protobuf:"bytes,2,opt,name=update_type,proto3" json:"update_type,omitempty"`
 	// Update data using strongly-typed AccountUpdateData
 	Data *AccountUpdateData `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	// Timestamp of the update
@@ -1014,14 +1014,14 @@ type BlockDTO struct {
 	Height             uint64                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
 	Proposer           string                 `protobuf:"bytes,2,opt,name=proposer,proto3" json:"proposer,omitempty"`
 	Moniker            string                 `protobuf:"bytes,3,opt,name=moniker,proto3" json:"moniker,omitempty"`
-	BlockHash          string                 `protobuf:"bytes,4,opt,name=block_hash,json=blockHash,proto3" json:"block_hash,omitempty"`
-	ParentHash         string                 `protobuf:"bytes,5,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"`
-	NumPrecommits      int64                  `protobuf:"varint,6,opt,name=num_precommits,json=numPrecommits,proto3" json:"num_precommits,omitempty"`
-	NumTxs             int64                  `protobuf:"varint,7,opt,name=num_txs,json=numTxs,proto3" json:"num_txs,omitempty"`
-	TotalTxs           int64                  `protobuf:"varint,8,opt,name=total_txs,json=totalTxs,proto3" json:"total_txs,omitempty"`
+	BlockHash          string                 `protobuf:"bytes,4,opt,name=block_hash,proto3" json:"block_hash,omitempty"`
+	ParentHash         string                 `protobuf:"bytes,5,opt,name=parent_hash,proto3" json:"parent_hash,omitempty"`
+	NumPrecommits      int64                  `protobuf:"varint,6,opt,name=num_precommits,proto3" json:"num_precommits,omitempty"`
+	NumTxs             int64                  `protobuf:"varint,7,opt,name=num_txs,proto3" json:"num_txs,omitempty"`
+	TotalTxs           int64                  `protobuf:"varint,8,opt,name=total_txs,proto3" json:"total_txs,omitempty"`
 	Txs                []string               `protobuf:"bytes,9,rep,name=txs,proto3" json:"txs,omitempty"`
 	Timestamp          string                 `protobuf:"bytes,10,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	BlockUnixTimestamp uint64                 `protobuf:"varint,11,opt,name=block_unix_timestamp,json=blockUnixTimestamp,proto3" json:"block_unix_timestamp,omitempty"`
+	BlockUnixTimestamp uint64                 `protobuf:"varint,11,opt,name=block_unix_timestamp,proto3" json:"block_unix_timestamp,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1136,26 +1136,26 @@ func (x *BlockDTO) GetBlockUnixTimestamp() uint64 {
 type TransactionDTO struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	BlockNumber        uint64                 `protobuf:"varint,2,opt,name=block_number,json=blockNumber,proto3" json:"block_number,omitempty"`
-	BlockTimestamp     string                 `protobuf:"bytes,3,opt,name=block_timestamp,json=blockTimestamp,proto3" json:"block_timestamp,omitempty"`
+	BlockNumber        uint64                 `protobuf:"varint,2,opt,name=block_number,proto3" json:"block_number,omitempty"`
+	BlockTimestamp     string                 `protobuf:"bytes,3,opt,name=block_timestamp,proto3" json:"block_timestamp,omitempty"`
 	Hash               string                 `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
 	Code               uint32                 `protobuf:"varint,5,opt,name=code,proto3" json:"code,omitempty"`
 	Data               string                 `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
 	Info               string                 `protobuf:"bytes,7,opt,name=info,proto3" json:"info,omitempty"`
-	GasWanted          int64                  `protobuf:"varint,8,opt,name=gas_wanted,json=gasWanted,proto3" json:"gas_wanted,omitempty"`
-	GasUsed            int64                  `protobuf:"varint,9,opt,name=gas_used,json=gasUsed,proto3" json:"gas_used,omitempty"`
-	GasFee             string                 `protobuf:"bytes,10,opt,name=gas_fee,json=gasFee,proto3" json:"gas_fee,omitempty"`
+	GasWanted          int64                  `protobuf:"varint,8,opt,name=gas_wanted,proto3" json:"gas_wanted,omitempty"`
+	GasUsed            int64                  `protobuf:"varint,9,opt,name=gas_used,proto3" json:"gas_used,omitempty"`
+	GasFee             string                 `protobuf:"bytes,10,opt,name=gas_fee,proto3" json:"gas_fee,omitempty"`
 	Codespace          string                 `protobuf:"bytes,11,opt,name=codespace,proto3" json:"codespace,omitempty"`
 	Events             []string               `protobuf:"bytes,12,rep,name=events,proto3" json:"events,omitempty"`
-	TxType             string                 `protobuf:"bytes,13,opt,name=tx_type,json=txType,proto3" json:"tx_type,omitempty"`
+	TxType             string                 `protobuf:"bytes,13,opt,name=tx_type,proto3" json:"tx_type,omitempty"`
 	Messages           string                 `protobuf:"bytes,14,opt,name=messages,proto3" json:"messages,omitempty"`
 	Signatures         []string               `protobuf:"bytes,15,rep,name=signatures,proto3" json:"signatures,omitempty"`
 	Memo               string                 `protobuf:"bytes,16,opt,name=memo,proto3" json:"memo,omitempty"`
-	TxNumber           uint64                 `protobuf:"varint,17,opt,name=tx_number,json=txNumber,proto3" json:"tx_number,omitempty"`
-	BlockUnixTimestamp uint64                 `protobuf:"varint,18,opt,name=block_unix_timestamp,json=blockUnixTimestamp,proto3" json:"block_unix_timestamp,omitempty"`
-	ErrorLog           string                 `protobuf:"bytes,19,opt,name=error_log,json=errorLog,proto3" json:"error_log,omitempty"`
+	TxNumber           uint64                 `protobuf:"varint,17,opt,name=tx_number,proto3" json:"tx_number,omitempty"`
+	BlockUnixTimestamp uint64                 `protobuf:"varint,18,opt,name=block_unix_timestamp,proto3" json:"block_unix_timestamp,omitempty"`
+	ErrorLog           string                 `protobuf:"bytes,19,opt,name=error_log,proto3" json:"error_log,omitempty"`
 	Logs               string                 `protobuf:"bytes,20,opt,name=logs,proto3" json:"logs,omitempty"`
-	ClaimIds           []int64                `protobuf:"varint,21,rep,packed,name=claim_ids,json=claimIds,proto3" json:"claim_ids,omitempty"`
+	ClaimIds           []int64                `protobuf:"varint,21,rep,packed,name=claim_ids,proto3" json:"claim_ids,omitempty"`
 	Payer              string                 `protobuf:"bytes,22,opt,name=payer,proto3" json:"payer,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -1605,16 +1605,14 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x05types\x18\x01 \x03(\tR\x05types\"^\n" +
 	"\x1bStreamAccountUpdatesRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12%\n" +
-	"\x0efrom_timestamp\x18\x02 \x01(\x03R\rfromTimestamp\"}\n" +
+	"\x0efrom_timestamp\x18\x02 \x01(\x03R\rfromTimestamp\"~\n" +
 	"\vBlockUpdate\x12/\n" +
-	"\x05block\x18\x01 \x01(\v2\x19.api.explorer.v1.BlockDTOR\x05block\x12\x1f\n" +
-	"\vupdate_type\x18\x02 \x01(\tR\n" +
-	"updateType\x12\x1c\n" +
-	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"\x95\x01\n" +
+	"\x05block\x18\x01 \x01(\v2\x19.api.explorer.v1.BlockDTOR\x05block\x12 \n" +
+	"\vupdate_type\x18\x02 \x01(\tR\vupdate_type\x12\x1c\n" +
+	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"\x96\x01\n" +
 	"\x11TransactionUpdate\x12A\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x1f.api.explorer.v1.TransactionDTOR\vtransaction\x12\x1f\n" +
-	"\vupdate_type\x18\x02 \x01(\tR\n" +
-	"updateType\x12\x1c\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x1f.api.explorer.v1.TransactionDTOR\vtransaction\x12 \n" +
+	"\vupdate_type\x18\x02 \x01(\tR\vupdate_type\x12\x1c\n" +
 	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"\xa1\x02\n" +
 	"\x11AccountUpdateData\x12A\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x1f.api.explorer.v1.TransactionDTOR\vtransaction\x12>\n" +
@@ -1622,11 +1620,10 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\bmetadata\x18\x03 \x03(\v20.api.explorer.v1.AccountUpdateData.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa1\x01\n" +
 	"\rAccountUpdate\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1f\n" +
-	"\vupdate_type\x18\x02 \x01(\tR\n" +
-	"updateType\x126\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12 \n" +
+	"\vupdate_type\x18\x02 \x01(\tR\vupdate_type\x126\n" +
 	"\x04data\x18\x03 \x01(\v2\".api.explorer.v1.AccountUpdateDataR\x04data\x12\x1c\n" +
 	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\"3\n" +
 	"\x19LatestBlockHeightResponse\x12\x16\n" +
@@ -1639,48 +1636,49 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x11AccountBalanceDTO\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x14\n" +
 	"\x05denom\x18\x02 \x01(\tR\x05denom\x12\x16\n" +
-	"\x06amount\x18\x03 \x01(\tR\x06amount\"\xd7\x02\n" +
+	"\x06amount\x18\x03 \x01(\tR\x06amount\"\xde\x02\n" +
 	"\bBlockDTO\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\x04R\x06height\x12\x1a\n" +
 	"\bproposer\x18\x02 \x01(\tR\bproposer\x12\x18\n" +
-	"\amoniker\x18\x03 \x01(\tR\amoniker\x12\x1d\n" +
+	"\amoniker\x18\x03 \x01(\tR\amoniker\x12\x1e\n" +
 	"\n" +
-	"block_hash\x18\x04 \x01(\tR\tblockHash\x12\x1f\n" +
-	"\vparent_hash\x18\x05 \x01(\tR\n" +
-	"parentHash\x12%\n" +
-	"\x0enum_precommits\x18\x06 \x01(\x03R\rnumPrecommits\x12\x17\n" +
-	"\anum_txs\x18\a \x01(\x03R\x06numTxs\x12\x1b\n" +
-	"\ttotal_txs\x18\b \x01(\x03R\btotalTxs\x12\x10\n" +
+	"block_hash\x18\x04 \x01(\tR\n" +
+	"block_hash\x12 \n" +
+	"\vparent_hash\x18\x05 \x01(\tR\vparent_hash\x12&\n" +
+	"\x0enum_precommits\x18\x06 \x01(\x03R\x0enum_precommits\x12\x18\n" +
+	"\anum_txs\x18\a \x01(\x03R\anum_txs\x12\x1c\n" +
+	"\ttotal_txs\x18\b \x01(\x03R\ttotal_txs\x12\x10\n" +
 	"\x03txs\x18\t \x03(\tR\x03txs\x12\x1c\n" +
 	"\ttimestamp\x18\n" +
-	" \x01(\tR\ttimestamp\x120\n" +
-	"\x14block_unix_timestamp\x18\v \x01(\x04R\x12blockUnixTimestamp\"\xe1\x04\n" +
+	" \x01(\tR\ttimestamp\x122\n" +
+	"\x14block_unix_timestamp\x18\v \x01(\x04R\x14block_unix_timestamp\"\xec\x04\n" +
 	"\x0eTransactionDTO\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
-	"\fblock_number\x18\x02 \x01(\x04R\vblockNumber\x12'\n" +
-	"\x0fblock_timestamp\x18\x03 \x01(\tR\x0eblockTimestamp\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\"\n" +
+	"\fblock_number\x18\x02 \x01(\x04R\fblock_number\x12(\n" +
+	"\x0fblock_timestamp\x18\x03 \x01(\tR\x0fblock_timestamp\x12\x12\n" +
 	"\x04hash\x18\x04 \x01(\tR\x04hash\x12\x12\n" +
 	"\x04code\x18\x05 \x01(\rR\x04code\x12\x12\n" +
 	"\x04data\x18\x06 \x01(\tR\x04data\x12\x12\n" +
-	"\x04info\x18\a \x01(\tR\x04info\x12\x1d\n" +
+	"\x04info\x18\a \x01(\tR\x04info\x12\x1e\n" +
 	"\n" +
-	"gas_wanted\x18\b \x01(\x03R\tgasWanted\x12\x19\n" +
-	"\bgas_used\x18\t \x01(\x03R\agasUsed\x12\x17\n" +
+	"gas_wanted\x18\b \x01(\x03R\n" +
+	"gas_wanted\x12\x1a\n" +
+	"\bgas_used\x18\t \x01(\x03R\bgas_used\x12\x18\n" +
 	"\agas_fee\x18\n" +
-	" \x01(\tR\x06gasFee\x12\x1c\n" +
+	" \x01(\tR\agas_fee\x12\x1c\n" +
 	"\tcodespace\x18\v \x01(\tR\tcodespace\x12\x16\n" +
-	"\x06events\x18\f \x03(\tR\x06events\x12\x17\n" +
-	"\atx_type\x18\r \x01(\tR\x06txType\x12\x1a\n" +
+	"\x06events\x18\f \x03(\tR\x06events\x12\x18\n" +
+	"\atx_type\x18\r \x01(\tR\atx_type\x12\x1a\n" +
 	"\bmessages\x18\x0e \x01(\tR\bmessages\x12\x1e\n" +
 	"\n" +
 	"signatures\x18\x0f \x03(\tR\n" +
 	"signatures\x12\x12\n" +
-	"\x04memo\x18\x10 \x01(\tR\x04memo\x12\x1b\n" +
-	"\ttx_number\x18\x11 \x01(\x04R\btxNumber\x120\n" +
-	"\x14block_unix_timestamp\x18\x12 \x01(\x04R\x12blockUnixTimestamp\x12\x1b\n" +
-	"\terror_log\x18\x13 \x01(\tR\berrorLog\x12\x12\n" +
-	"\x04logs\x18\x14 \x01(\tR\x04logs\x12\x1b\n" +
-	"\tclaim_ids\x18\x15 \x03(\x03R\bclaimIds\x12\x14\n" +
+	"\x04memo\x18\x10 \x01(\tR\x04memo\x12\x1c\n" +
+	"\ttx_number\x18\x11 \x01(\x04R\ttx_number\x122\n" +
+	"\x14block_unix_timestamp\x18\x12 \x01(\x04R\x14block_unix_timestamp\x12\x1c\n" +
+	"\terror_log\x18\x13 \x01(\tR\terror_log\x12\x12\n" +
+	"\x04logs\x18\x14 \x01(\tR\x04logs\x12\x1c\n" +
+	"\tclaim_ids\x18\x15 \x03(\x03R\tclaim_ids\x12\x14\n" +
 	"\x05payer\x18\x16 \x01(\tR\x05payer\"\xba\x06\n" +
 	"\fValidatorDTO\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +

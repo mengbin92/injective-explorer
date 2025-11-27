@@ -4,6 +4,7 @@ package server
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"injective-explorer/internal/conf"
 
@@ -72,9 +73,9 @@ func NewGRPCWebServer(c *conf.Server, grpcServer *krpc.Server, logger log.Logger
 
 	// Create HTTP handler that routes gRPC-Web requests to the wrapped server
 	handler := http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		// Log request for debugging
-		log.NewHelper(logger).Debugf("gRPC-Web request: method=%s, path=%s, content-type=%s",
-			req.Method, req.URL.Path, req.Header.Get("Content-Type"))
+		// Log request for debugging (without sensitive information)
+		log.NewHelper(logger).Debugf("gRPC-Web request: method=%s, path=%s",
+			req.Method, req.URL.Path)
 
 		// Check if this is a gRPC-Web request
 		isGrpcWeb := wrappedGrpc.IsGrpcWebRequest(req)
@@ -88,15 +89,15 @@ func NewGRPCWebServer(c *conf.Server, grpcServer *krpc.Server, logger log.Logger
 
 		if isGrpcWeb || isCors || hasGrpcWebHeader {
 			// Handle gRPC-Web request
-			log.NewHelper(logger).Debugf("handling gRPC-Web request: isGrpcWeb=%v, isCors=%v, hasHeader=%v",
-				isGrpcWeb, isCors, hasGrpcWebHeader)
+			log.NewHelper(logger).Debugf("handling gRPC-Web request: isGrpcWeb=%v, isCors=%v",
+				isGrpcWeb, isCors)
 			wrappedGrpc.ServeHTTP(resp, req)
 			return
 		}
 
 		// For non-gRPC-Web requests, return 404 with helpful message
-		log.NewHelper(logger).Warnf("non-gRPC-Web request rejected: method=%s, path=%s, content-type=%s",
-			req.Method, req.URL.Path, contentType)
+		log.NewHelper(logger).Warnf("non-gRPC-Web request rejected: method=%s, path=%s",
+			req.Method, req.URL.Path)
 		resp.WriteHeader(http.StatusNotFound)
 		resp.Write([]byte("Not Found: This endpoint only handles gRPC-Web requests. " +
 			"Please set Content-Type: application/grpc-web+proto and X-Grpc-Web: 1 headers."))
@@ -113,9 +114,23 @@ func NewGRPCWebServer(c *conf.Server, grpcServer *krpc.Server, logger log.Logger
 		}
 	}
 
+	// Configure server timeouts for security and resource management
+	readTimeout := 30 * time.Second  // Default read timeout
+	writeTimeout := 30 * time.Second // Default write timeout
+	idleTimeout := 120 * time.Second // Default idle timeout
+
+	if c.GrpcWeb != nil && c.GrpcWeb.Timeout != nil {
+		timeout := c.GrpcWeb.Timeout.AsDuration()
+		readTimeout = timeout
+		writeTimeout = timeout
+	}
+
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: handler,
+		Addr:         addr,
+		Handler:      handler,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		IdleTimeout:  idleTimeout,
 	}
 
 	corsEnabled := c.GrpcWeb != nil && c.GrpcWeb.EnableCors

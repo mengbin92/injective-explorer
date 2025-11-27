@@ -56,6 +56,10 @@ WORKDIR /app
 # The build process creates executables in bin/ directory
 COPY --from=builder /src/bin ./bin
 
+# Copy openapi.yaml file for Swagger UI
+# This file is needed for the Swagger documentation endpoint
+COPY --from=builder /src/openapi.yaml ./openapi.yaml
+
 # Copy wasmvm shared libraries from builder stage
 # wasmvm package includes pre-compiled shared libraries that need to be available at runtime
 RUN mkdir -p /usr/local/lib

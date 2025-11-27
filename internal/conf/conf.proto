@@ -37,6 +37,7 @@ message Server {
   HTTP http = 1;
   GRPC grpc = 2;
   GRPC_WEB grpc_web = 3;
+  bool enable_swagger = 4;
 }
 
 message Data {

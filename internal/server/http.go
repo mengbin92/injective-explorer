@@ -23,16 +23,44 @@ import (
 // Returns:
 //   - *http.Server: A configured HTTP server ready to accept connections
 func NewHTTPServer(c *conf.Server, logger log.Logger) *http.Server {
+	// Configure CORS with security best practices
+	// Security: CORS configuration must follow browser security rules:
+	// - If AllowedOrigins contains "*", AllowCredentials must be false
+	// - If AllowCredentials is true, AllowedOrigins must specify exact origins (not "*")
+	var corsOpts []handlers.CORSOption
+	allowedOrigins := []string{"*"} // Default: allow all origins
+	allowCredentials := false       // Default: disabled for security when using "*"
+
+	// Security: If using "*" origin, credentials must be disabled
+	// This prevents CORS security vulnerabilities
+	if len(allowedOrigins) == 1 && allowedOrigins[0] == "*" {
+		allowCredentials = false
+	}
+
+	corsOpts = append(corsOpts,
+		handlers.AllowedOrigins(allowedOrigins),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{
+			"Content-Type",
+			"Authorization",
+			"X-Requested-With",
+			// Note: Accept, Origin, and Access-Control-Request-* headers are simple headers
+			// and don't need to be explicitly allowed
+		}),
+		handlers.MaxAge(86400), // Cache preflight requests for 24 hours
+	)
+
+	if allowCredentials {
+		corsOpts = append(corsOpts, handlers.AllowCredentials())
+	}
+
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
 		),
-		http.Filter(handlers.CORS(
-			handlers.AllowedOrigins([]string{"*"}),
-			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-			handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With", "Your-Custom-Header"}), // 注意点：包含所有用到的请求头
-			handlers.AllowCredentials(), // 允许携带凭证（如 cookies）
-		)),
+		// Add CORS filter to handle cross-origin requests
+		// The CORS middleware will automatically handle OPTIONS preflight requests
+		http.Filter(handlers.CORS(corsOpts...)),
 	}
 	if c.Http.Network != "" {
 		opts = append(opts, http.Network(c.Http.Network))
