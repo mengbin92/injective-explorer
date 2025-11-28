@@ -10,7 +10,6 @@ services:
     ports:
       - 8000:8000
       - 9000:9000
-      # 9001 端口现在由 Envoy 使用，用于 grpc-web 转发
     volumes:
       - ./configs:/data/conf
     networks:
@@ -27,7 +26,7 @@ services:
         condition: service_healthy
 
   envoy:
-    image: envoyproxy/envoy:v1.28-latest
+    image: envoyproxy/envoy:v1.36-latest
     container_name: injective-explorer-envoy
     restart: unless-stopped
     ports:

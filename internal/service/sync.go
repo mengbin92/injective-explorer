@@ -609,18 +609,21 @@ func (s *SyncService) processBlock(height uint64) error {
 	}
 
 	// Use transaction to ensure atomicity
+	var isUpdate bool
 	err = db.Get().Transaction(func(tx *gorm.DB) error {
 		// Check if block already exists
 		var existingBlock models.Block
 		err := tx.Where("height = ?", height).First(&existingBlock).Error
 		if err == nil {
 			// Block exists, update it
+			isUpdate = true
 			err = tx.Model(&existingBlock).Updates(blockModel).Error
 			if err != nil {
 				return errors.Wrapf(err, "failed to update block at height %d", height)
 			}
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Block doesn't exist, create it
+			isUpdate = false
 			err = tx.Create(blockModel).Error
 			if err != nil {
 				return errors.Wrapf(err, "failed to create block at height %d", height)
@@ -656,6 +659,17 @@ func (s *SyncService) processBlock(height uint64) error {
 	if err != nil {
 		return err
 	}
+
+	// Publish block event for streaming
+	eventBus := GetEventBus()
+	eventType := EventTypeBlockNew
+	if isUpdate {
+		eventType = EventTypeBlockUpdate
+	}
+	eventBus.PublishBlock(&BlockEvent{
+		Block: blockModel,
+		Type:  eventType,
+	})
 
 	// Cache block to Redis
 	cacheBlock(ctx, blockModel)

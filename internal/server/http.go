@@ -24,6 +24,8 @@ import (
 var (
 	openAPIFileCache     string
 	openAPIFileCacheOnce sync.Once
+	projectRootCache     string
+	projectRootCacheOnce sync.Once
 )
 
 // NewHTTPServer creates and configures a new HTTP server instance.
@@ -133,51 +135,59 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 	return srv
 }
 
-// findProjectRoot tries to find the project root by looking for go.mod file
+// findProjectRoot tries to find the project root by looking for go.mod file.
+// The result is cached to avoid repeated file system operations.
 func findProjectRoot() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = "."
-	}
+	projectRootCacheOnce.Do(func() {
+		cwd, err := os.Getwd()
+		if err != nil {
+			cwd = "."
+		}
 
-	// Start from current directory and walk up to find go.mod
-	dir := cwd
-	for {
-		goModPath := filepath.Join(dir, "go.mod")
-		if info, err := os.Stat(goModPath); err == nil && !info.IsDir() {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached root, stop
-			break
-		}
-		dir = parent
-	}
-
-	// Fallback: try executable directory
-	if execPath, err := os.Executable(); err == nil {
-		execDir := filepath.Dir(execPath)
-		goModPath := filepath.Join(execDir, "go.mod")
-		if _, err := os.Stat(goModPath); err == nil {
-			return execDir
-		}
-		// Try parent directories
-		dir := execDir
-		for i := 0; i < 5; i++ {
+		// Start from current directory and walk up to find go.mod
+		dir := cwd
+		for {
+			goModPath := filepath.Join(dir, "go.mod")
+			if info, err := os.Stat(goModPath); err == nil && !info.IsDir() {
+				projectRootCache = dir
+				return
+			}
 			parent := filepath.Dir(dir)
 			if parent == dir {
+				// Reached root, stop
 				break
-			}
-			goModPath := filepath.Join(parent, "go.mod")
-			if _, err := os.Stat(goModPath); err == nil {
-				return parent
 			}
 			dir = parent
 		}
-	}
 
-	return cwd // Fallback to current working directory
+		// Fallback: try executable directory
+		if execPath, err := os.Executable(); err == nil {
+			execDir := filepath.Dir(execPath)
+			goModPath := filepath.Join(execDir, "go.mod")
+			if _, err := os.Stat(goModPath); err == nil {
+				projectRootCache = execDir
+				return
+			}
+			// Try parent directories
+			dir := execDir
+			for i := 0; i < 5; i++ {
+				parent := filepath.Dir(dir)
+				if parent == dir {
+					break
+				}
+				goModPath := filepath.Join(parent, "go.mod")
+				if _, err := os.Stat(goModPath); err == nil {
+					projectRootCache = parent
+					return
+				}
+				dir = parent
+			}
+		}
+
+		projectRootCache = cwd // Fallback to current working directory
+	})
+
+	return projectRootCache
 }
 
 // findOpenAPIFile tries to locate the openapi.yaml file in common locations

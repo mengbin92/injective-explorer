@@ -5,20 +5,14 @@ server:
   grpc:
     addr: 0.0.0.0:9000
     timeout: 30s
-  grpc_web:
-    addr: 0.0.0.0:9001
-    timeout: 30s
-    enable_cors: true
-    allowed_origins:
-      - "*"
   enable_swagger: true
   
 data:
   database:
     driver: mysql
-    source: root:jKBrZHGcsNG5fMc52EWz@tcp(injective-explorer-mysql:3306)/explorer?charset=utf8mb4&parseTime=True&loc=Local
+    source: root:jKBrZHGcsNG5fMc52EWz@tcp(localhost:3306)/explorer?charset=utf8mb4&parseTime=True&loc=Local
   redis:
-    addr: injective-explorer-redis:6379
+    addr: localhost:6379
     password: ""
     db: 0
     pool_size: 100

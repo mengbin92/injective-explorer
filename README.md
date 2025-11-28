@@ -13,7 +13,7 @@ A comprehensive blockchain explorer API service for the Injective network, built
 - **Pagination Support**: Both page-based and cursor-based pagination for efficient data retrieval
 - **Block Synchronization**: Real-time block synchronization with historical block backfill
 - **Dual Protocol Support**: Both gRPC and HTTP/REST APIs
-- **gRPC-Web Support**: Browser-compatible gRPC-Web API for web applications
+- **gRPC-Web Support**: Browser-compatible gRPC-Web API via Envoy Proxy
 - **Multiple Database Support**: MySQL, PostgreSQL, and SQLite
 - **Caching**: Redis support for improved performance
 - **Structured Logging**: Comprehensive logging with Zap
@@ -110,10 +110,8 @@ server:
   grpc:
     addr: 0.0.0.0:9000
     timeout: 1s
-  grpc_web:
-    addr: 0.0.0.0:9001
-    enable_cors: true
-    allowed_origins: ["*"]
+  # Note: gRPC-Web is now handled by Envoy proxy (see envoy/envoy.yaml)
+  # grpc_web configuration is no longer needed
 
 data:
   database:
@@ -1032,31 +1030,31 @@ Service definition: `api/explorer/v1/demo.proto`
 
 ### gRPC-Web Support
 
-The service also supports gRPC-Web, enabling browser-based clients to interact with gRPC services. gRPC-Web is available on a separate port (default: 9001).
+The service supports gRPC-Web through **Envoy Proxy**, enabling browser-based clients to interact with gRPC services. gRPC-Web requests are handled by Envoy on port 9001, which automatically converts them to standard gRPC requests and forwards them to the backend gRPC service.
+
+**Architecture**:
+```
+Browser (gRPC-Web) → Envoy Proxy (9001) → gRPC Service (9000)
+```
 
 **Features**:
-- Browser-compatible gRPC calls without requiring a proxy
+- Browser-compatible gRPC calls via Envoy proxy
 - Support for both unary and streaming RPCs
-- CORS support for cross-origin requests
+- CORS support configured in Envoy
 - Automatic Protocol Buffer serialization/deserialization
+- Production-ready proxy solution with advanced features
 
 **Configuration**:
-```yaml
-server:
-  grpc_web:
-    addr: 0.0.0.0:9001
-    enable_cors: true
-    allowed_origins: ["*"]
-```
+See `envoy/envoy.yaml` for Envoy configuration. The Envoy proxy is automatically started via docker-compose.
 
 **Usage Example** (JavaScript):
 ```javascript
-// Using gRPC-Web client library
+// Using gRPC-Web client library, connect to Envoy proxy
 const client = new DemoClient('http://localhost:9001');
 const response = await client.checkHealthy({ service: 'injective-explorer' });
 ```
 
-**Note**: For streaming RPCs via gRPC-Web, use the `application/grpc-web-text` content type for base64-encoded messages.
+**Note**: For streaming RPCs via gRPC-Web, Envoy automatically handles the conversion. See `envoy/README.md` for detailed configuration.
 
 ## Architecture Details
 

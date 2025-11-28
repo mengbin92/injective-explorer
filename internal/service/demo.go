@@ -1546,8 +1546,12 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 			return stream.Context().Err()
 		case <-heartbeatTicker.C:
 			// Log that we're still waiting (helps debug if connection is alive but no blocks)
-			global.Logger.Debugf("StreamLatestBlocks: still waiting for new blocks...")
-		case blockEvent := <-blockChan:
+			global.Logger.Debugf("StreamLatestBlocks: still waiting for new blocks... (stream is alive)")
+		case blockEvent, ok := <-blockChan:
+			if !ok {
+				global.Logger.Errorf("StreamLatestBlocks: block channel was closed")
+				return status.Errorf(codes.Internal, "block event channel was closed")
+			}
 			if blockEvent == nil {
 				global.Logger.Warnf("StreamLatestBlocks: received nil block event, skipping")
 				continue
