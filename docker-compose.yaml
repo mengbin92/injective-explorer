@@ -10,7 +10,7 @@ services:
     ports:
       - 8000:8000
       - 9000:9000
-      - 9001:9001
+      # 9001 端口现在由 Envoy 使用，用于 grpc-web 转发
     volumes:
       - ./configs:/data/conf
     networks:
@@ -25,6 +25,27 @@ services:
         condition: service_healthy
       injective-explorer-redis:
         condition: service_healthy
+
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest
+    container_name: injective-explorer-envoy
+    restart: unless-stopped
+    ports:
+      - 9001:9001  # grpc-web 端口
+      - 9901:9901  # Envoy admin 端口
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - injective-explorer-network
+    depends_on:
+      - injective-explorer
+    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml --service-cluster envoy --service-node envoy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9901/server_info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
       
   injective-explorer-redis:
     image: redis:latest
