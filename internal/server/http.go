@@ -76,42 +76,57 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 		),
 	}
 
-	// Add Swagger filter first (will execute AFTER CORS filter)
-	// Note: In Kratos, filters execute in reverse order (last added = first executed)
-	// So we add Swagger filter first, then CORS filter
-	// This ensures CORS headers are applied to Swagger requests
+	// Create CORS middleware factory (reusable)
+	// This creates a single CORS middleware function that can wrap any handler
+	corsMiddleware := handlers.CORS(corsOpts...)
+
+	// Add Swagger filter if enabled
+	// Note: In Kratos, filters execute in reverse order (LIFO - last added = first executed)
+	// We add Swagger filter first, then CORS filter, so execution order is:
+	// 1. CORS filter (last added, executes first) - applies CORS headers to all responses
+	// 2. Swagger filter (first added, executes after CORS) - handles Swagger requests
 	if c.EnableSwagger {
-		// Create swagger handler (will be used in filter)
+		// Create swagger handler
 		swaggerHandler := httpSwagger.Handler(
 			httpSwagger.URL("/openapi.json"), // Point to our OpenAPI JSON file
 			httpSwagger.DocExpansion("list"),
 			httpSwagger.DomID("swagger-ui"),
 		)
-		opts = append(opts,
-			// Add filter to handle swagger requests before routing
-			khttp.Filter(func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					path := r.URL.Path
-					// Handle swagger requests
-					if path == "/swagger" {
+
+		// Wrap swagger handler with CORS middleware (reuse the same middleware instance)
+		corsWrappedSwaggerHandler := corsMiddleware(swaggerHandler)
+
+		// Create Swagger filter that handles /swagger routes
+		swaggerFilter := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				path := r.URL.Path
+
+				// Handle /swagger redirect
+				if path == "/swagger" {
+					// Create redirect handler and wrap with CORS
+					redirectHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						http.Redirect(w, r, "/swagger/", http.StatusMovedPermanently)
-						return
-					}
-					if strings.HasPrefix(path, "/swagger/") {
-						swaggerHandler.ServeHTTP(w, r)
-						return
-					}
-					// Continue with normal routing
-					next.ServeHTTP(w, r)
-				})
-			}),
-		)
+					})
+					corsMiddleware(redirectHandler).ServeHTTP(w, r)
+					return
+				}
+
+				// Handle /swagger/* routes
+				if strings.HasPrefix(path, "/swagger/") {
+					corsWrappedSwaggerHandler.ServeHTTP(w, r)
+					return
+				}
+
+				// For non-Swagger requests, continue to next handler
+				next.ServeHTTP(w, r)
+			})
+		}
+		opts = append(opts, khttp.Filter(swaggerFilter))
 	}
 
-	// Add CORS filter AFTER Swagger filter (will execute FIRST)
-	// This ensures CORS headers are applied to all requests including Swagger
-	// The CORS middleware will automatically handle OPTIONS preflight requests
-	opts = append(opts, khttp.Filter(handlers.CORS(corsOpts...)))
+	// Add CORS filter last (will execute first due to LIFO)
+	// This ensures CORS headers are applied to all responses, including Swagger
+	opts = append(opts, khttp.Filter(corsMiddleware))
 
 	if c.Http.Network != "" {
 		opts = append(opts, khttp.Network(c.Http.Network))
