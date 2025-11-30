@@ -1893,7 +1893,10 @@ func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) 
 		return nil, errors.New("redis client is nil")
 	}
 
-	data, err := redisClient.LRange(ctx, CacheKeyBlockList, 0, int64(limit-1)).Result()
+	// Use negative indices to get the latest blocks from the tail of the list
+	// LRANGE with negative indices: -limit to -1 gets the last 'limit' elements
+	// This ensures we get the latest (highest blockNumber) blocks first
+	data, err := redisClient.LRange(ctx, CacheKeyBlockList, int64(-limit), -1).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -1940,7 +1943,10 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 	if redisClient == nil {
 		return nil, errors.New("redis client is nil")
 	}
-	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, 0, int64(limit-1)).Result()
+	// Use negative indices to get the latest transactions from the tail of the list
+	// LRANGE with negative indices: -limit to -1 gets the last 'limit' elements
+	// This ensures we get the latest (highest blockNumber/txNumber) transactions first
+	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, int64(-limit), -1).Result()
 	if err != nil {
 		return nil, err
 	}

@@ -77,4 +77,4 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 143463468 # 最早区块高度的默认值
+    earliest_height: 143726350 # 最早区块高度的默认值
