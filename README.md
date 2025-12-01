@@ -100,37 +100,124 @@ go build -ldflags "-X main.Version=$(git describe --tags --always)" -o ./bin/inj
 
 ## Configuration
 
+The application supports configuration through both YAML files and environment variables. Environment variables take precedence over YAML configuration values.
+
+### Environment Variables
+
+The application uses environment variables for flexible configuration across different environments (development, staging, production). 
+
+#### Quick Start
+
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` with your actual configuration values:
+   ```bash
+   # Edit .env file
+   vim .env
+   ```
+
+3. The application will automatically load environment variables when started.
+
+#### Available Environment Variables
+
+See `.env.example` for a complete list of available environment variables with detailed descriptions. Key variables include:
+
+**Server Configuration:**
+- `HTTP_PORT`: HTTP server port (default: 8000)
+- `GRPC_PORT`: gRPC server port (default: 9000)
+- `ENABLE_PPROF`: Enable pprof profiling endpoint (default: false, **disable in production**)
+
+**Database Configuration:**
+- `DB_USER`: Database username (default: root)
+- `DB_PASSWORD`: Database password (**change in production**)
+- `DB_HOST`: Database host address (default: localhost)
+- `DB_PORT`: Database port (default: 3306)
+- `DB_NAME`: Database name (default: explorer)
+
+**Redis Configuration:**
+- `REDIS_HOST`: Redis host address (default: localhost)
+- `REDIS_PORT`: Redis port (default: 6379)
+- `REDIS_PASSWORD`: Redis password (default: empty)
+- `REDIS_DB`: Redis database number (default: 0)
+
+#### Kratos Configuration System
+
+The application uses Kratos configuration system with the following priority order (highest to lowest):
+
+1. **Environment Variables** (highest priority)
+2. **YAML Configuration File** (lowest priority)
+
+Kratos supports environment variable override using dot-notation:
+- `SERVER_HTTP_ADDR` overrides `server.http.addr`
+- `DATA_DATABASE_SOURCE` overrides `data.database.source`
+- `DATA_REDIS_ADDR` overrides `data.redis.addr`
+- `LOG_LEVEL` overrides `log.level`
+- `LOG_FORMAT` overrides `log.format`
+
+**Example:**
+```bash
+# Override HTTP server address via environment variable
+export SERVER_HTTP_ADDR="0.0.0.0:8080"
+
+# Override database connection string
+export DATA_DATABASE_SOURCE="user:password@tcp(host:port)/dbname"
+```
+
+**Note**: The YAML placeholder syntax (`${VAR:default}`) in `config.yaml` also supports by Kratos file source.
+
+#### Docker Compose Integration
+
+When using Docker Compose, environment variables are automatically loaded from the `environment` section in `docker-compose.yaml`. The application will use these values to override the default configuration.
+
+**Example docker-compose.yaml:**
+```yaml
+services:
+  injective-explorer:
+    environment:
+      - HTTP_PORT=8000
+      - GRPC_PORT=9000
+      - DB_HOST=injective-explorer-mysql
+      - DB_PASSWORD=your_password
+      - REDIS_HOST=injective-explorer-redis
+```
+
+### YAML Configuration
+
 Create or modify `configs/config.yaml`:
 
 ```yaml
 server:
   http:
-    addr: 0.0.0.0:8000
-    timeout: 1s
+    addr: 0.0.0.0:${HTTP_PORT:8000}
+    timeout: 30s
   grpc:
-    addr: 0.0.0.0:9000
-    timeout: 1s
-  # Note: gRPC-Web is now handled by Envoy proxy (see envoy/envoy.yaml)
-  # grpc_web configuration is no longer needed
+    addr: 0.0.0.0:${GRPC_PORT:9000}
+    timeout: 30s
+  enable_swagger: true
 
 data:
   database:
-    driver: postgre  # Options: postgre, sqlite, mysql
-    source: postgres://user:password@host:port/database
+    driver: mysql
+    source: ${DB_USER:root}:${DB_PASSWORD:jKBrZHGcsNG5fMc52EWz}@tcp(${DB_HOST:localhost}:${DB_PORT:3306})/${DB_NAME:explorer}?charset=utf8mb4&parseTime=True&loc=Local
   redis:
-    addr: 127.0.0.1:6379
-    password: ""
-    db: 0
+    addr: ${REDIS_HOST:localhost}:${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    db: ${REDIS_DB:0}
     pool_size: 100
     read_timeout: 0.2s
     write_timeout: 0.2s
 
 log:
-  level: -1  # -1=debug, 0=info, 1=warn, 2=error
-  format: json  # Options: json, console
+  # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
+  level: -1
+  # json or console
+  format: console
 
 chain:
-  network: testnet  # Options: mainnet, testnet, or custom
+  network: mainnet
   lcd_endpoint: https://sentry.lcd.injective.network
   tm_endpoint: https://sentry.tm.injective.network:443
   chain_grpc_endpoint: sentry.chain.grpc.injective.network:443
@@ -181,7 +268,7 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 141021434 # 最早区块高度的默认值
+    earliest_height: 143726350 # 最早区块高度的默认值
 ```
 
 ### Network Configuration

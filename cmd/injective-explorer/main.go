@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
+	"github.com/go-kratos/kratos/v2/config/env"
 	"github.com/go-kratos/kratos/v2/config/file"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
@@ -74,9 +75,21 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *khttp.Server) *kratos.App {
 func main() {
 	flag.Parse()
 
+	// Configure configuration sources with priority order
+	// Priority: env.NewSource (highest) > file.NewSource (lowest)
+	// This means environment variables will override values from config file
+	//
+	// Note: Kratos config system supports environment variable override using dot-notation:
+	//   - SERVER_HTTP_ADDR overrides server.http.addr
+	//   - DATA_DATABASE_SOURCE overrides data.database.source
+	//   - REDIS_ADDR overrides data.redis.addr
+	//
+	// The YAML placeholder syntax (${VAR:default}) in config.yaml may not be supported
+	// by Kratos file source. Use environment variables with dot-notation instead.
 	c := config.New(
 		config.WithSource(
-			file.NewSource(flagconf),
+			file.NewSource(flagconf), // Load config file first (lower priority)
+			env.NewSource(""),        // Environment variables override file config (higher priority)
 		),
 	)
 	defer c.Close()

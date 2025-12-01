@@ -7,6 +7,20 @@ services:
       dockerfile: Dockerfile
     environment:
       - ENABLE_PPROF=false
+      # HTTP and gRPC server ports
+      - HTTP_PORT=8000
+      - GRPC_PORT=9000
+      # Database configuration
+      - DB_USER=root
+      - DB_PASSWORD=jKBrZHGcsNG5fMc52EWz
+      - DB_HOST=injective-explorer-mysql
+      - DB_PORT=3306
+      - DB_NAME=explorer
+      # Redis configuration
+      - REDIS_HOST=injective-explorer-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
     ports:
       - 8000:8000
       - 9000:9000

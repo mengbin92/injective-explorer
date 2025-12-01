@@ -1,20 +1,20 @@
 server:
   http:
-    addr: 0.0.0.0:8000
+    addr: 0.0.0.0:${HTTP_PORT:8000}
     timeout: 30s
   grpc:
-    addr: 0.0.0.0:9000
+    addr: 0.0.0.0:${GRPC_PORT:9000}
     timeout: 30s
   enable_swagger: true
-  
+
 data:
   database:
     driver: mysql
-    source: root:jKBrZHGcsNG5fMc52EWz@tcp(localhost:3306)/explorer?charset=utf8mb4&parseTime=True&loc=Local
+    source: ${DB_USER:root}:${DB_PASSWORD:jKBrZHGcsNG5fMc52EWz}@tcp(${DB_HOST:localhost}:${DB_PORT:3306})/${DB_NAME:explorer}?charset=utf8mb4&parseTime=True&loc=Local
   redis:
-    addr: localhost:6379
-    password: ""
-    db: 0
+    addr: ${REDIS_HOST:localhost}:${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    db: ${REDIS_DB:0}
     pool_size: 100
     read_timeout: 0.2s
     write_timeout: 0.2s
