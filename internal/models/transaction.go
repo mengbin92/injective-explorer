@@ -2,8 +2,12 @@
 package models
 
 import (
+	"context"
 	"encoding/base64"
+	"fmt"
 	"unicode/utf8"
+
+	"injective-explorer/provider/storage"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"google.golang.org/protobuf/proto"
@@ -41,15 +45,25 @@ type Transaction struct {
 	Logs               string   `json:"logs" gorm:"column:logs"`                                                        // Logs contains execution logs (stored as string, originally []byte)
 	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                              // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
 	Payer              string   `json:"payer" gorm:"type:varchar(128);column:payer"`
+	Archived           bool     `json:"archived" gorm:"column:archived;default:0;index"`               // Archived indicates whether this transaction has been archived
+	DataStorageKey     string   `json:"data_storage_key" gorm:"column:data_storage_key;index"`         // DataStorageKey is the object storage key for Data field
+	MessagesStorageKey string   `json:"messages_storage_key" gorm:"column:messages_storage_key;index"` // MessagesStorageKey is the object storage key for Messages field
+	LogsStorageKey     string   `json:"logs_storage_key" gorm:"column:logs_storage_key;index"`         // LogsStorageKey is the object storage key for Logs field
 }
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.
+// It compresses large fields (>1KB) and optionally uploads very large fields (>10KB) to object storage.
 //
 // Parameters:
-//   - detail: The protobuf transaction detail data (note: parameter name corrected from "deatil")
+//   - detail: The protobuf transaction detail data
 //
 // Returns:
 //   - *Transaction: A new Transaction instance with data from the protobuf message
+//
+// Behavior:
+//   - Compresses Data, Messages, and Logs fields if they exceed 1KB
+//   - Uploads to object storage if enabled and data exceeds 10KB
+//   - Sets storage keys and clears database fields after successful upload
 func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transaction {
 	if detail == nil {
 		return nil
@@ -110,7 +124,12 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		logsStr = encodeBinaryData(detail.Logs)
 	}
 
-	return &Transaction{
+	// Try to upload large fields to object storage
+	// Threshold: 10KB - only upload if data is large enough to benefit from object storage
+	const storageThreshold = 10 * 1024
+	storageClient := storage.Get()
+
+	tx := &Transaction{
 		Id:                 detail.Id,
 		BlockNumber:        detail.BlockNumber,
 		BlockTimestamp:     detail.BlockTimestamp,
@@ -134,10 +153,44 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		ClaimIds:           detail.ClaimIds,
 		Payer:              payer,
 	}
+
+	// Upload to object storage if enabled and data is large enough
+	ctx := context.Background()
+	if len(detail.Data) > storageThreshold {
+		key := buildStorageKey("data", detail.Hash)
+		if err := storageClient.PutObject(ctx, key, detail.Data); err == nil {
+			tx.DataStorageKey = key
+			tx.Data = "" // Clear data field after successful upload
+		}
+	}
+
+	if len(detail.Messages) > storageThreshold {
+		key := buildStorageKey("messages", detail.Hash)
+		if err := storageClient.PutObject(ctx, key, detail.Messages); err == nil {
+			tx.MessagesStorageKey = key
+			tx.Messages = "" // Clear messages field after successful upload
+		}
+	}
+
+	if len(detail.Logs) > storageThreshold {
+		key := buildStorageKey("logs", detail.Hash)
+		if err := storageClient.PutObject(ctx, key, detail.Logs); err == nil {
+			tx.LogsStorageKey = key
+			tx.Logs = "" // Clear logs field after successful upload
+		}
+	}
+
+	return tx
 }
 
 // encodeBinaryData encodes binary data to base64 if it contains invalid UTF-8 characters.
 // This ensures the data can be safely stored in a UTF-8 database column.
+//
+// Parameters:
+//   - data: Binary data to encode
+//
+// Returns:
+//   - string: Base64-encoded string if data contains invalid UTF-8, otherwise plain string
 func encodeBinaryData(data []byte) string {
 	if len(data) == 0 {
 		return ""
@@ -154,6 +207,12 @@ func encodeBinaryData(data []byte) string {
 }
 
 // isValidUTF8 checks if the byte slice contains valid UTF-8 encoded text.
+//
+// Parameters:
+//   - data: Byte slice to check
+//
+// Returns:
+//   - bool: True if data is valid UTF-8, false otherwise
 func isValidUTF8(data []byte) bool {
 	if len(data) == 0 {
 		return true
@@ -162,6 +221,13 @@ func isValidUTF8(data []byte) bool {
 }
 
 // decodeBinaryData decodes base64-encoded data back to bytes if needed.
+// If the string is not base64-encoded, returns it as bytes.
+//
+// Parameters:
+//   - dataStr: String that may be base64-encoded or plain text
+//
+// Returns:
+//   - []byte: Decoded bytes, or original string as bytes if not base64
 func decodeBinaryData(dataStr string) []byte {
 	if dataStr == "" {
 		return nil
@@ -177,34 +243,86 @@ func decodeBinaryData(dataStr string) []byte {
 }
 
 // TransactionToProto converts a Transaction model back to a protobuf TxDetailData.
+// It loads data from object storage if storage keys exist, otherwise uses database fields.
+// Automatically decompresses compressed data and handles backward compatibility.
 //
 // Parameters:
 //   - tx: The Transaction model from database
 //
 // Returns:
 //   - *injective_explorer_rpcpb.TxDetailData: A new TxDetailData instance with data from the Transaction model
+//
+// Behavior:
+//   - First tries to load from object storage if storage keys exist
+//   - Falls back to database fields if object storage fails or keys are empty
+//   - Automatically decompresses compressed data (supports both compressed and uncompressed formats)
+//   - Handles backward compatibility with old data formats
 func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData {
 	if tx == nil {
 		return nil
 	}
 
-	// Decompress and decode binary data fields
-	// The DecompressData function handles both compressed (with prefix) and uncompressed data
-	// For uncompressed data, it may be base64 encoded (old format) or plain text
-	dataBytes, err := DecompressData(tx.Data)
-	if err != nil {
-		// If decompression fails, try to decode as base64 (backward compatibility with old format)
-		dataBytes = decodeBinaryData(tx.Data)
+	storageClient := storage.Get()
+	ctx := context.Background()
+
+	// Load data from object storage if storage key exists, otherwise use database field
+	var dataBytes []byte
+	var err error
+	if tx.DataStorageKey != "" {
+		if data, err := storageClient.GetObject(ctx, tx.DataStorageKey); err == nil {
+			dataBytes = data
+		} else {
+			// Fallback to database field if object storage fails
+			dataBytes, _ = DecompressData(tx.Data)
+			if len(dataBytes) == 0 {
+				dataBytes = decodeBinaryData(tx.Data)
+			}
+		}
+	} else {
+		// Decompress and decode binary data fields
+		// The DecompressData function handles both compressed (with prefix) and uncompressed data
+		// For uncompressed data, it may be base64 encoded (old format) or plain text
+		dataBytes, err = DecompressData(tx.Data)
+		if err != nil {
+			// If decompression fails, try to decode as base64 (backward compatibility with old format)
+			dataBytes = decodeBinaryData(tx.Data)
+		}
 	}
 
-	messagesBytes, err := DecompressData(tx.Messages)
-	if err != nil {
-		messagesBytes = decodeBinaryData(tx.Messages)
+	var messagesBytes []byte
+	if tx.MessagesStorageKey != "" {
+		if messages, err := storageClient.GetObject(ctx, tx.MessagesStorageKey); err == nil {
+			messagesBytes = messages
+		} else {
+			// Fallback to database field if object storage fails
+			messagesBytes, _ = DecompressData(tx.Messages)
+			if len(messagesBytes) == 0 {
+				messagesBytes = decodeBinaryData(tx.Messages)
+			}
+		}
+	} else {
+		messagesBytes, err = DecompressData(tx.Messages)
+		if err != nil {
+			messagesBytes = decodeBinaryData(tx.Messages)
+		}
 	}
 
-	logsBytes, err := DecompressData(tx.Logs)
-	if err != nil {
-		logsBytes = decodeBinaryData(tx.Logs)
+	var logsBytes []byte
+	if tx.LogsStorageKey != "" {
+		if logs, err := storageClient.GetObject(ctx, tx.LogsStorageKey); err == nil {
+			logsBytes = logs
+		} else {
+			// Fallback to database field if object storage fails
+			logsBytes, _ = DecompressData(tx.Logs)
+			if len(logsBytes) == 0 {
+				logsBytes = decodeBinaryData(tx.Logs)
+			}
+		}
+	} else {
+		logsBytes, err = DecompressData(tx.Logs)
+		if err != nil {
+			logsBytes = decodeBinaryData(tx.Logs)
+		}
 	}
 
 	// Convert events from JSON strings back to protobuf format
@@ -283,4 +401,26 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 		Logs:               logsBytes,
 		ClaimIds:           tx.ClaimIds,
 	}
+}
+
+// buildStorageKey generates a storage key for object storage.
+// Format: {type}/{hash[:8]}/{hash} or {type}/{hash} if hash is too short.
+// Removes "0x" prefix from hash if present.
+//
+// Parameters:
+//   - dataType: Type of data (e.g., "data", "messages", "logs")
+//   - hash: Transaction hash (with or without "0x" prefix)
+//
+// Returns:
+//   - string: Storage key for the object
+func buildStorageKey(dataType, hash string) string {
+	// Remove "0x" prefix if present
+	if len(hash) > 2 && hash[:2] == "0x" {
+		hash = hash[2:]
+	}
+	// Use first 8 characters for directory structure
+	if len(hash) > 8 {
+		return fmt.Sprintf("%s/%s/%s", dataType, hash[:8], hash)
+	}
+	return fmt.Sprintf("%s/%s", dataType, hash)
 }

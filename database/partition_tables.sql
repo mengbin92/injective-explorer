@@ -1,0 +1,309 @@
+-- ============================================
+-- 交易表分区表结构
+-- 支持 MySQL 和 PostgreSQL
+-- 
+-- 分区策略：
+-- 1. 按区块高度分区（每100万区块一个分区）
+-- 2. 按时间分区（每月一个分区）
+-- 
+-- 注意：分区表需要在创建表时定义，不能对现有表直接添加分区
+-- 建议：先创建新分区表，然后迁移数据
+-- ============================================
+
+-- ============================================
+-- MySQL 版本：按区块高度分区
+-- ============================================
+
+-- 创建按区块高度分区的交易表
+-- CREATE TABLE transactions_partitioned (
+--     id BIGINT AUTO_INCREMENT,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     deleted_at TIMESTAMP NULL,
+--     
+--     tx_data_id VARCHAR(255) NOT NULL,
+--     block_number BIGINT UNSIGNED NOT NULL,
+--     block_timestamp VARCHAR(255),
+--     hash VARCHAR(255) NOT NULL,
+--     code INT UNSIGNED,
+--     data TEXT,
+--     info TEXT,
+--     gas_wanted BIGINT,
+--     gas_used BIGINT,
+--     gas_fee TEXT,
+--     codespace VARCHAR(255),
+--     events JSON,
+--     tx_type VARCHAR(100),
+--     messages TEXT,
+--     signatures JSON,
+--     memo TEXT,
+--     tx_number BIGINT UNSIGNED NOT NULL,
+--     block_unix_timestamp BIGINT UNSIGNED,
+--     error_log TEXT,
+--     logs TEXT,
+--     claim_ids JSON,
+--     payer VARCHAR(128),
+--     archived TINYINT(1) DEFAULT 0,
+--     
+--     PRIMARY KEY (id, block_number),
+--     INDEX idx_hash (hash),
+--     INDEX idx_tx_number (tx_number),
+--     INDEX idx_block_tx (block_number, tx_number),
+--     INDEX idx_timestamp_tx (block_unix_timestamp, tx_number),
+--     INDEX idx_archived (archived)
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+-- PARTITION BY RANGE (block_number) (
+--     PARTITION p0 VALUES LESS THAN (1000000),
+--     PARTITION p1 VALUES LESS THAN (2000000),
+--     PARTITION p2 VALUES LESS THAN (3000000),
+--     PARTITION p3 VALUES LESS THAN (4000000),
+--     PARTITION p4 VALUES LESS THAN (5000000),
+--     PARTITION p5 VALUES LESS THAN (6000000),
+--     PARTITION p6 VALUES LESS THAN (7000000),
+--     PARTITION p7 VALUES LESS THAN (8000000),
+--     PARTITION p8 VALUES LESS THAN (9000000),
+--     PARTITION p9 VALUES LESS THAN (10000000),
+--     PARTITION p_max VALUES LESS THAN MAXVALUE
+-- );
+
+-- ============================================
+-- MySQL 版本：按时间分区
+-- ============================================
+
+-- 创建按时间分区的交易表
+-- CREATE TABLE transactions_partitioned_by_time (
+--     id BIGINT AUTO_INCREMENT,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     deleted_at TIMESTAMP NULL,
+--     
+--     tx_data_id VARCHAR(255) NOT NULL,
+--     block_number BIGINT UNSIGNED NOT NULL,
+--     block_timestamp VARCHAR(255),
+--     hash VARCHAR(255) NOT NULL,
+--     code INT UNSIGNED,
+--     data TEXT,
+--     info TEXT,
+--     gas_wanted BIGINT,
+--     gas_used BIGINT,
+--     gas_fee TEXT,
+--     codespace VARCHAR(255),
+--     events JSON,
+--     tx_type VARCHAR(100),
+--     messages TEXT,
+--     signatures JSON,
+--     memo TEXT,
+--     tx_number BIGINT UNSIGNED NOT NULL,
+--     block_unix_timestamp BIGINT UNSIGNED,
+--     error_log TEXT,
+--     logs TEXT,
+--     claim_ids JSON,
+--     payer VARCHAR(128),
+--     archived TINYINT(1) DEFAULT 0,
+--     
+--     PRIMARY KEY (id, created_at),
+--     INDEX idx_hash (hash),
+--     INDEX idx_tx_number (tx_number),
+--     INDEX idx_block_tx (block_number, tx_number),
+--     INDEX idx_timestamp_tx (block_unix_timestamp, tx_number),
+--     INDEX idx_archived (archived)
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+-- PARTITION BY RANGE (UNIX_TIMESTAMP(created_at)) (
+--     PARTITION p202401 VALUES LESS THAN (UNIX_TIMESTAMP('2024-02-01')),
+--     PARTITION p202402 VALUES LESS THAN (UNIX_TIMESTAMP('2024-03-01')),
+--     PARTITION p202403 VALUES LESS THAN (UNIX_TIMESTAMP('2024-04-01')),
+--     PARTITION p202404 VALUES LESS THAN (UNIX_TIMESTAMP('2024-05-01')),
+--     PARTITION p202405 VALUES LESS THAN (UNIX_TIMESTAMP('2024-06-01')),
+--     PARTITION p202406 VALUES LESS THAN (UNIX_TIMESTAMP('2024-07-01')),
+--     PARTITION p202407 VALUES LESS THAN (UNIX_TIMESTAMP('2024-08-01')),
+--     PARTITION p202408 VALUES LESS THAN (UNIX_TIMESTAMP('2024-09-01')),
+--     PARTITION p202409 VALUES LESS THAN (UNIX_TIMESTAMP('2024-10-01')),
+--     PARTITION p202410 VALUES LESS THAN (UNIX_TIMESTAMP('2024-11-01')),
+--     PARTITION p202411 VALUES LESS THAN (UNIX_TIMESTAMP('2024-12-01')),
+--     PARTITION p202412 VALUES LESS THAN (UNIX_TIMESTAMP('2025-01-01')),
+--     PARTITION p_future VALUES LESS THAN MAXVALUE
+-- );
+
+-- ============================================
+-- PostgreSQL 版本：按区块高度分区
+-- ============================================
+
+-- PostgreSQL: 创建按区块高度分区的交易表
+-- CREATE TABLE transactions_partitioned (
+--     id BIGSERIAL,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     deleted_at TIMESTAMP NULL,
+--     
+--     tx_data_id VARCHAR(255) NOT NULL,
+--     block_number BIGINT NOT NULL,
+--     block_timestamp VARCHAR(255),
+--     hash VARCHAR(255) NOT NULL,
+--     code INTEGER,
+--     data TEXT,
+--     info TEXT,
+--     gas_wanted BIGINT,
+--     gas_used BIGINT,
+--     gas_fee TEXT,
+--     codespace VARCHAR(255),
+--     events JSONB,
+--     tx_type VARCHAR(100),
+--     messages TEXT,
+--     signatures JSONB,
+--     memo TEXT,
+--     tx_number BIGINT NOT NULL,
+--     block_unix_timestamp BIGINT,
+--     error_log TEXT,
+--     logs TEXT,
+--     claim_ids JSONB,
+--     payer VARCHAR(128),
+--     archived BOOLEAN DEFAULT FALSE,
+--     
+--     PRIMARY KEY (id, block_number)
+-- ) PARTITION BY RANGE (block_number);
+-- 
+-- -- 创建分区
+-- CREATE TABLE transactions_partitioned_p0 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (0) TO (1000000);
+-- CREATE TABLE transactions_partitioned_p1 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (1000000) TO (2000000);
+-- CREATE TABLE transactions_partitioned_p2 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (2000000) TO (3000000);
+-- CREATE TABLE transactions_partitioned_p3 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (3000000) TO (4000000);
+-- CREATE TABLE transactions_partitioned_p4 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (4000000) TO (5000000);
+-- CREATE TABLE transactions_partitioned_p5 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (5000000) TO (6000000);
+-- CREATE TABLE transactions_partitioned_p6 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (6000000) TO (7000000);
+-- CREATE TABLE transactions_partitioned_p7 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (7000000) TO (8000000);
+-- CREATE TABLE transactions_partitioned_p8 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (8000000) TO (9000000);
+-- CREATE TABLE transactions_partitioned_p9 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (9000000) TO (10000000);
+-- CREATE TABLE transactions_partitioned_p_max PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (10000000) TO (MAXVALUE);
+-- 
+-- -- 创建索引
+-- CREATE INDEX idx_hash ON transactions_partitioned(hash);
+-- CREATE INDEX idx_tx_number ON transactions_partitioned(tx_number);
+-- CREATE INDEX idx_block_tx ON transactions_partitioned(block_number, tx_number);
+-- CREATE INDEX idx_timestamp_tx ON transactions_partitioned(block_unix_timestamp, tx_number);
+-- CREATE INDEX idx_archived ON transactions_partitioned(archived);
+
+-- ============================================
+-- PostgreSQL 版本：按时间分区
+-- ============================================
+
+-- PostgreSQL: 创建按时间分区的交易表
+-- CREATE TABLE transactions_partitioned_by_time (
+--     id BIGSERIAL,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     deleted_at TIMESTAMP NULL,
+--     
+--     tx_data_id VARCHAR(255) NOT NULL,
+--     block_number BIGINT NOT NULL,
+--     block_timestamp VARCHAR(255),
+--     hash VARCHAR(255) NOT NULL,
+--     code INTEGER,
+--     data TEXT,
+--     info TEXT,
+--     gas_wanted BIGINT,
+--     gas_used BIGINT,
+--     gas_fee TEXT,
+--     codespace VARCHAR(255),
+--     events JSONB,
+--     tx_type VARCHAR(100),
+--     messages TEXT,
+--     signatures JSONB,
+--     memo TEXT,
+--     tx_number BIGINT NOT NULL,
+--     block_unix_timestamp BIGINT,
+--     error_log TEXT,
+--     logs TEXT,
+--     claim_ids JSONB,
+--     payer VARCHAR(128),
+--     archived BOOLEAN DEFAULT FALSE,
+--     
+--     PRIMARY KEY (id, created_at)
+-- ) PARTITION BY RANGE (created_at);
+-- 
+-- -- 创建分区
+-- CREATE TABLE transactions_partitioned_by_time_202401 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
+-- CREATE TABLE transactions_partitioned_by_time_202402 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
+-- CREATE TABLE transactions_partitioned_by_time_202403 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-03-01') TO ('2024-04-01');
+-- CREATE TABLE transactions_partitioned_by_time_202404 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-04-01') TO ('2024-05-01');
+-- CREATE TABLE transactions_partitioned_by_time_202405 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-05-01') TO ('2024-06-01');
+-- CREATE TABLE transactions_partitioned_by_time_202406 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-06-01') TO ('2024-07-01');
+-- CREATE TABLE transactions_partitioned_by_time_202407 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-07-01') TO ('2024-08-01');
+-- CREATE TABLE transactions_partitioned_by_time_202408 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-08-01') TO ('2024-09-01');
+-- CREATE TABLE transactions_partitioned_by_time_202409 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-09-01') TO ('2024-10-01');
+-- CREATE TABLE transactions_partitioned_by_time_202410 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-10-01') TO ('2024-11-01');
+-- CREATE TABLE transactions_partitioned_by_time_202411 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-11-01') TO ('2024-12-01');
+-- CREATE TABLE transactions_partitioned_by_time_202412 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2024-12-01') TO ('2025-01-01');
+-- CREATE TABLE transactions_partitioned_by_time_future PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2025-01-01') TO (MAXVALUE);
+-- 
+-- -- 创建索引
+-- CREATE INDEX idx_hash ON transactions_partitioned_by_time(hash);
+-- CREATE INDEX idx_tx_number ON transactions_partitioned_by_time(tx_number);
+-- CREATE INDEX idx_block_tx ON transactions_partitioned_by_time(block_number, tx_number);
+-- CREATE INDEX idx_timestamp_tx ON transactions_partitioned_by_time(block_unix_timestamp, tx_number);
+-- CREATE INDEX idx_archived ON transactions_partitioned_by_time(archived);
+
+-- ============================================
+-- 分区表管理操作
+-- ============================================
+
+-- MySQL: 添加新分区（按区块高度）
+-- ALTER TABLE transactions_partitioned 
+-- ADD PARTITION (PARTITION p10 VALUES LESS THAN (11000000));
+
+-- MySQL: 添加新分区（按时间）
+-- ALTER TABLE transactions_partitioned_by_time 
+-- ADD PARTITION (PARTITION p202501 VALUES LESS THAN (UNIX_TIMESTAMP('2025-02-01')));
+
+-- MySQL: 删除旧分区（会删除分区中的所有数据）
+-- ALTER TABLE transactions_partitioned DROP PARTITION p0;
+
+-- PostgreSQL: 添加新分区（按区块高度）
+-- CREATE TABLE transactions_partitioned_p10 PARTITION OF transactions_partitioned
+--     FOR VALUES FROM (10000000) TO (11000000);
+
+-- PostgreSQL: 添加新分区（按时间）
+-- CREATE TABLE transactions_partitioned_by_time_202501 PARTITION OF transactions_partitioned_by_time
+--     FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+
+-- PostgreSQL: 删除旧分区（会删除分区中的所有数据）
+-- DROP TABLE transactions_partitioned_p0;
+
+-- ============================================
+-- 数据迁移说明
+-- ============================================
+
+-- 1. 创建分区表（使用上面的SQL）
+-- 2. 迁移现有数据到分区表
+-- INSERT INTO transactions_partitioned 
+-- SELECT * FROM transactions;
+-- 3. 重命名表
+-- RENAME TABLE transactions TO transactions_old;
+-- RENAME TABLE transactions_partitioned TO transactions;
+-- 4. 验证数据完整性
+-- 5. 删除旧表（确认无误后）
+-- DROP TABLE transactions_old;
+

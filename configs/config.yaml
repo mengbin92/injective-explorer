@@ -18,6 +18,16 @@ data:
     pool_size: 100
     read_timeout: 0.2s
     write_timeout: 0.2s
+  object_storage:
+    provider: ${OBJECT_STORAGE_PROVIDER:minio} # s3, oss, cos, minio
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:localhost:9000}
+    access_key_id: ${OBJECT_STORAGE_ACCESS_KEY:minioadmin}
+    secret_access_key: ${OBJECT_STORAGE_SECRET_KEY:minioadmin}
+    bucket_name: ${OBJECT_STORAGE_BUCKET:injective-explorer}
+    region: ${OBJECT_STORAGE_REGION:us-east-1}
+    use_ssl: ${OBJECT_STORAGE_USE_SSL:false}
+    path_prefix: ${OBJECT_STORAGE_PATH_PREFIX:transactions/}
+    enabled: ${OBJECT_STORAGE_ENABLED:false} # 默认禁用，需要手动启用
 
 log:
   # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)

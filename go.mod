@@ -10,6 +10,7 @@ require (
 	github.com/cosmos/cosmos-sdk v0.50.9
 	github.com/go-kratos/kratos/v2 v2.8.0
 	github.com/gorilla/handlers v1.5.2
+	github.com/minio/minio-go/v7 v7.0.97
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.16.0
 	github.com/stretchr/testify v1.10.0
@@ -121,6 +122,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/getsentry/sentry-go v0.31.1 // indirect
+	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-kratos/aegis v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
@@ -181,7 +183,8 @@ require (
 	github.com/jmhodges/levigo v1.0.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
+	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/linxGnu/grocksdb v1.9.8 // indirect
@@ -191,6 +194,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
+	github.com/minio/crc64nvme v1.1.0 // indirect
+	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
@@ -203,7 +208,7 @@ require (
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
-	github.com/philhofer/fwd v1.1.2 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.21.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
@@ -213,6 +218,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/cors v1.11.1 // indirect
+	github.com/rs/xid v1.6.0 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
@@ -235,7 +241,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
 	github.com/tendermint/go-amino v0.16.0 // indirect
 	github.com/tidwall/btree v1.7.0 // indirect
-	github.com/tinylib/msgp v1.1.8 // indirect
+	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

@@ -43,8 +43,20 @@ message Data {
     google.protobuf.Duration read_timeout = 5;
     google.protobuf.Duration write_timeout = 6;
   }
+  message ObjectStorage {
+    string provider = 1;          // "s3", "oss", "cos", "minio"
+    string endpoint = 2;          // 对象存储端点
+    string access_key_id = 3;     // 访问密钥ID
+    string secret_access_key = 4; // 访问密钥
+    string bucket_name = 5;       // 存储桶名称
+    string region = 6;            // 区域（S3/OSS需要）
+    bool use_ssl = 7;             // 是否使用SSL
+    string path_prefix = 8;       // 路径前缀，如 "transactions/"
+    bool enabled = 9;             // 是否启用对象存储（默认false，向后兼容）
+  }
   Database database = 1;
   Redis redis = 2;
+  ObjectStorage object_storage = 3;
 }
 
 message Node {

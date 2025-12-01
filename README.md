@@ -19,6 +19,11 @@ A comprehensive blockchain explorer API service for the Injective network, built
 - **Structured Logging**: Comprehensive logging with Zap
 - **Input Validation**: Built-in request validation and error handling
 - **Type-Safe Responses**: Uses Protocol Buffer messages for type-safe API responses
+- **Data Storage Optimization**: Advanced storage optimization features including:
+  - **Data Compression**: Automatic compression of large transaction fields (>1KB) to reduce storage by 60-80%
+  - **Data Archiving**: Automatic archiving of old transactions (>6 months) to separate archive tables
+  - **Storage Separation**: Optional object storage (MinIO/S3/OSS/COS) for large binary fields (>10KB)
+  - **Backward Compatibility**: Seamless support for both compressed and uncompressed data formats
 
 ## Architecture
 
@@ -36,15 +41,18 @@ injective-explorer/
 │   ├── models/       # Data models
 │   ├── server/       # gRPC and HTTP server setup
 │   └── service/      # Service implementations
-│       ├── clients.go      # Shared blockchain client initialization
-│       ├── constants.go    # Service-level constants
-│       ├── demo.go         # API service implementation
-│       └── sync.go         # Block synchronization service
+│       ├── clients.go           # Shared blockchain client initialization
+│       ├── constants.go         # Service-level constants
+│       ├── demo.go              # API service implementation
+│       ├── sync.go              # Block synchronization service
+│       ├── archive.go           # Transaction archiving service
+│       └── storage_migration.go # Data migration to object storage service
 └── provider/         # External service providers
     ├── cache/        # Redis cache provider
     ├── chain/        # Blockchain client providers
     ├── db/           # Database providers
-    └── logger/       # Logging provider
+    ├── logger/       # Logging provider
+    └── storage/      # Object storage providers (MinIO, S3, OSS, COS)
 ```
 
 ## Prerequisites
@@ -143,6 +151,17 @@ See `.env.example` for a complete list of available environment variables with d
 - `REDIS_PASSWORD`: Redis password (default: empty)
 - `REDIS_DB`: Redis database number (default: 0)
 
+**Object Storage Configuration:**
+- `OBJECT_STORAGE_PROVIDER`: Object storage provider - minio, s3, oss, cos (default: minio)
+- `OBJECT_STORAGE_ENDPOINT`: Object storage endpoint (default: localhost:9000)
+- `OBJECT_STORAGE_ACCESS_KEY`: Access key ID for authentication
+- `OBJECT_STORAGE_SECRET_KEY`: Secret access key for authentication
+- `OBJECT_STORAGE_BUCKET`: Bucket name for storing objects (default: injective-explorer)
+- `OBJECT_STORAGE_REGION`: Region for the bucket (default: us-east-1)
+- `OBJECT_STORAGE_USE_SSL`: Use SSL/TLS for connections (default: false)
+- `OBJECT_STORAGE_PATH_PREFIX`: Path prefix for objects (default: transactions/)
+- `OBJECT_STORAGE_ENABLED`: Enable object storage (default: false)
+
 #### Kratos Configuration System
 
 The application uses Kratos configuration system with the following priority order (highest to lowest):
@@ -209,6 +228,16 @@ data:
     pool_size: 100
     read_timeout: 0.2s
     write_timeout: 0.2s
+  object_storage:
+    provider: ${OBJECT_STORAGE_PROVIDER:minio} # s3, oss, cos, minio
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:localhost:9000}
+    access_key_id: ${OBJECT_STORAGE_ACCESS_KEY:minioadmin}
+    secret_access_key: ${OBJECT_STORAGE_SECRET_KEY:minioadmin}
+    bucket_name: ${OBJECT_STORAGE_BUCKET:injective-explorer}
+    region: ${OBJECT_STORAGE_REGION:us-east-1}
+    use_ssl: ${OBJECT_STORAGE_USE_SSL:false}
+    path_prefix: ${OBJECT_STORAGE_PATH_PREFIX:transactions/}
+    enabled: ${OBJECT_STORAGE_ENABLED:false} # Default disabled for backward compatibility
 
 log:
   # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
@@ -1210,3 +1239,113 @@ The service uses independent contexts for database queries and RPC calls to avoi
 - **RPC Calls**: Use independent context with `GRPCTimeout` for blockchain API calls
 
 This ensures that long-running database queries or external API calls complete successfully even if the HTTP client disconnects.
+
+## Data Storage Optimization
+
+The service includes comprehensive data storage optimization features to handle large-scale blockchain data efficiently:
+
+### Data Compression
+
+**Automatic Compression**: Large transaction fields (Data, Messages, Logs) are automatically compressed using gzip when they exceed 1KB, reducing storage by 60-80%.
+
+**Features**:
+- Compression threshold: 1KB (configurable)
+- Compression algorithm: gzip (level 6, balanced compression ratio and speed)
+- Automatic decompression: Data is automatically decompressed when read
+- Backward compatibility: Supports both compressed and uncompressed data formats
+- Zero downtime: No migration required, new data is automatically compressed
+
+**Usage**: Enabled by default, no configuration required. Compression happens automatically during data storage.
+
+### Data Archiving
+
+**Automatic Archiving**: Old transactions (>6 months) can be automatically archived to separate archive tables, keeping the main transactions table lean and fast.
+
+**Features**:
+- Configurable archive age (default: 6 months)
+- Batch archiving for efficient processing
+- Archive tables: `transaction_archives` and `transaction_data_archives`
+- Automatic retrieval: Archived transactions are automatically retrieved when queried
+- Dry-run mode: Test archiving without actually moving data
+
+**Usage**: Use the `ArchiveService` to archive old transactions:
+
+```go
+archiveService := service.NewArchiveService()
+config := service.DefaultArchiveConfig()
+config.ArchiveAgeMonths = 6
+err := archiveService.ArchiveOldTransactions(ctx, config)
+```
+
+### Storage Separation (Object Storage)
+
+**Optional Object Storage**: Large binary fields (>10KB) can be stored in object storage services (MinIO, AWS S3, Alibaba OSS, Tencent COS) instead of the database.
+
+**Features**:
+- Multiple provider support: MinIO, AWS S3, Alibaba OSS, Tencent COS
+- Automatic upload: Large fields are automatically uploaded to object storage
+- Fallback mechanism: Falls back to database if object storage fails
+- Storage keys: Only storage keys are stored in the database
+- Backward compatibility: Supports both object-stored and database-stored data
+
+**Configuration**: Enable object storage in `config.yaml`:
+
+```yaml
+data:
+  object_storage:
+    provider: minio  # or s3, oss, cos
+    endpoint: localhost:9000
+    access_key_id: minioadmin
+    secret_access_key: minioadmin
+    bucket_name: injective-explorer
+    enabled: true  # Set to true to enable
+```
+
+**Migration**: Use `StorageMigrationService` to migrate existing data to object storage:
+
+```go
+migrationService := service.NewStorageMigrationService()
+config := service.DefaultMigrationConfig()
+config.Threshold = 10 * 1024  // 10KB threshold
+err := migrationService.MigrateTransactions(ctx, config)
+```
+
+### Storage Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Transaction Storage                   │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │   Main DB    │  │ Archive DB  │  │ Object Store │ │
+│  │              │  │             │  │              │ │
+│  │ • Recent TX  │  │ • Old TX    │  │ • Large Data │ │
+│  │ • Metadata   │  │ • Metadata  │  │ • Messages  │ │
+│  │ • Compressed │  │ • Compressed│  │ • Logs      │ │
+│  │   Data       │  │   Data      │  │             │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘ │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │         Automatic Data Flow                       │  │
+│  │  New TX → Compress → Store in Main DB            │  │
+│  │  Old TX → Archive → Move to Archive DB           │  │
+│  │  Large TX → Upload → Store in Object Storage     │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Benefits
+
+1. **Reduced Storage**: Compression reduces storage by 60-80%
+2. **Improved Performance**: Smaller main table improves query performance
+3. **Cost Efficiency**: Object storage is cheaper than database storage for large files
+4. **Scalability**: Can handle billions of transactions efficiently
+5. **Flexibility**: Can use different storage backends based on requirements
+
+### Documentation
+
+For detailed implementation documentation, see:
+- `docs/storage-optimization.md`: Complete storage optimization strategy
+- `docs/storage-separation-resources.md`: Object storage implementation details
+- `docs/compression-implementation.md`: Compression feature documentation

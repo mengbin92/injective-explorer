@@ -494,6 +494,17 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
 		global.Logger.Warnf("database query error (not record not found), querying from chain: hash=%s, error=%v", hash, err)
+	} else {
+		// Not found in main table, try archive table
+		archiveService := NewArchiveService()
+		archivedTx, archiveErr := archiveService.GetArchivedTransaction(queryCtx, "0x"+hash)
+		if archiveErr == nil && archivedTx != nil {
+			global.Logger.Infof("transaction found in archive: hash=0x%s", hash)
+			// Cache the transaction for future queries
+			cacheTransaction(queryCtx, archivedTx)
+			txDTO := models.ToTransactionDTO(archivedTx, models.DTOModeWithDetail)
+			return s.marshalAndReply(txDTO, "marshal transaction error")
+		}
 	}
 
 	// Not found in database or conversion failed, query from chain

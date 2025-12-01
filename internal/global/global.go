@@ -7,6 +7,7 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
+	"injective-explorer/provider/storage"
 	"context"
 	"crypto/tls"
 
@@ -85,6 +86,8 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		&models.AccountBalance{},
 		&models.Validator{},
 		&models.DelegationReward{},
+		&models.TransactionArchive{},
+		&models.TransactionDataArchive{},
 	)
 	if err != nil {
 		panic(err)
@@ -93,5 +96,13 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	err = cache.InitRedis(context.Background(), bc.Data.Redis, logger)
 	if err != nil {
 		panic(err)
+	}
+
+	Logger.Infof("object storage initialized")
+	if bc.Data != nil {
+		err = storage.Init(context.Background(), bc.Data.GetObjectStorage(), logger)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
