@@ -56,12 +56,6 @@ service Demo {
     };
   }
 
-  rpc GetValidators(PaginationRequest) returns (Reply) {
-    option (google.api.http) = {
-      get : "/demo/validator/validators"
-    };
-  }
-
   // Health check endpoint for gRPC-Web
   rpc CheckHealthy(CheckHealthyRequest) returns (CheckHealthyResponse) {
     option (google.api.http) = {
@@ -248,30 +242,4 @@ message TransactionDTO {
   string logs = 20;
   repeated int64 claim_ids = 21 [ json_name = "claim_ids" ];
   string payer = 22;
-}
-
-message ValidatorDTO {
-  string id = 1;
-  string moniker = 2;
-  string operator_address = 3;
-  string consensus_address = 4;
-  bool jailed = 5;
-  int32 status = 6;
-  string tokens = 7;
-  string delegator_shares = 8;
-  string description = 9;
-  int64 unbonding_height = 10;
-  string unbonding_time = 11;
-  string commission_rate = 12;
-  string commission_max_rate = 13;
-  string commission_max_change_rate = 14;
-  string commission_update_time = 15;
-  uint64 proposed = 16;
-  uint64 signed = 17;
-  uint64 missed = 18;
-  string timestamp = 19;
-  repeated string uptimes = 20;
-  repeated string slashing_events = 21;
-  double uptime_percentage = 22;
-  string image_url = 23;
 }

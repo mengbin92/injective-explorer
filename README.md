@@ -271,7 +271,6 @@ sync:
     historical_batch_delay: 1s # 历史同步批次延迟
     backward_sync_log: 10s # 向后同步进度日志时间间隔
     rpc_status_retry: 5s # RPC 状态获取失败重试延迟
-    validator_sync: 600s # Validator 同步间隔（默认10分钟）
 
   # 超时配置
   timeouts:
@@ -911,196 +910,6 @@ Each message in the stream:
 
 **Note**: Streaming APIs use Protocol Buffer messages (`BlockDTO`, `TransactionDTO`, `AccountUpdateData`) for type-safe data structures. For gRPC-Web clients, the data is automatically serialized/deserialized.
 
-### Validator APIs
-
-#### Get Validators 
-```http
-GET /demo/validator/validators?page=1&page_size=5
-```
-
-**Query Parameters**:
-- `page` (int32, optional): Page number (default: 1, min: 1)
-- `page_size` (int32, optional): Page size (default: 20, min: 1, max: 100)
-- `cursor` (string, optional): Cursor for cursor-based pagination (takes priority over page)
-
-```json
-{
-    "code": 200,
-    "message": "success",
-    "data": {
-        "data": [
-            {
-                "CreatedAt": "2025-11-11T06:35:38.594Z",
-                "DeletedAt": null,
-                "ID": 46,
-                "UpdatedAt": "2025-11-11T07:23:33.836Z",
-                "commission_max_change_rate": "",
-                "commission_max_rate": "",
-                "commission_rate": "",
-                "commission_update_time": "0001-01-01 00:00:00 +0000 UTC",
-                "consensus_address": "injvaloper1ee7xnhczhvu064utmdn48sh0wx7zq3pgy6frgm",
-                "delegator_shares": "",
-                "description": "",
-                "id": "",
-                "image_url": "",
-                "jailed": false,
-                "missed": 0,
-                "moniker": "",
-                "operator_address": "",
-                "proposed": 0,
-                "signed": 0,
-                "slashing_events": [
-                    "CPu1gkMSITIwMjUtMTEtMDYgMjM6NTY6MDAuMDIyICswMDAwIFVUQyoWbWlzc2luZ192YWxzZXRfY29uZmlybTLvBm9wZXJhdG9yX2FkZHJlc3M6ImluanZhbG9wZXIxZWU3eG5oY3podnUwNjR1dG1kbjQ4c2gwd3g3enEzcGd5NmZyZ20iIGNvbnNlbnN1c19wdWJrZXk6PHR5cGVfdXJsOiIvY29zbW9zLmNyeXB0by5lZDI1NTE5LlB1YktleSIgdmFsdWU6IlxuICtlb1wyNjZcMjA3XDIyNlwwMTZnXDM3MlwzNTVcMjI1XDI3NlwzNzBcclwwMjJcMjMxXDMzNFwwMDBcMzM3fi5Ja1wwMjdDXDM2N1wyMzdzXDE3N1wzMTBcMzE0XDM2MCIgPiBzdGF0dXM6Qk9ORF9TVEFUVVNfVU5CT05ESU5HIHRva2VuczoiODEzMjg0NjI0Mzg0OTU0Nzk5OTM2MjgiIGRlbGVnYXRvcl9zaGFyZXM6IjgxMzI4NDYyNDM4NDk1NDc5OTkzNjI4MDAwMDAwMDAwMDAwMDAwMDAwIiBkZXNjcmlwdGlvbjo8bW9uaWtlcjoiU3Rha2VjaXRvIiBpZGVudGl0eToiRDE2RTI2RTVDODE1NEUxNyIgZGV0YWlsczoiU2VjdXJpbmcgJiBEZWNlbnRyYWxpemluZyBQb1MgTmV0d29ya3MuIiA+IHVuYm9uZGluZ19oZWlnaHQ6MTQwNDk4ODU4IHVuYm9uZGluZ190aW1lOjxzZWNvbmRzOjE3NjQyNTY0ODQgbmFub3M6NzkxOTkzMDgyID4gY29tbWlzc2lvbjo8Y29tbWlzc2lvbl9yYXRlczo8cmF0ZToiNTAwMDAwMDAwMDAwMDAwMDAiIG1heF9yYXRlOiIyMDAwMDAwMDAwMDAwMDAwMDAiIG1heF9jaGFuZ2VfcmF0ZToiMjAwMDAwMDAwMDAwMDAwMDAiID4gdXBkYXRlX3RpbWU6PHNlY29uZHM6MTY0NDg1MzE0MSBuYW5vczo1MDExNjYxMzEgPiA+IG1pbl9zZWxmX2RlbGVnYXRpb246IjEiIHVuYm9uZGluZ19pZHM6NDM1MTUwIHVuYm9uZGluZ19pZHM6NDUxMjYzIHVuYm9uZGluZ19pZHM6NDUxNTY5IHVuYm9uZGluZ19pZHM6NDUxODE4IHVuYm9uZGluZ19pZHM6NDU0NDk4IHVuYm9uZGluZ19pZHM6NDcyOTYzIA=="
-                ],
-                "status": 0,
-                "timestamp": "0001-01-01 00:00:00 +0000 UTC",
-                "tokens": "",
-                "unbonding_height": 0,
-                "unbonding_time": "0001-01-01 00:00:00 +0000 UTC",
-                "uptime_percentage": 0,
-                "uptimes": []
-            },
-            {
-                "CreatedAt": "2025-11-11T06:35:38.718Z",
-                "DeletedAt": null,
-                "ID": 163,
-                "UpdatedAt": "2025-11-11T07:23:33.806Z",
-                "commission_max_change_rate": "0.050000000000000000",
-                "commission_max_rate": "0.250000000000000000",
-                "commission_rate": "0.100000000000000000",
-                "commission_update_time": "2024-02-23 01:48:54.337 +0000 UTC",
-                "consensus_address": "injvalcons1r8nnqc897ksdr3d9me2jmsjw3rcfjyvd7up3fm",
-                "delegator_shares": "1000000000000010000.000000000000000000",
-                "description": "CgpEYXRhIE5leHVzEhA5RDg5QTZCRjNCOTQ4MzdFGhJodHRwczovL2RhdGEubmV4dXMiF3NlY3VyaXR5QGRhdGFuZXh1cy50ZWNo",
-                "id": "",
-                "image_url": "https://s3.amazonaws.com/keybase_processed_uploads/3a93156009f32851dc2123eaf1983a05_360_360.jpg",
-                "jailed": false,
-                "missed": 0,
-                "moniker": "Data Nexus",
-                "operator_address": "injvaloper10aral7chdg04cjt33dc4p9lnw4pygv6ersc8hh",
-                "proposed": 0,
-                "signed": 0,
-                "slashing_events": [],
-                "status": 1,
-                "timestamp": "2025-11-11 07:22:11.803 +0000 UTC",
-                "tokens": "1000000000000010000",
-                "unbonding_height": 0,
-                "unbonding_time": "1970-01-01 00:00:00 +0000 UTC",
-                "uptime_percentage": 0,
-                "uptimes": []
-            },
-            {
-                "CreatedAt": "2025-11-11T06:35:38.592Z",
-                "DeletedAt": null,
-                "ID": 43,
-                "UpdatedAt": "2025-11-11T07:23:33.707Z",
-                "commission_max_change_rate": "0.100000000000000000",
-                "commission_max_rate": "0.100000000000000000",
-                "commission_rate": "0.070000000000000000",
-                "commission_update_time": "2023-03-20 16:07:09.662 +0000 UTC",
-                "consensus_address": "injvalcons1m0xku293exk0dvfljkangv4cjt28yyqct85pkq",
-                "delegator_shares": "12631434084207349.279024442838061848",
-                "description": "CgZHYWxheHkSEDE3MThDRkI0NkEwRUM3RkEaDnd3dy5nYWxheHkuY29tIg5iY2lAZ2FsYXh5LmNvbSrPAUdhbGF4eSBpcyBhIGRpZ2l0YWwgYXNzZXQgYW5kIGJsb2NrY2hhaW4gbGVhZGVyIGhlbHBpbmcgaW5zdGl0dXRpb25zLCBzdGFydHVwcywgYW5kIHF1YWxpZmllZCBpbmRpdmlkdWFscyBzaGFwZSBhIGNoYW5naW5nIGVjb25vbXkuIFdlIHByb3ZpZGUgcGxhdGZvcm0gc29sdXRpb25zIGN1c3RvbS1tYWRlIGZvciBhIGRpZ2l0YWxseSBuYXRpdmUgZWNvc3lzdGVtLg==",
-                "id": "",
-                "image_url": "https://s3.amazonaws.com/keybase_processed_uploads/09f6187142c890cf9fb7b6bc0811e505_360_360.jpg",
-                "jailed": true,
-                "missed": 0,
-                "moniker": "Galaxy",
-                "operator_address": "injvaloper10er2rpmfux7dwyrqfgre90e4dqmsj5n06twg4l",
-                "proposed": 0,
-                "signed": 0,
-                "slashing_events": [
-                    "CKudhQ4SITIwMjMtMDMtMjQgMjA6MzM6NTYuMjk2ICswMDAwIFVUQyDLuAIqC2RvdWJsZV9zaWdu",
-                    "CKudhQ4SITIwMjMtMDMtMjQgMjA6MzM6NTYuMjk2ICswMDAwIFVUQzIxaW5qdmFsY29uczFtMHhrdTI5M2V4azBkdmZsamthbmd2NGNqdDI4eXlxY3Q4NXBrcQ=="
-                ],
-                "status": 1,
-                "timestamp": "2025-11-11 07:22:11.419 +0000 UTC",
-                "tokens": "11999862537846461",
-                "unbonding_height": 29445803,
-                "unbonding_time": "2023-04-14 20:33:56.296 +0000 UTC",
-                "uptime_percentage": 0,
-                "uptimes": []
-            },
-            {
-                "CreatedAt": "2025-11-11T06:35:38.59Z",
-                "DeletedAt": null,
-                "ID": 39,
-                "UpdatedAt": "2025-11-11T07:23:33.704Z",
-                "commission_max_change_rate": "0.010000000000000000",
-                "commission_max_rate": "0.200000000000000000",
-                "commission_rate": "0.050000000000000000",
-                "commission_update_time": "2023-01-20 12:42:35.742 +0000 UTC",
-                "consensus_address": "injvalcons13zs6ah79f7d35nnhay9h9rvvvpn583hmdp5r3q",
-                "delegator_shares": "1920111441046300721.938141558323720715",
-                "description": "ChFCbG9ja0h1bnRlcnMg8J+OrxIQQkVBQzA5QjZGRTdGOTA4QhoZaHR0cHM6Ly9ibG9ja2h1bnRlcnMub3JnLyISYmxvY2todW50ZXJzQHBtLm1lKh1IdW50IGZvciB0aGUgYmVzdCBzdGFrZS4g8J+PuQ==",
-                "id": "",
-                "image_url": "https://s3.amazonaws.com/keybase_processed_uploads/bec2c55ae55d417f928a323fd8815105_360_360.jpg",
-                "jailed": true,
-                "missed": 0,
-                "moniker": "BlockHunters 🎯",
-                "operator_address": "injvaloper10gt552f5sw80lmd9a43rkvvgf6wj0nk3r7cwzf",
-                "proposed": 0,
-                "signed": 0,
-                "slashing_events": [
-                    "CMTAiwwSITIwMjMtMDItMDIgMTU6MDU6MTIuNzY5ICswMDAwIFVUQyDvBioRbWlzc2luZ19zaWduYXR1cmUyMWluanZhbGNvbnMxM3pzNmFoNzlmN2QzNW5uaGF5OWg5cnZ2dnBuNTgzaG1kcDVyM3E="
-                ],
-                "status": 1,
-                "timestamp": "2025-11-11 07:22:11.419 +0000 UTC",
-                "tokens": "1916083200894855967",
-                "unbonding_height": 27978268,
-                "unbonding_time": "2023-03-27 19:19:33.897 +0000 UTC",
-                "uptime_percentage": 0,
-                "uptimes": []
-            },
-            {
-                "CreatedAt": "2025-11-11T06:35:38.747Z",
-                "DeletedAt": null,
-                "ID": 192,
-                "UpdatedAt": "2025-11-11T07:23:33.834Z",
-                "commission_max_change_rate": "0.200000000000000000",
-                "commission_max_rate": "1.000000000000000000",
-                "commission_rate": "0.100000000000000000",
-                "commission_update_time": "2025-10-14 16:17:32.373 +0000 UTC",
-                "consensus_address": "injvalcons1anhznypm0p3qukxu8pfvdg3qjtzkpqaneemrrh",
-                "delegator_shares": "30674061097600021172.164499774980334694",
-                "description": "CgZNYmxvY2sSEEJBM0E1NzVEMjlFRkZCRDMqZU1ibG9jayBpcyBhIHZpcnR1YWwgYXNzZXQsIE5GVCwgYW5kIGJsb2NrY2hhaW4gY29tcHJlaGVuc2l2ZSBzZXJ2aWNlIGNvbXBhbnkgb2YgTWFla3l1bmcgTWVkaWEgR3JvdXAu",
-                "id": "",
-                "image_url": "https://s3.amazonaws.com/keybase_processed_uploads/ed5c13452327e5bca305d0ff03e73405_360_360.jpg",
-                "jailed": true,
-                "missed": 0,
-                "moniker": "Mblock",
-                "operator_address": "injvaloper10gunj074eyp4l8n5kta4w7960nxer2ucvfrdsv",
-                "proposed": 475,
-                "signed": 5303436,
-                "slashing_events": [
-                    "CL2Jp0ESITIwMjUtMTAtMTEgMDk6MDk6MTcuMzE3ICswMDAwIFVUQyCuqBIqEW1pc3Npbmdfc2lnbmF0dXJlMjFpbmp2YWxjb25zMWFuaHpueXBtMHAzcXVreHU4cGZ2ZGczcWp0emtwcWFuZWVtcnJo",
-                    "CPCw2kESITIwMjUtMTAtMTcgMTc6MTM6NTkuNTk5ICswMDAwIFVUQyDnpxIqEW1pc3Npbmdfc2lnbmF0dXJlMjFpbmp2YWxjb25zMWFuaHpueXBtMHAzcXVreHU4cGZ2ZGczcWp0emtwcWFuZWVtcnJo",
-                    "CLCa/EESITIwMjUtMTAtMjEgMTk6Mjc6MzcuMjkzICswMDAwIFVUQyDkpxIqEW1pc3Npbmdfc2lnbmF0dXJlMjFpbmp2YWxjb25zMWFuaHpueXBtMHAzcXVreHU4cGZ2ZGczcWp0emtwcWFuZWVtcnJo",
-                    "CICNhUISIDIwMjUtMTAtMjIgMjE6NDM6MTEuNzkgKzAwMDAgVVRDIOGnEioRbWlzc2luZ19zaWduYXR1cmUyMWluanZhbGNvbnMxYW5oem55cG0wcDNxdWt4dThwZnZkZzNxanR6a3BxYW5lZW1ycmg=",
-                    "CPnClUISIDIwMjUtMTAtMjQgMjE6MzU6MDUuMzUgKzAwMDAgVVRDIMKoEioRbWlzc2luZ19zaWduYXR1cmUyMWluanZhbGNvbnMxYW5oem55cG0wcDNxdWt4dThwZnZkZzNxanR6a3BxYW5lZW1ycmg=",
-                    "CM7QtkISITIwMjUtMTAtMjggMjE6MDU6MzYuMTYxICswMDAwIFVUQyC/qBIqEW1pc3Npbmdfc2lnbmF0dXJlMjFpbmp2YWxjb25zMWFuaHpueXBtMHAzcXVreHU4cGZ2ZGczcWp0emtwcWFuZWVtcnJo"
-                ],
-                "status": 2,
-                "timestamp": "2025-11-11 07:22:11.803 +0000 UTC",
-                "tokens": "30672220704107867683",
-                "unbonding_height": 139307086,
-                "unbonding_time": "2025-11-18 21:05:36.161 +0000 UTC",
-                "uptime_percentage": 0,
-                "uptimes": []
-            }
-        ],
-        "pagination": {
-            "has_next": true,
-            "has_prev": false,
-            "page": 1,
-            "page_size": 5,
-            "total": 195,
-            "total_pages": 39
-        }
-    }
-}
-```
-
 ### Response Format
 
 All APIs return a standard response format:
@@ -1113,18 +922,15 @@ All APIs return a standard response format:
 }
 ```
 
-For paginated endpoints, the response includes pagination information:
+The `data` field contains a JSON string that, when parsed, typically has this structure:
 
 ```json
 {
-  "code": 200,
-  "message": "success",
-  "data": {
-    "data": [...], // Array of items
-    "pagination": {
-      "page": 1,
-      "page_size": 20,
-      "total": 1000,
+  "data": [...], // Array of items
+  "pagination": {
+    "page": 1,
+    "page_size": 20,
+    "total": 1000,
       "total_pages": 50,
       "has_prev": false,
       "has_next": true,
@@ -1215,7 +1021,6 @@ The service uses Protocol Buffer messages for all API responses, providing:
 - `TransactionDTO`: Transaction details
 - `AccountDTO`: Account information
 - `AccountBalanceDTO`: Account balance
-- `ValidatorDTO`: Validator information
 - `HealthDetails`: Component health status
 - `AccountUpdateData`: Account update information
 - `LatestBlockHeightResponse`: Latest block height

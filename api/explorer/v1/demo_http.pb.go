@@ -29,7 +29,6 @@ const OperationDemoGetLatestBlockHeight = "/api.explorer.v1.Demo/GetLatestBlockH
 const OperationDemoGetLatestBlocks = "/api.explorer.v1.Demo/GetLatestBlocks"
 const OperationDemoGetLatestTransactions = "/api.explorer.v1.Demo/GetLatestTransactions"
 const OperationDemoGetTransactionByHash = "/api.explorer.v1.Demo/GetTransactionByHash"
-const OperationDemoGetValidators = "/api.explorer.v1.Demo/GetValidators"
 
 type DemoHTTPServer interface {
 	// CheckHealthy Health check endpoint for gRPC-Web
@@ -42,7 +41,6 @@ type DemoHTTPServer interface {
 	GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error)
 	GetLatestTransactions(context.Context, *PaginationRequest) (*Reply, error)
 	GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error)
-	GetValidators(context.Context, *PaginationRequest) (*Reply, error)
 }
 
 func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
@@ -55,7 +53,6 @@ func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
 	r.GET("/demo/account/info", _Demo_GetAccountInfo0_HTTP_Handler(srv))
 	r.GET("/demo/account/transactions", _Demo_GetAccountTransactions0_HTTP_Handler(srv))
 	r.GET("/demo/account/balances", _Demo_GetAccountBalances0_HTTP_Handler(srv))
-	r.GET("/demo/validator/validators", _Demo_GetValidators0_HTTP_Handler(srv))
 	r.GET("/demo/health", _Demo_CheckHealthy0_HTTP_Handler(srv))
 }
 
@@ -211,25 +208,6 @@ func _Demo_GetAccountBalances0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Co
 	}
 }
 
-func _Demo_GetValidators0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in PaginationRequest
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationDemoGetValidators)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetValidators(ctx, req.(*PaginationRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*Reply)
-		return ctx.Result(200, reply)
-	}
-}
-
 func _Demo_CheckHealthy0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CheckHealthyRequest
@@ -260,7 +238,6 @@ type DemoHTTPClient interface {
 	GetLatestBlocks(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestTransactions(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetTransactionByHash(ctx context.Context, req *GetTransactionByHashRequest, opts ...http.CallOption) (rsp *Reply, err error)
-	GetValidators(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 }
 
 type DemoHTTPClientImpl struct {
@@ -381,19 +358,6 @@ func (c *DemoHTTPClientImpl) GetTransactionByHash(ctx context.Context, in *GetTr
 	pattern := "/demo/transaction/by-hash"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetTransactionByHash))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *DemoHTTPClientImpl) GetValidators(ctx context.Context, in *PaginationRequest, opts ...http.CallOption) (*Reply, error) {
-	var out Reply
-	pattern := "/demo/validator/validators"
-	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetValidators))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

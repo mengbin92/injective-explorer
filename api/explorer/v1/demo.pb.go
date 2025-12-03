@@ -1345,226 +1345,6 @@ func (x *TransactionDTO) GetPayer() string {
 	return ""
 }
 
-type ValidatorDTO struct {
-	state                   protoimpl.MessageState `protogen:"open.v1"`
-	Id                      string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Moniker                 string                 `protobuf:"bytes,2,opt,name=moniker,proto3" json:"moniker,omitempty"`
-	OperatorAddress         string                 `protobuf:"bytes,3,opt,name=operator_address,json=operatorAddress,proto3" json:"operator_address,omitempty"`
-	ConsensusAddress        string                 `protobuf:"bytes,4,opt,name=consensus_address,json=consensusAddress,proto3" json:"consensus_address,omitempty"`
-	Jailed                  bool                   `protobuf:"varint,5,opt,name=jailed,proto3" json:"jailed,omitempty"`
-	Status                  int32                  `protobuf:"varint,6,opt,name=status,proto3" json:"status,omitempty"`
-	Tokens                  string                 `protobuf:"bytes,7,opt,name=tokens,proto3" json:"tokens,omitempty"`
-	DelegatorShares         string                 `protobuf:"bytes,8,opt,name=delegator_shares,json=delegatorShares,proto3" json:"delegator_shares,omitempty"`
-	Description             string                 `protobuf:"bytes,9,opt,name=description,proto3" json:"description,omitempty"`
-	UnbondingHeight         int64                  `protobuf:"varint,10,opt,name=unbonding_height,json=unbondingHeight,proto3" json:"unbonding_height,omitempty"`
-	UnbondingTime           string                 `protobuf:"bytes,11,opt,name=unbonding_time,json=unbondingTime,proto3" json:"unbonding_time,omitempty"`
-	CommissionRate          string                 `protobuf:"bytes,12,opt,name=commission_rate,json=commissionRate,proto3" json:"commission_rate,omitempty"`
-	CommissionMaxRate       string                 `protobuf:"bytes,13,opt,name=commission_max_rate,json=commissionMaxRate,proto3" json:"commission_max_rate,omitempty"`
-	CommissionMaxChangeRate string                 `protobuf:"bytes,14,opt,name=commission_max_change_rate,json=commissionMaxChangeRate,proto3" json:"commission_max_change_rate,omitempty"`
-	CommissionUpdateTime    string                 `protobuf:"bytes,15,opt,name=commission_update_time,json=commissionUpdateTime,proto3" json:"commission_update_time,omitempty"`
-	Proposed                uint64                 `protobuf:"varint,16,opt,name=proposed,proto3" json:"proposed,omitempty"`
-	Signed                  uint64                 `protobuf:"varint,17,opt,name=signed,proto3" json:"signed,omitempty"`
-	Missed                  uint64                 `protobuf:"varint,18,opt,name=missed,proto3" json:"missed,omitempty"`
-	Timestamp               string                 `protobuf:"bytes,19,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Uptimes                 []string               `protobuf:"bytes,20,rep,name=uptimes,proto3" json:"uptimes,omitempty"`
-	SlashingEvents          []string               `protobuf:"bytes,21,rep,name=slashing_events,json=slashingEvents,proto3" json:"slashing_events,omitempty"`
-	UptimePercentage        float64                `protobuf:"fixed64,22,opt,name=uptime_percentage,json=uptimePercentage,proto3" json:"uptime_percentage,omitempty"`
-	ImageUrl                string                 `protobuf:"bytes,23,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
-}
-
-func (x *ValidatorDTO) Reset() {
-	*x = ValidatorDTO{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ValidatorDTO) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ValidatorDTO) ProtoMessage() {}
-
-func (x *ValidatorDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ValidatorDTO.ProtoReflect.Descriptor instead.
-func (*ValidatorDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{20}
-}
-
-func (x *ValidatorDTO) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetMoniker() string {
-	if x != nil {
-		return x.Moniker
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetOperatorAddress() string {
-	if x != nil {
-		return x.OperatorAddress
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetConsensusAddress() string {
-	if x != nil {
-		return x.ConsensusAddress
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetJailed() bool {
-	if x != nil {
-		return x.Jailed
-	}
-	return false
-}
-
-func (x *ValidatorDTO) GetStatus() int32 {
-	if x != nil {
-		return x.Status
-	}
-	return 0
-}
-
-func (x *ValidatorDTO) GetTokens() string {
-	if x != nil {
-		return x.Tokens
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetDelegatorShares() string {
-	if x != nil {
-		return x.DelegatorShares
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetUnbondingHeight() int64 {
-	if x != nil {
-		return x.UnbondingHeight
-	}
-	return 0
-}
-
-func (x *ValidatorDTO) GetUnbondingTime() string {
-	if x != nil {
-		return x.UnbondingTime
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetCommissionRate() string {
-	if x != nil {
-		return x.CommissionRate
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetCommissionMaxRate() string {
-	if x != nil {
-		return x.CommissionMaxRate
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetCommissionMaxChangeRate() string {
-	if x != nil {
-		return x.CommissionMaxChangeRate
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetCommissionUpdateTime() string {
-	if x != nil {
-		return x.CommissionUpdateTime
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetProposed() uint64 {
-	if x != nil {
-		return x.Proposed
-	}
-	return 0
-}
-
-func (x *ValidatorDTO) GetSigned() uint64 {
-	if x != nil {
-		return x.Signed
-	}
-	return 0
-}
-
-func (x *ValidatorDTO) GetMissed() uint64 {
-	if x != nil {
-		return x.Missed
-	}
-	return 0
-}
-
-func (x *ValidatorDTO) GetTimestamp() string {
-	if x != nil {
-		return x.Timestamp
-	}
-	return ""
-}
-
-func (x *ValidatorDTO) GetUptimes() []string {
-	if x != nil {
-		return x.Uptimes
-	}
-	return nil
-}
-
-func (x *ValidatorDTO) GetSlashingEvents() []string {
-	if x != nil {
-		return x.SlashingEvents
-	}
-	return nil
-}
-
-func (x *ValidatorDTO) GetUptimePercentage() float64 {
-	if x != nil {
-		return x.UptimePercentage
-	}
-	return 0
-}
-
-func (x *ValidatorDTO) GetImageUrl() string {
-	if x != nil {
-		return x.ImageUrl
-	}
-	return ""
-}
-
 var File_explorer_v1_demo_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_demo_proto_rawDesc = "" +
@@ -1679,32 +1459,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\terror_log\x18\x13 \x01(\tR\terror_log\x12\x12\n" +
 	"\x04logs\x18\x14 \x01(\tR\x04logs\x12\x1c\n" +
 	"\tclaim_ids\x18\x15 \x03(\x03R\tclaim_ids\x12\x14\n" +
-	"\x05payer\x18\x16 \x01(\tR\x05payer\"\xba\x06\n" +
-	"\fValidatorDTO\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\amoniker\x18\x02 \x01(\tR\amoniker\x12)\n" +
-	"\x10operator_address\x18\x03 \x01(\tR\x0foperatorAddress\x12+\n" +
-	"\x11consensus_address\x18\x04 \x01(\tR\x10consensusAddress\x12\x16\n" +
-	"\x06jailed\x18\x05 \x01(\bR\x06jailed\x12\x16\n" +
-	"\x06status\x18\x06 \x01(\x05R\x06status\x12\x16\n" +
-	"\x06tokens\x18\a \x01(\tR\x06tokens\x12)\n" +
-	"\x10delegator_shares\x18\b \x01(\tR\x0fdelegatorShares\x12 \n" +
-	"\vdescription\x18\t \x01(\tR\vdescription\x12)\n" +
-	"\x10unbonding_height\x18\n" +
-	" \x01(\x03R\x0funbondingHeight\x12%\n" +
-	"\x0eunbonding_time\x18\v \x01(\tR\runbondingTime\x12'\n" +
-	"\x0fcommission_rate\x18\f \x01(\tR\x0ecommissionRate\x12.\n" +
-	"\x13commission_max_rate\x18\r \x01(\tR\x11commissionMaxRate\x12;\n" +
-	"\x1acommission_max_change_rate\x18\x0e \x01(\tR\x17commissionMaxChangeRate\x124\n" +
-	"\x16commission_update_time\x18\x0f \x01(\tR\x14commissionUpdateTime\x12\x1a\n" +
-	"\bproposed\x18\x10 \x01(\x04R\bproposed\x12\x16\n" +
-	"\x06signed\x18\x11 \x01(\x04R\x06signed\x12\x16\n" +
-	"\x06missed\x18\x12 \x01(\x04R\x06missed\x12\x1c\n" +
-	"\ttimestamp\x18\x13 \x01(\tR\ttimestamp\x12\x18\n" +
-	"\auptimes\x18\x14 \x03(\tR\auptimes\x12'\n" +
-	"\x0fslashing_events\x18\x15 \x03(\tR\x0eslashingEvents\x12+\n" +
-	"\x11uptime_percentage\x18\x16 \x01(\x01R\x10uptimePercentage\x12\x1b\n" +
-	"\timage_url\x18\x17 \x01(\tR\bimageUrl2\xba\f\n" +
+	"\x05payer\x18\x16 \x01(\tR\x05payer2\xc9\v\n" +
 	"\x04Demo\x12i\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +
@@ -1713,8 +1468,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x14GetTransactionByHash\x12,.api.explorer.v1.GetTransactionByHashRequest\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/transaction/by-hash\x12l\n" +
 	"\x0eGetAccountInfo\x12&.api.explorer.v1.GetAccountInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/account/info\x12\x84\x01\n" +
 	"\x16GetAccountTransactions\x12..api.explorer.v1.GetAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/account/transactions\x12x\n" +
-	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12o\n" +
-	"\rGetValidators\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/validator/validators\x12q\n" +
+	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12q\n" +
 	"\fCheckHealthy\x12$.api.explorer.v1.CheckHealthyRequest\x1a%.api.explorer.v1.CheckHealthyResponse\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/demo/health\x12}\n" +
 	"\x12StreamLatestBlocks\x12*.api.explorer.v1.StreamLatestBlocksRequest\x1a\x1c.api.explorer.v1.BlockUpdate\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/demo/stream/blocks0\x01\x12\x95\x01\n" +
 	"\x18StreamLatestTransactions\x120.api.explorer.v1.StreamLatestTransactionsRequest\x1a\".api.explorer.v1.TransactionUpdate\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/stream/transactions0\x01\x12\x84\x01\n" +
@@ -1733,7 +1487,7 @@ func file_explorer_v1_demo_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_demo_proto_rawDescData
 }
 
-var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_explorer_v1_demo_proto_goTypes = []any{
 	(*GetBlockByHeightRequest)(nil),         // 0: api.explorer.v1.GetBlockByHeightRequest
 	(*GetTransactionByHashRequest)(nil),     // 1: api.explorer.v1.GetTransactionByHashRequest
@@ -1755,51 +1509,48 @@ var file_explorer_v1_demo_proto_goTypes = []any{
 	(*AccountBalanceDTO)(nil),               // 17: api.explorer.v1.AccountBalanceDTO
 	(*BlockDTO)(nil),                        // 18: api.explorer.v1.BlockDTO
 	(*TransactionDTO)(nil),                  // 19: api.explorer.v1.TransactionDTO
-	(*ValidatorDTO)(nil),                    // 20: api.explorer.v1.ValidatorDTO
-	nil,                                     // 21: api.explorer.v1.CheckHealthyResponse.DetailsEntry
-	nil,                                     // 22: api.explorer.v1.AccountUpdateData.MetadataEntry
-	(*PaginationRequest)(nil),               // 23: api.explorer.v1.PaginationRequest
-	(*emptypb.Empty)(nil),                   // 24: google.protobuf.Empty
-	(*Reply)(nil),                           // 25: api.explorer.v1.Reply
+	nil,                                     // 20: api.explorer.v1.CheckHealthyResponse.DetailsEntry
+	nil,                                     // 21: api.explorer.v1.AccountUpdateData.MetadataEntry
+	(*PaginationRequest)(nil),               // 22: api.explorer.v1.PaginationRequest
+	(*emptypb.Empty)(nil),                   // 23: google.protobuf.Empty
+	(*Reply)(nil),                           // 24: api.explorer.v1.Reply
 }
 var file_explorer_v1_demo_proto_depIdxs = []int32{
-	23, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
-	21, // 1: api.explorer.v1.CheckHealthyResponse.details:type_name -> api.explorer.v1.CheckHealthyResponse.DetailsEntry
+	22, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
+	20, // 1: api.explorer.v1.CheckHealthyResponse.details:type_name -> api.explorer.v1.CheckHealthyResponse.DetailsEntry
 	18, // 2: api.explorer.v1.BlockUpdate.block:type_name -> api.explorer.v1.BlockDTO
 	19, // 3: api.explorer.v1.TransactionUpdate.transaction:type_name -> api.explorer.v1.TransactionDTO
 	19, // 4: api.explorer.v1.AccountUpdateData.transaction:type_name -> api.explorer.v1.TransactionDTO
 	17, // 5: api.explorer.v1.AccountUpdateData.balances:type_name -> api.explorer.v1.AccountBalanceDTO
-	22, // 6: api.explorer.v1.AccountUpdateData.metadata:type_name -> api.explorer.v1.AccountUpdateData.MetadataEntry
+	21, // 6: api.explorer.v1.AccountUpdateData.metadata:type_name -> api.explorer.v1.AccountUpdateData.MetadataEntry
 	13, // 7: api.explorer.v1.AccountUpdate.data:type_name -> api.explorer.v1.AccountUpdateData
 	6,  // 8: api.explorer.v1.CheckHealthyResponse.DetailsEntry.value:type_name -> api.explorer.v1.HealthDetails
-	23, // 9: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
+	22, // 9: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
 	0,  // 10: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
-	24, // 11: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
-	23, // 12: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
+	23, // 11: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
+	22, // 12: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
 	1,  // 13: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
 	2,  // 14: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
 	3,  // 15: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
 	4,  // 16: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
-	23, // 17: api.explorer.v1.Demo.GetValidators:input_type -> api.explorer.v1.PaginationRequest
-	5,  // 18: api.explorer.v1.Demo.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
-	8,  // 19: api.explorer.v1.Demo.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
-	9,  // 20: api.explorer.v1.Demo.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
-	10, // 21: api.explorer.v1.Demo.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
-	25, // 22: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
-	25, // 23: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
-	25, // 24: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
-	25, // 25: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
-	25, // 26: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
-	25, // 27: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
-	25, // 28: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
-	25, // 29: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	25, // 30: api.explorer.v1.Demo.GetValidators:output_type -> api.explorer.v1.Reply
-	7,  // 31: api.explorer.v1.Demo.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
-	11, // 32: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
-	12, // 33: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
-	14, // 34: api.explorer.v1.Demo.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
-	22, // [22:35] is the sub-list for method output_type
-	9,  // [9:22] is the sub-list for method input_type
+	5,  // 17: api.explorer.v1.Demo.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
+	8,  // 18: api.explorer.v1.Demo.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
+	9,  // 19: api.explorer.v1.Demo.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
+	10, // 20: api.explorer.v1.Demo.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
+	24, // 21: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
+	24, // 22: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
+	24, // 23: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
+	24, // 24: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
+	24, // 25: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
+	24, // 26: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
+	24, // 27: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
+	24, // 28: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
+	7,  // 29: api.explorer.v1.Demo.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
+	11, // 30: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
+	12, // 31: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
+	14, // 32: api.explorer.v1.Demo.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
+	21, // [21:33] is the sub-list for method output_type
+	9,  // [9:21] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1817,7 +1568,7 @@ func file_explorer_v1_demo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_demo_proto_rawDesc), len(file_explorer_v1_demo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

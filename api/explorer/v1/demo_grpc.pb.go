@@ -28,7 +28,6 @@ const (
 	Demo_GetAccountInfo_FullMethodName           = "/api.explorer.v1.Demo/GetAccountInfo"
 	Demo_GetAccountTransactions_FullMethodName   = "/api.explorer.v1.Demo/GetAccountTransactions"
 	Demo_GetAccountBalances_FullMethodName       = "/api.explorer.v1.Demo/GetAccountBalances"
-	Demo_GetValidators_FullMethodName            = "/api.explorer.v1.Demo/GetValidators"
 	Demo_CheckHealthy_FullMethodName             = "/api.explorer.v1.Demo/CheckHealthy"
 	Demo_StreamLatestBlocks_FullMethodName       = "/api.explorer.v1.Demo/StreamLatestBlocks"
 	Demo_StreamLatestTransactions_FullMethodName = "/api.explorer.v1.Demo/StreamLatestTransactions"
@@ -47,7 +46,6 @@ type DemoClient interface {
 	GetAccountInfo(ctx context.Context, in *GetAccountInfoRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error)
-	GetValidators(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -147,16 +145,6 @@ func (c *demoClient) GetAccountBalances(ctx context.Context, in *GetAccountBalan
 	return out, nil
 }
 
-func (c *demoClient) GetValidators(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetValidators_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *demoClient) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckHealthyResponse)
@@ -236,7 +224,6 @@ type DemoServer interface {
 	GetAccountInfo(context.Context, *GetAccountInfoRequest) (*Reply, error)
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
-	GetValidators(context.Context, *PaginationRequest) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -279,9 +266,6 @@ func (UnimplementedDemoServer) GetAccountTransactions(context.Context, *GetAccou
 }
 func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountBalances not implemented")
-}
-func (UnimplementedDemoServer) GetValidators(context.Context, *PaginationRequest) (*Reply, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetValidators not implemented")
 }
 func (UnimplementedDemoServer) CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CheckHealthy not implemented")
@@ -460,24 +444,6 @@ func _Demo_GetAccountBalances_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetValidators_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PaginationRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DemoServer).GetValidators(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Demo_GetValidators_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetValidators(ctx, req.(*PaginationRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Demo_CheckHealthy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CheckHealthyRequest)
 	if err := dec(in); err != nil {
@@ -567,10 +533,6 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAccountBalances",
 			Handler:    _Demo_GetAccountBalances_Handler,
-		},
-		{
-			MethodName: "GetValidators",
-			Handler:    _Demo_GetValidators_Handler,
 		},
 		{
 			MethodName: "CheckHealthy",

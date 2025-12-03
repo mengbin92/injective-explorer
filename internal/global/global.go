@@ -84,8 +84,6 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		&models.Transaction{},
 		&models.Account{},
 		&models.AccountBalance{},
-		&models.Validator{},
-		&models.DelegationReward{},
 		&models.TransactionArchive{},
 		&models.TransactionDataArchive{},
 	)

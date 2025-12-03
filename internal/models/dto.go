@@ -21,7 +21,6 @@ const (
 // - pb.AccountBalanceDTO
 // - pb.BlockDTO
 // - pb.TransactionDTO
-// - pb.ValidatorDTO
 
 // ToAccountDTO converts an Account model to proto AccountDTO.
 func ToAccountDTO(account *Account) *pb.AccountDTO {
@@ -195,50 +194,6 @@ func ToTransactionDTOs(txs []Transaction) []*pb.TransactionDTO {
 	dtos := make([]*pb.TransactionDTO, 0, len(txs))
 	for _, tx := range txs {
 		dtos = append(dtos, ToTransactionDTO(&tx, DTOModeWithoutDetail))
-	}
-	return dtos
-}
-
-// ToValidatorDTO converts a Validator model to proto ValidatorDTO.
-func ToValidatorDTO(validator *Validator) *pb.ValidatorDTO {
-	if validator == nil {
-		return nil
-	}
-	return &pb.ValidatorDTO{
-		Id:                      validator.Id,
-		Moniker:                 validator.Moniker,
-		OperatorAddress:         validator.OperatorAddress,
-		ConsensusAddress:        validator.ConsensusAddress,
-		Jailed:                  validator.Jailed,
-		Status:                  validator.Status,
-		Tokens:                  validator.Tokens,
-		DelegatorShares:         validator.DelegatorShares,
-		Description:             validator.Description,
-		UnbondingHeight:         validator.UnbondingHeight,
-		UnbondingTime:           validator.UnbondingTime,
-		CommissionRate:          validator.CommissionRate,
-		CommissionMaxRate:       validator.CommissionMaxRate,
-		CommissionMaxChangeRate: validator.CommissionMaxChangeRate,
-		CommissionUpdateTime:    validator.CommissionUpdateTime,
-		Proposed:                validator.Proposed,
-		Signed:                  validator.Signed,
-		Missed:                  validator.Missed,
-		Timestamp:               validator.Timestamp,
-		Uptimes:                 validator.Uptimes,
-		SlashingEvents:          validator.SlashingEvents,
-		UptimePercentage:        validator.UptimePercentage,
-		ImageUrl:                validator.ImageUrl,
-	}
-}
-
-// ToValidatorDTOs converts a slice of Validator models to proto ValidatorDTOs.
-func ToValidatorDTOs(validators []Validator) []*pb.ValidatorDTO {
-	if validators == nil {
-		return nil
-	}
-	dtos := make([]*pb.ValidatorDTO, 0, len(validators))
-	for _, validator := range validators {
-		dtos = append(dtos, ToValidatorDTO(&validator))
 	}
 	return dtos
 }

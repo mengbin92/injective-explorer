@@ -25,7 +25,7 @@ type Block struct {
 	TotalTxs           int64    `json:"total_txs" gorm:"column:total_txs"`                                                // TotalTxs is the total number of transactions in the blockchain up to this block
 	Txs                []string `json:"txs" gorm:"column:txs;serializer:json"`                                            // Txs is a list of transactions in this block (not stored in database)
 	Timestamp          string   `json:"timestamp" gorm:"column:timestamp"`                                                // Timestamp is the human-readable timestamp of the block
-	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp;index:idx_timestamp_desc"` // BlockUnixTimestamp is the Unix timestamp of the block (indexed for sorting)                            // Validators is a list of validator addresses for this block (stored as JSONB)
+	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp;index:idx_timestamp_desc"` // BlockUnixTimestamp is the Unix timestamp of the block (indexed for sorting)
 }
 
 // BlockFromProto converts a protobuf BlockDetailInfo to a Block model.

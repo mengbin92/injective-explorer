@@ -60,6 +60,8 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 			"Content-Type",
 			"Authorization",
 			"X-Requested-With",
+			"Accept",
+			"Origin",
 			// Note: Accept, Origin, and Access-Control-Request-* headers are simple headers
 			// and don't need to be explicitly allowed
 		}),
@@ -124,9 +126,35 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 		opts = append(opts, khttp.Filter(swaggerFilter))
 	}
 
+	// Create a robust CORS filter that explicitly handles OPTIONS preflight requests
+	// This ensures CORS headers are set even when routes don't match
+	corsFilter := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Handle OPTIONS preflight requests explicitly
+			// This is critical because browsers send OPTIONS requests before the actual request
+			// and these must return proper CORS headers even if the route doesn't exist
+			if r.Method == "OPTIONS" {
+				origin := r.Header.Get("Origin")
+				if origin != "" {
+					// Set CORS headers for preflight request
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+					w.Header().Set("Access-Control-Max-Age", "86400")
+					w.Header().Set("Access-Control-Allow-Credentials", "false")
+				}
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			// For non-OPTIONS requests, apply CORS middleware and continue to next handler
+			// This ensures CORS headers are added to all responses
+			corsMiddleware(next).ServeHTTP(w, r)
+		})
+	}
+
 	// Add CORS filter last (will execute first due to LIFO)
 	// This ensures CORS headers are applied to all responses, including Swagger
-	opts = append(opts, khttp.Filter(corsMiddleware))
+	opts = append(opts, khttp.Filter(corsFilter))
 
 	if c.Http.Network != "" {
 		opts = append(opts, khttp.Network(c.Http.Network))
