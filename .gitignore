@@ -49,3 +49,6 @@ injective_data/
 *.tar.gz
 *.tar
 *.zip
+
+# Build binaries
+injective-explorer
