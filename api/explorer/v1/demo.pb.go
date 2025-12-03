@@ -1156,7 +1156,7 @@ type TransactionDTO struct {
 	ErrorLog           string                 `protobuf:"bytes,19,opt,name=error_log,proto3" json:"error_log,omitempty"`
 	Logs               string                 `protobuf:"bytes,20,opt,name=logs,proto3" json:"logs,omitempty"`
 	ClaimIds           []int64                `protobuf:"varint,21,rep,packed,name=claim_ids,proto3" json:"claim_ids,omitempty"`
-	Payer              string                 `protobuf:"bytes,22,opt,name=payer,proto3" json:"payer,omitempty"`
+	Signer             string                 `protobuf:"bytes,22,opt,name=signer,proto3" json:"signer,omitempty"` // Transaction initiator (first signer), may differ from fee payer
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1338,9 +1338,9 @@ func (x *TransactionDTO) GetClaimIds() []int64 {
 	return nil
 }
 
-func (x *TransactionDTO) GetPayer() string {
+func (x *TransactionDTO) GetSigner() string {
 	if x != nil {
-		return x.Payer
+		return x.Signer
 	}
 	return ""
 }
@@ -1431,7 +1431,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x03txs\x18\t \x03(\tR\x03txs\x12\x1c\n" +
 	"\ttimestamp\x18\n" +
 	" \x01(\tR\ttimestamp\x122\n" +
-	"\x14block_unix_timestamp\x18\v \x01(\x04R\x14block_unix_timestamp\"\xec\x04\n" +
+	"\x14block_unix_timestamp\x18\v \x01(\x04R\x14block_unix_timestamp\"\xee\x04\n" +
 	"\x0eTransactionDTO\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\"\n" +
 	"\fblock_number\x18\x02 \x01(\x04R\fblock_number\x12(\n" +
@@ -1458,8 +1458,8 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x14block_unix_timestamp\x18\x12 \x01(\x04R\x14block_unix_timestamp\x12\x1c\n" +
 	"\terror_log\x18\x13 \x01(\tR\terror_log\x12\x12\n" +
 	"\x04logs\x18\x14 \x01(\tR\x04logs\x12\x1c\n" +
-	"\tclaim_ids\x18\x15 \x03(\x03R\tclaim_ids\x12\x14\n" +
-	"\x05payer\x18\x16 \x01(\tR\x05payer2\xc9\v\n" +
+	"\tclaim_ids\x18\x15 \x03(\x03R\tclaim_ids\x12\x16\n" +
+	"\x06signer\x18\x16 \x01(\tR\x06signer2\xc9\v\n" +
 	"\x04Demo\x12i\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +

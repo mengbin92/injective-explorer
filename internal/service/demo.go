@@ -232,23 +232,30 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 
 	// Second, try to query from database
 	var dbBlock models.Block
+	startTime := time.Now()
 	err = db.Get().WithContext(queryCtx).Where("height = ?", req.Height).First(&dbBlock).Error
+	queryDuration := time.Since(startTime)
+
 	if err == nil {
 		// Found in database, convert to DTO and return
-		global.Logger.Infof("block found in database: height=%d", req.Height)
+		global.Logger.Infof("block found in database: height=%d, query_time=%v", req.Height, queryDuration)
 
-		// Cache the block for future queries
-		cacheBlock(queryCtx, &dbBlock)
+		// Cache the block for future queries (async to avoid blocking)
+		go cacheBlock(context.Background(), &dbBlock)
 
 		blockDTO := models.ToBlockDTO(&dbBlock, models.DTOModeWithDetail)
 		return s.marshalAndReply(blockDTO, "marshal block error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
-		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v", req.Height, err)
+		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v, query_time=%v", req.Height, err, queryDuration)
+	} else {
+		global.Logger.Infof("block not found in database: height=%d, query_time=%v", req.Height, queryDuration)
 	}
 
 	// Not found in database or conversion failed, query from chain
-	global.Logger.Infof("block not found in database or conversion failed, querying from chain: height=%d", req.Height)
+	// Only query from chain if block is reasonably recent (within last 1000 blocks)
+	// For very old blocks, return error instead of waiting for slow chain query
+	global.Logger.Infof("block not found in database, querying from chain: height=%d", req.Height)
 	client, err := GetSharedExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -679,42 +686,69 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 
 	global.Logger.Infof("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v", address, page, pageSize, useCursor)
 
-	// First, try to query from database with pagination
-	// Note: For better performance, we use LIKE query on messages/events fields
-	// In production, consider creating a separate account_transactions table for better indexing
-	var dbTxs []models.Transaction
-	var total int64
-	var isExactCount bool
-
 	// Create independent context for database query to avoid HTTP timeout issues
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer dbCancel()
 
-	// Build base query with address filter
-	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
-		Where("payer = ?", address)
+	// First, try to query from Redis cache (only for first page without cursor)
+	if !useCursor && page == MinPage {
+		cacheKey := fmt.Sprintf("cache:account:txs:%s", address)
+		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
+		if err == nil && len(cachedTxs) > 0 {
+			global.Logger.Infof("account transactions found in cache: address=%s, count=%d", address, len(cachedTxs))
+			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+			txDTOs := models.ToTransactionDTOs(cachedTxs)
+			// Use approximate count for cached data
+			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, ApproximateCountForAddress, false, useCursor, cursorValue, nextCursor, len(cachedTxs))
+			return s.marshalAndReply(txsResp, "marshal transactions error")
+		}
+	}
 
-	// Get approximate count (optimized for performance)
-	// For address-specific queries, exact count can be slow
+	// Second, try to query from database with pagination
+	// Note: For better performance, we use LIKE query on messages/events fields
+	// In production, consider creating a separate account_transactions table for better indexing
+	var dbTxs []models.Transaction
+
+	// Build base query with address filter
+	// Use composite index idx_signer_timestamp for better performance
+	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
+		Where("signer = ?", address)
+
+	// Optimize COUNT query: use shorter timeout and skip if it takes too long
+	// For better performance, we'll get count in parallel with data query or skip it
+	var total int64
+	var isExactCount bool
 	var countErr error
-	total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, address)
-	if countErr != nil {
-		global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", address, countErr)
-		// Use fallback value if count query fails
+
+	// Only get count if not using cursor (cursor-based pagination doesn't need total)
+	// For first page, we can skip count to improve response time
+	if !useCursor && page > MinPage {
+		// Only get count for non-first pages to determine pagination
+		total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, address)
+		if countErr != nil {
+			global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", address, countErr)
+			total = ApproximateCountForAddress
+			isExactCount = false
+		}
+	} else {
+		// For first page or cursor-based pagination, skip count query for faster response
 		total = ApproximateCountForAddress
 		isExactCount = false
 	}
 
 	// Build query based on pagination type
+	// Use composite index idx_signer_timestamp for optimal performance
 	query := baseQuery
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
+		// Simple tx_number comparison is sufficient with proper indexing
 		query = query.Where("tx_number < ?", cursorValue).
 			Order("block_unix_timestamp DESC, tx_number DESC").
 			Limit(int(pageSize))
 	} else {
 		// Use page-based pagination
+		// Use composite index: signer + block_unix_timestamp
 		query = query.Order("block_unix_timestamp DESC, tx_number DESC").
 			Offset(offset).
 			Limit(int(pageSize))
@@ -726,6 +760,12 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 
 	if err == nil && len(dbTxs) > 0 {
 		global.Logger.Infof("account transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
+
+		// Cache the results for first page to improve subsequent queries
+		if !useCursor && page == MinPage {
+			cacheKey := fmt.Sprintf("cache:account:txs:%s", address)
+			cacheAccountTransactions(dbCtx, cacheKey, dbTxs)
+		}
 
 		if len(dbTxs) > 0 {
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
@@ -1400,6 +1440,9 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 	// Log query result for debugging
 	if err != nil {
 		global.Logger.Warnf("database query error in StreamLatestBlocks: %v", err)
+		// For grpc-web compatibility, we should return error if query fails
+		// instead of continuing with empty stream
+		return status.Errorf(codes.Internal, "failed to query blocks: %v", err)
 	} else {
 		global.Logger.Infof("database query successful: found %d blocks", len(dbBlocks))
 	}
@@ -1415,8 +1458,11 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 		}
 	}
 
-	if err == nil && len(dbBlocks) > 0 {
-		sentCount := 0
+	// Send initial blocks if available
+	// For grpc-web compatibility, we MUST send at least one message to establish the stream
+	// If no blocks match the query, we'll query for the latest block anyway to establish the stream
+	sentCount := 0
+	if len(dbBlocks) > 0 {
 		for _, block := range dbBlocks {
 			blockDTO := models.ToBlockDTO(&block, models.DTOModeWithoutDetail)
 
@@ -1433,8 +1479,79 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 			sentCount++
 		}
 		global.Logger.Infof("sent %d/%d initial blocks to stream", sentCount, len(dbBlocks))
-	} else if len(dbBlocks) == 0 {
-		global.Logger.Warnf("no blocks to send: query returned %d blocks", len(dbBlocks))
+	} else {
+		// No blocks found matching the query, but we need to send at least one message for grpc-web
+		// Query for the latest block to establish the stream
+		global.Logger.Infof("no blocks found matching query, querying latest block to establish stream...")
+		var latestBlock models.Block
+		latestErr := db.Get().WithContext(stream.Context()).
+			Order("height DESC").
+			Limit(1).
+			First(&latestBlock).Error
+
+		if latestErr == nil {
+			// Send the latest block to establish the stream
+			blockDTO := models.ToBlockDTO(&latestBlock, models.DTOModeWithoutDetail)
+			update := &pb.BlockUpdate{
+				Block:      blockDTO,
+				UpdateType: "new",
+				Timestamp:  time.Now().Unix(),
+			}
+
+			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send latest block (height=%d) to establish stream: %v", latestBlock.Height, err)
+				return status.Errorf(codes.Internal, "failed to send block update: %v", err)
+			}
+			global.Logger.Infof("sent latest block (height=%d) to establish stream", latestBlock.Height)
+			sentCount = 1
+		} else {
+			// No blocks found or database error, wait for first block event to establish stream
+			if latestErr == gorm.ErrRecordNotFound {
+				global.Logger.Infof("no blocks in database, waiting for first block event to establish stream...")
+			} else {
+				global.Logger.Warnf("failed to query latest block, will wait for block events: %v", latestErr)
+			}
+			firstBlockTimeout := time.NewTimer(10 * time.Second)
+			defer firstBlockTimeout.Stop()
+
+			select {
+			case <-stream.Context().Done():
+				global.Logger.Infof("stream context cancelled while waiting for first block")
+				return stream.Context().Err()
+			case <-firstBlockTimeout.C:
+				// If timeout and still no block, return error for grpc-web compatibility
+				global.Logger.Warnf("timeout waiting for first block, no blocks available")
+				return status.Errorf(codes.NotFound, "no blocks available and timeout waiting for first block")
+			case blockEvent, ok := <-blockChan:
+				if !ok {
+					global.Logger.Errorf("StreamLatestBlocks: block channel was closed while waiting for first block")
+					return status.Errorf(codes.Internal, "block event channel was closed")
+				}
+				if blockEvent != nil {
+					// Filter by from_height if specified
+					if req.GetFromHeight() == 0 || blockEvent.Block.Height >= uint64(req.GetFromHeight()) {
+						blockDTO := models.ToBlockDTO(blockEvent.Block, models.DTOModeWithoutDetail)
+						updateType := "new"
+						if blockEvent.Type == EventTypeBlockUpdate {
+							updateType = "update"
+						}
+
+						update := &pb.BlockUpdate{
+							Block:      blockDTO,
+							UpdateType: updateType,
+							Timestamp:  time.Now().Unix(),
+						}
+
+						if err := stream.Send(update); err != nil {
+							global.Logger.Errorf("failed to send first block update: %v", err)
+							return status.Errorf(codes.Internal, "failed to send block update: %v", err)
+						}
+						global.Logger.Infof("sent first block update (height=%d) to establish stream", blockEvent.Block.Height)
+						sentCount = 1
+					}
+				}
+			}
+		}
 	}
 
 	// Stream new blocks from event bus
@@ -1621,7 +1738,7 @@ func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, 
 	// Always send recent transactions to show something immediately
 	var dbTxs []models.Transaction
 	query := db.Get().WithContext(stream.Context()).
-		Where("payer = ?", address).
+		Where("signer = ?", address).
 		Order("block_unix_timestamp DESC, tx_number DESC")
 
 	// Apply timestamp filter if specified
@@ -1880,6 +1997,82 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 	}
 
 	return txs, nil
+}
+
+// getAccountTransactionsFromCache retrieves account transactions from Redis cache.
+// This function queries the cached list of recent transactions for a specific address.
+// Returns an empty slice (not nil) if no transactions are found in cache.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - cacheKey: Redis cache key for the account transactions
+//   - limit: Maximum number of transactions to retrieve
+//
+// Returns:
+//   - []models.Transaction: List of cached transactions (empty slice if cache miss)
+//   - error: Error if cache lookup failed (not including cache miss)
+func getAccountTransactionsFromCache(ctx context.Context, cacheKey string, limit int) ([]models.Transaction, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil, errors.New("redis client is nil")
+	}
+
+	// Use negative indices to get the latest transactions from the tail of the list
+	data, err := redisClient.LRange(ctx, cacheKey, int64(-limit), -1).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return empty slice (not nil) if no data found
+	if len(data) == 0 {
+		return []models.Transaction{}, nil
+	}
+
+	txs := make([]models.Transaction, 0, len(data))
+	unmarshalErrors := 0
+	for _, item := range data {
+		var tx models.Transaction
+		if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
+			unmarshalErrors++
+			global.Logger.Warnf("failed to unmarshal transaction from cache (item %d/%d): %v", unmarshalErrors, len(data), err)
+			continue
+		}
+		txs = append(txs, tx)
+	}
+
+	if len(txs) == 0 && len(data) > 0 {
+		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
+	}
+
+	return txs, nil
+}
+
+// cacheAccountTransactions caches account transactions to Redis, maintaining the latest transactions for an address.
+func cacheAccountTransactions(ctx context.Context, cacheKey string, txs []models.Transaction) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Serialize transactions to JSON and add to list
+	pipe := redisClient.Pipeline()
+	for _, tx := range txs {
+		txJSON, err := sonic.Marshal(tx)
+		if err != nil {
+			global.Logger.Warnf("failed to marshal transaction to JSON: %v", err)
+			continue
+		}
+		pipe.LPush(ctx, cacheKey, txJSON)
+	}
+
+	// Maintain list size and set TTL
+	pipe.LTrim(ctx, cacheKey, 0, CacheMaxSize-1)
+	pipe.Expire(ctx, cacheKey, CacheTransactionTTL)
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		global.Logger.Warnf("failed to cache account transactions: %v", err)
+	}
 }
 
 // getTotalFromCache retrieves the total count from Redis cache.

@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
+	github_com_cosmos_cosmos_sdk_types "github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -1260,25 +1262,183 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 
 // updateAccountBalances updates account balances for a given address.
 // Optimized to use batch upsert operations to reduce database I/O.
+// Uses independent context with timeout to avoid deadline exceeded errors.
 func (s *SyncService) updateAccountBalances(ctx context.Context, address string) error {
-	// Get account balances from chain
-	balancesResp, err := s.chainClient.GetBankBalances(ctx, address)
+	// Create independent context with timeout for balance query
+	// Use longer timeout (30s) as balance queries may take time
+	balanceCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Get account balances from chain with retry logic
+	var balancesResp interface{}
+	var err error
+
+	// Retry up to 2 times with exponential backoff
+	maxRetries := 2
+	retryDelay := 1 * time.Second
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Wait before retry
+			select {
+			case <-balanceCtx.Done():
+				return balanceCtx.Err()
+			case <-time.After(retryDelay):
+				retryDelay *= 2 // Exponential backoff
+			}
+			global.Logger.Debugf("retrying balance query for account %s (attempt %d/%d)", address, attempt+1, maxRetries+1)
+		}
+
+		// Use type inference - let compiler figure out the type
+		balancesResp, err = s.chainClient.GetBankBalances(balanceCtx, address)
+		if err == nil {
+			break // Success
+		}
+
+		// Check if error is due to context cancellation or timeout
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			// Context timeout, don't retry
+			global.Logger.Warnf("balance query timeout for account %s (attempt %d/%d): %v", address, attempt+1, maxRetries+1, err)
+			return err
+		}
+
+		// For other errors, log and retry
+		if attempt < maxRetries {
+			global.Logger.Debugf("balance query error for account %s (attempt %d/%d), will retry: %v", address, attempt+1, maxRetries+1, err)
+		}
+	}
+
 	if err != nil {
-		// If account doesn't exist or error, skip it
+		// All retries failed
+		global.Logger.Warnf("failed to get balances for account %s after %d attempts: %v", address, maxRetries+1, err)
 		return err
 	}
 
-	if balancesResp == nil || balancesResp.Balances == nil || len(balancesResp.Balances) == 0 {
+	// Access Balances field - the SDK returns *types.QueryAllBalancesResponse
+	// Use reflection to access the Balances field directly
+	if balancesResp == nil {
+		return nil
+	}
+
+	// Use reflection to access the Balances field
+	balancesValue := reflect.ValueOf(balancesResp)
+	if balancesValue.Kind() == reflect.Ptr {
+		balancesValue = balancesValue.Elem()
+	}
+
+	// Get the Balances field
+	balancesField := balancesValue.FieldByName("Balances")
+	if !balancesField.IsValid() {
+		global.Logger.Warnf("Balances field not found in response for account %s, type: %T", address, balancesResp)
+		return nil
+	}
+
+	// Handle different field types (slice, pointer to slice, etc.)
+	var balancesSlice reflect.Value
+	if balancesField.Kind() == reflect.Slice {
+		balancesSlice = balancesField
+	} else if balancesField.Kind() == reflect.Ptr || balancesField.Kind() == reflect.Interface {
+		if balancesField.IsNil() {
+			return nil
+		}
+		balancesSlice = balancesField.Elem()
+	} else {
+		global.Logger.Warnf("Balances field has unexpected kind for account %s, kind: %v, type: %T", address, balancesField.Kind(), balancesField.Interface())
+		return nil
+	}
+
+	// Verify it's a slice
+	if balancesSlice.Kind() != reflect.Slice {
+		global.Logger.Warnf("Balances is not a slice for account %s, kind: %v", address, balancesSlice.Kind())
+		return nil
+	}
+
+	// Check if empty
+	if balancesSlice.Len() == 0 {
 		return nil
 	}
 
 	// Convert all balances to models
-	balanceModels := make([]*models.AccountBalance, 0, len(balancesResp.Balances))
-	for _, balance := range balancesResp.Balances {
-		balanceModel := models.AccountBalanceFromProto(balance, address)
-		if balanceModel != nil {
-			balanceModels = append(balanceModels, balanceModel)
+	balanceModels := make([]*models.AccountBalance, 0, balancesSlice.Len())
+	for i := 0; i < balancesSlice.Len(); i++ {
+		balance := balancesSlice.Index(i).Interface()
+
+		// Try to type assert to cosmos-sdk types.Coin first (most common case)
+		if coin, ok := balance.(github_com_cosmos_cosmos_sdk_types.Coin); ok {
+			balanceModel := models.AccountBalanceFromProto(coin, address)
+			if balanceModel != nil {
+				balanceModels = append(balanceModels, balanceModel)
+			}
+			continue
 		}
+
+		// Fallback: use reflection to extract Denom and Amount
+		balanceVal := reflect.ValueOf(balance)
+		if balanceVal.Kind() == reflect.Ptr {
+			balanceVal = balanceVal.Elem()
+		}
+
+		// Get Denom field
+		denomField := balanceVal.FieldByName("Denom")
+		if !denomField.IsValid() {
+			// Try GetDenom method
+			getDenomMethod := balanceVal.MethodByName("GetDenom")
+			if getDenomMethod.IsValid() {
+				results := getDenomMethod.Call(nil)
+				if len(results) > 0 {
+					denomField = results[0]
+				}
+			}
+		}
+
+		// Get Amount field
+		amountField := balanceVal.FieldByName("Amount")
+		if !amountField.IsValid() {
+			// Try GetAmount method
+			getAmountMethod := balanceVal.MethodByName("GetAmount")
+			if getAmountMethod.IsValid() {
+				results := getAmountMethod.Call(nil)
+				if len(results) > 0 {
+					amountField = results[0]
+				}
+			}
+		}
+
+		if !denomField.IsValid() || !amountField.IsValid() {
+			global.Logger.Warnf("unable to extract Denom/Amount from balance for account %s, type: %T", address, balance)
+			continue
+		}
+
+		denom := denomField.String()
+		var amountStr string
+
+		// Try to get amount as string
+		if amountField.Kind() == reflect.String {
+			amountStr = amountField.String()
+		} else {
+			// Try to call String() method
+			stringMethod := amountField.MethodByName("String")
+			if stringMethod.IsValid() {
+				results := stringMethod.Call(nil)
+				if len(results) > 0 {
+					amountStr = results[0].String()
+				}
+			} else {
+				// Fallback: convert to string
+				amountStr = fmt.Sprintf("%v", amountField.Interface())
+			}
+		}
+
+		if denom == "" || amountStr == "" {
+			global.Logger.Warnf("empty denom or amount for balance for account %s", address)
+			continue
+		}
+
+		balanceModel := &models.AccountBalance{
+			Address: address,
+			Denom:   denom,
+			Amount:  amountStr,
+		}
+		balanceModels = append(balanceModels, balanceModel)
 	}
 
 	if len(balanceModels) == 0 {

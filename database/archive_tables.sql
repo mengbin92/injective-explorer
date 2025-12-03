@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS transaction_archives (
     tx_number BIGINT UNSIGNED NOT NULL COMMENT '交易编号',
     block_unix_timestamp BIGINT UNSIGNED COMMENT '区块Unix时间戳',
     claim_ids JSON COMMENT 'Claim ID列表',
-    payer VARCHAR(128) COMMENT '支付者地址',
+    signer VARCHAR(128) COMMENT '交易发起者地址（第一个签名者）',
     archived_at BIGINT COMMENT '归档时间戳',
     
     INDEX idx_tx_data_id (tx_data_id),
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS transaction_archives (
     INDEX idx_block_tx (block_number, tx_number),
     INDEX idx_timestamp_tx (block_unix_timestamp, tx_number),
     INDEX idx_archived_at (archived_at),
-    INDEX idx_payer (payer)
+    INDEX idx_signer (signer)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交易归档表';
 
 -- 创建交易详细数据归档表（存储大字段）
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS transaction_data_archives (
 --     tx_number BIGINT NOT NULL,
 --     block_unix_timestamp BIGINT,
 --     claim_ids JSONB,
---     payer VARCHAR(128),
+--     signer VARCHAR(128),
 --     archived_at BIGINT
 -- );
 -- 
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS transaction_data_archives (
 -- CREATE INDEX idx_block_tx ON transaction_archives(block_number, tx_number);
 -- CREATE INDEX idx_timestamp_tx ON transaction_archives(block_unix_timestamp, tx_number);
 -- CREATE INDEX idx_archived_at ON transaction_archives(archived_at);
--- CREATE INDEX idx_payer ON transaction_archives(payer);
+-- CREATE INDEX idx_signer ON transaction_archives(signer);
 -- 
 -- -- PostgreSQL: 创建交易详细数据归档表
 -- CREATE TABLE IF NOT EXISTS transaction_data_archives (
@@ -118,12 +118,12 @@ CREATE TABLE IF NOT EXISTS transaction_data_archives (
 -- INSERT INTO transaction_archives (
 --     tx_data_id, block_number, block_timestamp, hash, code,
 --     gas_wanted, gas_used, gas_fee, codespace, events, tx_type,
---     signatures, memo, tx_number, block_unix_timestamp, claim_ids, payer, archived_at
+--     signatures, memo, tx_number, block_unix_timestamp, claim_ids, signer, archived_at
 -- )
 -- SELECT 
 --     tx_data_id, block_number, block_timestamp, hash, code,
 --     gas_wanted, gas_used, gas_fee, codespace, events, tx_type,
---     signatures, memo, tx_number, block_unix_timestamp, claim_ids, payer,
+--     signatures, memo, tx_number, block_unix_timestamp, claim_ids, signer,
 --     UNIX_TIMESTAMP(NOW()) as archived_at
 -- FROM transactions
 -- WHERE created_at < DATE_SUB(NOW(), INTERVAL 6 MONTH)

@@ -241,5 +241,6 @@ message TransactionDTO {
   string error_log = 19 [ json_name = "error_log" ];
   string logs = 20;
   repeated int64 claim_ids = 21 [ json_name = "claim_ids" ];
-  string payer = 22;
+  string signer =
+      22; // Transaction initiator (first signer), may differ from fee payer
 }

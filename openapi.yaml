@@ -464,7 +464,7 @@ components:
                     type: array
                     items:
                         type: string
-                payer:
+                signer:
                     type: string
         api.explorer.v1.TransactionUpdate:
             type: object

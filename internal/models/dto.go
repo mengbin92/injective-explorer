@@ -169,7 +169,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			ErrorLog:           tx.ErrorLog,
 			Logs:               logsStr,
 			ClaimIds:           tx.ClaimIds,
-			Payer:              tx.Payer,
+			Signer:             tx.Signer,
 		}
 	} else {
 		// For non-detail mode, also decompress Messages if present
@@ -181,7 +181,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			Hash:               tx.Hash,
 			ErrorLog:           tx.ErrorLog,
 			Messages:           messagesStr,
-			Payer:              tx.Payer,
+			Signer:             tx.Signer,
 		}
 	}
 }

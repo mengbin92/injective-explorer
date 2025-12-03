@@ -61,7 +61,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 			error_log TEXT,
 			logs TEXT,
 			claim_ids TEXT,
-			payer TEXT,
+			signer TEXT,
 			archived INTEGER DEFAULT 0,
 			data_storage_key TEXT,
 			messages_storage_key TEXT,
@@ -92,7 +92,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 			tx_number INTEGER,
 			block_unix_timestamp INTEGER,
 			claim_ids TEXT,
-			payer TEXT,
+			signer TEXT,
 			archived_at INTEGER
 		)
 	`).Error

@@ -45,8 +45,8 @@ type TransactionArchive struct {
 	BlockUnixTimestamp uint64 `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp;index:idx_timestamp_tx"`
 	// ClaimIds is a list of claim IDs associated with this transaction (stored as JSON)
 	ClaimIds []int64 `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`
-	// Payer is the payer address
-	Payer string `json:"payer" gorm:"type:varchar(128);column:payer"`
+	// Signer is the transaction initiator address (first signer)
+	Signer string `json:"signer" gorm:"type:varchar(128);column:signer"`
 	// ArchivedAt is the timestamp when this transaction was archived
 	ArchivedAt int64 `json:"archived_at" gorm:"column:archived_at;index"`
 }

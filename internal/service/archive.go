@@ -220,7 +220,7 @@ func (s *ArchiveService) archiveBatch(ctx context.Context, transactions []models
 			TxNumber:           txn.TxNumber,
 			BlockUnixTimestamp: txn.BlockUnixTimestamp,
 			ClaimIds:           txn.ClaimIds,
-			Payer:              txn.Payer,
+			Signer:             txn.Signer,
 			ArchivedAt:         archivedAt,
 		}
 
@@ -320,7 +320,7 @@ func (s *ArchiveService) GetArchivedTransaction(ctx context.Context, hash string
 		ErrorLog:           archiveData.ErrorLog,
 		Logs:               archiveData.Logs,
 		ClaimIds:           archive.ClaimIds,
-		Payer:              archive.Payer,
+		Signer:             archive.Signer,
 		Archived:           true,
 	}
 
@@ -416,7 +416,7 @@ func (s *ArchiveService) GetArchivedTransactions(ctx context.Context, limit, off
 			ErrorLog:           archiveData.ErrorLog,
 			Logs:               archiveData.Logs,
 			ClaimIds:           archive.ClaimIds,
-			Payer:              archive.Payer,
+			Signer:             archive.Signer,
 			Archived:           true,
 		}
 		transactions = append(transactions, txn)

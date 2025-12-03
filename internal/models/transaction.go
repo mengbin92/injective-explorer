@@ -24,31 +24,31 @@ type Transaction struct {
 
 	Id string `json:"id" gorm:"column:tx_data_id"` // Id is the transaction data ID
 
-	BlockNumber        uint64   `json:"block_number" gorm:"column:block_number;index:idx_block_tx"`                     // BlockNumber is the block number containing this transaction (indexed for pagination)
-	BlockTimestamp     string   `json:"block_timestamp" gorm:"column:block_timestamp"`                                  // BlockTimestamp is the timestamp of the block containing this transaction
-	Hash               string   `json:"hash" gorm:"column:hash;index"`                                                  // Hash is the transaction hash (indexed for faster lookups)
-	Code               uint32   `json:"code" gorm:"column:code"`                                                        // Code is the transaction execution code (0 = success, non-zero = error)
-	Data               string   `json:"data" gorm:"column:data"`                                                        // Data contains the transaction data (stored as string, originally []byte)
-	Info               string   `json:"info" gorm:"column:info"`                                                        // Info contains additional transaction information
-	GasWanted          int64    `json:"gas_wanted" gorm:"column:gas_wanted"`                                            // GasWanted is the maximum gas requested for the transaction
-	GasUsed            int64    `json:"gas_used" gorm:"column:gas_used"`                                                // GasUsed is the actual gas used by the transaction
-	GasFee             string   `json:"gas_fee" gorm:"column:gas_fee"`                                                  // GasFee is the gas fee paid for the transaction
-	Codespace          string   `json:"codespace" gorm:"column:codespace"`                                              // Codespace is the error codespace if the transaction failed
-	Events             []string `json:"events" gorm:"column:events;serializer:json"`                                    // Events is a list of events emitted by the transaction (stored as JSON)
-	TxType             string   `json:"tx_type" gorm:"column:tx_type"`                                                  // TxType is the type of the transaction
-	Messages           string   `json:"messages" gorm:"column:messages"`                                                // Messages contains the transaction messages (stored as string, originally []byte)
-	Signatures         []string `json:"signatures" gorm:"column:signatures;serializer:json"`                            // Signatures is a list of transaction signatures (stored as JSON)
-	Memo               string   `json:"memo" gorm:"column:memo"`                                                        // Memo is the memo field of the transaction
-	TxNumber           uint64   `json:"tx_number" gorm:"column:tx_number;index:idx_tx_number;index:idx_block_tx"`       // TxNumber is the transaction number (indexed for pagination)
-	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp;index:idx_timestamp_tx"` // BlockUnixTimestamp is the Unix timestamp of the block containing this transaction (indexed for sorting)
-	ErrorLog           string   `json:"error_log" gorm:"column:error_log"`                                              // ErrorLog contains error information if the transaction failed
-	Logs               string   `json:"logs" gorm:"column:logs"`                                                        // Logs contains execution logs (stored as string, originally []byte)
-	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                              // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
-	Payer              string   `json:"payer" gorm:"type:varchar(128);column:payer"`
-	Archived           bool     `json:"archived" gorm:"column:archived;default:0;index"`               // Archived indicates whether this transaction has been archived
-	DataStorageKey     string   `json:"data_storage_key" gorm:"column:data_storage_key;index"`         // DataStorageKey is the object storage key for Data field
-	MessagesStorageKey string   `json:"messages_storage_key" gorm:"column:messages_storage_key;index"` // MessagesStorageKey is the object storage key for Messages field
-	LogsStorageKey     string   `json:"logs_storage_key" gorm:"column:logs_storage_key;index"`         // LogsStorageKey is the object storage key for Logs field
+	BlockNumber        uint64   `json:"block_number" gorm:"column:block_number;index:idx_block_tx"`                                // BlockNumber is the block number containing this transaction (indexed for pagination)
+	BlockTimestamp     string   `json:"block_timestamp" gorm:"column:block_timestamp"`                                             // BlockTimestamp is the timestamp of the block containing this transaction
+	Hash               string   `json:"hash" gorm:"column:hash;index"`                                                             // Hash is the transaction hash (indexed for faster lookups)
+	Code               uint32   `json:"code" gorm:"column:code"`                                                                   // Code is the transaction execution code (0 = success, non-zero = error)
+	Data               string   `json:"data" gorm:"column:data"`                                                                   // Data contains the transaction data (stored as string, originally []byte)
+	Info               string   `json:"info" gorm:"column:info"`                                                                   // Info contains additional transaction information
+	GasWanted          int64    `json:"gas_wanted" gorm:"column:gas_wanted"`                                                       // GasWanted is the maximum gas requested for the transaction
+	GasUsed            int64    `json:"gas_used" gorm:"column:gas_used"`                                                           // GasUsed is the actual gas used by the transaction
+	GasFee             string   `json:"gas_fee" gorm:"column:gas_fee"`                                                             // GasFee is the gas fee paid for the transaction
+	Codespace          string   `json:"codespace" gorm:"column:codespace"`                                                         // Codespace is the error codespace if the transaction failed
+	Events             []string `json:"events" gorm:"column:events;serializer:json"`                                               // Events is a list of events emitted by the transaction (stored as JSON)
+	TxType             string   `json:"tx_type" gorm:"column:tx_type"`                                                             // TxType is the type of the transaction
+	Messages           string   `json:"messages" gorm:"column:messages"`                                                           // Messages contains the transaction messages (stored as string, originally []byte)
+	Signatures         []string `json:"signatures" gorm:"column:signatures;serializer:json"`                                       // Signatures is a list of transaction signatures (stored as JSON)
+	Memo               string   `json:"memo" gorm:"column:memo"`                                                                   // Memo is the memo field of the transaction
+	TxNumber           uint64   `json:"tx_number" gorm:"column:tx_number;index:idx_tx_number;index:idx_block_tx"`                  // TxNumber is the transaction number (indexed for pagination)
+	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp;index:idx_timestamp_tx"`            // BlockUnixTimestamp is the Unix timestamp of the block containing this transaction (indexed for sorting)
+	ErrorLog           string   `json:"error_log" gorm:"column:error_log"`                                                         // ErrorLog contains error information if the transaction failed
+	Logs               string   `json:"logs" gorm:"column:logs"`                                                                   // Logs contains execution logs (stored as string, originally []byte)
+	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                                         // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
+	Signer             string   `json:"signer" gorm:"type:varchar(128);column:signer;index:idx_signer;index:idx_signer_timestamp"` // Signer is the transaction initiator address (first signer, indexed for account transaction queries)
+	Archived           bool     `json:"archived" gorm:"column:archived;default:0;index"`                                           // Archived indicates whether this transaction has been archived
+	DataStorageKey     string   `json:"data_storage_key" gorm:"column:data_storage_key;index"`                                     // DataStorageKey is the object storage key for Data field
+	MessagesStorageKey string   `json:"messages_storage_key" gorm:"column:messages_storage_key;index"`                             // MessagesStorageKey is the object storage key for Messages field
+	LogsStorageKey     string   `json:"logs_storage_key" gorm:"column:logs_storage_key;index"`                                     // LogsStorageKey is the object storage key for Logs field
 }
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.
@@ -64,6 +64,9 @@ type Transaction struct {
 //   - Compresses Data, Messages, and Logs fields if they exceed 1KB
 //   - Uploads to object storage if enabled and data exceeds 10KB
 //   - Sets storage keys and clears database fields after successful upload
+//   - Extracts signer (transaction initiator) from the first signature's address (Signatures[0].Address)
+//     Falls back to GasFee.Payer if no signature address is available
+//     Note: The signer may not be the same as the fee payer in Injective
 func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transaction {
 	if detail == nil {
 		return nil
@@ -87,7 +90,7 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 
 	// Store GasFee as JSON string for reversible conversion
 	gasFee := ""
-	payer := ""
+	signer := ""
 	if detail.GasFee != nil {
 		// Use shared utility function to eliminate code duplication
 		encoded, err := MarshalProtoToJSON(detail.GasFee)
@@ -98,7 +101,21 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 			// In production, you might want to log this error
 			gasFee = ""
 		}
-		payer = detail.GasFee.Payer
+	}
+
+	// Extract signer (transaction initiator) from the first signature in Signatures
+	// In Injective, the transaction initiator is the first signer
+	// Note: The signer may not be the same as the fee payer
+	if len(detail.Signatures) > 0 && detail.Signatures[0] != nil {
+		if detail.Signatures[0].Address != "" {
+			signer = detail.Signatures[0].Address
+		}
+	}
+
+	// Fallback to GasFee.Payer if no signature address found
+	// This is a compatibility fallback, though GasFee.Payer may be different from the signer
+	if signer == "" && detail.GasFee != nil {
+		signer = detail.GasFee.Payer
 	}
 
 	// Compress binary data directly, then encode to base64 for safe storage
@@ -151,7 +168,7 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		ErrorLog:           detail.ErrorLog,
 		Logs:               logsStr,
 		ClaimIds:           detail.ClaimIds,
-		Payer:              payer,
+		Signer:             signer,
 	}
 
 	// Upload to object storage if enabled and data is large enough
