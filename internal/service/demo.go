@@ -710,7 +710,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	var dbTxs []models.Transaction
 
 	// Build base query with address filter
-	// Use composite index idx_signer_timestamp for better performance
+	// Use composite index idx_signer_timestamp for optimal performance
 	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
 		Where("signer = ?", address)
 
@@ -1410,145 +1410,105 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 	blockChan := eventBus.SubscribeBlocks()
 	defer eventBus.UnsubscribeBlocks(blockChan)
 
-	// Send initial/historical blocks
-	// If from_height is specified, send blocks from that height
-	// Otherwise, send the latest blocks (e.g., last 10 blocks)
-	var dbBlocks []models.Block
-	var err error
+	// Send initial blocks from cache (similar to GetLatestBlocks)
+	// Create independent context for cache queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
 
-	if req.GetFromHeight() > 0 {
-		// Query blocks from database starting from from_height
-		global.Logger.Debugf("querying blocks from height %d", req.GetFromHeight())
-		err = db.Get().WithContext(stream.Context()).
-			Where("height >= ?", req.GetFromHeight()).
-			Order("height ASC").
-			Limit(100). // Limit to avoid sending too much data
-			Find(&dbBlocks).Error
-	} else {
-		// If no from_height specified, send the latest blocks to show something immediately
-		global.Logger.Debugf("querying latest blocks from database")
-		err = db.Get().WithContext(stream.Context()).
-			Order("height DESC").
-			Limit(10). // Send last 10 blocks as initial data
-			Find(&dbBlocks).Error
-		// Reverse the order to send from oldest to newest
-		for i, j := 0, len(dbBlocks)-1; i < j; i, j = i+1, j-1 {
-			dbBlocks[i], dbBlocks[j] = dbBlocks[j], dbBlocks[i]
-		}
-	}
-
-	// Log query result for debugging
-	if err != nil {
-		global.Logger.Warnf("database query error in StreamLatestBlocks: %v", err)
-		// For grpc-web compatibility, we should return error if query fails
-		// instead of continuing with empty stream
-		return status.Errorf(codes.Internal, "failed to query blocks: %v", err)
-	} else {
-		global.Logger.Infof("database query successful: found %d blocks", len(dbBlocks))
-	}
-
-	// Check if database has any blocks at all (for debugging)
-	if len(dbBlocks) == 0 {
-		var totalCount int64
-		countErr := db.Get().WithContext(stream.Context()).Model(&models.Block{}).Count(&totalCount).Error
-		if countErr != nil {
-			global.Logger.Warnf("failed to count total blocks: %v", countErr)
-		} else {
-			global.Logger.Infof("no blocks found in query, total blocks in database: %d", totalCount)
-		}
-	}
-
-	// Send initial blocks if available
-	// For grpc-web compatibility, we MUST send at least one message to establish the stream
-	// If no blocks match the query, we'll query for the latest block anyway to establish the stream
+	// Get latest blocks from cache (same as GetLatestBlocks)
+	cachedBlocks, err := getBlocksFromCache(queryCtx, 10) // Get last 10 blocks
 	sentCount := 0
-	if len(dbBlocks) > 0 {
-		for _, block := range dbBlocks {
-			blockDTO := models.ToBlockDTO(&block, models.DTOModeWithoutDetail)
+	hasSentInitialBlocks := false
 
-			update := &pb.BlockUpdate{
-				Block:      blockDTO,
-				UpdateType: "new",
-				Timestamp:  time.Now().Unix(),
-			}
+	if err != nil {
+		// Log cache error but continue (graceful degradation)
+		global.Logger.Warnf("failed to get blocks from cache, will wait for events: %v", err)
+	} else if len(cachedBlocks) > 0 {
+		global.Logger.Infof("blocks found in cache: count=%d", len(cachedBlocks))
 
-			if err := stream.Send(update); err != nil {
-				global.Logger.Errorf("failed to send block update (height=%d) to stream: %v", block.Height, err)
-				return status.Errorf(codes.Internal, "failed to send block update: %v", err)
-			}
-			sentCount++
-		}
-		global.Logger.Infof("sent %d/%d initial blocks to stream", sentCount, len(dbBlocks))
-	} else {
-		// No blocks found matching the query, but we need to send at least one message for grpc-web
-		// Query for the latest block to establish the stream
-		global.Logger.Infof("no blocks found matching query, querying latest block to establish stream...")
-		var latestBlock models.Block
-		latestErr := db.Get().WithContext(stream.Context()).
-			Order("height DESC").
-			Limit(1).
-			First(&latestBlock).Error
-
-		if latestErr == nil {
-			// Send the latest block to establish the stream
-			blockDTO := models.ToBlockDTO(&latestBlock, models.DTOModeWithoutDetail)
-			update := &pb.BlockUpdate{
-				Block:      blockDTO,
-				UpdateType: "new",
-				Timestamp:  time.Now().Unix(),
-			}
-
-			if err := stream.Send(update); err != nil {
-				global.Logger.Errorf("failed to send latest block (height=%d) to establish stream: %v", latestBlock.Height, err)
-				return status.Errorf(codes.Internal, "failed to send block update: %v", err)
-			}
-			global.Logger.Infof("sent latest block (height=%d) to establish stream", latestBlock.Height)
-			sentCount = 1
-		} else {
-			// No blocks found or database error, wait for first block event to establish stream
-			if latestErr == gorm.ErrRecordNotFound {
-				global.Logger.Infof("no blocks in database, waiting for first block event to establish stream...")
-			} else {
-				global.Logger.Warnf("failed to query latest block, will wait for block events: %v", latestErr)
-			}
-			firstBlockTimeout := time.NewTimer(10 * time.Second)
-			defer firstBlockTimeout.Stop()
-
-			select {
-			case <-stream.Context().Done():
-				global.Logger.Infof("stream context cancelled while waiting for first block")
-				return stream.Context().Err()
-			case <-firstBlockTimeout.C:
-				// If timeout and still no block, return error for grpc-web compatibility
-				global.Logger.Warnf("timeout waiting for first block, no blocks available")
-				return status.Errorf(codes.NotFound, "no blocks available and timeout waiting for first block")
-			case blockEvent, ok := <-blockChan:
-				if !ok {
-					global.Logger.Errorf("StreamLatestBlocks: block channel was closed while waiting for first block")
-					return status.Errorf(codes.Internal, "block event channel was closed")
+		// Filter by from_height if specified
+		filteredBlocks := cachedBlocks
+		if req.GetFromHeight() > 0 {
+			filteredBlocks = make([]models.Block, 0, len(cachedBlocks))
+			for _, block := range cachedBlocks {
+				if block.Height >= uint64(req.GetFromHeight()) {
+					filteredBlocks = append(filteredBlocks, block)
 				}
-				if blockEvent != nil {
-					// Filter by from_height if specified
-					if req.GetFromHeight() == 0 || blockEvent.Block.Height >= uint64(req.GetFromHeight()) {
-						blockDTO := models.ToBlockDTO(blockEvent.Block, models.DTOModeWithoutDetail)
-						updateType := "new"
-						if blockEvent.Type == EventTypeBlockUpdate {
-							updateType = "update"
-						}
+			}
+		}
 
-						update := &pb.BlockUpdate{
-							Block:      blockDTO,
-							UpdateType: updateType,
-							Timestamp:  time.Now().Unix(),
-						}
+		// Reverse the order to send from oldest to newest
+		for i, j := 0, len(filteredBlocks)-1; i < j; i, j = i+1, j-1 {
+			filteredBlocks[i], filteredBlocks[j] = filteredBlocks[j], filteredBlocks[i]
+		}
 
-						if err := stream.Send(update); err != nil {
-							global.Logger.Errorf("failed to send first block update: %v", err)
-							return status.Errorf(codes.Internal, "failed to send block update: %v", err)
-						}
-						global.Logger.Infof("sent first block update (height=%d) to establish stream", blockEvent.Block.Height)
-						sentCount = 1
+		// Send initial blocks from cache
+		if len(filteredBlocks) > 0 {
+			for _, block := range filteredBlocks {
+				blockDTO := models.ToBlockDTO(&block, models.DTOModeWithoutDetail)
+
+				update := &pb.BlockUpdate{
+					Block:      blockDTO,
+					UpdateType: "new",
+					Timestamp:  time.Now().Unix(),
+				}
+
+				if err := stream.Send(update); err != nil {
+					global.Logger.Errorf("failed to send block update (height=%d) to stream: %v", block.Height, err)
+					return status.Errorf(codes.Internal, "failed to send block update: %v", err)
+				}
+				sentCount++
+			}
+			global.Logger.Infof("sent %d/%d initial blocks from cache to stream", sentCount, len(cachedBlocks))
+			hasSentInitialBlocks = true
+		} else if req.GetFromHeight() > 0 {
+			// No blocks in cache matching from_height, will wait for events
+			global.Logger.Infof("no blocks in cache matching from_height=%d, will wait for block events", req.GetFromHeight())
+		}
+	} else {
+		global.Logger.Infof("no blocks found in cache, will wait for first block event")
+	}
+
+	// For grpc-web compatibility, we MUST send at least one message to establish the stream
+	// If no blocks were sent from cache, wait for first block event
+	if !hasSentInitialBlocks {
+		firstBlockTimeout := time.NewTimer(10 * time.Second)
+		defer firstBlockTimeout.Stop()
+
+		select {
+		case <-stream.Context().Done():
+			global.Logger.Infof("stream context cancelled while waiting for first block")
+			return stream.Context().Err()
+		case <-firstBlockTimeout.C:
+			// If timeout and still no block, return error for grpc-web compatibility
+			global.Logger.Warnf("timeout waiting for first block, no blocks available")
+			return status.Errorf(codes.NotFound, "no blocks available and timeout waiting for first block")
+		case blockEvent, ok := <-blockChan:
+			if !ok {
+				global.Logger.Errorf("StreamLatestBlocks: block channel was closed while waiting for first block")
+				return status.Errorf(codes.Internal, "block event channel was closed")
+			}
+			if blockEvent != nil && blockEvent.Block != nil {
+				// Filter by from_height if specified
+				if req.GetFromHeight() == 0 || blockEvent.Block.Height >= uint64(req.GetFromHeight()) {
+					blockDTO := models.ToBlockDTO(blockEvent.Block, models.DTOModeWithoutDetail)
+					updateType := "new"
+					if blockEvent.Type == EventTypeBlockUpdate {
+						updateType = "update"
 					}
+
+					update := &pb.BlockUpdate{
+						Block:      blockDTO,
+						UpdateType: updateType,
+						Timestamp:  time.Now().Unix(),
+					}
+
+					if err := stream.Send(update); err != nil {
+						global.Logger.Errorf("failed to send first block update: %v", err)
+						return status.Errorf(codes.Internal, "failed to send block update: %v", err)
+					}
+					global.Logger.Infof("sent first block update (height=%d) to establish stream", blockEvent.Block.Height)
+					sentCount = 1
 				}
 			}
 		}
@@ -1622,35 +1582,45 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 	txChan := eventBus.SubscribeTransactions()
 	defer eventBus.UnsubscribeTransactions(txChan)
 
-	// Send initial/historical transactions
-	// Always send the latest transactions to show something immediately
-	var dbTxs []models.Transaction
-	query := db.Get().WithContext(stream.Context()).
-		Order("created_at DESC").
-		Limit(20) // Send last 20 transactions as initial data
+	// Send initial transactions from cache (similar to GetLatestTransactions)
+	// Create independent context for cache queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
 
-	// Apply type filter if specified
-	if len(req.GetTypes()) > 0 {
-		// Build OR condition for transaction types
-		conditions := make([]string, 0, len(req.GetTypes()))
-		args := make([]interface{}, 0, len(req.GetTypes()))
-		for _, txType := range req.GetTypes() {
-			conditions = append(conditions, "tx_type LIKE ?")
-			args = append(args, "%"+strings.ToLower(txType)+"%")
-		}
-		if len(conditions) > 0 {
-			query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
-		}
-	}
+	// Get latest transactions from cache (same as GetLatestTransactions)
+	cachedTxs, err := getTransactionsFromCache(queryCtx, 20) // Get last 20 transactions
+	if err != nil {
+		// Log cache error but continue (graceful degradation)
+		global.Logger.Warnf("failed to get transactions from cache, will wait for events: %v", err)
+	} else if len(cachedTxs) > 0 {
+		global.Logger.Infof("transactions found in cache: count=%d", len(cachedTxs))
 
-	err := query.Find(&dbTxs).Error
-	if err == nil && len(dbTxs) > 0 {
+		// Apply type filter if specified
+		filteredTxs := cachedTxs
+		if len(req.GetTypes()) > 0 {
+			filteredTxs = make([]models.Transaction, 0, len(cachedTxs))
+			for _, tx := range cachedTxs {
+				matched := false
+				for _, filterType := range req.GetTypes() {
+					if strings.Contains(strings.ToLower(tx.TxType), strings.ToLower(filterType)) {
+						matched = true
+						break
+					}
+				}
+				if matched {
+					filteredTxs = append(filteredTxs, tx)
+				}
+			}
+		}
+
 		// Reverse the order to send from oldest to newest
-		for i, j := 0, len(dbTxs)-1; i < j; i, j = i+1, j-1 {
-			dbTxs[i], dbTxs[j] = dbTxs[j], dbTxs[i]
+		for i, j := 0, len(filteredTxs)-1; i < j; i, j = i+1, j-1 {
+			filteredTxs[i], filteredTxs[j] = filteredTxs[j], filteredTxs[i]
 		}
 
-		for _, tx := range dbTxs {
+		// Send initial transactions from cache
+		sentCount := 0
+		for _, tx := range filteredTxs {
 			txDTO := models.ToTransactionDTO(&tx, models.DTOModeWithDetail)
 
 			update := &pb.TransactionUpdate{
@@ -1660,10 +1630,76 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 			}
 
 			if err := stream.Send(update); err != nil {
+				global.Logger.Errorf("failed to send transaction update: %v", err)
 				return status.Errorf(codes.Internal, "failed to send transaction update: %v", err)
 			}
+			sentCount++
 		}
-		global.Logger.Infof("sent %d initial transactions to stream", len(dbTxs))
+		global.Logger.Infof("sent %d/%d initial transactions from cache to stream", sentCount, len(cachedTxs))
+	} else {
+		global.Logger.Infof("no transactions found in cache, will wait for first transaction event")
+		// For grpc-web compatibility, we need to send at least one message to establish the stream
+		// Wait for first transaction event with timeout
+		firstTxTimeout := time.NewTimer(10 * time.Second)
+		defer firstTxTimeout.Stop()
+
+		// Use a loop to handle type filtering (since we can't use continue in select)
+		waitingForFirstTx := true
+		for waitingForFirstTx {
+			select {
+			case <-stream.Context().Done():
+				global.Logger.Infof("stream context cancelled while waiting for first transaction")
+				return stream.Context().Err()
+			case <-firstTxTimeout.C:
+				// If timeout and still no transaction, return error for grpc-web compatibility
+				global.Logger.Warnf("timeout waiting for first transaction, no transactions available")
+				return status.Errorf(codes.NotFound, "no transactions available and timeout waiting for first transaction")
+			case txEvent, ok := <-txChan:
+				if !ok {
+					global.Logger.Errorf("StreamLatestTransactions: transaction channel was closed while waiting for first transaction")
+					return status.Errorf(codes.Internal, "transaction event channel was closed")
+				}
+				if txEvent != nil && txEvent.Transaction != nil {
+					// Apply type filter if specified
+					matched := true
+					if len(req.GetTypes()) > 0 {
+						txType := txEvent.Transaction.TxType
+						matched = false
+						for _, filterType := range req.GetTypes() {
+							if strings.Contains(strings.ToLower(txType), strings.ToLower(filterType)) {
+								matched = true
+								break
+							}
+						}
+						if !matched {
+							// Type doesn't match, continue waiting
+							global.Logger.Debugf("first transaction type doesn't match filter, continuing to wait")
+							continue
+						}
+					}
+
+					// Type matches or no filter, send the transaction
+					txDTO := models.ToTransactionDTO(txEvent.Transaction, models.DTOModeWithDetail)
+					updateType := "new"
+					if txEvent.Type == EventTypeTransactionUpdate {
+						updateType = "update"
+					}
+
+					update := &pb.TransactionUpdate{
+						Transaction: txDTO,
+						UpdateType:  updateType,
+						Timestamp:   time.Now().Unix(),
+					}
+
+					if err := stream.Send(update); err != nil {
+						global.Logger.Errorf("failed to send first transaction update: %v", err)
+						return status.Errorf(codes.Internal, "failed to send transaction update: %v", err)
+					}
+					global.Logger.Infof("sent first transaction update (hash=%s) to establish stream", txEvent.Transaction.Hash)
+					waitingForFirstTx = false
+				}
+			}
+		}
 	}
 
 	// Stream new transactions from event bus

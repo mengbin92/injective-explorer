@@ -42,7 +42,7 @@
 --     error_log TEXT,
 --     logs TEXT,
 --     claim_ids JSON,
---     payer VARCHAR(128),
+--     signer VARCHAR(128),
 --     archived TINYINT(1) DEFAULT 0,
 --     
 --     PRIMARY KEY (id, block_number),
@@ -98,7 +98,7 @@
 --     error_log TEXT,
 --     logs TEXT,
 --     claim_ids JSON,
---     payer VARCHAR(128),
+--     signer VARCHAR(128),
 --     archived TINYINT(1) DEFAULT 0,
 --     
 --     PRIMARY KEY (id, created_at),
@@ -156,7 +156,7 @@
 --     error_log TEXT,
 --     logs TEXT,
 --     claim_ids JSONB,
---     payer VARCHAR(128),
+--     signer VARCHAR(128),
 --     archived BOOLEAN DEFAULT FALSE,
 --     
 --     PRIMARY KEY (id, block_number)
@@ -225,7 +225,7 @@
 --     error_log TEXT,
 --     logs TEXT,
 --     claim_ids JSONB,
---     payer VARCHAR(128),
+--     signer VARCHAR(128),
 --     archived BOOLEAN DEFAULT FALSE,
 --     
 --     PRIMARY KEY (id, created_at)
