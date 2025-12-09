@@ -111,6 +111,7 @@ type Server struct {
 	Http          *Server_HTTP           `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
 	Grpc          *Server_GRPC           `protobuf:"bytes,2,opt,name=grpc,proto3" json:"grpc,omitempty"`
 	EnableSwagger bool                   `protobuf:"varint,3,opt,name=enable_swagger,json=enableSwagger,proto3" json:"enable_swagger,omitempty"`
+	EnableCors    bool                   `protobuf:"varint,4,opt,name=enable_cors,json=enableCors,proto3" json:"enable_cors,omitempty"` // Whether to enable CORS handling in code (default
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -162,6 +163,13 @@ func (x *Server) GetGrpc() *Server_GRPC {
 func (x *Server) GetEnableSwagger() bool {
 	if x != nil {
 		return x.EnableSwagger
+	}
+	return false
+}
+
+func (x *Server) GetEnableCors() bool {
+	if x != nil {
+		return x.EnableCors
 	}
 	return false
 }
@@ -288,10 +296,11 @@ func (x *Node) GetChainId() string {
 
 type Log struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// 日志级别设置
-	// 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
+	// Log level setting
+	// Supports debug(-1), info(0), warn(1), error(2), dpanic(3), panic(4),
+	// fatal(5)
 	Level int32 `protobuf:"varint,1,opt,name=level,proto3" json:"level,omitempty"`
-	// 日志输出格式，支持json or console
+	// Log output format, supports json or console
 	Format        string `protobuf:"bytes,2,opt,name=format,proto3" json:"format,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -816,14 +825,14 @@ func (x *Data_Redis) GetWriteTimeout() *durationpb.Duration {
 type Data_ObjectStorage struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Provider        string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`                                        // "s3", "oss", "cos", "minio"
-	Endpoint        string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`                                        // 对象存储端点
-	AccessKeyId     string                 `protobuf:"bytes,3,opt,name=access_key_id,json=accessKeyId,proto3" json:"access_key_id,omitempty"`             // 访问密钥ID
-	SecretAccessKey string                 `protobuf:"bytes,4,opt,name=secret_access_key,json=secretAccessKey,proto3" json:"secret_access_key,omitempty"` // 访问密钥
-	BucketName      string                 `protobuf:"bytes,5,opt,name=bucket_name,json=bucketName,proto3" json:"bucket_name,omitempty"`                  // 存储桶名称
-	Region          string                 `protobuf:"bytes,6,opt,name=region,proto3" json:"region,omitempty"`                                            // 区域（S3/OSS需要）
-	UseSsl          bool                   `protobuf:"varint,7,opt,name=use_ssl,json=useSsl,proto3" json:"use_ssl,omitempty"`                             // 是否使用SSL
-	PathPrefix      string                 `protobuf:"bytes,8,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`                  // 路径前缀，如 "transactions/"
-	Enabled         bool                   `protobuf:"varint,9,opt,name=enabled,proto3" json:"enabled,omitempty"`                                         // 是否启用对象存储（默认false，向后兼容）
+	Endpoint        string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`                                        // Object storage endpoint
+	AccessKeyId     string                 `protobuf:"bytes,3,opt,name=access_key_id,json=accessKeyId,proto3" json:"access_key_id,omitempty"`             // Access key ID
+	SecretAccessKey string                 `protobuf:"bytes,4,opt,name=secret_access_key,json=secretAccessKey,proto3" json:"secret_access_key,omitempty"` // Secret access key
+	BucketName      string                 `protobuf:"bytes,5,opt,name=bucket_name,json=bucketName,proto3" json:"bucket_name,omitempty"`                  // Bucket name
+	Region          string                 `protobuf:"bytes,6,opt,name=region,proto3" json:"region,omitempty"`                                            // Region (required for S3/OSS)
+	UseSsl          bool                   `protobuf:"varint,7,opt,name=use_ssl,json=useSsl,proto3" json:"use_ssl,omitempty"`                             // Whether to use SSL
+	PathPrefix      string                 `protobuf:"bytes,8,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`                  // Path prefix, e.g., "transactions/"
+	Enabled         bool                   `protobuf:"varint,9,opt,name=enabled,proto3" json:"enabled,omitempty"`                                         // Whether to enable object storage (default false, for
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -923,7 +932,7 @@ func (x *Data_ObjectStorage) GetEnabled() bool {
 
 type Sync_Redis struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	QueueKey      string                 `protobuf:"bytes,1,opt,name=queue_key,json=queueKey,proto3" json:"queue_key,omitempty"` // Redis 队列键名
+	QueueKey      string                 `protobuf:"bytes,1,opt,name=queue_key,json=queueKey,proto3" json:"queue_key,omitempty"` // Redis queue key name
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -973,7 +982,7 @@ type Sync_Intervals struct {
 	HistoricalBatchDelay *durationpb.Duration   `protobuf:"bytes,4,opt,name=historical_batch_delay,json=historicalBatchDelay,proto3" json:"historical_batch_delay,omitempty"`
 	BackwardSyncLog      *durationpb.Duration   `protobuf:"bytes,5,opt,name=backward_sync_log,json=backwardSyncLog,proto3" json:"backward_sync_log,omitempty"`
 	RpcStatusRetry       *durationpb.Duration   `protobuf:"bytes,6,opt,name=rpc_status_retry,json=rpcStatusRetry,proto3" json:"rpc_status_retry,omitempty"`
-	ValidatorSync        *durationpb.Duration   `protobuf:"bytes,7,opt,name=validator_sync,json=validatorSync,proto3" json:"validator_sync,omitempty"` // Validator 同步间隔
+	ValidatorSync        *durationpb.Duration   `protobuf:"bytes,7,opt,name=validator_sync,json=validatorSync,proto3" json:"validator_sync,omitempty"` // Validator sync interval
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1337,11 +1346,13 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x04node\x18\x03 \x01(\v2\x10.kratos.api.NodeR\x04node\x12!\n" +
 	"\x03log\x18\x04 \x01(\v2\x0f.kratos.api.LogR\x03log\x12'\n" +
 	"\x05chain\x18\x05 \x01(\v2\x11.kratos.api.ChainR\x05chain\x12$\n" +
-	"\x04sync\x18\x06 \x01(\v2\x10.kratos.api.SyncR\x04sync\"\xdf\x02\n" +
+	"\x04sync\x18\x06 \x01(\v2\x10.kratos.api.SyncR\x04sync\"\x80\x03\n" +
 	"\x06Server\x12+\n" +
 	"\x04http\x18\x01 \x01(\v2\x17.kratos.api.Server.HTTPR\x04http\x12+\n" +
 	"\x04grpc\x18\x02 \x01(\v2\x17.kratos.api.Server.GRPCR\x04grpc\x12%\n" +
-	"\x0eenable_swagger\x18\x03 \x01(\bR\renableSwagger\x1ai\n" +
+	"\x0eenable_swagger\x18\x03 \x01(\bR\renableSwagger\x12\x1f\n" +
+	"\venable_cors\x18\x04 \x01(\bR\n" +
+	"enableCors\x1ai\n" +
 	"\x04HTTP\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\x123\n" +

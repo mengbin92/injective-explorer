@@ -32,44 +32,44 @@ const (
 	GracefulShutdownTimeout = 30 * time.Second
 
 	// Redis cache constants
-	CacheMaxSize = 100 // 缓存最近100条记录
+	CacheMaxSize = 100 // Cache the most recent 100 records
 )
 
 // Redis cache key constants
 const (
-	CacheKeyBlockList         = "cache:block:list"         // 区块列表缓存键
-	CacheKeyTransactionList   = "cache:transaction:list"   // 交易列表缓存键
-	CacheKeyBlockPrefix       = "cache:block:"             // 区块缓存键前缀
-	CacheKeyTransactionPrefix = "cache:transaction:"       // 交易缓存键前缀
-	CacheKeyTotalBlocks       = "cache:total:blocks"       // 区块总数缓存键
-	CacheKeyTotalTransactions = "cache:total:transactions" // 交易总数缓存键
-	CacheTotalTTL             = 5 * time.Minute            // 总数缓存过期时间（5分钟）
-	CacheBlockTTL             = 5 * time.Minute             // 单个区块缓存过期时间（24小时）
-	CacheTransactionTTL       = 5 * time.Minute             // 单个交易缓存过期时间（24小时）
+	CacheKeyBlockList         = "cache:block:list"         // Block list cache key
+	CacheKeyTransactionList   = "cache:transaction:list"   // Transaction list cache key
+	CacheKeyBlockPrefix       = "cache:block:"             // Block cache key prefix
+	CacheKeyTransactionPrefix = "cache:transaction:"       // Transaction cache key prefix
+	CacheKeyTotalBlocks       = "cache:total:blocks"       // Total blocks cache key
+	CacheKeyTotalTransactions = "cache:total:transactions" // Total transactions cache key
+	CacheTotalTTL             = 5 * time.Minute            // Total count cache expiration time (5 minutes)
+	CacheBlockTTL             = 5 * time.Minute             // Single block cache expiration time (5 minutes)
+	CacheTransactionTTL       = 5 * time.Minute             // Single transaction cache expiration time (5 minutes)
 )
 
 // Default sync configuration values (used when config is not provided)
 const (
-	defaultTxHashQueueKey             = "tx:hash:queue"        // 交易哈希队列的 Redis 键名
-	defaultTxHashProcessingQueueKey   = "tx:hash:processing"   // 交易哈希处理队列的 Redis 键名
-	defaultBlockPollInterval          = 5 * time.Second        // 区块轮询间隔
-	defaultTxProcessInterval          = 500 * time.Millisecond // 交易处理间隔
-	defaultHistoricalSyncInterval     = 10 * time.Second       // 历史区块同步间隔
-	defaultHistoricalBatchDelay       = 1 * time.Second        // 历史区块同步批次之间的延迟
-	defaultBlockQueryTimeout          = 30 * time.Second       // 区块查询超时
-	defaultBackwardSyncLogInterval    = 10 * time.Second       // 向后同步进度日志时间间隔
-	defaultRpcStatusRetryDelay        = 5 * time.Second        // RPC 节点状态获取失败后的重试延迟
-	defaultValidatorSyncInterval      = 10 * time.Minute       // Staking info 同步间隔（默认10分钟，原用于 Validator 同步，现已移除 Validator 同步功能）
-	defaultConcurrentTxProcessors     = 5                      // 并发交易处理器数量
-	defaultBackwardSyncWorkers        = 5                      // 向后同步工作线程数
-	defaultHistoricalSyncWorkers      = 2                      // 历史同步工作线程数
-	defaultBackwardSyncBatchSize      = 10                     // 向后同步批次大小
-	defaultHistoricalSyncBatchSize    = 5                      // 历史同步批次大小
-	defaultMissingBlockCheckBatchSize = 100                    // 查找缺失区块的批次大小
-	defaultBackwardSyncLogBatchSize   = 100                    // 向后同步进度日志间隔（每 N 个区块）
-	defaultMaxRetryAttempts           = 3                      // 最大重试次数
-	defaultRetryDelay                 = 2 * time.Second        // 初始重试延迟
-	defaultEarliestBlockHeight        = uint64(1)              // 最早区块高度
+	defaultTxHashQueueKey             = "tx:hash:queue"        // Redis key name for transaction hash queue
+	defaultTxHashProcessingQueueKey   = "tx:hash:processing"   // Redis key name for transaction hash processing queue
+	defaultBlockPollInterval          = 5 * time.Second        // Block polling interval
+	defaultTxProcessInterval          = 500 * time.Millisecond // Transaction processing interval
+	defaultHistoricalSyncInterval     = 10 * time.Second       // Historical block sync interval
+	defaultHistoricalBatchDelay       = 1 * time.Second        // Delay between historical block sync batches
+	defaultBlockQueryTimeout          = 30 * time.Second       // Block query timeout
+	defaultBackwardSyncLogInterval    = 10 * time.Second       // Backward sync progress log interval
+	defaultRpcStatusRetryDelay        = 5 * time.Second        // Retry delay after RPC node status fetch failure
+	defaultValidatorSyncInterval      = 10 * time.Minute       // Staking info sync interval (default 10 minutes, originally used for Validator sync, now Validator sync is removed)
+	defaultConcurrentTxProcessors     = 5                      // Number of concurrent transaction processors
+	defaultBackwardSyncWorkers        = 5                      // Number of backward sync worker threads
+	defaultHistoricalSyncWorkers      = 2                      // Number of historical sync worker threads
+	defaultBackwardSyncBatchSize      = 10                     // Backward sync batch size
+	defaultHistoricalSyncBatchSize    = 5                      // Historical sync batch size
+	defaultMissingBlockCheckBatchSize = 100                    // Batch size for finding missing blocks
+	defaultBackwardSyncLogBatchSize   = 100                    // Backward sync progress log interval (every N blocks)
+	defaultMaxRetryAttempts           = 3                      // Maximum retry attempts
+	defaultRetryDelay                 = 2 * time.Second        // Initial retry delay
+	defaultEarliestBlockHeight        = uint64(1)              // Earliest block height
 )
 
 // SyncConfig holds the sync service configuration with default values.

@@ -6,6 +6,8 @@ server:
     addr: 0.0.0.0:${GRPC_PORT:9000}
     timeout: 30s
   enable_swagger: true
+  # 默认值，CORS由Nginx/Envoy处理，开发环境可设置为true，代码中处理CORS
+  enable_cors: true
 
 data:
   database:
@@ -31,7 +33,7 @@ data:
 
 log:
   # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
-  level: -1
+  level: 0
   # json or console
   format: console
 
@@ -87,4 +89,4 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 143726350 # 最早区块高度的默认值
+    earliest_height: 144977113 # 最早区块高度的默认值

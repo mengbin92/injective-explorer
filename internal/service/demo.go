@@ -1403,7 +1403,12 @@ func (s *DemoService) sanitizeError(err error) string {
 // StreamLatestBlocks streams the latest blocks as they are added to the chain.
 // This method subscribes to block events from the event bus and streams them to the client.
 func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stream pb.Demo_StreamLatestBlocksServer) error {
-	global.Logger.Infof("stream latest blocks: from_height=%d", req.GetFromHeight())
+	// Handle nil request: log and continue (GetFromHeight() returns 0 for nil, meaning all blocks)
+	if req == nil {
+		global.Logger.Infof("stream latest blocks: received nil request, using default")
+	} else {
+		global.Logger.Infof("stream latest blocks: from_height=%d", req.GetFromHeight())
+	}
 
 	// Subscribe to block events
 	eventBus := GetEventBus()
@@ -1575,7 +1580,19 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 // StreamLatestTransactions streams the latest transactions as they are added to the chain.
 // This method subscribes to transaction events from the event bus and streams them to the client.
 func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsRequest, stream pb.Demo_StreamLatestTransactionsServer) error {
-	global.Logger.Infof("stream latest transactions: types=%v", req.GetTypes())
+	// Handle nil request: create default request for compatibility with empty messages
+	if req == nil {
+		req = &pb.StreamLatestTransactionsRequest{
+			Types: []string{}, // Empty array means all types
+		}
+		global.Logger.Infof("stream latest transactions: received nil request, using default (all types)")
+	} else {
+		// Ensure types field is initialized (even if empty) for protobuf encoding/decoding
+		if req.GetTypes() == nil {
+			req.Types = []string{} // Empty array means all types
+		}
+		global.Logger.Infof("stream latest transactions: types=%v (len=%d)", req.GetTypes(), len(req.GetTypes()))
+	}
 
 	// Subscribe to transaction events
 	eventBus := GetEventBus()
@@ -1753,6 +1770,11 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 // StreamAccountUpdates streams account updates (balance changes, new transactions, etc.) for a specific account.
 // This method subscribes to account events from the event bus and streams them to the client.
 func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, stream pb.Demo_StreamAccountUpdatesServer) error {
+	// Input validation
+	if req == nil {
+		return status.Errorf(codes.InvalidArgument, "request cannot be nil")
+	}
+
 	address := req.GetAddress()
 	if address == "" {
 		return status.Errorf(codes.InvalidArgument, "address is required")

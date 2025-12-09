@@ -39,54 +39,62 @@ var (
 // Returns:
 //   - *khttp.Server: A configured HTTP server ready to accept connections
 func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
-	// Configure CORS with security best practices
-	// Security: CORS configuration must follow browser security rules:
-	// - If AllowedOrigins contains "*", AllowCredentials must be false
-	// - If AllowCredentials is true, AllowedOrigins must specify exact origins (not "*")
-	var corsOpts []handlers.CORSOption
-	allowedOrigins := []string{"*"} // Default: allow all origins
-	allowCredentials := false       // Default: disabled for security when using "*"
-
-	// Security: If using "*" origin, credentials must be disabled
-	// This prevents CORS security vulnerabilities
-	if len(allowedOrigins) == 1 && allowedOrigins[0] == "*" {
-		allowCredentials = false
-	}
-
-	corsOpts = append(corsOpts,
-		handlers.AllowedOrigins(allowedOrigins),
-		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-		handlers.AllowedHeaders([]string{
-			"Content-Type",
-			"Authorization",
-			"X-Requested-With",
-			"Accept",
-			"Origin",
-			// Note: Accept, Origin, and Access-Control-Request-* headers are simple headers
-			// and don't need to be explicitly allowed
-		}),
-		handlers.MaxAge(86400), // Cache preflight requests for 24 hours
-	)
-
-	if allowCredentials {
-		corsOpts = append(corsOpts, handlers.AllowCredentials())
-	}
-
 	var opts = []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
 		),
 	}
 
-	// Create CORS middleware factory (reusable)
-	// This creates a single CORS middleware function that can wrap any handler
-	corsMiddleware := handlers.CORS(corsOpts...)
+	// CORS handling notes:
+	// - Production: CORS is handled by Nginx and Envoy, no need to handle in code (default enable_cors=false)
+	// - Development: If direct access to application service is needed (e.g., Swagger UI), set enable_cors=true to enable CORS handling in code
+	// Note: Enabling CORS at multiple layers may cause configuration conflicts, it's recommended to handle CORS at only one layer
+	enableCors := c.GetEnableCors()
 
-	// Add Swagger filter if enabled
+	var corsMiddleware func(http.Handler) http.Handler
+	if enableCors {
+		// Configure CORS with security best practices
+		// Security: CORS configuration must follow browser security rules:
+		// - If AllowedOrigins contains "*", AllowCredentials must be false
+		// - If AllowCredentials is true, AllowedOrigins must specify exact origins (not "*")
+		var corsOpts []handlers.CORSOption
+		allowedOrigins := []string{"*"} // Default: allow all origins
+		allowCredentials := false       // Default: disabled for security when using "*"
+
+		// Security: If using "*" origin, credentials must be disabled
+		// This prevents CORS security vulnerabilities
+		if len(allowedOrigins) == 1 && allowedOrigins[0] == "*" {
+			allowCredentials = false
+		}
+
+		corsOpts = append(corsOpts,
+			handlers.AllowedOrigins(allowedOrigins),
+			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+			handlers.AllowedHeaders([]string{
+				"Content-Type",
+				"Authorization",
+				"X-Requested-With",
+				"Accept",
+				"Origin",
+				// Note: Accept, Origin, and Access-Control-Request-* headers are simple headers
+				// and don't need to be explicitly allowed
+			}),
+			handlers.MaxAge(86400), // Cache preflight requests for 24 hours
+		)
+
+		if allowCredentials {
+			corsOpts = append(corsOpts, handlers.AllowCredentials())
+		}
+
+		// Create CORS middleware factory (reusable)
+		// This creates a single CORS middleware function that can wrap any handler
+		corsMiddleware = handlers.CORS(corsOpts...)
+	}
+
+	// Add Swagger filter if enabled (before server creation)
 	// Note: In Kratos, filters execute in reverse order (LIFO - last added = first executed)
-	// We add Swagger filter first, then CORS filter, so execution order is:
-	// 1. CORS filter (last added, executes first) - applies CORS headers to all responses
-	// 2. Swagger filter (first added, executes after CORS) - handles Swagger requests
+	// We'll add Swagger filter before CORS filter so CORS executes first, then Swagger
+	var swaggerHandlerToUse http.Handler
 	if c.EnableSwagger {
 		// Create swagger handler
 		swaggerHandler := httpSwagger.Handler(
@@ -95,27 +103,31 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 			httpSwagger.DomID("swagger-ui"),
 		)
 
-		// Wrap swagger handler with CORS middleware (reuse the same middleware instance)
-		corsWrappedSwaggerHandler := corsMiddleware(swaggerHandler)
+		// Wrap swagger handler with CORS middleware if enabled
+		swaggerHandlerToUse = swaggerHandler
+		if enableCors && corsMiddleware != nil {
+			swaggerHandlerToUse = corsMiddleware(swaggerHandler)
+		}
 
 		// Create Swagger filter that handles /swagger routes
+		// This filter must be added before CORS filter so it executes after CORS
 		swaggerFilter := func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				path := r.URL.Path
 
 				// Handle /swagger redirect
 				if path == "/swagger" {
-					// Create redirect handler and wrap with CORS
-					redirectHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						http.Redirect(w, r, "/swagger/", http.StatusMovedPermanently)
-					})
-					corsMiddleware(redirectHandler).ServeHTTP(w, r)
+					log.NewHelper(logger).Infof("Redirecting /swagger to /swagger/")
+					http.Redirect(w, r, "/swagger/", http.StatusMovedPermanently)
 					return
 				}
 
 				// Handle /swagger/* routes
+				// Note: http-swagger handler expects paths like /swagger/index.html, /swagger/swagger-ui.css, etc.
 				if strings.HasPrefix(path, "/swagger/") {
-					corsWrappedSwaggerHandler.ServeHTTP(w, r)
+					// Use the swagger handler to serve the request
+					// The swagger handler will handle all sub-paths internally
+					swaggerHandlerToUse.ServeHTTP(w, r)
 					return
 				}
 
@@ -123,38 +135,47 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 				next.ServeHTTP(w, r)
 			})
 		}
+		// Add Swagger filter first (will execute after CORS due to LIFO)
+		// Note: Filters are executed in reverse order (LIFO)
+		// So if we add Swagger filter first, then CORS filter,
+		// the execution order will be: CORS (first) -> Swagger (second)
 		opts = append(opts, khttp.Filter(swaggerFilter))
+	} else {
+		log.NewHelper(logger).Warn("Swagger is disabled in configuration")
 	}
 
 	// Create a robust CORS filter that explicitly handles OPTIONS preflight requests
 	// This ensures CORS headers are set even when routes don't match
-	corsFilter := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Handle OPTIONS preflight requests explicitly
-			// This is critical because browsers send OPTIONS requests before the actual request
-			// and these must return proper CORS headers even if the route doesn't exist
-			if r.Method == "OPTIONS" {
-				origin := r.Header.Get("Origin")
-				if origin != "" {
-					// Set CORS headers for preflight request
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
-					w.Header().Set("Access-Control-Max-Age", "86400")
-					w.Header().Set("Access-Control-Allow-Credentials", "false")
+	// Only add this filter if CORS is enabled in code
+	if enableCors && corsMiddleware != nil {
+		corsFilter := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Handle OPTIONS preflight requests explicitly
+				// This is critical because browsers send OPTIONS requests before the actual request
+				// and these must return proper CORS headers even if the route doesn't exist
+				if r.Method == "OPTIONS" {
+					origin := r.Header.Get("Origin")
+					if origin != "" {
+						// Set CORS headers for preflight request
+						w.Header().Set("Access-Control-Allow-Origin", "*")
+						w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+						w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+						w.Header().Set("Access-Control-Max-Age", "86400")
+						w.Header().Set("Access-Control-Allow-Credentials", "false")
+					}
+					w.WriteHeader(http.StatusNoContent)
+					return
 				}
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			// For non-OPTIONS requests, apply CORS middleware and continue to next handler
-			// This ensures CORS headers are added to all responses
-			corsMiddleware(next).ServeHTTP(w, r)
-		})
-	}
+				// For non-OPTIONS requests, apply CORS middleware and continue to next handler
+				// This ensures CORS headers are added to all responses
+				corsMiddleware(next).ServeHTTP(w, r)
+			})
+		}
 
-	// Add CORS filter last (will execute first due to LIFO)
-	// This ensures CORS headers are applied to all responses, including Swagger
-	opts = append(opts, khttp.Filter(corsFilter))
+		// Add CORS filter last (will execute first due to LIFO)
+		// This ensures CORS headers are applied to all responses, including Swagger
+		opts = append(opts, khttp.Filter(corsFilter))
+	}
 
 	if c.Http.Network != "" {
 		opts = append(opts, khttp.Network(c.Http.Network))
@@ -170,9 +191,63 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 	demoService := service.NewDemoService()
 	v1.RegisterDemoHTTPServer(srv, demoService)
 
-	// Register Swagger UI routes
+	// Register Swagger UI routes (openapi.yaml and openapi.json)
 	if c.EnableSwagger {
+		log.NewHelper(logger).Info("Registering Swagger routes...")
 		registerSwaggerRoutes(srv, logger)
+
+		// Register Swagger UI handler using Route system (more reliable than Filter)
+		// Create swagger handler
+		swaggerHandler := httpSwagger.Handler(
+			httpSwagger.URL("/openapi.json"), // Point to our OpenAPI JSON file
+			httpSwagger.DocExpansion("list"),
+			httpSwagger.DomID("swagger-ui"),
+		)
+
+		// Wrap swagger handler with CORS middleware if enabled
+		var swaggerHandlerToUse http.Handler = swaggerHandler
+		if enableCors && corsMiddleware != nil {
+			swaggerHandlerToUse = corsMiddleware(swaggerHandler)
+		}
+
+		r := srv.Route("/")
+
+		// Handle /swagger redirect to /swagger/
+		r.GET("/swagger", func(ctx khttp.Context) error {
+			log.NewHelper(logger).Info("Route /swagger called, redirecting to /swagger/")
+			http.Redirect(ctx.Response(), ctx.Request(), "/swagger/", http.StatusMovedPermanently)
+			return nil
+		})
+
+		// Register /swagger/ route - use http.Handler adapter
+		// Since Kratos Route doesn't support wildcards, we need to handle all swagger paths
+		// The swagger handler will handle sub-paths internally via its own routing
+		r.GET("/swagger/", func(ctx khttp.Context) error {
+			log.NewHelper(logger).Infof("Route /swagger/ called, path=%s", ctx.Request().URL.Path)
+			swaggerHandlerToUse.ServeHTTP(ctx.Response(), ctx.Request())
+			return nil
+		})
+
+		// Try to register common swagger static file paths
+		// These are typically requested by the swagger UI
+		swaggerPaths := []string{
+			"/swagger/index.html",
+			"/swagger/swagger-ui.css",
+			"/swagger/swagger-ui-bundle.js",
+			"/swagger/swagger-ui-standalone-preset.js",
+			"/swagger/favicon-32x32.png",
+			"/swagger/favicon-16x16.png",
+		}
+
+		for _, swaggerPath := range swaggerPaths {
+			r.GET(swaggerPath, func(ctx khttp.Context) error {
+				log.NewHelper(logger).Infof("Route %s called", ctx.Request().URL.Path)
+				swaggerHandlerToUse.ServeHTTP(ctx.Response(), ctx.Request())
+				return nil
+			})
+		}
+
+		log.NewHelper(logger).Info("Swagger routes registered successfully")
 	}
 
 	return srv

@@ -28,6 +28,8 @@ message Server {
   HTTP http = 1;
   GRPC grpc = 2;
   bool enable_swagger = 3;
+  bool enable_cors = 4; // Whether to enable CORS handling in code (default
+                        // false, because Nginx/Envoy already handles it)
 }
 
 message Data {
@@ -45,14 +47,15 @@ message Data {
   }
   message ObjectStorage {
     string provider = 1;          // "s3", "oss", "cos", "minio"
-    string endpoint = 2;          // 对象存储端点
-    string access_key_id = 3;     // 访问密钥ID
-    string secret_access_key = 4; // 访问密钥
-    string bucket_name = 5;       // 存储桶名称
-    string region = 6;            // 区域（S3/OSS需要）
-    bool use_ssl = 7;             // 是否使用SSL
-    string path_prefix = 8;       // 路径前缀，如 "transactions/"
-    bool enabled = 9;             // 是否启用对象存储（默认false，向后兼容）
+    string endpoint = 2;          // Object storage endpoint
+    string access_key_id = 3;     // Access key ID
+    string secret_access_key = 4; // Secret access key
+    string bucket_name = 5;       // Bucket name
+    string region = 6;            // Region (required for S3/OSS)
+    bool use_ssl = 7;             // Whether to use SSL
+    string path_prefix = 8;       // Path prefix, e.g., "transactions/"
+    bool enabled = 9; // Whether to enable object storage (default false, for
+                      // backward compatibility)
   }
   Database database = 1;
   Redis redis = 2;
@@ -66,10 +69,11 @@ message Node {
 }
 
 message Log {
-  // 日志级别设置
-  // 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
+  // Log level setting
+  // Supports debug(-1), info(0), warn(1), error(2), dpanic(3), panic(4),
+  // fatal(5)
   int32 level = 1;
-  // 日志输出格式，支持json or console
+  // Log output format, supports json or console
   string format = 2;
 }
 
@@ -97,7 +101,7 @@ message Sync {
   Blocks blocks = 7;
 
   message Redis {
-    string queue_key = 1; // Redis 队列键名
+    string queue_key = 1; // Redis queue key name
   }
 
   message Intervals {
@@ -107,7 +111,7 @@ message Sync {
     google.protobuf.Duration historical_batch_delay = 4;
     google.protobuf.Duration backward_sync_log = 5;
     google.protobuf.Duration rpc_status_retry = 6;
-    google.protobuf.Duration validator_sync = 7; // Validator 同步间隔
+    google.protobuf.Duration validator_sync = 7; // Validator sync interval
   }
 
   message Timeouts { google.protobuf.Duration block_query = 1; }

@@ -59,11 +59,6 @@ static_resources:
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
 
-                  # CORS filter
-                  - name: envoy.filters.http.cors
-                    typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
-
                   # Router 必须在最后
                   - name: envoy.filters.http.router
                     typed_config:
