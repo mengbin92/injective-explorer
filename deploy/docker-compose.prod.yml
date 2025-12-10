@@ -1,0 +1,163 @@
+# Docker Compose 生产环境配置示例
+# 使用方式: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  injective-explorer:
+    # 生产环境使用构建好的镜像
+    image: injective-explorer:${VERSION:-latest}
+    container_name: injective-explorer-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - 8000:8000  # 只绑定本地，通过 Nginx 代理
+      - 9000:9000  # 只绑定本地，通过 Envoy 代理
+    volumes:
+      - ./configs:/data/conf:ro  # 只读挂载
+    networks:
+      - injective-explorer-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      injective-explorer-mysql:
+        condition: service_healthy
+      injective-explorer-redis:
+        condition: service_healthy
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/demo/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  envoy:
+    image: envoyproxy/envoy:v1.36-latest
+    container_name: injective-explorer-envoy-prod
+    restart: unless-stopped
+    ports:
+      - 9001:9001  # 只绑定本地
+      - 9901:9901  # Envoy admin
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - injective-explorer-network
+    depends_on:
+      - injective-explorer
+    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml --service-cluster envoy --service-node envoy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9901/server_info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  injective-explorer-redis:
+    image: redis:7-alpine
+    container_name: injective-explorer-redis-prod
+    restart: unless-stopped
+    ports:
+      - 6379:6379"
+    volumes:
+      - injective-explorer-redis-prod:/data
+    networks:
+      - injective-explorer-network
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  injective-explorer-mysql:
+    image: mysql:8.0
+    container_name: injective-explorer-mysql-prod
+    restart: unless-stopped
+    ports:
+      - 3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME:-explorer}
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    volumes:
+      - injective-explorer-mysql-prod:/var/lib/mysql
+    networks:
+      - injective-explorer-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # 可选: MinIO 对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: injective-explorer-minio-prod
+    restart: unless-stopped
+    ports:
+      - 9000:9000  # API
+      - 9002:9002  # Console
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - injective-explorer-minio-prod:/data
+    networks:
+      - injective-explorer-network
+    command: server /data --console-address ":9002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    profiles:
+      - minio  # 使用 --profile minio 启用
+
+networks:
+  injective-explorer-network:
+    driver: bridge
+    name: injective-explorer-prod
+
+volumes:
+  injective-explorer-redis-prod:
+    name: injective-explorer-redis-prod
+  injective-explorer-mysql-prod:
+    name: injective-explorer-mysql-prod
+  injective-explorer-minio-prod:
+    name: injective-explorer-minio-prod
