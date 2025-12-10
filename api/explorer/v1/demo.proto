@@ -56,6 +56,13 @@ service Demo {
     };
   }
 
+  rpc GetTransactionStats(google.protobuf.Empty)
+      returns (TransactionStatsResponse) {
+    option (google.api.http) = {
+      get : "/demo/transaction/stats"
+    };
+  }
+
   // Health check endpoint for gRPC-Web
   rpc CheckHealthy(CheckHealthyRequest) returns (CheckHealthyResponse) {
     option (google.api.http) = {
@@ -193,6 +200,19 @@ message AccountUpdate {
 
 message LatestBlockHeightResponse { int64 height = 1; }
 
+// TransactionStatsResponse contains transaction volume statistics
+message TransactionStatsResponse {
+  // Total transaction count (all time)
+  int64 total_count = 1 [ json_name = "total_count" ];
+  // Transaction count in the last 30 days
+  int64 count_30d = 2 [ json_name = "count_30d" ];
+  // Transaction count in the last 24 hours
+  int64 count_24h = 3 [ json_name = "count_24h" ];
+  // Average TPS (Transactions Per Second) calculated from the latest 100 blocks
+  // TPS = total transactions / time span in seconds
+  double tps = 4;
+}
+
 message AccountDTO {
   string address = 1;
   string base_account = 2;
@@ -243,4 +263,8 @@ message TransactionDTO {
   repeated int64 claim_ids = 21 [ json_name = "claim_ids" ];
   string signer =
       22; // Transaction initiator (first signer), may differ from fee payer
+  string to = 23;    // Recipient address (corresponds to 'to' field in ethereum
+                     // tx, or recipient in other tx types)
+  string value = 24; // Transaction value (corresponds to 'value' field in
+                     // ethereum tx, or amount in other tx types)
 }

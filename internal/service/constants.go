@@ -33,6 +33,28 @@ const (
 
 	// Redis cache constants
 	CacheMaxSize = 100 // Cache the most recent 100 records
+
+	// Stream and cache query constants
+	StreamInitialBlocksCount       = 10               // Number of initial blocks to send from cache in stream
+	StreamInitialTransactionsCount = 20               // Number of initial transactions to send from cache in stream
+	StreamFirstEventTimeout        = 10 * time.Second // Timeout for waiting first event in stream
+	StreamHeartbeatInterval        = 30 * time.Second // Heartbeat ticker interval for stream
+
+	// Account query constants
+	AccountTransactionLimit = 50 // Maximum number of transactions to return for account queries
+
+	// Transaction statistics constants
+	TPSBlockCount         = 100    // Number of latest blocks to use for TPS calculation
+	AvgBlockTimeSeconds   = 2.0    // Average block time in seconds (for Cosmos chains)
+	MillisecondsPerSecond = 1000.0 // Conversion factor from milliseconds to seconds
+	StatsDays30           = 30     // Number of days for 30-day statistics
+	StatsHours24          = 24     // Number of hours for 24-hour statistics
+
+	// Chain query constants
+	RecentBlockThreshold = 1000 // Block height threshold for querying from chain (within last N blocks)
+
+	// Health check constants
+	HealthCheckTimeout = 2 * time.Second // Timeout for health check operations
 )
 
 // Redis cache key constants
@@ -43,9 +65,11 @@ const (
 	CacheKeyTransactionPrefix = "cache:transaction:"       // Transaction cache key prefix
 	CacheKeyTotalBlocks       = "cache:total:blocks"       // Total blocks cache key
 	CacheKeyTotalTransactions = "cache:total:transactions" // Total transactions cache key
+	CacheKeyTransactionStats  = "cache:transaction:stats"  // Transaction statistics cache key
 	CacheTotalTTL             = 5 * time.Minute            // Total count cache expiration time (5 minutes)
-	CacheBlockTTL             = 5 * time.Minute             // Single block cache expiration time (5 minutes)
-	CacheTransactionTTL       = 5 * time.Minute             // Single transaction cache expiration time (5 minutes)
+	CacheBlockTTL             = 5 * time.Minute            // Single block cache expiration time (5 minutes)
+	CacheTransactionTTL       = 5 * time.Minute            // Single transaction cache expiration time (5 minutes)
+	CacheTransactionStatsTTL  = 1 * time.Minute            // Transaction statistics cache expiration time (1 minute)
 )
 
 // Default sync configuration values (used when config is not provided)

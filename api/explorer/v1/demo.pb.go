@@ -889,6 +889,80 @@ func (x *LatestBlockHeightResponse) GetHeight() int64 {
 	return 0
 }
 
+// TransactionStatsResponse contains transaction volume statistics
+type TransactionStatsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Total transaction count (all time)
+	TotalCount int64 `protobuf:"varint,1,opt,name=total_count,proto3" json:"total_count,omitempty"`
+	// Transaction count in the last 30 days
+	Count_30D int64 `protobuf:"varint,2,opt,name=count_30d,proto3" json:"count_30d,omitempty"`
+	// Transaction count in the last 24 hours
+	Count_24H int64 `protobuf:"varint,3,opt,name=count_24h,proto3" json:"count_24h,omitempty"`
+	// Average TPS (Transactions Per Second) calculated from the latest 100 blocks
+	// TPS = total transactions / time span in seconds
+	Tps           float64 `protobuf:"fixed64,4,opt,name=tps,proto3" json:"tps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionStatsResponse) Reset() {
+	*x = TransactionStatsResponse{}
+	mi := &file_explorer_v1_demo_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransactionStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransactionStatsResponse) ProtoMessage() {}
+
+func (x *TransactionStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_demo_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransactionStatsResponse.ProtoReflect.Descriptor instead.
+func (*TransactionStatsResponse) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *TransactionStatsResponse) GetTotalCount() int64 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *TransactionStatsResponse) GetCount_30D() int64 {
+	if x != nil {
+		return x.Count_30D
+	}
+	return 0
+}
+
+func (x *TransactionStatsResponse) GetCount_24H() int64 {
+	if x != nil {
+		return x.Count_24H
+	}
+	return 0
+}
+
+func (x *TransactionStatsResponse) GetTps() float64 {
+	if x != nil {
+		return x.Tps
+	}
+	return 0
+}
+
 type AccountDTO struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
@@ -900,7 +974,7 @@ type AccountDTO struct {
 
 func (x *AccountDTO) Reset() {
 	*x = AccountDTO{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[16]
+	mi := &file_explorer_v1_demo_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -912,7 +986,7 @@ func (x *AccountDTO) String() string {
 func (*AccountDTO) ProtoMessage() {}
 
 func (x *AccountDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[16]
+	mi := &file_explorer_v1_demo_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -925,7 +999,7 @@ func (x *AccountDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountDTO.ProtoReflect.Descriptor instead.
 func (*AccountDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{16}
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AccountDTO) GetAddress() string {
@@ -960,7 +1034,7 @@ type AccountBalanceDTO struct {
 
 func (x *AccountBalanceDTO) Reset() {
 	*x = AccountBalanceDTO{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[17]
+	mi := &file_explorer_v1_demo_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -972,7 +1046,7 @@ func (x *AccountBalanceDTO) String() string {
 func (*AccountBalanceDTO) ProtoMessage() {}
 
 func (x *AccountBalanceDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[17]
+	mi := &file_explorer_v1_demo_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -985,7 +1059,7 @@ func (x *AccountBalanceDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountBalanceDTO.ProtoReflect.Descriptor instead.
 func (*AccountBalanceDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{17}
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AccountBalanceDTO) GetAddress() string {
@@ -1028,7 +1102,7 @@ type BlockDTO struct {
 
 func (x *BlockDTO) Reset() {
 	*x = BlockDTO{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[18]
+	mi := &file_explorer_v1_demo_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1040,7 +1114,7 @@ func (x *BlockDTO) String() string {
 func (*BlockDTO) ProtoMessage() {}
 
 func (x *BlockDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[18]
+	mi := &file_explorer_v1_demo_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1053,7 +1127,7 @@ func (x *BlockDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockDTO.ProtoReflect.Descriptor instead.
 func (*BlockDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{18}
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *BlockDTO) GetHeight() uint64 {
@@ -1157,13 +1231,16 @@ type TransactionDTO struct {
 	Logs               string                 `protobuf:"bytes,20,opt,name=logs,proto3" json:"logs,omitempty"`
 	ClaimIds           []int64                `protobuf:"varint,21,rep,packed,name=claim_ids,proto3" json:"claim_ids,omitempty"`
 	Signer             string                 `protobuf:"bytes,22,opt,name=signer,proto3" json:"signer,omitempty"` // Transaction initiator (first signer), may differ from fee payer
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	To                 string                 `protobuf:"bytes,23,opt,name=to,proto3" json:"to,omitempty"`         // Recipient address (corresponds to 'to' field in ethereum
+	// tx, or recipient in other tx types)
+	Value         string `protobuf:"bytes,24,opt,name=value,proto3" json:"value,omitempty"` // Transaction value (corresponds to 'value' field in
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TransactionDTO) Reset() {
 	*x = TransactionDTO{}
-	mi := &file_explorer_v1_demo_proto_msgTypes[19]
+	mi := &file_explorer_v1_demo_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1175,7 +1252,7 @@ func (x *TransactionDTO) String() string {
 func (*TransactionDTO) ProtoMessage() {}
 
 func (x *TransactionDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_demo_proto_msgTypes[19]
+	mi := &file_explorer_v1_demo_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1188,7 +1265,7 @@ func (x *TransactionDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionDTO.ProtoReflect.Descriptor instead.
 func (*TransactionDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{19}
+	return file_explorer_v1_demo_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *TransactionDTO) GetId() string {
@@ -1345,6 +1422,20 @@ func (x *TransactionDTO) GetSigner() string {
 	return ""
 }
 
+func (x *TransactionDTO) GetTo() string {
+	if x != nil {
+		return x.To
+	}
+	return ""
+}
+
+func (x *TransactionDTO) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
 var File_explorer_v1_demo_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_demo_proto_rawDesc = "" +
@@ -1407,7 +1498,12 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x04data\x18\x03 \x01(\v2\".api.explorer.v1.AccountUpdateDataR\x04data\x12\x1c\n" +
 	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\"3\n" +
 	"\x19LatestBlockHeightResponse\x12\x16\n" +
-	"\x06height\x18\x01 \x01(\x03R\x06height\"f\n" +
+	"\x06height\x18\x01 \x01(\x03R\x06height\"\x8a\x01\n" +
+	"\x18TransactionStatsResponse\x12 \n" +
+	"\vtotal_count\x18\x01 \x01(\x03R\vtotal_count\x12\x1c\n" +
+	"\tcount_30d\x18\x02 \x01(\x03R\tcount_30d\x12\x1c\n" +
+	"\tcount_24h\x18\x03 \x01(\x03R\tcount_24h\x12\x10\n" +
+	"\x03tps\x18\x04 \x01(\x01R\x03tps\"f\n" +
 	"\n" +
 	"AccountDTO\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12!\n" +
@@ -1431,7 +1527,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x03txs\x18\t \x03(\tR\x03txs\x12\x1c\n" +
 	"\ttimestamp\x18\n" +
 	" \x01(\tR\ttimestamp\x122\n" +
-	"\x14block_unix_timestamp\x18\v \x01(\x04R\x14block_unix_timestamp\"\xee\x04\n" +
+	"\x14block_unix_timestamp\x18\v \x01(\x04R\x14block_unix_timestamp\"\x94\x05\n" +
 	"\x0eTransactionDTO\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\"\n" +
 	"\fblock_number\x18\x02 \x01(\x04R\fblock_number\x12(\n" +
@@ -1459,7 +1555,9 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\terror_log\x18\x13 \x01(\tR\terror_log\x12\x12\n" +
 	"\x04logs\x18\x14 \x01(\tR\x04logs\x12\x1c\n" +
 	"\tclaim_ids\x18\x15 \x03(\x03R\tclaim_ids\x12\x16\n" +
-	"\x06signer\x18\x16 \x01(\tR\x06signer2\xc9\v\n" +
+	"\x06signer\x18\x16 \x01(\tR\x06signer\x12\x0e\n" +
+	"\x02to\x18\x17 \x01(\tR\x02to\x12\x14\n" +
+	"\x05value\x18\x18 \x01(\tR\x05value2\xc4\f\n" +
 	"\x04Demo\x12i\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +
@@ -1468,7 +1566,8 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x14GetTransactionByHash\x12,.api.explorer.v1.GetTransactionByHashRequest\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/transaction/by-hash\x12l\n" +
 	"\x0eGetAccountInfo\x12&.api.explorer.v1.GetAccountInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/account/info\x12\x84\x01\n" +
 	"\x16GetAccountTransactions\x12..api.explorer.v1.GetAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/account/transactions\x12x\n" +
-	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12q\n" +
+	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12y\n" +
+	"\x13GetTransactionStats\x12\x16.google.protobuf.Empty\x1a).api.explorer.v1.TransactionStatsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/demo/transaction/stats\x12q\n" +
 	"\fCheckHealthy\x12$.api.explorer.v1.CheckHealthyRequest\x1a%.api.explorer.v1.CheckHealthyResponse\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/demo/health\x12}\n" +
 	"\x12StreamLatestBlocks\x12*.api.explorer.v1.StreamLatestBlocksRequest\x1a\x1c.api.explorer.v1.BlockUpdate\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/demo/stream/blocks0\x01\x12\x95\x01\n" +
 	"\x18StreamLatestTransactions\x120.api.explorer.v1.StreamLatestTransactionsRequest\x1a\".api.explorer.v1.TransactionUpdate\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/stream/transactions0\x01\x12\x84\x01\n" +
@@ -1487,7 +1586,7 @@ func file_explorer_v1_demo_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_demo_proto_rawDescData
 }
 
-var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_explorer_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_explorer_v1_demo_proto_goTypes = []any{
 	(*GetBlockByHeightRequest)(nil),         // 0: api.explorer.v1.GetBlockByHeightRequest
 	(*GetTransactionByHashRequest)(nil),     // 1: api.explorer.v1.GetTransactionByHashRequest
@@ -1505,52 +1604,55 @@ var file_explorer_v1_demo_proto_goTypes = []any{
 	(*AccountUpdateData)(nil),               // 13: api.explorer.v1.AccountUpdateData
 	(*AccountUpdate)(nil),                   // 14: api.explorer.v1.AccountUpdate
 	(*LatestBlockHeightResponse)(nil),       // 15: api.explorer.v1.LatestBlockHeightResponse
-	(*AccountDTO)(nil),                      // 16: api.explorer.v1.AccountDTO
-	(*AccountBalanceDTO)(nil),               // 17: api.explorer.v1.AccountBalanceDTO
-	(*BlockDTO)(nil),                        // 18: api.explorer.v1.BlockDTO
-	(*TransactionDTO)(nil),                  // 19: api.explorer.v1.TransactionDTO
-	nil,                                     // 20: api.explorer.v1.CheckHealthyResponse.DetailsEntry
-	nil,                                     // 21: api.explorer.v1.AccountUpdateData.MetadataEntry
-	(*PaginationRequest)(nil),               // 22: api.explorer.v1.PaginationRequest
-	(*emptypb.Empty)(nil),                   // 23: google.protobuf.Empty
-	(*Reply)(nil),                           // 24: api.explorer.v1.Reply
+	(*TransactionStatsResponse)(nil),        // 16: api.explorer.v1.TransactionStatsResponse
+	(*AccountDTO)(nil),                      // 17: api.explorer.v1.AccountDTO
+	(*AccountBalanceDTO)(nil),               // 18: api.explorer.v1.AccountBalanceDTO
+	(*BlockDTO)(nil),                        // 19: api.explorer.v1.BlockDTO
+	(*TransactionDTO)(nil),                  // 20: api.explorer.v1.TransactionDTO
+	nil,                                     // 21: api.explorer.v1.CheckHealthyResponse.DetailsEntry
+	nil,                                     // 22: api.explorer.v1.AccountUpdateData.MetadataEntry
+	(*PaginationRequest)(nil),               // 23: api.explorer.v1.PaginationRequest
+	(*emptypb.Empty)(nil),                   // 24: google.protobuf.Empty
+	(*Reply)(nil),                           // 25: api.explorer.v1.Reply
 }
 var file_explorer_v1_demo_proto_depIdxs = []int32{
-	22, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
-	20, // 1: api.explorer.v1.CheckHealthyResponse.details:type_name -> api.explorer.v1.CheckHealthyResponse.DetailsEntry
-	18, // 2: api.explorer.v1.BlockUpdate.block:type_name -> api.explorer.v1.BlockDTO
-	19, // 3: api.explorer.v1.TransactionUpdate.transaction:type_name -> api.explorer.v1.TransactionDTO
-	19, // 4: api.explorer.v1.AccountUpdateData.transaction:type_name -> api.explorer.v1.TransactionDTO
-	17, // 5: api.explorer.v1.AccountUpdateData.balances:type_name -> api.explorer.v1.AccountBalanceDTO
-	21, // 6: api.explorer.v1.AccountUpdateData.metadata:type_name -> api.explorer.v1.AccountUpdateData.MetadataEntry
+	23, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
+	21, // 1: api.explorer.v1.CheckHealthyResponse.details:type_name -> api.explorer.v1.CheckHealthyResponse.DetailsEntry
+	19, // 2: api.explorer.v1.BlockUpdate.block:type_name -> api.explorer.v1.BlockDTO
+	20, // 3: api.explorer.v1.TransactionUpdate.transaction:type_name -> api.explorer.v1.TransactionDTO
+	20, // 4: api.explorer.v1.AccountUpdateData.transaction:type_name -> api.explorer.v1.TransactionDTO
+	18, // 5: api.explorer.v1.AccountUpdateData.balances:type_name -> api.explorer.v1.AccountBalanceDTO
+	22, // 6: api.explorer.v1.AccountUpdateData.metadata:type_name -> api.explorer.v1.AccountUpdateData.MetadataEntry
 	13, // 7: api.explorer.v1.AccountUpdate.data:type_name -> api.explorer.v1.AccountUpdateData
 	6,  // 8: api.explorer.v1.CheckHealthyResponse.DetailsEntry.value:type_name -> api.explorer.v1.HealthDetails
-	22, // 9: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
+	23, // 9: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
 	0,  // 10: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
-	23, // 11: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
-	22, // 12: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
+	24, // 11: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
+	23, // 12: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
 	1,  // 13: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
 	2,  // 14: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
 	3,  // 15: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
 	4,  // 16: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
-	5,  // 17: api.explorer.v1.Demo.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
-	8,  // 18: api.explorer.v1.Demo.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
-	9,  // 19: api.explorer.v1.Demo.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
-	10, // 20: api.explorer.v1.Demo.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
-	24, // 21: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
-	24, // 22: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
-	24, // 23: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
-	24, // 24: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
-	24, // 25: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
-	24, // 26: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
-	24, // 27: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
-	24, // 28: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	7,  // 29: api.explorer.v1.Demo.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
-	11, // 30: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
-	12, // 31: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
-	14, // 32: api.explorer.v1.Demo.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
-	21, // [21:33] is the sub-list for method output_type
-	9,  // [9:21] is the sub-list for method input_type
+	24, // 17: api.explorer.v1.Demo.GetTransactionStats:input_type -> google.protobuf.Empty
+	5,  // 18: api.explorer.v1.Demo.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
+	8,  // 19: api.explorer.v1.Demo.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
+	9,  // 20: api.explorer.v1.Demo.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
+	10, // 21: api.explorer.v1.Demo.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
+	25, // 22: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
+	25, // 23: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
+	25, // 24: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
+	25, // 25: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
+	25, // 26: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
+	25, // 27: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
+	25, // 28: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
+	25, // 29: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
+	16, // 30: api.explorer.v1.Demo.GetTransactionStats:output_type -> api.explorer.v1.TransactionStatsResponse
+	7,  // 31: api.explorer.v1.Demo.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
+	11, // 32: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
+	12, // 33: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
+	14, // 34: api.explorer.v1.Demo.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
+	22, // [22:35] is the sub-list for method output_type
+	9,  // [9:22] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1568,7 +1670,7 @@ func file_explorer_v1_demo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_demo_proto_rawDesc), len(file_explorer_v1_demo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

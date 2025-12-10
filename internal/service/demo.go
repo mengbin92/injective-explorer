@@ -253,7 +253,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	}
 
 	// Not found in database or conversion failed, query from chain
-	// Only query from chain if block is reasonably recent (within last 1000 blocks)
+	// Only query from chain if block is reasonably recent (within last N blocks)
 	// For very old blocks, return error instead of waiting for slow chain query
 	global.Logger.Infof("block not found in database, querying from chain: height=%d", req.Height)
 	client, err := GetSharedExplorerClient()
@@ -952,7 +952,7 @@ func (s *DemoService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequ
 	if db.Get() != nil {
 		sqlDB, err := db.Get().DB()
 		if err == nil {
-			pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			pingCtx, cancel := context.WithTimeout(ctx, HealthCheckTimeout)
 			err := sqlDB.PingContext(pingCtx)
 			latency := time.Since(startTime).Milliseconds()
 			cancel()
@@ -991,7 +991,7 @@ func (s *DemoService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequ
 	redisStartTime := time.Now()
 	redisClient := cache.GetRedisClient()
 	if redisClient != nil {
-		redisCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		redisCtx, cancel := context.WithTimeout(ctx, HealthCheckTimeout)
 		_, err := redisClient.Ping(redisCtx).Result()
 		redisLatency := time.Since(redisStartTime).Milliseconds()
 		cancel()
@@ -1152,7 +1152,8 @@ func getApproximateCount(db *gorm.DB, model interface{}, ctx context.Context) (i
 }
 
 // getApproximateCountWithError gets an approximate count for large datasets and returns errors.
-// This function properly handles and returns errors instead of ignoring them.
+// This function uses database statistics (information_schema/pg_class) for fast approximate counts
+// instead of scanning the entire table, which is much more efficient for large tables.
 //
 // Parameters:
 //   - db: The database connection
@@ -1164,23 +1165,112 @@ func getApproximateCount(db *gorm.DB, model interface{}, ctx context.Context) (i
 //   - whether it's an exact count
 //   - error if the count query failed (caller should handle this error)
 func getApproximateCountWithError(db *gorm.DB, model interface{}, ctx context.Context) (int64, bool, error) {
-	var count int64
+	// First, try to get approximate count from database statistics (very fast, no table scan)
+	// This is much faster than COUNT(*) for large tables
+	approximateCount, err := getCountFromDatabaseStats(db, model, ctx)
+	if err == nil && approximateCount > 0 {
+		// Successfully got approximate count from statistics
+		// For small tables (< 10k rows), try to get exact count
+		if approximateCount < ApproximateCountThreshold {
+			// Try exact count for small tables (with timeout)
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
+			defer cancel()
 
-	// Try to get exact count first (with timeout)
+			var exactCount int64
+			if err := db.WithContext(ctxWithTimeout).Model(model).Count(&exactCount).Error; err == nil {
+				return exactCount, true, nil
+			}
+			// If exact count fails, return approximate count
+		}
+		return approximateCount, false, nil
+	}
+
+	// If statistics query failed, fall back to COUNT(*) with timeout
+	// This is still better than no timeout
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
 	defer cancel()
 
-	err := db.WithContext(ctxWithTimeout).Model(model).Count(&count).Error
+	var count int64
+	err = db.WithContext(ctxWithTimeout).Model(model).Count(&count).Error
 	if err == nil {
 		return count, true, nil
 	}
 
-	// If exact count times out or fails, try to get approximate count
-	// For PostgreSQL, we can use pg_class.reltuples
-	// For MySQL, we can use information_schema
-	// For now, we'll return a large estimate and mark as approximate
-	global.Logger.Warnf("exact count failed, using approximate: %v", err)
+	// If COUNT(*) also fails, return fallback value
+	global.Logger.Warnf("both statistics and count queries failed, using fallback: %v", err)
 	return ApproximateCountFallback, false, err
+}
+
+// getCountFromDatabaseStats gets an approximate row count from database statistics.
+// This is much faster than COUNT(*) because it doesn't scan the table.
+//
+// Parameters:
+//   - db: The database connection
+//   - model: The model to get count for
+//   - ctx: Context for the query
+//
+// Returns:
+//   - approximate count from database statistics
+//   - error if the query failed
+func getCountFromDatabaseStats(db *gorm.DB, model interface{}, ctx context.Context) (int64, error) {
+	// Get table name from model
+	stmt := &gorm.Statement{DB: db}
+	if err := stmt.Parse(model); err != nil {
+		return 0, err
+	}
+	tableName := stmt.Schema.Table
+
+	// Detect database driver type using GORM's Name() method
+	driverName := db.Name()
+	var count int64
+	var err error
+
+	switch driverName {
+	case "mysql":
+		// MySQL: Use information_schema.TABLES for approximate count
+		// TABLE_ROWS is an approximation, but very fast
+		var dbName string
+		if err = db.Raw("SELECT DATABASE()").Scan(&dbName).Error; err != nil {
+			return 0, err
+		}
+
+		err = db.WithContext(ctx).Raw(
+			"SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?",
+			dbName, tableName,
+		).Scan(&count).Error
+		if err != nil {
+			return 0, err
+		}
+
+	case "postgres":
+		// PostgreSQL: Use pg_class.reltuples for approximate count
+		// This is updated by ANALYZE and is very fast
+		var reltuples float64
+		err = db.WithContext(ctx).Raw(
+			"SELECT reltuples::BIGINT FROM pg_class WHERE relname = ?",
+			tableName,
+		).Scan(&reltuples).Error
+		if err != nil {
+			return 0, err
+		}
+		count = int64(reltuples)
+
+	case "sqlite3", "sqlite":
+		// SQLite: SQLite doesn't have reliable statistics like MySQL/PostgreSQL
+		// Return error to trigger fallback to COUNT(*) with timeout
+		// The caller will use COUNT(*) with timeout instead
+		return 0, errors.New("SQLite doesn't support statistics-based count")
+
+	default:
+		// Unknown driver, return error to trigger fallback
+		return 0, fmt.Errorf("unsupported database driver: %s", driverName)
+	}
+
+	if count < 0 {
+		count = 0
+	}
+
+	return count, nil
 }
 
 // getApproximateCountForAddressWithError gets an approximate count for address-specific queries and returns errors.
@@ -1421,7 +1511,8 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 	defer queryCancel()
 
 	// Get latest blocks from cache (same as GetLatestBlocks)
-	cachedBlocks, err := getBlocksFromCache(queryCtx, 10) // Get last 10 blocks
+	// Uses StreamInitialBlocksCount constant to determine how many blocks to retrieve
+	cachedBlocks, err := getBlocksFromCache(queryCtx, StreamInitialBlocksCount)
 	sentCount := 0
 	hasSentInitialBlocks := false
 
@@ -1477,7 +1568,7 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 	// For grpc-web compatibility, we MUST send at least one message to establish the stream
 	// If no blocks were sent from cache, wait for first block event
 	if !hasSentInitialBlocks {
-		firstBlockTimeout := time.NewTimer(10 * time.Second)
+		firstBlockTimeout := time.NewTimer(StreamFirstEventTimeout)
 		defer firstBlockTimeout.Stop()
 
 		select {
@@ -1521,7 +1612,7 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 
 	// Stream new blocks from event bus
 	// Add a ticker to log that we're waiting for new blocks (helps with debugging)
-	heartbeatTicker := time.NewTicker(30 * time.Second)
+	heartbeatTicker := time.NewTicker(StreamHeartbeatInterval)
 	defer heartbeatTicker.Stop()
 
 	global.Logger.Infof("StreamLatestBlocks: waiting for new block events...")
@@ -1605,7 +1696,8 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 	defer queryCancel()
 
 	// Get latest transactions from cache (same as GetLatestTransactions)
-	cachedTxs, err := getTransactionsFromCache(queryCtx, 20) // Get last 20 transactions
+	// Uses StreamInitialTransactionsCount constant to determine how many transactions to retrieve
+	cachedTxs, err := getTransactionsFromCache(queryCtx, StreamInitialTransactionsCount)
 	if err != nil {
 		// Log cache error but continue (graceful degradation)
 		global.Logger.Warnf("failed to get transactions from cache, will wait for events: %v", err)
@@ -1657,7 +1749,7 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 		global.Logger.Infof("no transactions found in cache, will wait for first transaction event")
 		// For grpc-web compatibility, we need to send at least one message to establish the stream
 		// Wait for first transaction event with timeout
-		firstTxTimeout := time.NewTimer(10 * time.Second)
+		firstTxTimeout := time.NewTimer(StreamFirstEventTimeout)
 		defer firstTxTimeout.Stop()
 
 		// Use a loop to handle type filtering (since we can't use continue in select)
@@ -1805,7 +1897,8 @@ func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, 
 	}
 
 	// Limit to avoid sending too much data
-	query = query.Limit(50)
+	// Uses AccountTransactionLimit constant to limit the number of transactions returned
+	query = query.Limit(AccountTransactionLimit)
 
 	err := query.Find(&dbTxs).Error
 	if err == nil && len(dbTxs) > 0 {
@@ -2184,5 +2277,226 @@ func cacheTotal(ctx context.Context, key string, total int64) {
 	err := redisClient.Set(ctx, key, fmt.Sprintf("%d", total), CacheTotalTTL).Err()
 	if err != nil {
 		global.Logger.Warnf("failed to cache total (key=%s): %v", key, err)
+	}
+}
+
+// GetTransactionStats retrieves transaction volume statistics from the database.
+// It calculates:
+//   - Total transaction count (all time)
+//   - Transaction count in the last N days (StatsDays30)
+//   - Transaction count in the last N hours (StatsHours24)
+//   - Average TPS (Transactions Per Second) from the latest N blocks (TPSBlockCount)
+//     TPS is calculated as: total transactions / time span in seconds
+//
+// Archive Compatibility:
+//
+//	This function is compatible with transaction archiving. Archived transactions
+//	remain in the main transactions table (with archived=true flag) but have their
+//	large fields moved to archive tables. All queries include archived transactions
+//	in the count, ensuring accurate statistics even after archiving is enabled.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Empty request (no parameters needed)
+//
+// Returns:
+//   - *pb.TransactionStatsResponse: Response containing transaction statistics
+//   - error: Error if the operation fails
+func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empty) (*pb.TransactionStatsResponse, error) {
+	global.Logger.Info("getting transaction statistics")
+
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	stats := &pb.TransactionStatsResponse{}
+
+	// Try to get statistics from cache first
+	cachedStats := getTransactionStatsFromCache(queryCtx)
+	if cachedStats != nil {
+		global.Logger.Infof("transaction statistics found in cache")
+		return cachedStats, nil
+	}
+
+	// 1. Get total transaction count (optimized with timeout and approximate count support)
+	// Use getApproximateCountWithError for better performance on large datasets
+	// This function uses CountQueryTimeout and will return approximate count if exact count times out
+	// Note: This count includes archived transactions (archived=true) since they remain in the main table
+	totalCount, _, err := getApproximateCountWithError(db.Get(), &models.Transaction{}, queryCtx)
+	if err != nil {
+		global.Logger.Warnf("failed to get total transaction count: %v, using fallback value", err)
+		// Use fallback value if count query fails
+		totalCount = ApproximateCountFallback
+	}
+	stats.TotalCount = totalCount
+
+	// 2. Get transaction count in the last N days (StatsDays30)
+	// Note: This count includes archived transactions (archived=true) since they remain in the main table
+	now := time.Now()
+	thirtyDaysAgo := now.AddDate(0, 0, -StatsDays30)
+	thirtyDaysAgoUnix := uint64(thirtyDaysAgo.Unix())
+
+	var count30d int64
+	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ?", thirtyDaysAgoUnix).
+		Count(&count30d).Error
+	if err != nil {
+		global.Logger.Errorf("failed to get 30-day transaction count: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get 30-day transaction count: %v", err)
+	}
+	stats.Count_30D = count30d
+
+	// 3. Get transaction count in the last N hours (StatsHours24)
+	// Note: Recent transactions (within 24 hours) are typically not archived (default archive age is 6 months),
+	// but this count still includes archived transactions if any exist in this time range
+	twentyFourHoursAgo := now.Add(-StatsHours24 * time.Hour)
+	twentyFourHoursAgoUnix := uint64(twentyFourHoursAgo.Unix())
+
+	var count24h int64
+	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ?", twentyFourHoursAgoUnix).
+		Count(&count24h).Error
+	if err != nil {
+		global.Logger.Errorf("failed to get 24-hour transaction count: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get 24-hour transaction count: %v", err)
+	}
+	stats.Count_24H = count24h
+
+	// 4. Calculate TPS (average transactions per second) from the latest N blocks (TPSBlockCount)
+	// TPS = total transactions / time span in seconds
+	// Note: BlockUnixTimestamp is stored in milliseconds, so we convert to seconds when calculating
+	var latestBlocks []models.Block
+	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(TPSBlockCount).
+		Find(&latestBlocks).Error
+	if err != nil {
+		global.Logger.Errorf("failed to get latest %d blocks: %v", TPSBlockCount, err)
+		return nil, status.Errorf(codes.Internal, "failed to get latest %d blocks: %v", TPSBlockCount, err)
+	}
+
+	if len(latestBlocks) == 0 {
+		// No blocks found, TPS is 0
+		stats.Tps = 0.0
+	} else {
+		// Calculate total transactions and time span
+		var totalTxs int64
+		var minTimestamp, maxTimestamp uint64
+
+		for i, block := range latestBlocks {
+			totalTxs += block.NumTxs
+
+			if i == 0 {
+				// First block (latest)
+				minTimestamp = block.BlockUnixTimestamp
+				maxTimestamp = block.BlockUnixTimestamp
+			} else {
+				// Update min/max timestamps
+				if block.BlockUnixTimestamp < minTimestamp {
+					minTimestamp = block.BlockUnixTimestamp
+				}
+				if block.BlockUnixTimestamp > maxTimestamp {
+					maxTimestamp = block.BlockUnixTimestamp
+				}
+			}
+		}
+
+		// Calculate average TPS: total transactions / time span in seconds
+		// Note: BlockUnixTimestamp is in milliseconds, so we need to convert to seconds
+		if maxTimestamp > minTimestamp {
+			// Convert time span from milliseconds to seconds
+			timeSpanMs := float64(maxTimestamp - minTimestamp)
+			timeSpanSeconds := timeSpanMs / MillisecondsPerSecond
+			if timeSpanSeconds > 0 {
+				stats.Tps = float64(totalTxs) / timeSpanSeconds
+			} else {
+				// If all blocks have the same timestamp, use block count as time span
+				// Using configured average block time (AvgBlockTimeSeconds) for Cosmos chains
+				avgBlockTime := AvgBlockTimeSeconds
+				timeSpan := float64(len(latestBlocks)) * avgBlockTime
+				if timeSpan > 0 {
+					stats.Tps = float64(totalTxs) / timeSpan
+				} else {
+					stats.Tps = 0.0
+				}
+			}
+		} else {
+			// All blocks have the same timestamp, use block count as time span
+			// Using configured average block time (AvgBlockTimeSeconds) for Cosmos chains
+			avgBlockTime := AvgBlockTimeSeconds
+			timeSpan := float64(len(latestBlocks)) * avgBlockTime
+			if timeSpan > 0 {
+				stats.Tps = float64(totalTxs) / timeSpan
+			} else {
+				stats.Tps = 0.0
+			}
+		}
+	}
+
+	global.Logger.Infof("transaction statistics: total=%d, 30d=%d, 24h=%d, tps=%.2f",
+		stats.TotalCount, stats.Count_30D, stats.Count_24H, stats.Tps)
+
+	// Cache the statistics for future queries (async to avoid blocking)
+	go cacheTransactionStats(context.Background(), stats)
+
+	return stats, nil
+}
+
+// getTransactionStatsFromCache retrieves transaction statistics from Redis cache.
+// Returns nil if not found in cache (cache miss).
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//
+// Returns:
+//   - *pb.TransactionStatsResponse: Cached statistics, or nil if not found
+func getTransactionStatsFromCache(ctx context.Context) *pb.TransactionStatsResponse {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil
+	}
+
+	key := CacheKeyTransactionStats
+	data, err := redisClient.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil // Cache miss
+		}
+		global.Logger.Warnf("failed to get transaction stats from cache: %v", err)
+		return nil
+	}
+
+	var stats pb.TransactionStatsResponse
+	if err := sonic.Unmarshal([]byte(data), &stats); err != nil {
+		global.Logger.Warnf("failed to unmarshal transaction stats from cache: %v", err)
+		return nil
+	}
+
+	return &stats
+}
+
+// cacheTransactionStats stores transaction statistics in Redis cache with TTL.
+// This function is called asynchronously to avoid blocking the response.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - stats: The statistics to cache
+func cacheTransactionStats(ctx context.Context, stats *pb.TransactionStatsResponse) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	statsJSON, err := sonic.Marshal(stats)
+	if err != nil {
+		global.Logger.Warnf("failed to marshal transaction stats for cache: %v", err)
+		return
+	}
+
+	// Cache for configured TTL (statistics don't need to be real-time)
+	key := CacheKeyTransactionStats
+	err = redisClient.Set(ctx, key, statsJSON, CacheTransactionStatsTTL).Err()
+	if err != nil {
+		global.Logger.Warnf("failed to cache transaction stats: %v", err)
 	}
 }

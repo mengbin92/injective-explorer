@@ -29,6 +29,7 @@ const OperationDemoGetLatestBlockHeight = "/api.explorer.v1.Demo/GetLatestBlockH
 const OperationDemoGetLatestBlocks = "/api.explorer.v1.Demo/GetLatestBlocks"
 const OperationDemoGetLatestTransactions = "/api.explorer.v1.Demo/GetLatestTransactions"
 const OperationDemoGetTransactionByHash = "/api.explorer.v1.Demo/GetTransactionByHash"
+const OperationDemoGetTransactionStats = "/api.explorer.v1.Demo/GetTransactionStats"
 
 type DemoHTTPServer interface {
 	// CheckHealthy Health check endpoint for gRPC-Web
@@ -41,6 +42,7 @@ type DemoHTTPServer interface {
 	GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error)
 	GetLatestTransactions(context.Context, *PaginationRequest) (*Reply, error)
 	GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error)
+	GetTransactionStats(context.Context, *emptypb.Empty) (*TransactionStatsResponse, error)
 }
 
 func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
@@ -53,6 +55,7 @@ func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
 	r.GET("/demo/account/info", _Demo_GetAccountInfo0_HTTP_Handler(srv))
 	r.GET("/demo/account/transactions", _Demo_GetAccountTransactions0_HTTP_Handler(srv))
 	r.GET("/demo/account/balances", _Demo_GetAccountBalances0_HTTP_Handler(srv))
+	r.GET("/demo/transaction/stats", _Demo_GetTransactionStats0_HTTP_Handler(srv))
 	r.GET("/demo/health", _Demo_CheckHealthy0_HTTP_Handler(srv))
 }
 
@@ -208,6 +211,25 @@ func _Demo_GetAccountBalances0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Co
 	}
 }
 
+func _Demo_GetTransactionStats0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in emptypb.Empty
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetTransactionStats)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetTransactionStats(ctx, req.(*emptypb.Empty))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*TransactionStatsResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _Demo_CheckHealthy0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CheckHealthyRequest
@@ -238,6 +260,7 @@ type DemoHTTPClient interface {
 	GetLatestBlocks(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestTransactions(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetTransactionByHash(ctx context.Context, req *GetTransactionByHashRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	GetTransactionStats(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *TransactionStatsResponse, err error)
 }
 
 type DemoHTTPClientImpl struct {
@@ -358,6 +381,19 @@ func (c *DemoHTTPClientImpl) GetTransactionByHash(ctx context.Context, in *GetTr
 	pattern := "/demo/transaction/by-hash"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetTransactionByHash))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *DemoHTTPClientImpl) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*TransactionStatsResponse, error) {
+	var out TransactionStatsResponse
+	pattern := "/demo/transaction/stats"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetTransactionStats))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

@@ -45,6 +45,8 @@ type Transaction struct {
 	Logs               string   `json:"logs" gorm:"column:logs"`                                                                   // Logs contains execution logs (stored as string, originally []byte)
 	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                                         // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
 	Signer             string   `json:"signer" gorm:"type:varchar(128);column:signer;index:idx_signer;index:idx_signer_timestamp"` // Signer is the transaction initiator address (first signer, indexed for account transaction queries)
+	To                 string   `json:"to" gorm:"type:varchar(128);column:to"`                                                     // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
+	Value              string   `json:"value" gorm:"type:varchar(128);column:value"`                                               // Value is the transaction value for ethereum transactions (corresponds to 'value' field in ethereum tx)
 	Archived           bool     `json:"archived" gorm:"column:archived;default:0;index"`                                           // Archived indicates whether this transaction has been archived
 	DataStorageKey     string   `json:"data_storage_key" gorm:"column:data_storage_key;index"`                                     // DataStorageKey is the object storage key for Data field
 	MessagesStorageKey string   `json:"messages_storage_key" gorm:"column:messages_storage_key;index"`                             // MessagesStorageKey is the object storage key for Messages field
@@ -118,6 +120,10 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		signer = detail.GasFee.Payer
 	}
 
+	// Extract to and value from transaction using event-first extraction logic
+	// This uses a unified extractor that prefers events/logs and falls back to messages
+	to, value := extractToAndValueFromProto(detail.Messages, detail.Events, detail.Logs, detail.Signatures, detail.GasFee)
+
 	// Compress binary data directly, then encode to base64 for safe storage
 	// This approach provides better compression ratio than compressing base64-encoded strings
 	// The CompressData function handles:
@@ -169,6 +175,8 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		Logs:               logsStr,
 		ClaimIds:           detail.ClaimIds,
 		Signer:             signer,
+		To:                 to,
+		Value:              value,
 	}
 
 	// Upload to object storage if enabled and data is large enough
