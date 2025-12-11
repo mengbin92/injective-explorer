@@ -4,6 +4,7 @@ package models
 import (
 	"context"
 	"encoding/base64"
+	"log"
 	"unicode/utf8"
 
 	"injective-explorer/provider/storage"
@@ -198,47 +199,76 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData, storage
 		storageClient := storage.Get()
 		ctx := context.Background()
 
-		// Upload Data field if compressed size exceeds threshold
-		// Store compressed data in object storage to save space and bandwidth
-		if len(dataStr) > threshold {
-			key := storage.BuildStorageKey("data", detail.Hash)
-			// Compress original data for object storage (binary format, no base64)
-			// CompressDataToBytes returns compressed data if beneficial, otherwise original data
-			dataToUpload, _, compressErr := CompressDataToBytes(detail.Data)
-			if compressErr == nil {
-				if err := storageClient.PutObject(ctx, key, dataToUpload); err == nil {
-					tx.DataStorageKey = key
-					tx.Data = "" // Clear compressed data field after successful upload
-				}
-			}
+		// Process Data field
+		if storageKey := processLargeField(ctx, storageClient, "data", detail.Hash, detail.Data, dataStr, threshold); storageKey != "" {
+			tx.DataStorageKey = storageKey
+			tx.Data = "" // Clear compressed data field after successful upload
 		}
 
-		// Upload Messages field if compressed size exceeds threshold
-		if len(messagesStr) > threshold {
-			key := storage.BuildStorageKey("messages", detail.Hash)
-			messagesToUpload, _, compressErr := CompressDataToBytes(detail.Messages)
-			if compressErr == nil {
-				if err := storageClient.PutObject(ctx, key, messagesToUpload); err == nil {
-					tx.MessagesStorageKey = key
-					tx.Messages = "" // Clear compressed data field after successful upload
-				}
-			}
+		// Process Messages field
+		if storageKey := processLargeField(ctx, storageClient, "messages", detail.Hash, detail.Messages, messagesStr, threshold); storageKey != "" {
+			tx.MessagesStorageKey = storageKey
+			tx.Messages = "" // Clear compressed data field after successful upload
 		}
 
-		// Upload Logs field if compressed size exceeds threshold
-		if len(logsStr) > threshold {
-			key := storage.BuildStorageKey("logs", detail.Hash)
-			logsToUpload, _, compressErr := CompressDataToBytes(detail.Logs)
-			if compressErr == nil {
-				if err := storageClient.PutObject(ctx, key, logsToUpload); err == nil {
-					tx.LogsStorageKey = key
-					tx.Logs = "" // Clear compressed data field after successful upload
-				}
-			}
+		// Process Logs field
+		if storageKey := processLargeField(ctx, storageClient, "logs", detail.Hash, detail.Logs, logsStr, threshold); storageKey != "" {
+			tx.LogsStorageKey = storageKey
+			tx.Logs = "" // Clear compressed data field after successful upload
 		}
 	}
 
 	return tx
+}
+
+// processLargeField processes a large field by compressing and optionally uploading it to object storage.
+// This function encapsulates the repeated logic for handling Data, Messages, and Logs fields.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - storageClient: Object storage client
+//   - fieldName: Name of the field (e.g., "data", "messages", "logs") for building storage key and logging
+//   - txHash: Transaction hash for building storage key
+//   - originalData: Original binary data to compress and upload
+//   - compressedStr: Compressed string representation (for checking size against threshold)
+//   - threshold: Storage threshold in bytes (compressed data size threshold)
+//
+// Returns:
+//   - string: Storage key if upload was successful, empty string otherwise
+//
+// Behavior:
+//   - Checks if compressed data size exceeds threshold
+//   - Compresses original data for object storage (binary format, no base64)
+//   - Uploads to object storage if compression succeeds
+//   - Logs warnings for compression or upload failures
+//   - Returns storage key on success, empty string on failure (fallback to database storage)
+func processLargeField(ctx context.Context, storageClient storage.Storage, fieldName, txHash string, originalData []byte, compressedStr string, threshold int) string {
+	// Only process if compressed size exceeds threshold
+	if len(compressedStr) <= threshold {
+		return ""
+	}
+
+	// Build storage key
+	key := storage.BuildStorageKey(fieldName, txHash)
+
+	// Compress original data for object storage (binary format, no base64)
+	// CompressDataToBytes returns compressed data if beneficial, otherwise original data
+	dataToUpload, _, compressErr := CompressDataToBytes(originalData)
+	if compressErr != nil {
+		// Log compression error - this is critical as it means large data will remain in database
+		log.Printf("WARN: failed to compress %s field for transaction %s: %v. Data will remain in database, which may cause database bloat.", fieldName, txHash, compressErr)
+		return ""
+	}
+
+	// Upload to object storage
+	if err := storageClient.PutObject(ctx, key, dataToUpload); err != nil {
+		// Log upload error - fallback to database storage
+		log.Printf("WARN: failed to upload %s field to object storage for transaction %s: %v. Falling back to database storage.", fieldName, txHash, err)
+		return ""
+	}
+
+	// Upload successful, return storage key
+	return key
 }
 
 // encodeBinaryData encodes binary data to base64 if it contains invalid UTF-8 characters.
