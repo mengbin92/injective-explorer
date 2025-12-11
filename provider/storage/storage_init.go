@@ -47,8 +47,15 @@ func Init(ctx context.Context, cfg *conf.Data_ObjectStorage, logger log.Logger) 
 			cfg.PathPrefix,
 		)
 	case "s3":
-		// TODO: Implement S3 storage
-		return errors.New("S3 storage not implemented yet")
+		gStorage, err = NewS3Storage(
+			cfg.Endpoint,
+			cfg.AccessKeyId,
+			cfg.SecretAccessKey,
+			cfg.BucketName,
+			cfg.Region,
+			cfg.UseSsl,
+			cfg.PathPrefix,
+		)
 	case "oss":
 		// TODO: Implement OSS storage
 		return errors.New("OSS storage not implemented yet")
