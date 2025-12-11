@@ -22,14 +22,14 @@ data:
     write_timeout: 0.2s
   object_storage:
     provider: ${OBJECT_STORAGE_PROVIDER:minio} # s3, oss, cos, minio
-    endpoint: ${OBJECT_STORAGE_ENDPOINT:localhost:9000}
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:localhost:19000}
     access_key_id: ${OBJECT_STORAGE_ACCESS_KEY:minioadmin}
     secret_access_key: ${OBJECT_STORAGE_SECRET_KEY:minioadmin}
     bucket_name: ${OBJECT_STORAGE_BUCKET:injective-explorer}
     region: ${OBJECT_STORAGE_REGION:us-east-1}
     use_ssl: false
     path_prefix: ${OBJECT_STORAGE_PATH_PREFIX:transactions/}
-    enabled: false # 默认禁用，需要手动启用
+    enabled: true # 测试时启用，生产环境根据需要设置
 
 log:
   # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
@@ -89,4 +89,18 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 145106599 # 最早区块高度的默认值
+    earliest_height: 145242981 # 最早区块高度的默认值
+
+archive:
+  # 是否启用自动归档（默认: false）
+  enabled: true
+  # 归档执行间隔（默认: 24h = 86400s），使用秒数格式，例如: 86400s (24h), 43200s (12h), 3600s (1h)
+  interval: ${ARCHIVE_INTERVAL:86400s}
+  # 归档周期（月），归档此时间之前的交易数据（默认: 6）
+  age_months: ${ARCHIVE_AGE_MONTHS:6}
+  # 批次大小，每批处理的交易数量（默认: 1000）
+  batch_size: ${ARCHIVE_BATCH_SIZE:1000}
+  # 存储阈值（字节），超过此大小的字段会上传到对象存储（默认: 10KB）
+  storage_threshold: ${ARCHIVE_STORAGE_THRESHOLD:10240}
+  # 是否使用对象存储，true=使用对象存储，false=存储在数据库，不设置则自动检测
+  use_object_storage: true

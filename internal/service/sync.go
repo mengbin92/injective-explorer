@@ -937,7 +937,9 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	txData := txResp.Data
 
 	// Save transaction to database using transaction for atomicity
-	txModel := models.TransactionFromProto(txData)
+	// Get storage threshold from config
+	storageThreshold := getStorageThresholdForSync()
+	txModel := models.TransactionFromProto(txData, storageThreshold)
 	if txModel == nil {
 		// If conversion fails, put the transaction hash back to the queue
 		redisClient.LPush(ctx, s.config.TxHashQueueKey, txHash)

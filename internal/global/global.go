@@ -1,5 +1,5 @@
 // Package global provides global variables and initialization functions for the application.
-// It manages the logger and chain configuration that are used throughout the application.
+// It manages the logger, chain configuration, and archive configuration that are used throughout the application.
 package global
 
 import (
@@ -21,13 +21,17 @@ var (
 	Logger *log.Helper
 	// ChainConfig is the global chain configuration for the Injective blockchain network.
 	ChainConfig common.Network
+	// ArchiveConfig is the global archive configuration.
+	// It is set during initialization and can be used to access archive configuration values.
+	ArchiveConfig *conf.Archive
 )
 
-// Init initializes global variables including the logger and chain configuration.
+// Init initializes global variables including the logger, chain configuration, and archive configuration.
 // It loads the chain configuration based on the network type specified in the bootstrap configuration.
+// It also saves the archive configuration globally for use by archive services.
 //
 // Parameters:
-//   - bc: The bootstrap configuration containing chain, log, and data settings
+//   - bc: The bootstrap configuration containing chain, log, data, and archive settings
 //   - logger: The logger instance to use for application logging
 //
 // The function supports three network types:
@@ -38,6 +42,9 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	if bc == nil {
 		panic("bootstrap config cannot be nil")
 	}
+
+	// Save archive config globally for later use
+	ArchiveConfig = bc.GetArchive()
 
 	Logger = log.NewHelper(logger)
 	Logger.Infof("logger initialized: %v", bc.Log)
@@ -84,7 +91,6 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		&models.Transaction{},
 		&models.Account{},
 		&models.AccountBalance{},
-		&models.TransactionArchive{},
 		&models.TransactionDataArchive{},
 	)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/provider/storage"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/stretchr/testify/assert"
@@ -62,6 +63,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 			logs TEXT,
 			claim_ids TEXT,
 			signer TEXT,
+			to_field TEXT,
+			value TEXT,
 			archived INTEGER DEFAULT 0,
 			data_storage_key TEXT,
 			messages_storage_key TEXT,
@@ -70,41 +73,19 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	`).Error
 	require.NoError(t, err, "failed to create transactions table")
 
-	err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS transaction_archives (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			created_at DATETIME,
-			updated_at DATETIME,
-			deleted_at DATETIME,
-			tx_data_id TEXT,
-			block_number INTEGER,
-			block_timestamp TEXT,
-			hash TEXT,
-			code INTEGER,
-			gas_wanted INTEGER,
-			gas_used INTEGER,
-			gas_fee TEXT,
-			codespace TEXT,
-			events TEXT,
-			tx_type TEXT,
-			signatures TEXT,
-			memo TEXT,
-			tx_number INTEGER,
-			block_unix_timestamp INTEGER,
-			claim_ids TEXT,
-			signer TEXT,
-			archived_at INTEGER
-		)
-	`).Error
-	require.NoError(t, err, "failed to create transaction_archives table")
+	// Note: transaction_archives table is no longer used (optimization)
+	// Archive data is stored in transaction_data_archives, referencing transactions.id directly
 
 	err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS transaction_data_archives (
 			transaction_id INTEGER PRIMARY KEY,
 			data TEXT,
+			data_storage_key TEXT,
 			info TEXT,
 			messages TEXT,
+			messages_storage_key TEXT,
 			logs TEXT,
+			logs_storage_key TEXT,
 			error_log TEXT
 		)
 	`).Error
@@ -137,7 +118,9 @@ func createTestTransaction(db *gorm.DB, hash string, ageMonths int) *models.Tran
 // TestArchiveService_ArchiveOldTransactions tests the ArchiveOldTransactions method.
 func TestArchiveService_ArchiveOldTransactions(t *testing.T) {
 	db := setupTestDB(t)
-	service := &ArchiveService{db: db}
+	// Create a no-op storage for testing (object storage not needed for basic tests)
+	storageClient := storage.Get()
+	service := &ArchiveService{db: db, storage: storageClient}
 	ctx := context.Background()
 
 	t.Run("successful archiving", func(t *testing.T) {
@@ -172,17 +155,12 @@ func TestArchiveService_ArchiveOldTransactions(t *testing.T) {
 		assert.False(t, recentTx.Archived)
 		assert.NotNil(t, recentTx.Data)
 
-		// Verify archive records exist
-		var archive1, archive2 models.TransactionArchive
-		db.Where("hash = ?", "hash1").First(&archive1)
-		db.Where("hash = ?", "hash2").First(&archive2)
-		assert.NotZero(t, archive1.ID)
-		assert.NotZero(t, archive2.ID)
-
-		// Verify archive data exists
+		// Verify archive data exists (transaction_data_archives references transactions.id directly)
 		var archiveData1, archiveData2 models.TransactionDataArchive
-		db.Where("transaction_id = ?", archive1.ID).First(&archiveData1)
-		db.Where("transaction_id = ?", archive2.ID).First(&archiveData2)
+		db.Where("transaction_id = ?", archivedTx1.ID).First(&archiveData1)
+		db.Where("transaction_id = ?", archivedTx2.ID).First(&archiveData2)
+		assert.NotZero(t, archiveData1.TransactionID)
+		assert.NotZero(t, archiveData2.TransactionID)
 		assert.Equal(t, "test data", archiveData1.Data)
 		assert.Equal(t, "test messages", archiveData1.Messages)
 	})
@@ -229,7 +207,7 @@ func TestArchiveService_ArchiveOldTransactions(t *testing.T) {
 	t.Run("batch processing", func(t *testing.T) {
 		// Create a fresh database for this test
 		testDB := setupTestDB(t)
-		testService := &ArchiveService{db: testDB}
+		testService := &ArchiveService{db: testDB, storage: storage.Get()}
 		// Create multiple old transactions
 		for i := 0; i < 5; i++ {
 			_ = createTestTransaction(testDB, "batch_hash"+string(rune('0'+i)), 7)
@@ -303,7 +281,7 @@ func TestArchiveService_ArchiveOldTransactions(t *testing.T) {
 // TestArchiveService_GetArchivedTransaction tests the GetArchivedTransaction method.
 func TestArchiveService_GetArchivedTransaction(t *testing.T) {
 	db := setupTestDB(t)
-	service := &ArchiveService{db: db}
+	service := &ArchiveService{db: db, storage: storage.Get()}
 	ctx := context.Background()
 
 	t.Run("successful retrieval", func(t *testing.T) {
@@ -341,7 +319,7 @@ func TestArchiveService_GetArchivedTransactions(t *testing.T) {
 	t.Run("successful retrieval with pagination", func(t *testing.T) {
 		// Create a fresh database for this test to avoid table conflicts
 		testDB := setupTestDB(t)
-		testService := &ArchiveService{db: testDB}
+		testService := &ArchiveService{db: testDB, storage: storage.Get()}
 
 		// Create and archive multiple transactions
 		for i := 0; i < 5; i++ {
@@ -376,7 +354,7 @@ func TestArchiveService_GetArchivedTransactions(t *testing.T) {
 
 	t.Run("empty result", func(t *testing.T) {
 		testDB := setupTestDB(t)
-		testService := &ArchiveService{db: testDB}
+		testService := &ArchiveService{db: testDB, storage: storage.Get()}
 		transactions, total, err := testService.GetArchivedTransactions(ctx, 10, 0)
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), total)

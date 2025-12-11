@@ -21,9 +21,11 @@ A comprehensive blockchain explorer API service for the Injective network, built
 - **Type-Safe Responses**: Uses Protocol Buffer messages for type-safe API responses
 - **Data Storage Optimization**: Advanced storage optimization features including:
   - **Data Compression**: Automatic compression of large transaction fields (>1KB) to reduce storage by 60-80%
-  - **Data Archiving**: Automatic archiving of old transactions (>6 months) to separate archive tables
-  - **Storage Separation**: Optional object storage (MinIO/S3/OSS/COS) for large binary fields (>10KB)
+  - **Data Archiving**: Automatic archiving service with scheduled background execution (similar to sync service)
+  - **Storage Separation**: Optional object storage (MinIO/S3/OSS/COS) for large binary fields (>10KB, configurable)
+  - **Storage Key Reuse**: Reuses existing storage keys from sync time uploads to avoid duplicate storage
   - **Backward Compatibility**: Seamless support for both compressed and uncompressed data formats
+  - **Automatic Retrieval**: Archived transactions are automatically retrieved when queried by hash
 
 ## Architecture
 
@@ -162,6 +164,14 @@ See `.env.example` for a complete list of available environment variables with d
 - `OBJECT_STORAGE_PATH_PREFIX`: Path prefix for objects (default: transactions/)
 - `OBJECT_STORAGE_ENABLED`: Enable object storage (default: false)
 
+**Archive Configuration:**
+- `ARCHIVE_ENABLED`: Enable automatic archiving service (default: false)
+- `ARCHIVE_INTERVAL`: Archive execution interval in seconds (default: 86400s = 24h)
+- `ARCHIVE_AGE_MONTHS`: Archive transactions older than N months (default: 6)
+- `ARCHIVE_BATCH_SIZE`: Number of transactions per batch (default: 1000)
+- `ARCHIVE_STORAGE_THRESHOLD`: Storage threshold in bytes (default: 10240 = 10KB)
+- `ARCHIVE_USE_OBJECT_STORAGE`: Use object storage for large fields (default: auto-detect)
+
 #### Kratos Configuration System
 
 The application uses Kratos configuration system with the following priority order (highest to lowest):
@@ -297,6 +307,20 @@ sync:
   # 区块配置
   blocks:
     earliest_height: 143726350 # 最早区块高度的默认值
+
+archive:
+  # 是否启用自动归档（默认: false）
+  enabled: false
+  # 归档执行间隔（默认: 24h = 86400s），使用秒数格式
+  interval: ${ARCHIVE_INTERVAL:86400s}
+  # 归档周期（月），归档此时间之前的交易数据（默认: 6）
+  age_months: ${ARCHIVE_AGE_MONTHS:6}
+  # 批次大小，每批处理的交易数量（默认: 1000）
+  batch_size: ${ARCHIVE_BATCH_SIZE:1000}
+  # 存储阈值（字节），超过此大小的字段会上传到对象存储（默认: 10KB）
+  storage_threshold: ${ARCHIVE_STORAGE_THRESHOLD:10240}
+  # 是否使用对象存储，true=使用对象存储，false=存储在数据库，不设置则自动检测
+  use_object_storage: true
 ```
 
 ### Network Configuration
@@ -1064,23 +1088,51 @@ The service includes comprehensive data storage optimization features to handle 
 
 ### Data Archiving
 
-**Automatic Archiving**: Old transactions (>6 months) can be automatically archived to separate archive tables, keeping the main transactions table lean and fast.
+**Automatic Archiving**: Old transactions can be automatically archived to separate archive tables and object storage, keeping the main transactions table lean and fast.
 
 **Features**:
+- **Scheduled Background Service**: Automatic archiving service runs in the background (similar to sync service)
 - Configurable archive age (default: 6 months)
+- Configurable execution interval (default: 24 hours)
 - Batch archiving for efficient processing
-- Archive tables: `transaction_archives` and `transaction_data_archives`
-- Automatic retrieval: Archived transactions are automatically retrieved when queried
+- Archive table: `transaction_data_archives` (stores large fields, references main table)
+- Main table retains metadata (with `archived=true` flag) for statistics
+- Automatic retrieval: Archived transactions are automatically retrieved when queried by hash
+- Object storage support: Large fields can be stored in MinIO/S3/OSS/COS
+- Storage key reuse: Reuses existing storage keys from sync time uploads to avoid duplicate storage
 - Dry-run mode: Test archiving without actually moving data
 
-**Usage**: Use the `ArchiveService` to archive old transactions:
+**Configuration**: Enable automatic archiving in `config.yaml`:
 
-```go
-archiveService := service.NewArchiveService()
-config := service.DefaultArchiveConfig()
-config.ArchiveAgeMonths = 6
-err := archiveService.ArchiveOldTransactions(ctx, config)
+```yaml
+archive:
+  enabled: true              # Enable automatic archiving service
+  interval: 86400s           # Execution interval (24 hours)
+  age_months: 6              # Archive transactions older than 6 months
+  batch_size: 1000           # Batch size for processing
+  storage_threshold: 10240   # Storage threshold (10KB)
+  use_object_storage: true    # Use object storage for large fields
 ```
+
+**Usage Options**:
+
+1. **Automatic Scheduled Mode** (Recommended):
+   - Enable in `config.yaml` with `archive.enabled: true`
+   - Service automatically starts with the application and runs periodically
+
+2. **Manual Execution**:
+   ```go
+   archiveService := service.NewArchiveService()
+   config := service.DefaultArchiveConfig()
+   err := archiveService.ArchiveOldTransactions(ctx, config)
+   ```
+
+3. **Command Line Tool**:
+   ```bash
+   go run cmd/archive/main.go -conf configs
+   ```
+
+For detailed usage guide, see `docs/archive-usage-guide.md`.
 
 ### Storage Separation (Object Storage)
 
@@ -1134,7 +1186,7 @@ err := migrationService.MigrateTransactions(ctx, config)
 │  ┌──────────────────────────────────────────────────┐  │
 │  │         Automatic Data Flow                       │  │
 │  │  New TX → Compress → Store in Main DB            │  │
-│  │  Old TX → Archive → Move to Archive DB           │  │
+│  │  Old TX → Archive → Move to Archive DB/Object Storage │  │
 │  │  Large TX → Upload → Store in Object Storage     │  │
 │  └──────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
@@ -1154,3 +1206,6 @@ For detailed implementation documentation, see:
 - `docs/storage-optimization.md`: Complete storage optimization strategy
 - `docs/storage-separation-resources.md`: Object storage implementation details
 - `docs/compression-implementation.md`: Compression feature documentation
+- `docs/archive-usage-guide.md`: Archive service usage guide
+- `docs/archive-database-size-analysis.md`: Database size analysis for archiving
+- `docs/archive-storage-testing.md`: Archive storage testing guide

@@ -24,6 +24,8 @@ services:
         condition: service_healthy
       injective-explorer-redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
 
   envoy:
     image: envoyproxy/envoy:v1.36-latest
@@ -84,6 +86,28 @@ services:
       retries: 10
       start_period: 60s
 
+  minio:
+    image: minio/minio:latest
+    container_name: injective-explorer-minio
+    restart: unless-stopped
+    ports:
+      - 19000:9000  # API 端口（避免与 injective-explorer gRPC 端口 9000 冲突）
+      - 19001:9001  # Console 管理界面端口（避免与 envoy grpc-web 端口 9001 冲突）
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - injective-explorer-minio:/data
+    networks:
+      - injective-explorer-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10s
+
 networks:
   injective-explorer-network:
     driver: bridge
@@ -91,3 +115,4 @@ networks:
 volumes:
   injective-explorer-redis:
   injective-explorer-mysql:
+  injective-explorer-minio:

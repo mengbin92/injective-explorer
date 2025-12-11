@@ -55,6 +55,11 @@ const (
 
 	// Health check constants
 	HealthCheckTimeout = 2 * time.Second // Timeout for health check operations
+
+	// Archive constants
+	DefaultStorageThreshold = 10 * 1024 // Default storage threshold: 10KB (10240 bytes)
+	DefaultArchiveAgeMonths = 6         // Default archive age: 6 months
+	DefaultArchiveBatchSize = 1000      // Default archive batch size: 1000 transactions
 )
 
 // Redis cache key constants

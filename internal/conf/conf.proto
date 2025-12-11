@@ -12,6 +12,7 @@ message Bootstrap {
   Log log = 4;
   Chain chain = 5;
   Sync sync = 6;
+  Archive archive = 7;
 }
 
 message Server {
@@ -135,4 +136,19 @@ message Sync {
   }
 
   message Blocks { uint64 earliest_height = 1; }
+}
+
+message Archive {
+  // Archive age in months before transactions are archived (default: 6)
+  int32 age_months = 1;
+  // Batch size for archiving transactions (default: 1000)
+  int32 batch_size = 2;
+  // Storage threshold in bytes for uploading to object storage (default: 10KB)
+  int32 storage_threshold = 3;
+  // Whether to use object storage for large fields (default: auto-detect)
+  bool use_object_storage = 4;
+  // Archive execution interval (default: 24h)
+  google.protobuf.Duration interval = 5;
+  // Whether to enable automatic archiving (default: false)
+  bool enabled = 6;
 }

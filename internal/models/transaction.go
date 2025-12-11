@@ -54,22 +54,23 @@ type Transaction struct {
 }
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.
-// It compresses large fields (>1KB) and optionally uploads very large fields (>10KB) to object storage.
+// It compresses large fields (>1KB) and optionally uploads large fields to object storage.
 //
 // Parameters:
 //   - detail: The protobuf transaction detail data
+//   - storageThreshold: Storage threshold in bytes. If 0 or negative, uses default 10KB (10240 bytes)
 //
 // Returns:
 //   - *Transaction: A new Transaction instance with data from the protobuf message
 //
 // Behavior:
 //   - Compresses Data, Messages, and Logs fields if they exceed 1KB
-//   - Uploads to object storage if enabled and data exceeds 10KB
+//   - Uploads to object storage if enabled and data exceeds storageThreshold
 //   - Sets storage keys and clears database fields after successful upload
 //   - Extracts signer (transaction initiator) from the first signature's address (Signatures[0].Address)
 //     Falls back to GasFee.Payer if no signature address is available
 //     Note: The signer may not be the same as the fee payer in Injective
-func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transaction {
+func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData, storageThreshold int) *Transaction {
 	if detail == nil {
 		return nil
 	}
@@ -148,8 +149,14 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 	}
 
 	// Try to upload large fields to object storage
-	// Threshold: 10KB - only upload if data is large enough to benefit from object storage
-	const storageThreshold = 10 * 1024
+	// Use provided threshold, or default if not specified (0 or negative)
+	threshold := storageThreshold
+	if threshold <= 0 {
+		// Default threshold: 10KB (10240 bytes)
+		// Note: This matches DefaultStorageThreshold in service/constants.go
+		// We use hardcoded value here to avoid circular dependency (models cannot import service)
+		threshold = 10 * 1024
+	}
 	storageClient := storage.Get()
 
 	tx := &Transaction{
@@ -181,7 +188,7 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 
 	// Upload to object storage if enabled and data is large enough
 	ctx := context.Background()
-	if len(detail.Data) > storageThreshold {
+	if len(detail.Data) > threshold {
 		key := buildStorageKey("data", detail.Hash)
 		if err := storageClient.PutObject(ctx, key, detail.Data); err == nil {
 			tx.DataStorageKey = key
@@ -189,7 +196,7 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		}
 	}
 
-	if len(detail.Messages) > storageThreshold {
+	if len(detail.Messages) > threshold {
 		key := buildStorageKey("messages", detail.Hash)
 		if err := storageClient.PutObject(ctx, key, detail.Messages); err == nil {
 			tx.MessagesStorageKey = key
@@ -197,7 +204,7 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData) *Transa
 		}
 	}
 
-	if len(detail.Logs) > storageThreshold {
+	if len(detail.Logs) > threshold {
 		key := buildStorageKey("logs", detail.Hash)
 		if err := storageClient.PutObject(ctx, key, detail.Logs); err == nil {
 			tx.LogsStorageKey = key

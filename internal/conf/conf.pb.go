@@ -30,6 +30,7 @@ type Bootstrap struct {
 	Log           *Log                   `protobuf:"bytes,4,opt,name=log,proto3" json:"log,omitempty"`
 	Chain         *Chain                 `protobuf:"bytes,5,opt,name=chain,proto3" json:"chain,omitempty"`
 	Sync          *Sync                  `protobuf:"bytes,6,opt,name=sync,proto3" json:"sync,omitempty"`
+	Archive       *Archive               `protobuf:"bytes,7,opt,name=archive,proto3" json:"archive,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -102,6 +103,13 @@ func (x *Bootstrap) GetChain() *Chain {
 func (x *Bootstrap) GetSync() *Sync {
 	if x != nil {
 		return x.Sync
+	}
+	return nil
+}
+
+func (x *Bootstrap) GetArchive() *Archive {
+	if x != nil {
+		return x.Archive
 	}
 	return nil
 }
@@ -566,6 +574,96 @@ func (x *Sync) GetBlocks() *Sync_Blocks {
 	return nil
 }
 
+type Archive struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Archive age in months before transactions are archived (default: 6)
+	AgeMonths int32 `protobuf:"varint,1,opt,name=age_months,json=ageMonths,proto3" json:"age_months,omitempty"`
+	// Batch size for archiving transactions (default: 1000)
+	BatchSize int32 `protobuf:"varint,2,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
+	// Storage threshold in bytes for uploading to object storage (default: 10KB)
+	StorageThreshold int32 `protobuf:"varint,3,opt,name=storage_threshold,json=storageThreshold,proto3" json:"storage_threshold,omitempty"`
+	// Whether to use object storage for large fields (default: auto-detect)
+	UseObjectStorage bool `protobuf:"varint,4,opt,name=use_object_storage,json=useObjectStorage,proto3" json:"use_object_storage,omitempty"`
+	// Archive execution interval (default: 24h)
+	Interval *durationpb.Duration `protobuf:"bytes,5,opt,name=interval,proto3" json:"interval,omitempty"`
+	// Whether to enable automatic archiving (default: false)
+	Enabled       bool `protobuf:"varint,6,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Archive) Reset() {
+	*x = Archive{}
+	mi := &file_conf_conf_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Archive) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Archive) ProtoMessage() {}
+
+func (x *Archive) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Archive.ProtoReflect.Descriptor instead.
+func (*Archive) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Archive) GetAgeMonths() int32 {
+	if x != nil {
+		return x.AgeMonths
+	}
+	return 0
+}
+
+func (x *Archive) GetBatchSize() int32 {
+	if x != nil {
+		return x.BatchSize
+	}
+	return 0
+}
+
+func (x *Archive) GetStorageThreshold() int32 {
+	if x != nil {
+		return x.StorageThreshold
+	}
+	return 0
+}
+
+func (x *Archive) GetUseObjectStorage() bool {
+	if x != nil {
+		return x.UseObjectStorage
+	}
+	return false
+}
+
+func (x *Archive) GetInterval() *durationpb.Duration {
+	if x != nil {
+		return x.Interval
+	}
+	return nil
+}
+
+func (x *Archive) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
 type Server_HTTP struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Network       string                 `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
@@ -577,7 +675,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_conf_conf_proto_msgTypes[7]
+	mi := &file_conf_conf_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -589,7 +687,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[7]
+	mi := &file_conf_conf_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -637,7 +735,7 @@ type Server_GRPC struct {
 
 func (x *Server_GRPC) Reset() {
 	*x = Server_GRPC{}
-	mi := &file_conf_conf_proto_msgTypes[8]
+	mi := &file_conf_conf_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -649,7 +747,7 @@ func (x *Server_GRPC) String() string {
 func (*Server_GRPC) ProtoMessage() {}
 
 func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[8]
+	mi := &file_conf_conf_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -696,7 +794,7 @@ type Data_Database struct {
 
 func (x *Data_Database) Reset() {
 	*x = Data_Database{}
-	mi := &file_conf_conf_proto_msgTypes[9]
+	mi := &file_conf_conf_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -708,7 +806,7 @@ func (x *Data_Database) String() string {
 func (*Data_Database) ProtoMessage() {}
 
 func (x *Data_Database) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[9]
+	mi := &file_conf_conf_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +850,7 @@ type Data_Redis struct {
 
 func (x *Data_Redis) Reset() {
 	*x = Data_Redis{}
-	mi := &file_conf_conf_proto_msgTypes[10]
+	mi := &file_conf_conf_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -764,7 +862,7 @@ func (x *Data_Redis) String() string {
 func (*Data_Redis) ProtoMessage() {}
 
 func (x *Data_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[10]
+	mi := &file_conf_conf_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -839,7 +937,7 @@ type Data_ObjectStorage struct {
 
 func (x *Data_ObjectStorage) Reset() {
 	*x = Data_ObjectStorage{}
-	mi := &file_conf_conf_proto_msgTypes[11]
+	mi := &file_conf_conf_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -851,7 +949,7 @@ func (x *Data_ObjectStorage) String() string {
 func (*Data_ObjectStorage) ProtoMessage() {}
 
 func (x *Data_ObjectStorage) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[11]
+	mi := &file_conf_conf_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -939,7 +1037,7 @@ type Sync_Redis struct {
 
 func (x *Sync_Redis) Reset() {
 	*x = Sync_Redis{}
-	mi := &file_conf_conf_proto_msgTypes[12]
+	mi := &file_conf_conf_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -951,7 +1049,7 @@ func (x *Sync_Redis) String() string {
 func (*Sync_Redis) ProtoMessage() {}
 
 func (x *Sync_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[12]
+	mi := &file_conf_conf_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -989,7 +1087,7 @@ type Sync_Intervals struct {
 
 func (x *Sync_Intervals) Reset() {
 	*x = Sync_Intervals{}
-	mi := &file_conf_conf_proto_msgTypes[13]
+	mi := &file_conf_conf_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1001,7 +1099,7 @@ func (x *Sync_Intervals) String() string {
 func (*Sync_Intervals) ProtoMessage() {}
 
 func (x *Sync_Intervals) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[13]
+	mi := &file_conf_conf_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1075,7 +1173,7 @@ type Sync_Timeouts struct {
 
 func (x *Sync_Timeouts) Reset() {
 	*x = Sync_Timeouts{}
-	mi := &file_conf_conf_proto_msgTypes[14]
+	mi := &file_conf_conf_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1087,7 +1185,7 @@ func (x *Sync_Timeouts) String() string {
 func (*Sync_Timeouts) ProtoMessage() {}
 
 func (x *Sync_Timeouts) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[14]
+	mi := &file_conf_conf_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1121,7 +1219,7 @@ type Sync_Concurrency struct {
 
 func (x *Sync_Concurrency) Reset() {
 	*x = Sync_Concurrency{}
-	mi := &file_conf_conf_proto_msgTypes[15]
+	mi := &file_conf_conf_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1133,7 +1231,7 @@ func (x *Sync_Concurrency) String() string {
 func (*Sync_Concurrency) ProtoMessage() {}
 
 func (x *Sync_Concurrency) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[15]
+	mi := &file_conf_conf_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1182,7 +1280,7 @@ type Sync_BatchSize struct {
 
 func (x *Sync_BatchSize) Reset() {
 	*x = Sync_BatchSize{}
-	mi := &file_conf_conf_proto_msgTypes[16]
+	mi := &file_conf_conf_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1194,7 +1292,7 @@ func (x *Sync_BatchSize) String() string {
 func (*Sync_BatchSize) ProtoMessage() {}
 
 func (x *Sync_BatchSize) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[16]
+	mi := &file_conf_conf_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1248,7 +1346,7 @@ type Sync_Retry struct {
 
 func (x *Sync_Retry) Reset() {
 	*x = Sync_Retry{}
-	mi := &file_conf_conf_proto_msgTypes[17]
+	mi := &file_conf_conf_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1260,7 +1358,7 @@ func (x *Sync_Retry) String() string {
 func (*Sync_Retry) ProtoMessage() {}
 
 func (x *Sync_Retry) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[17]
+	mi := &file_conf_conf_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1299,7 +1397,7 @@ type Sync_Blocks struct {
 
 func (x *Sync_Blocks) Reset() {
 	*x = Sync_Blocks{}
-	mi := &file_conf_conf_proto_msgTypes[18]
+	mi := &file_conf_conf_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1311,7 +1409,7 @@ func (x *Sync_Blocks) String() string {
 func (*Sync_Blocks) ProtoMessage() {}
 
 func (x *Sync_Blocks) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[18]
+	mi := &file_conf_conf_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1339,14 +1437,15 @@ var File_conf_conf_proto protoreflect.FileDescriptor
 const file_conf_conf_proto_rawDesc = "" +
 	"\n" +
 	"\x0fconf/conf.proto\x12\n" +
-	"kratos.api\x1a\x1egoogle/protobuf/duration.proto\"\xf5\x01\n" +
+	"kratos.api\x1a\x1egoogle/protobuf/duration.proto\"\xa4\x02\n" +
 	"\tBootstrap\x12*\n" +
 	"\x06server\x18\x01 \x01(\v2\x12.kratos.api.ServerR\x06server\x12$\n" +
 	"\x04data\x18\x02 \x01(\v2\x10.kratos.api.DataR\x04data\x12$\n" +
 	"\x04node\x18\x03 \x01(\v2\x10.kratos.api.NodeR\x04node\x12!\n" +
 	"\x03log\x18\x04 \x01(\v2\x0f.kratos.api.LogR\x03log\x12'\n" +
 	"\x05chain\x18\x05 \x01(\v2\x11.kratos.api.ChainR\x05chain\x12$\n" +
-	"\x04sync\x18\x06 \x01(\v2\x10.kratos.api.SyncR\x04sync\"\x80\x03\n" +
+	"\x04sync\x18\x06 \x01(\v2\x10.kratos.api.SyncR\x04sync\x12-\n" +
+	"\aarchive\x18\a \x01(\v2\x13.kratos.api.ArchiveR\aarchive\"\x80\x03\n" +
 	"\x06Server\x12+\n" +
 	"\x04http\x18\x01 \x01(\v2\x17.kratos.api.Server.HTTPR\x04http\x12+\n" +
 	"\x04grpc\x18\x02 \x01(\v2\x17.kratos.api.Server.GRPCR\x04grpc\x12%\n" +
@@ -1445,7 +1544,16 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\fmax_attempts\x18\x01 \x01(\x05R\vmaxAttempts\x12>\n" +
 	"\rinitial_delay\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\finitialDelay\x1a1\n" +
 	"\x06Blocks\x12'\n" +
-	"\x0fearliest_height\x18\x01 \x01(\x04R\x0eearliestHeightB\"Z injective-explorer/internal/conf;confb\x06proto3"
+	"\x0fearliest_height\x18\x01 \x01(\x04R\x0eearliestHeight\"\xf3\x01\n" +
+	"\aArchive\x12\x1d\n" +
+	"\n" +
+	"age_months\x18\x01 \x01(\x05R\tageMonths\x12\x1d\n" +
+	"\n" +
+	"batch_size\x18\x02 \x01(\x05R\tbatchSize\x12+\n" +
+	"\x11storage_threshold\x18\x03 \x01(\x05R\x10storageThreshold\x12,\n" +
+	"\x12use_object_storage\x18\x04 \x01(\bR\x10useObjectStorage\x125\n" +
+	"\binterval\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\binterval\x12\x18\n" +
+	"\aenabled\x18\x06 \x01(\bR\aenabledB\"Z injective-explorer/internal/conf;confb\x06proto3"
 
 var (
 	file_conf_conf_proto_rawDescOnce sync.Once
@@ -1459,7 +1567,7 @@ func file_conf_conf_proto_rawDescGZIP() []byte {
 	return file_conf_conf_proto_rawDescData
 }
 
-var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_conf_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: kratos.api.Bootstrap
 	(*Server)(nil),              // 1: kratos.api.Server
@@ -1468,19 +1576,20 @@ var file_conf_conf_proto_goTypes = []any{
 	(*Log)(nil),                 // 4: kratos.api.Log
 	(*Chain)(nil),               // 5: kratos.api.Chain
 	(*Sync)(nil),                // 6: kratos.api.Sync
-	(*Server_HTTP)(nil),         // 7: kratos.api.Server.HTTP
-	(*Server_GRPC)(nil),         // 8: kratos.api.Server.GRPC
-	(*Data_Database)(nil),       // 9: kratos.api.Data.Database
-	(*Data_Redis)(nil),          // 10: kratos.api.Data.Redis
-	(*Data_ObjectStorage)(nil),  // 11: kratos.api.Data.ObjectStorage
-	(*Sync_Redis)(nil),          // 12: kratos.api.Sync.Redis
-	(*Sync_Intervals)(nil),      // 13: kratos.api.Sync.Intervals
-	(*Sync_Timeouts)(nil),       // 14: kratos.api.Sync.Timeouts
-	(*Sync_Concurrency)(nil),    // 15: kratos.api.Sync.Concurrency
-	(*Sync_BatchSize)(nil),      // 16: kratos.api.Sync.BatchSize
-	(*Sync_Retry)(nil),          // 17: kratos.api.Sync.Retry
-	(*Sync_Blocks)(nil),         // 18: kratos.api.Sync.Blocks
-	(*durationpb.Duration)(nil), // 19: google.protobuf.Duration
+	(*Archive)(nil),             // 7: kratos.api.Archive
+	(*Server_HTTP)(nil),         // 8: kratos.api.Server.HTTP
+	(*Server_GRPC)(nil),         // 9: kratos.api.Server.GRPC
+	(*Data_Database)(nil),       // 10: kratos.api.Data.Database
+	(*Data_Redis)(nil),          // 11: kratos.api.Data.Redis
+	(*Data_ObjectStorage)(nil),  // 12: kratos.api.Data.ObjectStorage
+	(*Sync_Redis)(nil),          // 13: kratos.api.Sync.Redis
+	(*Sync_Intervals)(nil),      // 14: kratos.api.Sync.Intervals
+	(*Sync_Timeouts)(nil),       // 15: kratos.api.Sync.Timeouts
+	(*Sync_Concurrency)(nil),    // 16: kratos.api.Sync.Concurrency
+	(*Sync_BatchSize)(nil),      // 17: kratos.api.Sync.BatchSize
+	(*Sync_Retry)(nil),          // 18: kratos.api.Sync.Retry
+	(*Sync_Blocks)(nil),         // 19: kratos.api.Sync.Blocks
+	(*durationpb.Duration)(nil), // 20: google.protobuf.Duration
 }
 var file_conf_conf_proto_depIdxs = []int32{
 	1,  // 0: kratos.api.Bootstrap.server:type_name -> kratos.api.Server
@@ -1489,36 +1598,38 @@ var file_conf_conf_proto_depIdxs = []int32{
 	4,  // 3: kratos.api.Bootstrap.log:type_name -> kratos.api.Log
 	5,  // 4: kratos.api.Bootstrap.chain:type_name -> kratos.api.Chain
 	6,  // 5: kratos.api.Bootstrap.sync:type_name -> kratos.api.Sync
-	7,  // 6: kratos.api.Server.http:type_name -> kratos.api.Server.HTTP
-	8,  // 7: kratos.api.Server.grpc:type_name -> kratos.api.Server.GRPC
-	9,  // 8: kratos.api.Data.database:type_name -> kratos.api.Data.Database
-	10, // 9: kratos.api.Data.redis:type_name -> kratos.api.Data.Redis
-	11, // 10: kratos.api.Data.object_storage:type_name -> kratos.api.Data.ObjectStorage
-	12, // 11: kratos.api.Sync.redis:type_name -> kratos.api.Sync.Redis
-	13, // 12: kratos.api.Sync.intervals:type_name -> kratos.api.Sync.Intervals
-	14, // 13: kratos.api.Sync.timeouts:type_name -> kratos.api.Sync.Timeouts
-	15, // 14: kratos.api.Sync.concurrency:type_name -> kratos.api.Sync.Concurrency
-	16, // 15: kratos.api.Sync.batch_size:type_name -> kratos.api.Sync.BatchSize
-	17, // 16: kratos.api.Sync.retry:type_name -> kratos.api.Sync.Retry
-	18, // 17: kratos.api.Sync.blocks:type_name -> kratos.api.Sync.Blocks
-	19, // 18: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	19, // 19: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	19, // 20: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
-	19, // 21: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
-	19, // 22: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
-	19, // 23: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
-	19, // 24: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
-	19, // 25: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
-	19, // 26: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
-	19, // 27: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
-	19, // 28: kratos.api.Sync.Intervals.validator_sync:type_name -> google.protobuf.Duration
-	19, // 29: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
-	19, // 30: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	7,  // 6: kratos.api.Bootstrap.archive:type_name -> kratos.api.Archive
+	8,  // 7: kratos.api.Server.http:type_name -> kratos.api.Server.HTTP
+	9,  // 8: kratos.api.Server.grpc:type_name -> kratos.api.Server.GRPC
+	10, // 9: kratos.api.Data.database:type_name -> kratos.api.Data.Database
+	11, // 10: kratos.api.Data.redis:type_name -> kratos.api.Data.Redis
+	12, // 11: kratos.api.Data.object_storage:type_name -> kratos.api.Data.ObjectStorage
+	13, // 12: kratos.api.Sync.redis:type_name -> kratos.api.Sync.Redis
+	14, // 13: kratos.api.Sync.intervals:type_name -> kratos.api.Sync.Intervals
+	15, // 14: kratos.api.Sync.timeouts:type_name -> kratos.api.Sync.Timeouts
+	16, // 15: kratos.api.Sync.concurrency:type_name -> kratos.api.Sync.Concurrency
+	17, // 16: kratos.api.Sync.batch_size:type_name -> kratos.api.Sync.BatchSize
+	18, // 17: kratos.api.Sync.retry:type_name -> kratos.api.Sync.Retry
+	19, // 18: kratos.api.Sync.blocks:type_name -> kratos.api.Sync.Blocks
+	20, // 19: kratos.api.Archive.interval:type_name -> google.protobuf.Duration
+	20, // 20: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	20, // 21: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	20, // 22: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
+	20, // 23: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
+	20, // 24: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
+	20, // 25: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
+	20, // 26: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
+	20, // 27: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
+	20, // 28: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
+	20, // 29: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
+	20, // 30: kratos.api.Sync.Intervals.validator_sync:type_name -> google.protobuf.Duration
+	20, // 31: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
+	20, // 32: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
+	33, // [33:33] is the sub-list for method output_type
+	33, // [33:33] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
@@ -1532,7 +1643,7 @@ func file_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_conf_proto_rawDesc), len(file_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

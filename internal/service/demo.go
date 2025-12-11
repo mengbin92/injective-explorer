@@ -45,6 +45,16 @@ func NewDemoService() *DemoService {
 	return &DemoService{}
 }
 
+// getStorageThresholdForSync returns the storage threshold for uploading to object storage during sync.
+// It reads from global.ArchiveConfig if available, otherwise returns the default value.
+func getStorageThresholdForSync() int {
+	if global.ArchiveConfig != nil && global.ArchiveConfig.GetStorageThreshold() > 0 {
+		return int(global.ArchiveConfig.GetStorageThreshold())
+	}
+
+	return DefaultStorageThreshold
+}
+
 // GetLatestBlocks retrieves the latest blocks from the blockchain with pagination.
 //
 // Parameters:
@@ -437,7 +447,9 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 			global.Logger.Errorf("get transaction error: %v", err)
 			continue
 		}
-		dbTx := models.TransactionFromProto(transaction.Data)
+		// Get storage threshold from config
+		storageThreshold := getStorageThresholdForSync()
+		dbTx := models.TransactionFromProto(transaction.Data, storageThreshold)
 		saveToDB(dbTx, "create transaction error")
 		// Cache the transaction
 		cacheTransaction(callCtx, dbTx)
@@ -489,9 +501,27 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	var dbTx models.Transaction
 	err = db.Get().WithContext(queryCtx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
 	if err == nil {
-		// Found in database, convert to DTO and return
-		global.Logger.Infof("transaction found in database: hash=0x%s", hash)
+		// Found in database
+		global.Logger.Infof("transaction found in database: hash=0x%s, archived=%v", hash, dbTx.Archived)
 
+		// If transaction is archived, load full data from archive table
+		if dbTx.Archived {
+			archiveService := NewArchiveService()
+			archivedTx, archiveErr := archiveService.GetArchivedTransaction(queryCtx, "0x"+hash)
+			if archiveErr == nil && archivedTx != nil {
+				global.Logger.Infof("transaction found in archive: hash=0x%s", hash)
+				// Cache the transaction for future queries
+				cacheTransaction(queryCtx, archivedTx)
+				txDTO := models.ToTransactionDTO(archivedTx, models.DTOModeWithDetail)
+				return s.marshalAndReply(txDTO, "marshal transaction error")
+			} else {
+				// Archive data not found, but transaction is marked as archived
+				// Return the transaction with empty fields (fallback)
+				global.Logger.Warnf("transaction marked as archived but archive data not found: hash=0x%s, error=%v", hash, archiveErr)
+			}
+		}
+
+		// Transaction not archived, or archive data not found, return as is
 		// Cache the transaction for future queries
 		cacheTransaction(queryCtx, &dbTx)
 
@@ -532,7 +562,9 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	}
 
 	// Save to database for future queries
-	transactionModel := models.TransactionFromProto(transaction.Data)
+	// Get storage threshold from config
+	storageThreshold := getStorageThresholdForSync()
+	transactionModel := models.TransactionFromProto(transaction.Data, storageThreshold)
 	saveToDB(transactionModel, "create transaction error")
 
 	// Cache the transaction
@@ -800,8 +832,10 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 
 	// Save to database for future queries
 	if transactions != nil && transactions.Data != nil {
+		// Get storage threshold from config
+		storageThreshold := getStorageThresholdForSync()
 		for _, transaction := range transactions.Data {
-			dbTx := models.TransactionFromProto(transaction)
+			dbTx := models.TransactionFromProto(transaction, storageThreshold)
 			saveToDB(dbTx, "create transaction error")
 			dbTxs = append(dbTxs, *dbTx)
 		}

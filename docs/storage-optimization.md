@@ -242,11 +242,13 @@ OPTIMIZE TABLE transactions;
    - 添加字段长度限制
 
 ### 中期（1-2个月）
-3. ✅ **实施数据归档**（方案二）**已完成**
-   - ✅ 创建归档表模型（TransactionArchive和TransactionDataArchive）
+3. ✅ **实施数据归档**（方案二）**已完成并优化**
+   - ✅ 创建归档表模型（TransactionDataArchive，已优化移除 TransactionArchive）
    - ✅ 创建归档表SQL迁移脚本（支持MySQL和PostgreSQL）
    - ✅ 实现归档服务（ArchiveService）
-   - ✅ 修改查询逻辑支持从归档表查询数据
+   - ✅ 修改查询逻辑支持从主表（archived=true）+ TransactionDataArchive 查询数据
+   - ✅ 集成对象存储支持（MinIO/S3/OSS/COS）
+   - ✅ 优化：移除 transaction_archives 表，减少数据冗余
    - ✅ 添加archived标记字段到Transaction模型
    - 📖 详细说明见下方"数据归档实施"
 
@@ -291,12 +293,12 @@ OPTIMIZE TABLE transactions;
 
 2. **归档服务** (`internal/service/archive.go`)
    - `ArchiveOldTransactions`: 归档超过指定年龄的交易
-   - `GetArchivedTransaction`: 从归档表查询单个交易
-   - `GetArchivedTransactions`: 从归档表查询交易列表（支持分页）
+   - `GetArchivedTransaction`: 从主表（archived=true）和 TransactionDataArchive 查询单个交易
+   - `GetArchivedTransactions`: 从主表（archived=true）和 TransactionDataArchive 查询交易列表（支持分页）
 
 3. **查询逻辑增强**
-   - `GetTransactionByHash` 方法已支持自动从归档表查询
-   - 如果主表未找到，会自动查询归档表
+   - `GetTransactionByHash` 方法已支持自动从归档数据查询
+   - 如果主表未找到，会自动查询归档数据（主表 archived=true + TransactionDataArchive）
 
 ### 使用方法
 
@@ -313,9 +315,8 @@ psql -U user -d database -f database/archive_tables.sql
 
 或者使用GORM自动迁移（已在 `global.go` 中配置）：
 ```go
-// 归档表会自动创建
+// 归档表会自动创建（只创建 TransactionDataArchive，不再需要 TransactionArchive）
 db.Get().AutoMigrate(
-    &models.TransactionArchive{},
     &models.TransactionDataArchive{},
 )
 ```
