@@ -214,7 +214,7 @@ func (s *StorageMigrationService) migrateBatch(ctx context.Context, transactions
 
 		// Migrate Data field
 		if tx.DataStorageKey == "" && len(tx.Data) > config.Threshold {
-			key := buildStorageKey("data", tx.Hash)
+			key := storage.BuildStorageKey("data", tx.Hash)
 			dataBytes := []byte(tx.Data)
 			// Try to decompress first to get original data
 			if decompressed, err := models.DecompressData(tx.Data); err == nil && len(decompressed) > 0 {
@@ -248,7 +248,7 @@ func (s *StorageMigrationService) migrateBatch(ctx context.Context, transactions
 
 		// Migrate Messages field
 		if tx.MessagesStorageKey == "" && len(tx.Messages) > config.Threshold {
-			key := buildStorageKey("messages", tx.Hash)
+			key := storage.BuildStorageKey("messages", tx.Hash)
 			messagesBytes := []byte(tx.Messages)
 			// Try to decompress first to get original data
 			if decompressed, err := models.DecompressData(tx.Messages); err == nil && len(decompressed) > 0 {
@@ -277,7 +277,7 @@ func (s *StorageMigrationService) migrateBatch(ctx context.Context, transactions
 
 		// Migrate Logs field
 		if tx.LogsStorageKey == "" && len(tx.Logs) > config.Threshold {
-			key := buildStorageKey("logs", tx.Hash)
+			key := storage.BuildStorageKey("logs", tx.Hash)
 			logsBytes := []byte(tx.Logs)
 			// Try to decompress first to get original data
 			if decompressed, err := models.DecompressData(tx.Logs); err == nil && len(decompressed) > 0 {
@@ -321,21 +321,6 @@ func (s *StorageMigrationService) migrateBatch(ctx context.Context, transactions
 	}
 
 	return migratedCount, nil
-}
-
-// buildStorageKey generates a storage key for object storage.
-// Format: {type}/{hash[:8]}/{hash} or {type}/{hash} if hash is too short.
-// Removes "0x" prefix from hash if present.
-func buildStorageKey(dataType, hash string) string {
-	// Remove "0x" prefix if present
-	if len(hash) > 2 && hash[:2] == "0x" {
-		hash = hash[2:]
-	}
-	// Use first 8 characters for directory structure
-	if len(hash) > 8 {
-		return dataType + "/" + hash[:8] + "/" + hash
-	}
-	return dataType + "/" + hash
 }
 
 // VerifyMigration verifies that migrated transactions can be correctly retrieved from object storage.

@@ -3,6 +3,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
 )
 
@@ -139,4 +140,33 @@ func (e *StorageError) Error() string {
 // Unwrap returns the wrapped error, if any.
 func (e *StorageError) Unwrap() error {
 	return e.Err
+}
+
+// BuildStorageKey generates a storage key for object storage.
+// Format: {type}/{hash[:8]}/{hash} or {type}/{hash} if hash is too short.
+// Removes "0x" prefix from hash if present.
+//
+// This function is used by sync, archive, and migration services to ensure consistent storage paths
+// and avoid data duplication.
+//
+// Parameters:
+//   - dataType: Type of data (e.g., "data", "messages", "logs")
+//   - hash: Transaction hash (with or without "0x" prefix)
+//
+// Returns:
+//   - string: Storage key for the object
+//
+// Example:
+//   - BuildStorageKey("data", "0xabcdef1234567890") -> "data/abcdef12/abcdef1234567890"
+//   - BuildStorageKey("messages", "abc123") -> "messages/abc123"
+func BuildStorageKey(dataType, hash string) string {
+	// Remove "0x" prefix if present
+	if len(hash) > 2 && hash[:2] == "0x" {
+		hash = hash[2:]
+	}
+	// Use first 8 characters for directory structure
+	if len(hash) > 8 {
+		return fmt.Sprintf("%s/%s/%s", dataType, hash[:8], hash)
+	}
+	return fmt.Sprintf("%s/%s", dataType, hash)
 }

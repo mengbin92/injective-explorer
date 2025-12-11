@@ -4,7 +4,6 @@ package models
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"unicode/utf8"
 
 	"injective-explorer/provider/storage"
@@ -58,14 +57,19 @@ type Transaction struct {
 //
 // Parameters:
 //   - detail: The protobuf transaction detail data
-//   - storageThreshold: Storage threshold in bytes. If 0 or negative, uses default 10KB (10240 bytes)
+//   - storageThreshold: Storage threshold in bytes for compressed data. If 0 or negative, uses default 3KB (3072 bytes)
+//     Note: The threshold is based on compressed data size (actual database storage size), not original data size.
+//     3KB is chosen to balance database performance (large TEXT fields >3KB can impact query performance)
+//     and storage costs (object storage is typically cheaper than database storage for large fields).
 //
 // Returns:
 //   - *Transaction: A new Transaction instance with data from the protobuf message
 //
 // Behavior:
 //   - Compresses Data, Messages, and Logs fields if they exceed 1KB
-//   - Uploads to object storage if enabled and data exceeds storageThreshold
+//   - Uploads to object storage if enabled and compressed data size exceeds storageThreshold (default 3KB)
+//   - Decision is based on compressed data size to accurately reflect database storage needs
+//   - Uploads compressed data to object storage (binary gzip format) to save space and bandwidth
 //   - Sets storage keys and clears database fields after successful upload
 //   - Extracts signer (transaction initiator) from the first signature's address (Signatures[0].Address)
 //     Falls back to GasFee.Payer if no signature address is available
@@ -148,17 +152,6 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData, storage
 		logsStr = encodeBinaryData(detail.Logs)
 	}
 
-	// Try to upload large fields to object storage
-	// Use provided threshold, or default if not specified (0 or negative)
-	threshold := storageThreshold
-	if threshold <= 0 {
-		// Default threshold: 10KB (10240 bytes)
-		// Note: This matches DefaultStorageThreshold in service/constants.go
-		// We use hardcoded value here to avoid circular dependency (models cannot import service)
-		threshold = 10 * 1024
-	}
-	storageClient := storage.Get()
-
 	tx := &Transaction{
 		Id:                 detail.Id,
 		BlockNumber:        detail.BlockNumber,
@@ -186,29 +179,62 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData, storage
 		Value:              value,
 	}
 
-	// Upload to object storage if enabled and data is large enough
-	ctx := context.Background()
-	if len(detail.Data) > threshold {
-		key := buildStorageKey("data", detail.Hash)
-		if err := storageClient.PutObject(ctx, key, detail.Data); err == nil {
-			tx.DataStorageKey = key
-			tx.Data = "" // Clear data field after successful upload
+	// Upload large fields to object storage if enabled
+	// Only uploads and clears database fields if object storage is actually enabled (not NoOpStorage)
+	// Note: Decision is based on compressed data size (actual database storage size), not original data size
+	if storage.IsEnabled() {
+		// Calculate threshold: use provided value or default 3KB
+		threshold := storageThreshold
+		if threshold <= 0 {
+			// Default threshold: 3KB (3072 bytes)
+			// Note: This matches DefaultStorageThreshold in service/constants.go
+			// We use hardcoded value here to avoid circular dependency (models cannot import service)
+			// This threshold is based on compressed data size to accurately reflect database storage needs.
+			// 3KB is chosen to balance database performance (large TEXT fields >3KB can impact query performance)
+			// and storage costs (object storage is typically cheaper than database storage for large fields).
+			threshold = 3 * 1024
 		}
-	}
 
-	if len(detail.Messages) > threshold {
-		key := buildStorageKey("messages", detail.Hash)
-		if err := storageClient.PutObject(ctx, key, detail.Messages); err == nil {
-			tx.MessagesStorageKey = key
-			tx.Messages = "" // Clear messages field after successful upload
+		storageClient := storage.Get()
+		ctx := context.Background()
+
+		// Upload Data field if compressed size exceeds threshold
+		// Store compressed data in object storage to save space and bandwidth
+		if len(dataStr) > threshold {
+			key := storage.BuildStorageKey("data", detail.Hash)
+			// Compress original data for object storage (binary format, no base64)
+			// CompressDataToBytes returns compressed data if beneficial, otherwise original data
+			dataToUpload, _, compressErr := CompressDataToBytes(detail.Data)
+			if compressErr == nil {
+				if err := storageClient.PutObject(ctx, key, dataToUpload); err == nil {
+					tx.DataStorageKey = key
+					tx.Data = "" // Clear compressed data field after successful upload
+				}
+			}
 		}
-	}
 
-	if len(detail.Logs) > threshold {
-		key := buildStorageKey("logs", detail.Hash)
-		if err := storageClient.PutObject(ctx, key, detail.Logs); err == nil {
-			tx.LogsStorageKey = key
-			tx.Logs = "" // Clear logs field after successful upload
+		// Upload Messages field if compressed size exceeds threshold
+		if len(messagesStr) > threshold {
+			key := storage.BuildStorageKey("messages", detail.Hash)
+			messagesToUpload, _, compressErr := CompressDataToBytes(detail.Messages)
+			if compressErr == nil {
+				if err := storageClient.PutObject(ctx, key, messagesToUpload); err == nil {
+					tx.MessagesStorageKey = key
+					tx.Messages = "" // Clear compressed data field after successful upload
+				}
+			}
+		}
+
+		// Upload Logs field if compressed size exceeds threshold
+		if len(logsStr) > threshold {
+			key := storage.BuildStorageKey("logs", detail.Hash)
+			logsToUpload, _, compressErr := CompressDataToBytes(detail.Logs)
+			if compressErr == nil {
+				if err := storageClient.PutObject(ctx, key, logsToUpload); err == nil {
+					tx.LogsStorageKey = key
+					tx.Logs = "" // Clear compressed data field after successful upload
+				}
+			}
 		}
 	}
 
@@ -286,9 +312,10 @@ func decodeBinaryData(dataStr string) []byte {
 //
 // Behavior:
 //   - First tries to load from object storage if storage keys exist
+//   - Automatically decompresses data from object storage (may be compressed binary gzip format)
 //   - Falls back to database fields if object storage fails or keys are empty
-//   - Automatically decompresses compressed data (supports both compressed and uncompressed formats)
-//   - Handles backward compatibility with old data formats
+//   - Automatically decompresses compressed data from database (supports both compressed and uncompressed formats)
+//   - Handles backward compatibility with old data formats (both uncompressed and compressed data in object storage)
 func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData {
 	if tx == nil {
 		return nil
@@ -299,10 +326,15 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 
 	// Load data from object storage if storage key exists, otherwise use database field
 	var dataBytes []byte
-	var err error
 	if tx.DataStorageKey != "" {
-		if data, err := storageClient.GetObject(ctx, tx.DataStorageKey); err == nil {
-			dataBytes = data
+		if storageData, err := storageClient.GetObject(ctx, tx.DataStorageKey); err == nil {
+			// Decompress data from object storage (may be compressed binary format)
+			var decompressErr error
+			dataBytes, decompressErr = DecompressDataFromBytes(storageData)
+			if decompressErr != nil {
+				// If decompression fails, assume it's uncompressed (backward compatibility)
+				dataBytes = storageData
+			}
 		} else {
 			// Fallback to database field if object storage fails
 			dataBytes, _ = DecompressData(tx.Data)
@@ -314,6 +346,7 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 		// Decompress and decode binary data fields
 		// The DecompressData function handles both compressed (with prefix) and uncompressed data
 		// For uncompressed data, it may be base64 encoded (old format) or plain text
+		var err error
 		dataBytes, err = DecompressData(tx.Data)
 		if err != nil {
 			// If decompression fails, try to decode as base64 (backward compatibility with old format)
@@ -323,8 +356,14 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 
 	var messagesBytes []byte
 	if tx.MessagesStorageKey != "" {
-		if messages, err := storageClient.GetObject(ctx, tx.MessagesStorageKey); err == nil {
-			messagesBytes = messages
+		if storageMessages, err := storageClient.GetObject(ctx, tx.MessagesStorageKey); err == nil {
+			// Decompress data from object storage (may be compressed binary format)
+			var decompressErr error
+			messagesBytes, decompressErr = DecompressDataFromBytes(storageMessages)
+			if decompressErr != nil {
+				// If decompression fails, assume it's uncompressed (backward compatibility)
+				messagesBytes = storageMessages
+			}
 		} else {
 			// Fallback to database field if object storage fails
 			messagesBytes, _ = DecompressData(tx.Messages)
@@ -333,6 +372,7 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 			}
 		}
 	} else {
+		var err error
 		messagesBytes, err = DecompressData(tx.Messages)
 		if err != nil {
 			messagesBytes = decodeBinaryData(tx.Messages)
@@ -341,8 +381,14 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 
 	var logsBytes []byte
 	if tx.LogsStorageKey != "" {
-		if logs, err := storageClient.GetObject(ctx, tx.LogsStorageKey); err == nil {
-			logsBytes = logs
+		if storageLogs, err := storageClient.GetObject(ctx, tx.LogsStorageKey); err == nil {
+			// Decompress data from object storage (may be compressed binary format)
+			var decompressErr error
+			logsBytes, decompressErr = DecompressDataFromBytes(storageLogs)
+			if decompressErr != nil {
+				// If decompression fails, assume it's uncompressed (backward compatibility)
+				logsBytes = storageLogs
+			}
 		} else {
 			// Fallback to database field if object storage fails
 			logsBytes, _ = DecompressData(tx.Logs)
@@ -351,6 +397,7 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 			}
 		}
 	} else {
+		var err error
 		logsBytes, err = DecompressData(tx.Logs)
 		if err != nil {
 			logsBytes = decodeBinaryData(tx.Logs)
@@ -433,26 +480,4 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 		Logs:               logsBytes,
 		ClaimIds:           tx.ClaimIds,
 	}
-}
-
-// buildStorageKey generates a storage key for object storage.
-// Format: {type}/{hash[:8]}/{hash} or {type}/{hash} if hash is too short.
-// Removes "0x" prefix from hash if present.
-//
-// Parameters:
-//   - dataType: Type of data (e.g., "data", "messages", "logs")
-//   - hash: Transaction hash (with or without "0x" prefix)
-//
-// Returns:
-//   - string: Storage key for the object
-func buildStorageKey(dataType, hash string) string {
-	// Remove "0x" prefix if present
-	if len(hash) > 2 && hash[:2] == "0x" {
-		hash = hash[2:]
-	}
-	// Use first 8 characters for directory structure
-	if len(hash) > 8 {
-		return fmt.Sprintf("%s/%s/%s", dataType, hash[:8], hash)
-	}
-	return fmt.Sprintf("%s/%s", dataType, hash)
 }

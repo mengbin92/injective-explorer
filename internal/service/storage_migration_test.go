@@ -380,20 +380,20 @@ func TestDefaultMigrationConfig(t *testing.T) {
 	assert.True(t, config.OnlyEmptyKeys)
 }
 
-// TestBuildStorageKey tests the buildStorageKey function.
+// TestBuildStorageKey tests the BuildStorageKey function.
 func TestBuildStorageKey(t *testing.T) {
 	t.Run("normal hash", func(t *testing.T) {
-		key := buildStorageKey("data", "abcdef1234567890")
+		key := storage.BuildStorageKey("data", "abcdef1234567890")
 		assert.Equal(t, "data/abcdef12/abcdef1234567890", key)
 	})
 
 	t.Run("hash with 0x prefix", func(t *testing.T) {
-		key := buildStorageKey("messages", "0xabcdef1234567890")
+		key := storage.BuildStorageKey("messages", "0xabcdef1234567890")
 		assert.Equal(t, "messages/abcdef12/abcdef1234567890", key)
 	})
 
 	t.Run("short hash", func(t *testing.T) {
-		key := buildStorageKey("logs", "abc")
+		key := storage.BuildStorageKey("logs", "abc")
 		assert.Equal(t, "logs/abc", key)
 	})
 }

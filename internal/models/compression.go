@@ -177,3 +177,85 @@ func isValidUTF8Text(data []byte) bool {
 	}
 	return utf8.Valid(data)
 }
+
+// CompressDataToBytes compresses data to binary format (without base64 encoding).
+// This is used for object storage where binary data can be stored directly.
+// Returns compressed binary data if compression is beneficial, otherwise returns original data.
+//
+// Parameters:
+//   - data: The data to compress (can be nil or empty)
+//
+// Returns:
+//   - []byte: Compressed binary data if compression is beneficial, otherwise original data
+//   - bool: True if data was compressed, false if original data is returned
+//   - error: Error if compression fails
+func CompressDataToBytes(data []byte) ([]byte, bool, error) {
+	if len(data) == 0 {
+		return nil, false, nil
+	}
+
+	// Don't compress small data - compression overhead may not be worth it
+	if len(data) < CompressionThreshold {
+		return data, false, nil
+	}
+
+	var buf bytes.Buffer
+	writer, err := gzip.NewWriterLevel(&buf, CompressionLevel)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to create gzip writer: %w", err)
+	}
+
+	if _, err := writer.Write(data); err != nil {
+		writer.Close()
+		return nil, false, fmt.Errorf("failed to write data to gzip writer: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, false, fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	compressed := buf.Bytes()
+
+	// Only use compression if it actually reduces size
+	if len(compressed) >= len(data) {
+		// Compression didn't help, return original
+		return data, false, nil
+	}
+
+	return compressed, true, nil
+}
+
+// DecompressDataFromBytes decompresses binary data that was compressed with CompressDataToBytes.
+// If data is not compressed (no gzip magic number), returns original data.
+//
+// Parameters:
+//   - data: The compressed or uncompressed binary data
+//
+// Returns:
+//   - []byte: Decompressed data, or original data if not compressed
+//   - error: Error if decompression fails
+func DecompressDataFromBytes(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	// Check gzip magic number (0x1f 0x8b) to determine if data is compressed
+	if len(data) < 2 || data[0] != 0x1f || data[1] != 0x8b {
+		// Not compressed, return as-is
+		return data, nil
+	}
+
+	// Decompress the binary data
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read decompressed data: %w", err)
+	}
+
+	return decompressed, nil
+}

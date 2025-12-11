@@ -335,21 +335,41 @@ func (s *ArchiveService) archiveBatch(ctx context.Context, transactions []models
 			global.Logger.Debugf("reusing existing data storage key for tx %s: %s", txn.Hash, txn.DataStorageKey)
 		} else if config.UseObjectStorage && len(txn.Data) > config.StorageThreshold {
 			// Upload to object storage if not already uploaded
-			dataKey := buildArchiveStorageKey("archive/data", txn.Hash, archivedAt)
+			// Use the same storage key format as sync service to avoid data duplication
+			dataKey := storage.BuildStorageKey("data", txn.Hash)
+			// Get original data (decompress if stored in compressed format)
 			dataBytes := []byte(txn.Data)
-			// Try to decompress first to get original data if compressed
 			if decompressed, err := models.DecompressData(txn.Data); err == nil && len(decompressed) > 0 {
 				dataBytes = decompressed
 			}
-			if err := s.storage.PutObject(ctx, dataKey, dataBytes); err == nil {
-				archiveData.DataStorageKey = dataKey
-				archiveData.Data = ""                              // Clear data field
-				uploadedObjects = append(uploadedObjects, dataKey) // Track for cleanup
-				global.Logger.Debugf("uploaded archive data to storage for tx %s", txn.Hash)
+			// Compress data for object storage to save space and bandwidth
+			compressedData, wasCompressed, compressErr := models.CompressDataToBytes(dataBytes)
+			if compressErr == nil {
+				dataToUpload := compressedData
+				if !wasCompressed {
+					dataToUpload = dataBytes
+				}
+				if err := s.storage.PutObject(ctx, dataKey, dataToUpload); err == nil {
+					archiveData.DataStorageKey = dataKey
+					archiveData.Data = ""                              // Clear data field
+					uploadedObjects = append(uploadedObjects, dataKey) // Track for cleanup
+					global.Logger.Debugf("uploaded archive data to storage for tx %s", txn.Hash)
+				} else {
+					// Upload failed, store in database as fallback
+					global.Logger.Warnf("failed to upload archive data to storage for tx %s: %v, storing in database", txn.Hash, err)
+					archiveData.Data = txn.Data
+				}
 			} else {
-				// Upload failed, store in database as fallback
-				global.Logger.Warnf("failed to upload archive data to storage for tx %s: %v, storing in database", txn.Hash, err)
-				archiveData.Data = txn.Data
+				// Compression failed, upload original data
+				global.Logger.Warnf("failed to compress archive data for tx %s: %v, uploading original data", txn.Hash, compressErr)
+				if err := s.storage.PutObject(ctx, dataKey, dataBytes); err == nil {
+					archiveData.DataStorageKey = dataKey
+					archiveData.Data = ""
+					uploadedObjects = append(uploadedObjects, dataKey)
+				} else {
+					global.Logger.Warnf("failed to upload archive data to storage for tx %s: %v, storing in database", txn.Hash, err)
+					archiveData.Data = txn.Data
+				}
 			}
 		} else {
 			// Store in database (object storage disabled or below threshold)
@@ -364,19 +384,38 @@ func (s *ArchiveService) archiveBatch(ctx context.Context, transactions []models
 			global.Logger.Debugf("reusing existing messages storage key for tx %s: %s", txn.Hash, txn.MessagesStorageKey)
 		} else if config.UseObjectStorage && len(txn.Messages) > config.StorageThreshold {
 			// Upload to object storage if not already uploaded
-			messagesKey := buildArchiveStorageKey("archive/messages", txn.Hash, archivedAt)
+			// Use the same storage key format as sync service to avoid data duplication
+			messagesKey := storage.BuildStorageKey("messages", txn.Hash)
 			messagesBytes := []byte(txn.Messages)
 			if decompressed, err := models.DecompressData(txn.Messages); err == nil && len(decompressed) > 0 {
 				messagesBytes = decompressed
 			}
-			if err := s.storage.PutObject(ctx, messagesKey, messagesBytes); err == nil {
-				archiveData.MessagesStorageKey = messagesKey
-				archiveData.Messages = ""                              // Clear messages field
-				uploadedObjects = append(uploadedObjects, messagesKey) // Track for cleanup
-				global.Logger.Debugf("uploaded archive messages to storage for tx %s", txn.Hash)
+			// Compress data for object storage
+			compressedData, wasCompressed, compressErr := models.CompressDataToBytes(messagesBytes)
+			if compressErr == nil {
+				dataToUpload := compressedData
+				if !wasCompressed {
+					dataToUpload = messagesBytes
+				}
+				if err := s.storage.PutObject(ctx, messagesKey, dataToUpload); err == nil {
+					archiveData.MessagesStorageKey = messagesKey
+					archiveData.Messages = ""
+					uploadedObjects = append(uploadedObjects, messagesKey)
+					global.Logger.Debugf("uploaded archive messages to storage for tx %s", txn.Hash)
+				} else {
+					global.Logger.Warnf("failed to upload archive messages to storage for tx %s: %v, storing in database", txn.Hash, err)
+					archiveData.Messages = txn.Messages
+				}
 			} else {
-				global.Logger.Warnf("failed to upload archive messages to storage for tx %s: %v, storing in database", txn.Hash, err)
-				archiveData.Messages = txn.Messages
+				global.Logger.Warnf("failed to compress archive messages for tx %s: %v, uploading original data", txn.Hash, compressErr)
+				if err := s.storage.PutObject(ctx, messagesKey, messagesBytes); err == nil {
+					archiveData.MessagesStorageKey = messagesKey
+					archiveData.Messages = ""
+					uploadedObjects = append(uploadedObjects, messagesKey)
+				} else {
+					global.Logger.Warnf("failed to upload archive messages to storage for tx %s: %v, storing in database", txn.Hash, err)
+					archiveData.Messages = txn.Messages
+				}
 			}
 		} else {
 			archiveData.Messages = txn.Messages
@@ -390,19 +429,38 @@ func (s *ArchiveService) archiveBatch(ctx context.Context, transactions []models
 			global.Logger.Debugf("reusing existing logs storage key for tx %s: %s", txn.Hash, txn.LogsStorageKey)
 		} else if config.UseObjectStorage && len(txn.Logs) > config.StorageThreshold {
 			// Upload to object storage if not already uploaded
-			logsKey := buildArchiveStorageKey("archive/logs", txn.Hash, archivedAt)
+			// Use the same storage key format as sync service to avoid data duplication
+			logsKey := storage.BuildStorageKey("logs", txn.Hash)
 			logsBytes := []byte(txn.Logs)
 			if decompressed, err := models.DecompressData(txn.Logs); err == nil && len(decompressed) > 0 {
 				logsBytes = decompressed
 			}
-			if err := s.storage.PutObject(ctx, logsKey, logsBytes); err == nil {
-				archiveData.LogsStorageKey = logsKey
-				archiveData.Logs = ""                              // Clear logs field
-				uploadedObjects = append(uploadedObjects, logsKey) // Track for cleanup
-				global.Logger.Debugf("uploaded archive logs to storage for tx %s", txn.Hash)
+			// Compress data for object storage
+			compressedData, wasCompressed, compressErr := models.CompressDataToBytes(logsBytes)
+			if compressErr == nil {
+				dataToUpload := compressedData
+				if !wasCompressed {
+					dataToUpload = logsBytes
+				}
+				if err := s.storage.PutObject(ctx, logsKey, dataToUpload); err == nil {
+					archiveData.LogsStorageKey = logsKey
+					archiveData.Logs = ""
+					uploadedObjects = append(uploadedObjects, logsKey)
+					global.Logger.Debugf("uploaded archive logs to storage for tx %s", txn.Hash)
+				} else {
+					global.Logger.Warnf("failed to upload archive logs to storage for tx %s: %v, storing in database", txn.Hash, err)
+					archiveData.Logs = txn.Logs
+				}
 			} else {
-				global.Logger.Warnf("failed to upload archive logs to storage for tx %s: %v, storing in database", txn.Hash, err)
-				archiveData.Logs = txn.Logs
+				global.Logger.Warnf("failed to compress archive logs for tx %s: %v, uploading original data", txn.Hash, compressErr)
+				if err := s.storage.PutObject(ctx, logsKey, logsBytes); err == nil {
+					archiveData.LogsStorageKey = logsKey
+					archiveData.Logs = ""
+					uploadedObjects = append(uploadedObjects, logsKey)
+				} else {
+					global.Logger.Warnf("failed to upload archive logs to storage for tx %s: %v, storing in database", txn.Hash, err)
+					archiveData.Logs = txn.Logs
+				}
 			}
 		} else {
 			archiveData.Logs = txn.Logs
@@ -443,21 +501,6 @@ func (s *ArchiveService) archiveBatch(ctx context.Context, transactions []models
 	return archivedCount, nil
 }
 
-// buildArchiveStorageKey generates a storage key for archived transaction data in object storage.
-// Format: {prefix}/{type}/{hash[:8]}/{hash} or {prefix}/{type}/{hash} if hash is too short.
-// Removes "0x" prefix from hash if present.
-func buildArchiveStorageKey(prefix, hash string, archivedAt int64) string {
-	// Remove "0x" prefix if present
-	if len(hash) > 2 && hash[:2] == "0x" {
-		hash = hash[2:]
-	}
-	// Use first 8 characters for directory structure
-	if len(hash) > 8 {
-		return prefix + "/" + hash[:8] + "/" + hash
-	}
-	return prefix + "/" + hash
-}
-
 // GetArchivedTransaction retrieves a transaction from the main table (archived=true) and TransactionDataArchive.
 // It combines metadata from the main transactions table with detailed data from TransactionDataArchive.
 //
@@ -495,7 +538,15 @@ func (s *ArchiveService) GetArchivedTransaction(ctx context.Context, hash string
 	data := archiveData.Data
 	if archiveData.DataStorageKey != "" {
 		if storageData, err := s.storage.GetObject(ctx, archiveData.DataStorageKey); err == nil {
-			data = string(storageData)
+			// Decompress data from object storage (may be compressed binary format)
+			var decompressErr error
+			decompressed, decompressErr := models.DecompressDataFromBytes(storageData)
+			if decompressErr != nil {
+				// If decompression fails, assume it's uncompressed (backward compatibility)
+				data = string(storageData)
+			} else {
+				data = string(decompressed)
+			}
 			global.Logger.Debugf("loaded archive data from storage for tx %s", tx.Hash)
 		} else {
 			global.Logger.Warnf("failed to load archive data from storage for tx %s: %v, using database data", tx.Hash, err)
@@ -509,7 +560,15 @@ func (s *ArchiveService) GetArchivedTransaction(ctx context.Context, hash string
 	messages := archiveData.Messages
 	if archiveData.MessagesStorageKey != "" {
 		if storageMessages, err := s.storage.GetObject(ctx, archiveData.MessagesStorageKey); err == nil {
-			messages = string(storageMessages)
+			// Decompress data from object storage (may be compressed binary format)
+			var decompressErr error
+			decompressed, decompressErr := models.DecompressDataFromBytes(storageMessages)
+			if decompressErr != nil {
+				// If decompression fails, assume it's uncompressed (backward compatibility)
+				messages = string(storageMessages)
+			} else {
+				messages = string(decompressed)
+			}
 			global.Logger.Debugf("loaded archive messages from storage for tx %s", tx.Hash)
 		} else {
 			global.Logger.Warnf("failed to load archive messages from storage for tx %s: %v, using database data", tx.Hash, err)
@@ -522,7 +581,15 @@ func (s *ArchiveService) GetArchivedTransaction(ctx context.Context, hash string
 	logs := archiveData.Logs
 	if archiveData.LogsStorageKey != "" {
 		if storageLogs, err := s.storage.GetObject(ctx, archiveData.LogsStorageKey); err == nil {
-			logs = string(storageLogs)
+			// Decompress data from object storage (may be compressed binary format)
+			var decompressErr error
+			decompressed, decompressErr := models.DecompressDataFromBytes(storageLogs)
+			if decompressErr != nil {
+				// If decompression fails, assume it's uncompressed (backward compatibility)
+				logs = string(storageLogs)
+			} else {
+				logs = string(decompressed)
+			}
 			global.Logger.Debugf("loaded archive logs from storage for tx %s", tx.Hash)
 		} else {
 			global.Logger.Warnf("failed to load archive logs from storage for tx %s: %v, using database data", tx.Hash, err)
@@ -617,7 +684,15 @@ func (s *ArchiveService) GetArchivedTransactions(ctx context.Context, limit, off
 		data := archiveData.Data
 		if archiveData.DataStorageKey != "" {
 			if storageData, err := s.storage.GetObject(ctx, archiveData.DataStorageKey); err == nil {
-				data = string(storageData)
+				// Decompress data from object storage (may be compressed binary format)
+				var decompressErr error
+				decompressed, decompressErr := models.DecompressDataFromBytes(storageData)
+				if decompressErr != nil {
+					// If decompression fails, assume it's uncompressed (backward compatibility)
+					data = string(storageData)
+				} else {
+					data = string(decompressed)
+				}
 			} else {
 				global.Logger.Warnf("failed to load archive data from storage for tx %s: %v, using database data", tx.Hash, err)
 				if archiveData.Data != "" {
@@ -629,7 +704,15 @@ func (s *ArchiveService) GetArchivedTransactions(ctx context.Context, limit, off
 		messages := archiveData.Messages
 		if archiveData.MessagesStorageKey != "" {
 			if storageMessages, err := s.storage.GetObject(ctx, archiveData.MessagesStorageKey); err == nil {
-				messages = string(storageMessages)
+				// Decompress data from object storage (may be compressed binary format)
+				var decompressErr error
+				decompressed, decompressErr := models.DecompressDataFromBytes(storageMessages)
+				if decompressErr != nil {
+					// If decompression fails, assume it's uncompressed (backward compatibility)
+					messages = string(storageMessages)
+				} else {
+					messages = string(decompressed)
+				}
 			} else {
 				global.Logger.Warnf("failed to load archive messages from storage for tx %s: %v, using database data", tx.Hash, err)
 				if archiveData.Messages != "" {
@@ -641,7 +724,15 @@ func (s *ArchiveService) GetArchivedTransactions(ctx context.Context, limit, off
 		logs := archiveData.Logs
 		if archiveData.LogsStorageKey != "" {
 			if storageLogs, err := s.storage.GetObject(ctx, archiveData.LogsStorageKey); err == nil {
-				logs = string(storageLogs)
+				// Decompress data from object storage (may be compressed binary format)
+				var decompressErr error
+				decompressed, decompressErr := models.DecompressDataFromBytes(storageLogs)
+				if decompressErr != nil {
+					// If decompression fails, assume it's uncompressed (backward compatibility)
+					logs = string(storageLogs)
+				} else {
+					logs = string(decompressed)
+				}
 			} else {
 				global.Logger.Warnf("failed to load archive logs from storage for tx %s: %v, using database data", tx.Hash, err)
 				if archiveData.Logs != "" {

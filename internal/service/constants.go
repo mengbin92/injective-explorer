@@ -57,9 +57,13 @@ const (
 	HealthCheckTimeout = 2 * time.Second // Timeout for health check operations
 
 	// Archive constants
-	DefaultStorageThreshold = 10 * 1024 // Default storage threshold: 10KB (10240 bytes)
-	DefaultArchiveAgeMonths = 6         // Default archive age: 6 months
-	DefaultArchiveBatchSize = 1000      // Default archive batch size: 1000 transactions
+	DefaultStorageThreshold = 3 * 1024 // Default storage threshold: 3KB (3072 bytes)
+	// Note: This threshold is based on compressed data size, not original data size.
+	// Data is compressed first, then if compressed size exceeds this threshold, original data is uploaded to object storage.
+	// 3KB is chosen to balance database performance (large TEXT fields >3KB can impact query performance)
+	// and storage costs (object storage is typically cheaper than database storage for large fields).
+	DefaultArchiveAgeMonths = 6    // Default archive age: 6 months
+	DefaultArchiveBatchSize = 1000 // Default archive batch size: 1000 transactions
 )
 
 // Redis cache key constants

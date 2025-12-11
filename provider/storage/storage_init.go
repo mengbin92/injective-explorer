@@ -75,3 +75,14 @@ func Get() Storage {
 	}
 	return gStorage
 }
+
+// IsEnabled checks if object storage is actually enabled (not NoOpStorage).
+// This is useful to determine if storage operations will actually persist data.
+func IsEnabled() bool {
+	if gStorage == nil {
+		return false
+	}
+	// Check the type: if it's NoOpStorage, storage is disabled
+	_, isNoOp := gStorage.(*NoOpStorage)
+	return !isNoOp
+}
