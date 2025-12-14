@@ -4,7 +4,7 @@ go 1.25.3
 
 require (
 	cosmossdk.io/errors v1.0.1
-	github.com/InjectiveLabs/sdk-go v1.58.3
+	github.com/InjectiveLabs/sdk-go v1.59.0
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.5
@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.93.2
 	github.com/bytedance/sonic v1.14.2
 	github.com/cometbft/cometbft v1.0.1
-	github.com/cosmos/cosmos-sdk v0.50.9
+	github.com/cosmos/cosmos-sdk v0.50.12
 	github.com/go-kratos/kratos/v2 v2.8.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/minio/minio-go/v7 v7.0.97
@@ -84,6 +84,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.5 // indirect
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/bandprotocol/bandchain-packet v0.0.0-00010101000000-000000000000 // indirect
+	github.com/bcp-innovations/hyperlane-cosmos v0.0.0-00010101000000-000000000000 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816 // indirect
 	github.com/bits-and-blooms/bitset v1.22.0 // indirect
@@ -102,7 +103,7 @@ require (
 	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/fifo v0.0.0-20240816210425-c5d0cb0b6fc0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
-	github.com/cockroachdb/pebble v1.1.4 // indirect
+	github.com/cockroachdb/pebble v1.1.5 // indirect
 	github.com/cockroachdb/redact v1.1.6 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/coder/websocket v1.8.13 // indirect
@@ -313,6 +314,7 @@ replace (
 
 	github.com/CosmWasm/wasmd => github.com/InjectiveLabs/wasmd v0.53.3-evm-comet1-inj
 	github.com/bandprotocol/bandchain-packet => github.com/InjectiveLabs/bandchain-packet v0.0.4-inj-1
+	github.com/bcp-innovations/hyperlane-cosmos => github.com/InjectiveLabs/hyperlane-cosmos v1.0.1-inj
 	github.com/coder/websocket => github.com/InjectiveLabs/websocket v1.8.13
 
 	github.com/cometbft/cometbft => github.com/InjectiveLabs/cometbft v1.0.1-inj.3
