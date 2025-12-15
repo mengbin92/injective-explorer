@@ -42,7 +42,7 @@ type DemoHTTPServer interface {
 	GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error)
 	GetLatestTransactions(context.Context, *PaginationRequest) (*Reply, error)
 	GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error)
-	GetTransactionStats(context.Context, *emptypb.Empty) (*TransactionStatsResponse, error)
+	GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error)
 }
 
 func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
@@ -225,7 +225,7 @@ func _Demo_GetTransactionStats0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.C
 		if err != nil {
 			return err
 		}
-		reply := out.(*TransactionStatsResponse)
+		reply := out.(*Reply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -259,7 +259,7 @@ type DemoHTTPClient interface {
 	GetLatestBlocks(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestTransactions(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetTransactionByHash(ctx context.Context, req *GetTransactionByHashRequest, opts ...http.CallOption) (rsp *Reply, err error)
-	GetTransactionStats(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *TransactionStatsResponse, err error)
+	GetTransactionStats(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
 }
 
 type DemoHTTPClientImpl struct {
@@ -387,8 +387,8 @@ func (c *DemoHTTPClientImpl) GetTransactionByHash(ctx context.Context, in *GetTr
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*TransactionStatsResponse, error) {
-	var out TransactionStatsResponse
+func (c *DemoHTTPClientImpl) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
 	pattern := "/demo/transaction/stats"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetTransactionStats))

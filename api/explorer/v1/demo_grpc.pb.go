@@ -47,7 +47,7 @@ type DemoClient interface {
 	GetAccountInfo(ctx context.Context, in *GetAccountInfoRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error)
-	GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TransactionStatsResponse, error)
+	GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -147,9 +147,9 @@ func (c *demoClient) GetAccountBalances(ctx context.Context, in *GetAccountBalan
 	return out, nil
 }
 
-func (c *demoClient) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TransactionStatsResponse, error) {
+func (c *demoClient) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(TransactionStatsResponse)
+	out := new(Reply)
 	err := c.cc.Invoke(ctx, Demo_GetTransactionStats_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -236,7 +236,7 @@ type DemoServer interface {
 	GetAccountInfo(context.Context, *GetAccountInfoRequest) (*Reply, error)
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
-	GetTransactionStats(context.Context, *emptypb.Empty) (*TransactionStatsResponse, error)
+	GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -280,7 +280,7 @@ func (UnimplementedDemoServer) GetAccountTransactions(context.Context, *GetAccou
 func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccountBalances not implemented")
 }
-func (UnimplementedDemoServer) GetTransactionStats(context.Context, *emptypb.Empty) (*TransactionStatsResponse, error) {
+func (UnimplementedDemoServer) GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTransactionStats not implemented")
 }
 func (UnimplementedDemoServer) CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error) {

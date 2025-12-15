@@ -56,8 +56,7 @@ service Demo {
     };
   }
 
-  rpc GetTransactionStats(google.protobuf.Empty)
-      returns (TransactionStatsResponse) {
+  rpc GetTransactionStats(google.protobuf.Empty) returns (Reply) {
     option (google.api.http) = {
       get : "/demo/transaction/stats"
     };

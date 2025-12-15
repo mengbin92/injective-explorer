@@ -2334,9 +2334,9 @@ func cacheTotal(ctx context.Context, key string, total int64) {
 //   - req: Empty request (no parameters needed)
 //
 // Returns:
-//   - *pb.TransactionStatsResponse: Response containing transaction statistics
+//   - *pb.Reply: Response containing transaction statistics
 //   - error: Error if the operation fails
-func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empty) (*pb.TransactionStatsResponse, error) {
+func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	global.Logger.Info("getting transaction statistics")
 
 	// Create independent context for queries
@@ -2349,7 +2349,7 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 	cachedStats := getTransactionStatsFromCache(queryCtx)
 	if cachedStats != nil {
 		global.Logger.Infof("transaction statistics found in cache")
-		return cachedStats, nil
+		return s.marshalAndReply(cachedStats, "marshal transaction stats error")
 	}
 
 	// 1. Get total transaction count (optimized with timeout and approximate count support)
@@ -2634,7 +2634,7 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 	// Cache the statistics for future queries (async to avoid blocking)
 	go cacheTransactionStats(context.Background(), stats)
 
-	return stats, nil
+	return s.marshalAndReply(stats, "marshal transaction stats error")
 }
 
 // getTransactionStatsFromCache retrieves transaction statistics from Redis cache.

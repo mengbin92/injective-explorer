@@ -1639,7 +1639,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\tclaim_ids\x18\x15 \x03(\x03R\tclaim_ids\x12\x16\n" +
 	"\x06signer\x18\x16 \x01(\tR\x06signer\x12\x0e\n" +
 	"\x02to\x18\x17 \x01(\tR\x02to\x12\x14\n" +
-	"\x05value\x18\x18 \x01(\tR\x05value2\xc4\f\n" +
+	"\x05value\x18\x18 \x01(\tR\x05value2\xb1\f\n" +
 	"\x04Demo\x12i\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +
@@ -1648,8 +1648,8 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x14GetTransactionByHash\x12,.api.explorer.v1.GetTransactionByHashRequest\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/transaction/by-hash\x12l\n" +
 	"\x0eGetAccountInfo\x12&.api.explorer.v1.GetAccountInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/account/info\x12\x84\x01\n" +
 	"\x16GetAccountTransactions\x12..api.explorer.v1.GetAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/demo/account/transactions\x12x\n" +
-	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12y\n" +
-	"\x13GetTransactionStats\x12\x16.google.protobuf.Empty\x1a).api.explorer.v1.TransactionStatsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/demo/transaction/stats\x12q\n" +
+	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12f\n" +
+	"\x13GetTransactionStats\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/demo/transaction/stats\x12q\n" +
 	"\fCheckHealthy\x12$.api.explorer.v1.CheckHealthyRequest\x1a%.api.explorer.v1.CheckHealthyResponse\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/demo/health\x12}\n" +
 	"\x12StreamLatestBlocks\x12*.api.explorer.v1.StreamLatestBlocksRequest\x1a\x1c.api.explorer.v1.BlockUpdate\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/demo/stream/blocks0\x01\x12\x95\x01\n" +
 	"\x18StreamLatestTransactions\x120.api.explorer.v1.StreamLatestTransactionsRequest\x1a\".api.explorer.v1.TransactionUpdate\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/stream/transactions0\x01\x12\x84\x01\n" +
@@ -1728,7 +1728,7 @@ var file_explorer_v1_demo_proto_depIdxs = []int32{
 	25, // 27: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
 	25, // 28: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
 	25, // 29: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	16, // 30: api.explorer.v1.Demo.GetTransactionStats:output_type -> api.explorer.v1.TransactionStatsResponse
+	25, // 30: api.explorer.v1.Demo.GetTransactionStats:output_type -> api.explorer.v1.Reply
 	7,  // 31: api.explorer.v1.Demo.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
 	11, // 32: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
 	12, // 33: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
