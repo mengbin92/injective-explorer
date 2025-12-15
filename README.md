@@ -626,6 +626,91 @@ Returns comprehensive transaction statistics including volume, active addresses,
 - **Failed Transactions**: Counts transactions where `code != 0` in the last 24 hours
 - **Gas Utilization**: Calculated from transactions in the latest 10 blocks as the ratio of total gas used to total gas wanted
 
+#### Get Failed Transactions (24h)
+```http
+GET /demo/transaction/failed-24h?pagination.page=1&pagination.page_size=20
+```
+
+Returns a paginated list of failed transactions (code != 0) that occurred in the last 24 hours, including their failure reasons.
+
+**Query Parameters**:
+- `pagination.page` (int32, optional): Page number (default: 1, min: 1)
+- `pagination.page_size` (int32, optional): Page size (default: 20, min: 1, max: 100)
+- `pagination.cursor` (string, optional): Cursor for cursor-based pagination (takes priority over page)
+
+**Response**:
+
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "transactions": [
+            {
+                "hash": "0x724770374909822d4f3802ef1b3ea287232f8aa92e588334bc24c6dc7c376706",
+                "block_number": 141277444,
+                "block_unix_timestamp": 1762933266809,
+                "code": 1,
+                "codespace": "sdk",
+                "error_log": "insufficient funds: required 1000000inj, but only has 500000inj",
+                "signer": "inj1hy63tfvfyxmr4j4pxk02q5hd3uy2j3w76kgd37",
+                "gas_used": 430964,
+                "gas_wanted": 475000,
+                "gas_fee": "{\"amount\":[{\"denom\":\"inj\",\"amount\":\"76000000000000\"}],\"gas_limit\":475000}",
+                "tx_type": "injective"
+            },
+            {
+                "hash": "0x8edc21fd00721bb06c77ed7187fe85c62690cc866afab51e50ced82faf9edf8d",
+                "block_number": 141477796,
+                "block_unix_timestamp": 1763062378197,
+                "code": 5,
+                "codespace": "cosmos",
+                "error_log": "account sequence mismatch: expected 123, got 122",
+                "signer": "inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z",
+                "gas_used": 21000,
+                "gas_wanted": 25000,
+                "gas_fee": "{\"amount\":[{\"denom\":\"inj\",\"amount\":\"5000000000000\"}],\"gas_limit\":25000}",
+                "tx_type": "injective"
+            }
+        ],
+        "pagination": {
+            "page": 1,
+            "page_size": 20,
+            "total": 123,
+            "total_pages": 7,
+            "has_prev": false,
+            "has_next": true
+        }
+    }
+}
+```
+
+**Response Fields**:
+- `transactions` (array): List of failed transaction information
+  - `hash` (string): Transaction hash
+  - `block_number` (uint64): Block number containing the transaction
+  - `block_unix_timestamp` (uint64): Block timestamp in Unix milliseconds
+  - `code` (uint32): Error code (non-zero for failed transactions)
+  - `codespace` (string): Error codespace (e.g., "sdk", "cosmos")
+  - `error_log` (string): Detailed error message explaining the failure reason
+  - `signer` (string): Transaction signer address
+  - `gas_used` (int64): Actual gas used by the transaction
+  - `gas_wanted` (int64): Maximum gas requested for the transaction
+  - `gas_fee` (string): Gas fee paid (JSON string)
+  - `tx_type` (string): Transaction type (e.g., "injective")
+- `pagination` (object): Pagination information
+  - `page` (int32): Current page number
+  - `page_size` (int32): Number of items per page
+  - `total` (int64): Total number of failed transactions in the last 24 hours
+  - `total_pages` (int32): Total number of pages
+  - `has_prev` (bool): Whether there is a previous page
+  - `has_next` (bool): Whether there is a next page
+
+**Performance**:
+- Uses parallel database queries for optimal performance
+- Supports both page-based and cursor-based pagination
+- Results are ordered by block timestamp (newest first)
+
 ### Account APIs
 
 #### Get Account Info

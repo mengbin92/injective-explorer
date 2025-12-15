@@ -62,6 +62,14 @@ service Demo {
     };
   }
 
+  // Get failed transactions in the last 24 hours with failure reasons
+  rpc GetFailedTransactions24h(GetFailedTransactions24hRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/transaction/failed-24h"
+    };
+  }
+
   // Health check endpoint for gRPC-Web
   rpc CheckHealthy(CheckHealthyRequest) returns (CheckHealthyResponse) {
     option (google.api.http) = {
@@ -107,6 +115,34 @@ message GetAccountTransactionsRequest {
 }
 
 message GetAccountBalancesRequest { string address = 1; }
+
+// GetFailedTransactions24hRequest requests failed transactions in the last 24
+// hours
+message GetFailedTransactions24hRequest { PaginationRequest pagination = 1; }
+
+// FailedTransactionInfo contains information about a failed transaction
+message FailedTransactionInfo {
+  string hash = 1;                                        // Transaction hash
+  uint64 block_number = 2 [ json_name = "block_number" ]; // Block number
+  uint64 block_unix_timestamp = 3
+      [ json_name = "block_unix_timestamp" ]; // Block timestamp
+  uint32 code = 4;      // Error code (non-zero for failed transactions)
+  string codespace = 5; // Error codespace
+  string error_log = 6 [ json_name = "error_log" ];  // Error log message
+  string signer = 7;                                 // Transaction signer
+  int64 gas_used = 8 [ json_name = "gas_used" ];     // Gas used
+  int64 gas_wanted = 9 [ json_name = "gas_wanted" ]; // Gas wanted
+  string gas_fee = 10 [ json_name = "gas_fee" ];     // Gas fee
+  string tx_type = 11 [ json_name = "tx_type" ];     // Transaction type
+}
+
+// FailedTransactions24hResponse contains failed transactions in the last 24
+// hours
+message FailedTransactions24hResponse {
+  repeated FailedTransactionInfo transactions =
+      1;                         // List of failed transactions
+  PaginationInfo pagination = 2; // Pagination information
+}
 
 // Health check messages
 message CheckHealthyRequest {

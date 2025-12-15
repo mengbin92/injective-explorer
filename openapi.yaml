@@ -247,6 +247,40 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/transaction/failed-24h:
+        get:
+            tags:
+                - Demo
+            description: Get failed transactions in the last 24 hours with failure reasons
+            operationId: Demo_GetFailedTransactions24H
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.pageSize
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /demo/transaction/latest:
         get:
             tags:

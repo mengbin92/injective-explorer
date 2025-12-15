@@ -29,6 +29,7 @@ const (
 	Demo_GetAccountTransactions_FullMethodName   = "/api.explorer.v1.Demo/GetAccountTransactions"
 	Demo_GetAccountBalances_FullMethodName       = "/api.explorer.v1.Demo/GetAccountBalances"
 	Demo_GetTransactionStats_FullMethodName      = "/api.explorer.v1.Demo/GetTransactionStats"
+	Demo_GetFailedTransactions24H_FullMethodName = "/api.explorer.v1.Demo/GetFailedTransactions24h"
 	Demo_CheckHealthy_FullMethodName             = "/api.explorer.v1.Demo/CheckHealthy"
 	Demo_StreamLatestBlocks_FullMethodName       = "/api.explorer.v1.Demo/StreamLatestBlocks"
 	Demo_StreamLatestTransactions_FullMethodName = "/api.explorer.v1.Demo/StreamLatestTransactions"
@@ -48,6 +49,8 @@ type DemoClient interface {
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
+	// Get failed transactions in the last 24 hours with failure reasons
+	GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -157,6 +160,16 @@ func (c *demoClient) GetTransactionStats(ctx context.Context, in *emptypb.Empty,
 	return out, nil
 }
 
+func (c *demoClient) GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, Demo_GetFailedTransactions24H_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *demoClient) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckHealthyResponse)
@@ -237,6 +250,8 @@ type DemoServer interface {
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
 	GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error)
+	// Get failed transactions in the last 24 hours with failure reasons
+	GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -282,6 +297,9 @@ func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBa
 }
 func (UnimplementedDemoServer) GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTransactionStats not implemented")
+}
+func (UnimplementedDemoServer) GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFailedTransactions24H not implemented")
 }
 func (UnimplementedDemoServer) CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CheckHealthy not implemented")
@@ -478,6 +496,24 @@ func _Demo_GetTransactionStats_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Demo_GetFailedTransactions24H_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFailedTransactions24HRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServer).GetFailedTransactions24H(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Demo_GetFailedTransactions24H_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServer).GetFailedTransactions24H(ctx, req.(*GetFailedTransactions24HRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Demo_CheckHealthy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CheckHealthyRequest)
 	if err := dec(in); err != nil {
@@ -571,6 +607,10 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTransactionStats",
 			Handler:    _Demo_GetTransactionStats_Handler,
+		},
+		{
+			MethodName: "GetFailedTransactions24h",
+			Handler:    _Demo_GetFailedTransactions24H_Handler,
 		},
 		{
 			MethodName: "CheckHealthy",

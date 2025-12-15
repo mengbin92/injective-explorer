@@ -25,6 +25,7 @@ const OperationDemoGetAccountBalances = "/api.explorer.v1.Demo/GetAccountBalance
 const OperationDemoGetAccountInfo = "/api.explorer.v1.Demo/GetAccountInfo"
 const OperationDemoGetAccountTransactions = "/api.explorer.v1.Demo/GetAccountTransactions"
 const OperationDemoGetBlockByHeight = "/api.explorer.v1.Demo/GetBlockByHeight"
+const OperationDemoGetFailedTransactions24h = "/api.explorer.v1.Demo/GetFailedTransactions24h"
 const OperationDemoGetLatestBlockHeight = "/api.explorer.v1.Demo/GetLatestBlockHeight"
 const OperationDemoGetLatestBlocks = "/api.explorer.v1.Demo/GetLatestBlocks"
 const OperationDemoGetLatestTransactions = "/api.explorer.v1.Demo/GetLatestTransactions"
@@ -38,6 +39,8 @@ type DemoHTTPServer interface {
 	GetAccountInfo(context.Context, *GetAccountInfoRequest) (*Reply, error)
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetBlockByHeight(context.Context, *GetBlockByHeightRequest) (*Reply, error)
+	// GetFailedTransactions24H Get failed transactions in the last 24 hours with failure reasons
+	GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error)
 	GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error)
 	GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error)
 	GetLatestTransactions(context.Context, *PaginationRequest) (*Reply, error)
@@ -56,6 +59,7 @@ func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
 	r.GET("/demo/account/transactions", _Demo_GetAccountTransactions0_HTTP_Handler(srv))
 	r.GET("/demo/account/balances", _Demo_GetAccountBalances0_HTTP_Handler(srv))
 	r.GET("/demo/transaction/stats", _Demo_GetTransactionStats0_HTTP_Handler(srv))
+	r.GET("/demo/transaction/failed-24h", _Demo_GetFailedTransactions24H0_HTTP_Handler(srv))
 	r.GET("/demo/health", _Demo_CheckHealthy0_HTTP_Handler(srv))
 }
 
@@ -230,6 +234,25 @@ func _Demo_GetTransactionStats0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.C
 	}
 }
 
+func _Demo_GetFailedTransactions24H0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetFailedTransactions24HRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetFailedTransactions24h)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetFailedTransactions24H(ctx, req.(*GetFailedTransactions24HRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _Demo_CheckHealthy0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CheckHealthyRequest
@@ -255,6 +278,7 @@ type DemoHTTPClient interface {
 	GetAccountInfo(ctx context.Context, req *GetAccountInfoRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetAccountTransactions(ctx context.Context, req *GetAccountTransactionsRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetBlockByHeight(ctx context.Context, req *GetBlockByHeightRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	GetFailedTransactions24H(ctx context.Context, req *GetFailedTransactions24HRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestBlocks(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestTransactions(ctx context.Context, req *PaginationRequest, opts ...http.CallOption) (rsp *Reply, err error)
@@ -327,6 +351,19 @@ func (c *DemoHTTPClientImpl) GetBlockByHeight(ctx context.Context, in *GetBlockB
 	pattern := "/demo/block/by-height"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetBlockByHeight))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *DemoHTTPClientImpl) GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/demo/transaction/failed-24h"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetFailedTransactions24h))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -2314,6 +2315,273 @@ func cacheTotal(ctx context.Context, key string, total int64) {
 	}
 }
 
+// transactionStatsData holds intermediate statistics data during parallel queries
+type transactionStatsData struct {
+	totalCount         int64
+	count30d           int64
+	count24h           int64
+	activeAddresses24h int64
+	failedTxCount24h   int64
+	tps                float64
+	avgGasPrice        float64
+	currentGasPrice    float64
+	maxGasPrice24h     float64
+	minGasPrice24h     float64
+	avgBlockTime       float64
+	gasUtilization     float64
+}
+
+// getTotalTransactionCount retrieves the total transaction count from the database.
+func getTotalTransactionCount(ctx context.Context) (int64, error) {
+	totalCount, _, err := getApproximateCountWithError(db.Get(), &models.Transaction{}, ctx)
+	if err != nil {
+		global.Logger.Warnf("failed to get total transaction count: %v, using fallback value", err)
+		return ApproximateCountFallback, nil // Return fallback instead of error
+	}
+	return totalCount, nil
+}
+
+// getTransactionCount30d retrieves transaction count in the last 30 days.
+func getTransactionCount30d(ctx context.Context, thirtyDaysAgoUnix uint64) (int64, error) {
+	var count30d int64
+	err := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ?", thirtyDaysAgoUnix).
+		Count(&count30d).Error
+	if err != nil {
+		return 0, fmt.Errorf("failed to get 30-day transaction count: %w", err)
+	}
+	return count30d, nil
+}
+
+// getTransactionCount24h retrieves transaction count in the last 24 hours.
+func getTransactionCount24h(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, error) {
+	var count24h int64
+	err := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ?", twentyFourHoursAgoUnix).
+		Count(&count24h).Error
+	if err != nil {
+		return 0, fmt.Errorf("failed to get 24-hour transaction count: %w", err)
+	}
+	return count24h, nil
+}
+
+// getActiveAddresses24h retrieves unique active addresses count in the last 24 hours.
+func getActiveAddresses24h(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, error) {
+	var activeAddresses24h int64
+	err := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ?", twentyFourHoursAgoUnix).
+		Distinct("signer").
+		Count(&activeAddresses24h).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get 24h active addresses count: %v, using 0", err)
+		return 0, nil // Return 0 instead of error for non-critical metric
+	}
+	return activeAddresses24h, nil
+}
+
+// getFailedTxCount24h retrieves failed transaction count in the last 24 hours.
+func getFailedTxCount24h(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, error) {
+	var failedTxCount24h int64
+	err := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
+		Count(&failedTxCount24h).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get 24h failed transaction count: %v, using 0", err)
+		return 0, nil // Return 0 instead of error for non-critical metric
+	}
+	return failedTxCount24h, nil
+}
+
+// calculateTPS calculates average TPS from the latest blocks.
+func calculateTPS(ctx context.Context) (float64, error) {
+	var latestBlocks []models.Block
+	err := db.Get().WithContext(ctx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(TPSBlockCount).
+		Find(&latestBlocks).Error
+	if err != nil {
+		return 0.0, fmt.Errorf("failed to get latest %d blocks: %w", TPSBlockCount, err)
+	}
+
+	if len(latestBlocks) == 0 {
+		return 0.0, nil
+	}
+
+	// Calculate total transactions and time span
+	var totalTxs int64
+	var minTimestamp, maxTimestamp uint64
+
+	for i, block := range latestBlocks {
+		totalTxs += block.NumTxs
+
+		if i == 0 {
+			minTimestamp = block.BlockUnixTimestamp
+			maxTimestamp = block.BlockUnixTimestamp
+		} else {
+			if block.BlockUnixTimestamp < minTimestamp {
+				minTimestamp = block.BlockUnixTimestamp
+			}
+			if block.BlockUnixTimestamp > maxTimestamp {
+				maxTimestamp = block.BlockUnixTimestamp
+			}
+		}
+	}
+
+	// Calculate average TPS: total transactions / time span in seconds
+	if maxTimestamp > minTimestamp {
+		timeSpanMs := float64(maxTimestamp - minTimestamp)
+		timeSpanSeconds := timeSpanMs / MillisecondsPerSecond
+		if timeSpanSeconds > 0 {
+			return float64(totalTxs) / timeSpanSeconds, nil
+		}
+	}
+
+	// If all blocks have the same timestamp, use block count as time span
+	avgBlockTime := AvgBlockTimeSeconds
+	timeSpan := float64(len(latestBlocks)) * avgBlockTime
+	if timeSpan > 0 {
+		return float64(totalTxs) / timeSpan, nil
+	}
+
+	return 0.0, nil
+}
+
+// calculateGasPriceStats calculates average, current, max, and min gas prices.
+func calculateGasPriceStats(ctx context.Context) (avgGasPrice, currentGasPrice, maxGasPrice24h, minGasPrice24h float64, err error) {
+	now := time.Now()
+	twentyFourHoursAgo := now.Add(-StatsHours24 * time.Hour)
+	twentyFourHoursAgoUnix := uint64(twentyFourHoursAgo.Unix())
+
+	// Get latest blocks for average gas price calculation
+	var latestBlocksForGas []models.Block
+	err = db.Get().WithContext(ctx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(GasPriceBlockCount).
+		Find(&latestBlocksForGas).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get latest %d blocks for gas price: %v", GasPriceBlockCount, err)
+		return 0.0, 0.0, 0.0, 0.0, nil // Return zeros instead of error
+	}
+
+	// Calculate average gas price from latest blocks
+	if len(latestBlocksForGas) > 0 {
+		var blockHeights []uint64
+		for _, block := range latestBlocksForGas {
+			blockHeights = append(blockHeights, block.Height)
+		}
+
+		var gasTxs []models.Transaction
+		err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+			Where("block_number IN ? AND gas_used > 0 AND gas_fee != ''", blockHeights).
+			Find(&gasTxs).Error
+		if err == nil && len(gasTxs) > 0 {
+			var totalGasPrice float64
+			validGasPrices := 0
+
+			for _, tx := range gasTxs {
+				gasPrice := extractGasPriceFromFee(tx.GasFee, tx.GasUsed)
+				if gasPrice > 0 {
+					totalGasPrice += gasPrice
+					validGasPrices++
+				}
+			}
+
+			if validGasPrices > 0 {
+				avgGasPrice = totalGasPrice / float64(validGasPrices)
+				currentGasPrice = avgGasPrice
+			}
+		}
+	}
+
+	// Calculate 24h max/min gas prices
+	// Note: Since gas_fee is stored as JSON, we need to fetch transactions and calculate in Go
+	// This is still more efficient than loading all transactions if we use LIMIT with proper indexing
+	var gasTxs24h []models.Transaction
+	err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ? AND gas_used > 0 AND gas_fee != ''", twentyFourHoursAgoUnix).
+		Order("block_unix_timestamp DESC").
+		Limit(10000). // Limit to prevent memory issues, should cover most cases
+		Find(&gasTxs24h).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get 24h gas transactions: %v", err)
+		return avgGasPrice, currentGasPrice, 0.0, 0.0, nil
+	}
+
+	hasValidPrice := false
+	for _, tx := range gasTxs24h {
+		gasPrice := extractGasPriceFromFee(tx.GasFee, tx.GasUsed)
+		if gasPrice > 0 {
+			if !hasValidPrice {
+				maxGasPrice24h = gasPrice
+				minGasPrice24h = gasPrice
+				hasValidPrice = true
+			} else {
+				if gasPrice > maxGasPrice24h {
+					maxGasPrice24h = gasPrice
+				}
+				if gasPrice < minGasPrice24h {
+					minGasPrice24h = gasPrice
+				}
+			}
+		}
+	}
+
+	if !hasValidPrice {
+		maxGasPrice24h = 0.0
+		minGasPrice24h = 0.0
+	}
+
+	return avgGasPrice, currentGasPrice, maxGasPrice24h, minGasPrice24h, nil
+}
+
+// calculateAverageBlockTimeFromDB retrieves blocks and calculates average block time.
+func calculateAverageBlockTimeFromDB(ctx context.Context) (float64, error) {
+	var blocksForBlockTime []models.Block
+	err := db.Get().WithContext(ctx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(BlockTimeBlockCount).
+		Find(&blocksForBlockTime).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get latest %d blocks for block time: %v", BlockTimeBlockCount, err)
+		return 0.0, nil // Return 0 instead of error for non-critical metric
+	}
+
+	return calculateAverageBlockTime(blocksForBlockTime), nil
+}
+
+// calculateGasUtilizationFromDB retrieves transactions and calculates gas utilization.
+func calculateGasUtilizationFromDB(ctx context.Context) (float64, error) {
+	var blocksForGasUtil []models.Block
+	err := db.Get().WithContext(ctx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(GasUtilizationBlockCount).
+		Find(&blocksForGasUtil).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get latest %d blocks for gas utilization: %v", GasUtilizationBlockCount, err)
+		return 0.0, nil // Return 0 instead of error for non-critical metric
+	}
+
+	if len(blocksForGasUtil) == 0 {
+		return 0.0, nil
+	}
+
+	var blockHeights []uint64
+	for _, block := range blocksForGasUtil {
+		blockHeights = append(blockHeights, block.Height)
+	}
+
+	var utilTxs []models.Transaction
+	err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("block_number IN ?", blockHeights).
+		Find(&utilTxs).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get transactions for gas utilization: %v", err)
+		return 0.0, nil
+	}
+
+	return calculateGasUtilization(utilTxs), nil
+}
+
 // GetTransactionStats retrieves transaction volume statistics from the database.
 // It calculates:
 //   - Total transaction count (all time)
@@ -2328,6 +2596,11 @@ func cacheTotal(ctx context.Context, key string, total int64) {
 //	remain in the main transactions table (with archived=true flag) but have their
 //	large fields moved to archive tables. All queries include archived transactions
 //	in the count, ensuring accurate statistics even after archiving is enabled.
+//
+// Performance:
+//
+//	This function uses parallel database queries via errgroup to minimize response time.
+//	All independent queries are executed concurrently, significantly reducing total latency.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
@@ -2352,281 +2625,99 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 		return s.marshalAndReply(cachedStats, "marshal transaction stats error")
 	}
 
-	// 1. Get total transaction count (optimized with timeout and approximate count support)
-	// Use getApproximateCountWithError for better performance on large datasets
-	// This function uses CountQueryTimeout and will return approximate count if exact count times out
-	// Note: This count includes archived transactions (archived=true) since they remain in the main table
-	totalCount, _, err := getApproximateCountWithError(db.Get(), &models.Transaction{}, queryCtx)
-	if err != nil {
-		global.Logger.Warnf("failed to get total transaction count: %v, using fallback value", err)
-		// Use fallback value if count query fails
-		totalCount = ApproximateCountFallback
-	}
-	stats.TotalCount = totalCount
-
-	// 2. Get transaction count in the last N days (StatsDays30)
-	// Note: This count includes archived transactions (archived=true) since they remain in the main table
+	// Prepare time boundaries for queries
 	now := time.Now()
 	thirtyDaysAgo := now.AddDate(0, 0, -StatsDays30)
 	thirtyDaysAgoUnix := uint64(thirtyDaysAgo.Unix())
-
-	var count30d int64
-	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ?", thirtyDaysAgoUnix).
-		Count(&count30d).Error
-	if err != nil {
-		global.Logger.Errorf("failed to get 30-day transaction count: %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to get 30-day transaction count: %v", err)
-	}
-	stats.Count_30D = count30d
-
-	// 3. Get transaction count in the last N hours (StatsHours24)
-	// Note: Recent transactions (within 24 hours) are typically not archived (default archive age is 6 months),
-	// but this count still includes archived transactions if any exist in this time range
 	twentyFourHoursAgo := now.Add(-StatsHours24 * time.Hour)
 	twentyFourHoursAgoUnix := uint64(twentyFourHoursAgo.Unix())
 
-	var count24h int64
-	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ?", twentyFourHoursAgoUnix).
-		Count(&count24h).Error
-	if err != nil {
-		global.Logger.Errorf("failed to get 24-hour transaction count: %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to get 24-hour transaction count: %v", err)
-	}
-	stats.Count_24H = count24h
+	// Use errgroup to parallelize all independent database queries
+	g, gCtx := errgroup.WithContext(queryCtx)
+	data := &transactionStatsData{}
 
-	// 4. Calculate TPS (average transactions per second) from the latest N blocks (TPSBlockCount)
-	// TPS = total transactions / time span in seconds
-	// Note: BlockUnixTimestamp is stored in milliseconds, so we convert to seconds when calculating
-	var latestBlocks []models.Block
-	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
-		Order("height DESC").
-		Limit(TPSBlockCount).
-		Find(&latestBlocks).Error
-	if err != nil {
-		global.Logger.Errorf("failed to get latest %d blocks: %v", TPSBlockCount, err)
-		return nil, status.Errorf(codes.Internal, "failed to get latest %d blocks: %v", TPSBlockCount, err)
-	}
+	// Parallel query 1: Total transaction count
+	g.Go(func() error {
+		var err error
+		data.totalCount, err = getTotalTransactionCount(gCtx)
+		return err
+	})
 
-	if len(latestBlocks) == 0 {
-		// No blocks found, TPS is 0
-		stats.Tps = 0.0
-	} else {
-		// Calculate total transactions and time span
-		var totalTxs int64
-		var minTimestamp, maxTimestamp uint64
+	// Parallel query 2: 30-day transaction count
+	g.Go(func() error {
+		var err error
+		data.count30d, err = getTransactionCount30d(gCtx, thirtyDaysAgoUnix)
+		return err
+	})
 
-		for i, block := range latestBlocks {
-			totalTxs += block.NumTxs
+	// Parallel query 3: 24-hour transaction count
+	g.Go(func() error {
+		var err error
+		data.count24h, err = getTransactionCount24h(gCtx, twentyFourHoursAgoUnix)
+		return err
+	})
 
-			if i == 0 {
-				// First block (latest)
-				minTimestamp = block.BlockUnixTimestamp
-				maxTimestamp = block.BlockUnixTimestamp
-			} else {
-				// Update min/max timestamps
-				if block.BlockUnixTimestamp < minTimestamp {
-					minTimestamp = block.BlockUnixTimestamp
-				}
-				if block.BlockUnixTimestamp > maxTimestamp {
-					maxTimestamp = block.BlockUnixTimestamp
-				}
-			}
-		}
+	// Parallel query 4: 24h active addresses count
+	g.Go(func() error {
+		var err error
+		data.activeAddresses24h, err = getActiveAddresses24h(gCtx, twentyFourHoursAgoUnix)
+		return err
+	})
 
-		// Calculate average TPS: total transactions / time span in seconds
-		// Note: BlockUnixTimestamp is in milliseconds, so we need to convert to seconds
-		if maxTimestamp > minTimestamp {
-			// Convert time span from milliseconds to seconds
-			timeSpanMs := float64(maxTimestamp - minTimestamp)
-			timeSpanSeconds := timeSpanMs / MillisecondsPerSecond
-			if timeSpanSeconds > 0 {
-				stats.Tps = float64(totalTxs) / timeSpanSeconds
-			} else {
-				// If all blocks have the same timestamp, use block count as time span
-				// Using configured average block time (AvgBlockTimeSeconds) for Cosmos chains
-				avgBlockTime := AvgBlockTimeSeconds
-				timeSpan := float64(len(latestBlocks)) * avgBlockTime
-				if timeSpan > 0 {
-					stats.Tps = float64(totalTxs) / timeSpan
-				} else {
-					stats.Tps = 0.0
-				}
-			}
-		} else {
-			// All blocks have the same timestamp, use block count as time span
-			// Using configured average block time (AvgBlockTimeSeconds) for Cosmos chains
-			avgBlockTime := AvgBlockTimeSeconds
-			timeSpan := float64(len(latestBlocks)) * avgBlockTime
-			if timeSpan > 0 {
-				stats.Tps = float64(totalTxs) / timeSpan
-			} else {
-				stats.Tps = 0.0
-			}
-		}
+	// Parallel query 5: 24h failed transaction count
+	g.Go(func() error {
+		var err error
+		data.failedTxCount24h, err = getFailedTxCount24h(gCtx, twentyFourHoursAgoUnix)
+		return err
+	})
+
+	// Parallel query 6: Calculate TPS
+	g.Go(func() error {
+		var err error
+		data.tps, err = calculateTPS(gCtx)
+		return err
+	})
+
+	// Parallel query 7: Calculate gas price statistics (avg, current, max, min)
+	g.Go(func() error {
+		var err error
+		data.avgGasPrice, data.currentGasPrice, data.maxGasPrice24h, data.minGasPrice24h, err = calculateGasPriceStats(gCtx)
+		return err
+	})
+
+	// Parallel query 8: Calculate average block time
+	g.Go(func() error {
+		var err error
+		data.avgBlockTime, err = calculateAverageBlockTimeFromDB(gCtx)
+		return err
+	})
+
+	// Parallel query 9: Calculate gas utilization
+	g.Go(func() error {
+		var err error
+		data.gasUtilization, err = calculateGasUtilizationFromDB(gCtx)
+		return err
+	})
+
+	// Wait for all parallel queries to complete
+	if err := g.Wait(); err != nil {
+		global.Logger.Errorf("failed to fetch transaction statistics: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch transaction statistics: %v", err)
 	}
 
-	// 5. Get 24h active addresses count (unique addresses with transactions in last 24 hours)
-	var activeAddresses24h int64
-	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ?", twentyFourHoursAgoUnix).
-		Distinct("signer").
-		Count(&activeAddresses24h).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get 24h active addresses count: %v, using 0", err)
-		activeAddresses24h = 0
-	}
-	stats.ActiveAddresses_24H = activeAddresses24h
-
-	// 6. Calculate average gas price from latest 10 blocks
-	var latestBlocksForGas []models.Block
-	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
-		Order("height DESC").
-		Limit(GasPriceBlockCount).
-		Find(&latestBlocksForGas).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get latest %d blocks for gas price: %v", GasPriceBlockCount, err)
-		stats.AvgGasPrice = 0.0
-		stats.CurrentGasPrice = 0.0
-	} else {
-		// Get transactions from these blocks to calculate gas price
-		if len(latestBlocksForGas) > 0 {
-			var blockHeights []uint64
-			for _, block := range latestBlocksForGas {
-				blockHeights = append(blockHeights, block.Height)
-			}
-
-			var gasTxs []models.Transaction
-			err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-				Where("block_number IN ? AND gas_used > 0 AND gas_fee != ''", blockHeights).
-				Find(&gasTxs).Error
-			if err == nil && len(gasTxs) > 0 {
-				var totalGasPrice float64
-				validGasPrices := 0
-
-				for _, tx := range gasTxs {
-					gasPrice := extractGasPriceFromFee(tx.GasFee, tx.GasUsed)
-					if gasPrice > 0 {
-						totalGasPrice += gasPrice
-						validGasPrices++
-					}
-				}
-
-				if validGasPrices > 0 {
-					avgGasPrice := totalGasPrice / float64(validGasPrices)
-					stats.AvgGasPrice = avgGasPrice
-					stats.CurrentGasPrice = avgGasPrice
-				} else {
-					stats.AvgGasPrice = 0.0
-					stats.CurrentGasPrice = 0.0
-				}
-			} else {
-				stats.AvgGasPrice = 0.0
-				stats.CurrentGasPrice = 0.0
-			}
-		} else {
-			stats.AvgGasPrice = 0.0
-			stats.CurrentGasPrice = 0.0
-		}
-	}
-
-	// 7. Calculate average block time from latest 100 blocks
-	var blocksForBlockTime []models.Block
-	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
-		Order("height DESC").
-		Limit(BlockTimeBlockCount).
-		Find(&blocksForBlockTime).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get latest %d blocks for block time: %v", BlockTimeBlockCount, err)
-		stats.AvgBlockTime = 0.0
-	} else {
-		avgBlockTime := calculateAverageBlockTime(blocksForBlockTime)
-		stats.AvgBlockTime = avgBlockTime
-	}
-
-	// 8. Calculate 24h gas price statistics (max/min)
-	var gasTxs24h []models.Transaction
-	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ? AND gas_used > 0 AND gas_fee != ''", twentyFourHoursAgoUnix).
-		Find(&gasTxs24h).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get 24h gas transactions: %v", err)
-		stats.MaxGasPrice_24H = 0.0
-		stats.MinGasPrice_24H = 0.0
-	} else {
-		var maxGasPrice, minGasPrice float64
-		hasValidPrice := false
-
-		for _, tx := range gasTxs24h {
-			gasPrice := extractGasPriceFromFee(tx.GasFee, tx.GasUsed)
-			if gasPrice > 0 {
-				if !hasValidPrice {
-					maxGasPrice = gasPrice
-					minGasPrice = gasPrice
-					hasValidPrice = true
-				} else {
-					if gasPrice > maxGasPrice {
-						maxGasPrice = gasPrice
-					}
-					if gasPrice < minGasPrice {
-						minGasPrice = gasPrice
-					}
-				}
-			}
-		}
-
-		if hasValidPrice {
-			stats.MaxGasPrice_24H = maxGasPrice
-			stats.MinGasPrice_24H = minGasPrice
-		} else {
-			stats.MaxGasPrice_24H = 0.0
-			stats.MinGasPrice_24H = 0.0
-		}
-	}
-
-	// 9. Get 24h failed transaction count
-	var failedTxCount24h int64
-	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
-		Count(&failedTxCount24h).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get 24h failed transaction count: %v, using 0", err)
-		failedTxCount24h = 0
-	}
-	stats.FailedTxCount_24H = failedTxCount24h
-
-	// 10. Calculate gas utilization from latest 10 blocks
-	var blocksForGasUtil []models.Block
-	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
-		Order("height DESC").
-		Limit(GasUtilizationBlockCount).
-		Find(&blocksForGasUtil).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get latest %d blocks for gas utilization: %v", GasUtilizationBlockCount, err)
-		stats.GasUtilization = 0.0
-	} else {
-		if len(blocksForGasUtil) > 0 {
-			var blockHeights []uint64
-			for _, block := range blocksForGasUtil {
-				blockHeights = append(blockHeights, block.Height)
-			}
-
-			var utilTxs []models.Transaction
-			err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-				Where("block_number IN ?", blockHeights).
-				Find(&utilTxs).Error
-			if err == nil {
-				gasUtilization := calculateGasUtilization(utilTxs)
-				stats.GasUtilization = gasUtilization
-			} else {
-				global.Logger.Warnf("failed to get transactions for gas utilization: %v", err)
-				stats.GasUtilization = 0.0
-			}
-		} else {
-			stats.GasUtilization = 0.0
-		}
-	}
+	// Populate response from parallel query results
+	stats.TotalCount = data.totalCount
+	stats.Count_30D = data.count30d
+	stats.Count_24H = data.count24h
+	stats.Tps = data.tps
+	stats.ActiveAddresses_24H = data.activeAddresses24h
+	stats.AvgGasPrice = data.avgGasPrice
+	stats.CurrentGasPrice = data.currentGasPrice
+	stats.MaxGasPrice_24H = data.maxGasPrice24h
+	stats.MinGasPrice_24H = data.minGasPrice24h
+	stats.AvgBlockTime = data.avgBlockTime
+	stats.FailedTxCount_24H = data.failedTxCount24h
+	stats.GasUtilization = data.gasUtilization
 
 	global.Logger.Infof("transaction statistics: total=%d, 30d=%d, 24h=%d, tps=%.2f, active_addr_24h=%d, avg_gas_price=%.6f, avg_block_time=%.2f, gas_utilization=%.2f%%",
 		stats.TotalCount, stats.Count_30D, stats.Count_24H, stats.Tps, stats.ActiveAddresses_24H, stats.AvgGasPrice, stats.AvgBlockTime, stats.GasUtilization)
@@ -2635,6 +2726,180 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 	go cacheTransactionStats(context.Background(), stats)
 
 	return s.marshalAndReply(stats, "marshal transaction stats error")
+}
+
+// queryFailedTransactions24h queries failed transactions in the last 24 hours with pagination.
+func queryFailedTransactions24h(ctx context.Context, twentyFourHoursAgoUnix uint64, pageSize int, offset int, useCursor bool, cursorValue uint64) ([]models.Transaction, error) {
+	baseQuery := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
+		Order("block_unix_timestamp DESC, tx_number DESC")
+
+	// Apply cursor-based pagination if cursor is provided
+	if useCursor && cursorValue > 0 {
+		// For cursor pagination, use tx_number as cursor
+		// Since we order by block_unix_timestamp DESC, tx_number DESC, we use tx_number < cursorValue
+		baseQuery = baseQuery.Where("tx_number < ?", cursorValue)
+	}
+
+	// Apply offset-based pagination if no cursor
+	if !useCursor {
+		baseQuery = baseQuery.Offset(offset)
+	}
+
+	var failedTxs []models.Transaction
+	err := baseQuery.Limit(pageSize).Find(&failedTxs).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to query failed transactions: %w", err)
+	}
+
+	return failedTxs, nil
+}
+
+// getFailedTransactions24hCount gets the total count of failed transactions in the last 24 hours.
+// Uses timeout to prevent long-running queries.
+func getFailedTransactions24hCount(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, bool, error) {
+	// Use timeout for count query to prevent blocking
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
+	defer cancel()
+
+	var totalCount int64
+	err := db.Get().WithContext(ctxWithTimeout).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
+		Count(&totalCount).Error
+
+	if err != nil {
+		global.Logger.Warnf("failed to get failed transaction count: %v, using fallback", err)
+		return ApproximateCountFallback, false, nil // Return fallback instead of error
+	}
+
+	return totalCount, true, nil
+}
+
+// convertToFailedTransactionInfos converts Transaction models to FailedTransactionInfo protobuf messages.
+func convertToFailedTransactionInfos(txs []models.Transaction) []*pb.FailedTransactionInfo {
+	if len(txs) == 0 {
+		return nil
+	}
+
+	failedTxInfos := make([]*pb.FailedTransactionInfo, 0, len(txs))
+	for _, tx := range txs {
+		failedTxInfo := &pb.FailedTransactionInfo{
+			Hash:               tx.Hash,
+			BlockNumber:        tx.BlockNumber,
+			BlockUnixTimestamp: tx.BlockUnixTimestamp,
+			Code:               tx.Code,
+			Codespace:          tx.Codespace,
+			ErrorLog:           tx.ErrorLog,
+			Signer:             tx.Signer,
+			GasUsed:            tx.GasUsed,
+			GasWanted:          tx.GasWanted,
+			GasFee:             tx.GasFee,
+			TxType:             tx.TxType,
+		}
+		failedTxInfos = append(failedTxInfos, failedTxInfo)
+	}
+
+	return failedTxInfos
+}
+
+// GetFailedTransactions24H retrieves failed transactions in the last 24 hours with failure reasons.
+//
+// This endpoint returns a paginated list of failed transactions (code != 0) that occurred
+// in the last 24 hours, including their failure reasons (error_log, codespace, code).
+//
+// Performance:
+//
+//	This function uses parallel database queries via errgroup to minimize response time.
+//	The transaction list query and count query are executed concurrently.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing pagination information
+//
+// Returns:
+//   - *pb.Reply: Response containing failed transactions with pagination info
+//   - error: Error if the operation fails
+func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetFailedTransactions24HRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	// Normalize pagination parameters
+	var page, pageSize int32 = MinPage, DefaultPageSize
+	var offset int
+	var useCursor bool
+	var cursorValue uint64
+	if req.Pagination != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	}
+
+	global.Logger.Infof("get failed transactions 24h: page=%d, page_size=%d, use_cursor=%v", page, pageSize, useCursor)
+
+	// Create independent context for database queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Calculate 24 hours ago timestamp
+	now := time.Now()
+	twentyFourHoursAgo := now.Add(-StatsHours24 * time.Hour)
+	twentyFourHoursAgoUnix := uint64(twentyFourHoursAgo.Unix())
+
+	// Use errgroup to parallelize database queries
+	g, gCtx := errgroup.WithContext(queryCtx)
+
+	var failedTxs []models.Transaction
+	var totalCount int64
+	var isExactCount bool
+
+	// Parallel query 1: Get failed transactions list
+	g.Go(func() error {
+		var err error
+		failedTxs, err = queryFailedTransactions24h(gCtx, twentyFourHoursAgoUnix, int(pageSize), offset, useCursor, cursorValue)
+		return err
+	})
+
+	// Parallel query 2: Get total count (only if not using cursor, as cursor pagination doesn't need exact count)
+	if !useCursor {
+		g.Go(func() error {
+			var err error
+			totalCount, isExactCount, err = getFailedTransactions24hCount(gCtx, twentyFourHoursAgoUnix)
+			return err
+		})
+	} else {
+		// For cursor pagination, we don't need exact count, set a placeholder
+		totalCount = 0
+		isExactCount = false
+	}
+
+	// Wait for all parallel queries to complete
+	if err := g.Wait(); err != nil {
+		global.Logger.Errorf("failed to fetch failed transactions: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch failed transactions: %v", err)
+	}
+
+	// Convert to DTOs
+	failedTxInfos := convertToFailedTransactionInfos(failedTxs)
+
+	// Build pagination info
+	paginationInfo := &pb.PaginationInfo{
+		Page:       page,
+		PageSize:   pageSize,
+		Total:      totalCount,
+		TotalPages: int32((int(totalCount) + int(pageSize) - 1) / int(pageSize)),
+		HasPrev:    page > MinPage,
+		HasNext:    int64(len(failedTxs)) == int64(pageSize) && (int64(page)*int64(pageSize) < totalCount || !isExactCount),
+	}
+
+	// Build response
+	response := &pb.FailedTransactions24HResponse{
+		Transactions: failedTxInfos,
+		Pagination:   paginationInfo,
+	}
+
+	global.Logger.Infof("retrieved %d failed transactions (24h), total=%d, exact=%v", len(failedTxs), totalCount, isExactCount)
+
+	return s.marshalAndReply(response, "marshal failed transactions error")
 }
 
 // getTransactionStatsFromCache retrieves transaction statistics from Redis cache.
@@ -2746,29 +3011,26 @@ func extractGasPriceFromFee(gasFeeJSON string, gasUsed int64) float64 {
 
 // calculateAverageBlockTime calculates average block time from the latest blocks.
 // Returns average time in seconds between consecutive blocks.
+// Optimized: avoids slice copying by iterating backwards (blocks are in DESC order).
 func calculateAverageBlockTime(blocks []models.Block) float64 {
 	if len(blocks) < 2 {
 		return 0.0
 	}
 
-	// Sort blocks by height (ascending) to calculate time differences correctly
-	// Note: blocks are typically returned in DESC order, so we need to reverse
-	sortedBlocks := make([]models.Block, len(blocks))
-	copy(sortedBlocks, blocks)
-	for i, j := 0, len(sortedBlocks)-1; i < j; i, j = i+1, j-1 {
-		sortedBlocks[i], sortedBlocks[j] = sortedBlocks[j], sortedBlocks[i]
-	}
-
+	// Blocks are returned in DESC order (height DESC), so iterate backwards
+	// to calculate time differences without copying the slice
 	var totalTimeDiff float64
 	validPairs := 0
 
-	for i := 1; i < len(sortedBlocks); i++ {
-		prevTimestamp := sortedBlocks[i-1].BlockUnixTimestamp
-		currTimestamp := sortedBlocks[i].BlockUnixTimestamp
+	// Iterate from the end (oldest) to the beginning (newest)
+	// Compare each block with the previous one (which has higher height)
+	for i := len(blocks) - 1; i > 0; i-- {
+		currTimestamp := blocks[i].BlockUnixTimestamp
+		prevTimestamp := blocks[i-1].BlockUnixTimestamp
 
-		if currTimestamp > prevTimestamp {
+		if currTimestamp > 0 && prevTimestamp > 0 && prevTimestamp > currTimestamp {
 			// Convert from milliseconds to seconds
-			timeDiff := float64(currTimestamp-prevTimestamp) / MillisecondsPerSecond
+			timeDiff := float64(prevTimestamp-currTimestamp) / MillisecondsPerSecond
 			totalTimeDiff += timeDiff
 			validPairs++
 		}
