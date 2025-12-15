@@ -2467,8 +2467,169 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 		}
 	}
 
-	global.Logger.Infof("transaction statistics: total=%d, 30d=%d, 24h=%d, tps=%.2f",
-		stats.TotalCount, stats.Count_30D, stats.Count_24H, stats.Tps)
+	// 5. Get 24h active addresses count (unique addresses with transactions in last 24 hours)
+	var activeAddresses24h int64
+	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ?", twentyFourHoursAgoUnix).
+		Distinct("signer").
+		Count(&activeAddresses24h).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get 24h active addresses count: %v, using 0", err)
+		activeAddresses24h = 0
+	}
+	stats.ActiveAddresses_24H = activeAddresses24h
+
+	// 6. Calculate average gas price from latest 10 blocks
+	var latestBlocksForGas []models.Block
+	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(GasPriceBlockCount).
+		Find(&latestBlocksForGas).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get latest %d blocks for gas price: %v", GasPriceBlockCount, err)
+		stats.AvgGasPrice = 0.0
+		stats.CurrentGasPrice = 0.0
+	} else {
+		// Get transactions from these blocks to calculate gas price
+		if len(latestBlocksForGas) > 0 {
+			var blockHeights []uint64
+			for _, block := range latestBlocksForGas {
+				blockHeights = append(blockHeights, block.Height)
+			}
+
+			var gasTxs []models.Transaction
+			err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+				Where("block_number IN ? AND gas_used > 0 AND gas_fee != ''", blockHeights).
+				Find(&gasTxs).Error
+			if err == nil && len(gasTxs) > 0 {
+				var totalGasPrice float64
+				validGasPrices := 0
+
+				for _, tx := range gasTxs {
+					gasPrice := extractGasPriceFromFee(tx.GasFee, tx.GasUsed)
+					if gasPrice > 0 {
+						totalGasPrice += gasPrice
+						validGasPrices++
+					}
+				}
+
+				if validGasPrices > 0 {
+					avgGasPrice := totalGasPrice / float64(validGasPrices)
+					stats.AvgGasPrice = avgGasPrice
+					stats.CurrentGasPrice = avgGasPrice
+				} else {
+					stats.AvgGasPrice = 0.0
+					stats.CurrentGasPrice = 0.0
+				}
+			} else {
+				stats.AvgGasPrice = 0.0
+				stats.CurrentGasPrice = 0.0
+			}
+		} else {
+			stats.AvgGasPrice = 0.0
+			stats.CurrentGasPrice = 0.0
+		}
+	}
+
+	// 7. Calculate average block time from latest 100 blocks
+	var blocksForBlockTime []models.Block
+	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(BlockTimeBlockCount).
+		Find(&blocksForBlockTime).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get latest %d blocks for block time: %v", BlockTimeBlockCount, err)
+		stats.AvgBlockTime = 0.0
+	} else {
+		avgBlockTime := calculateAverageBlockTime(blocksForBlockTime)
+		stats.AvgBlockTime = avgBlockTime
+	}
+
+	// 8. Calculate 24h gas price statistics (max/min)
+	var gasTxs24h []models.Transaction
+	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ? AND gas_used > 0 AND gas_fee != ''", twentyFourHoursAgoUnix).
+		Find(&gasTxs24h).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get 24h gas transactions: %v", err)
+		stats.MaxGasPrice_24H = 0.0
+		stats.MinGasPrice_24H = 0.0
+	} else {
+		var maxGasPrice, minGasPrice float64
+		hasValidPrice := false
+
+		for _, tx := range gasTxs24h {
+			gasPrice := extractGasPriceFromFee(tx.GasFee, tx.GasUsed)
+			if gasPrice > 0 {
+				if !hasValidPrice {
+					maxGasPrice = gasPrice
+					minGasPrice = gasPrice
+					hasValidPrice = true
+				} else {
+					if gasPrice > maxGasPrice {
+						maxGasPrice = gasPrice
+					}
+					if gasPrice < minGasPrice {
+						minGasPrice = gasPrice
+					}
+				}
+			}
+		}
+
+		if hasValidPrice {
+			stats.MaxGasPrice_24H = maxGasPrice
+			stats.MinGasPrice_24H = minGasPrice
+		} else {
+			stats.MaxGasPrice_24H = 0.0
+			stats.MinGasPrice_24H = 0.0
+		}
+	}
+
+	// 9. Get 24h failed transaction count
+	var failedTxCount24h int64
+	err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
+		Count(&failedTxCount24h).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get 24h failed transaction count: %v, using 0", err)
+		failedTxCount24h = 0
+	}
+	stats.FailedTxCount_24H = failedTxCount24h
+
+	// 10. Calculate gas utilization from latest 10 blocks
+	var blocksForGasUtil []models.Block
+	err = db.Get().WithContext(queryCtx).Model(&models.Block{}).
+		Order("height DESC").
+		Limit(GasUtilizationBlockCount).
+		Find(&blocksForGasUtil).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get latest %d blocks for gas utilization: %v", GasUtilizationBlockCount, err)
+		stats.GasUtilization = 0.0
+	} else {
+		if len(blocksForGasUtil) > 0 {
+			var blockHeights []uint64
+			for _, block := range blocksForGasUtil {
+				blockHeights = append(blockHeights, block.Height)
+			}
+
+			var utilTxs []models.Transaction
+			err = db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+				Where("block_number IN ?", blockHeights).
+				Find(&utilTxs).Error
+			if err == nil {
+				gasUtilization := calculateGasUtilization(utilTxs)
+				stats.GasUtilization = gasUtilization
+			} else {
+				global.Logger.Warnf("failed to get transactions for gas utilization: %v", err)
+				stats.GasUtilization = 0.0
+			}
+		} else {
+			stats.GasUtilization = 0.0
+		}
+	}
+
+	global.Logger.Infof("transaction statistics: total=%d, 30d=%d, 24h=%d, tps=%.2f, active_addr_24h=%d, avg_gas_price=%.6f, avg_block_time=%.2f, gas_utilization=%.2f%%",
+		stats.TotalCount, stats.Count_30D, stats.Count_24H, stats.Tps, stats.ActiveAddresses_24H, stats.AvgGasPrice, stats.AvgBlockTime, stats.GasUtilization)
 
 	// Cache the statistics for future queries (async to avoid blocking)
 	go cacheTransactionStats(context.Background(), stats)
@@ -2533,4 +2694,115 @@ func cacheTransactionStats(ctx context.Context, stats *pb.TransactionStatsRespon
 	if err != nil {
 		global.Logger.Warnf("failed to cache transaction stats: %v", err)
 	}
+}
+
+// extractGasPriceFromFee extracts gas price from GasFee JSON string and GasUsed.
+// Gas price = GasFee amount / GasUsed
+// Returns 0 if extraction fails or GasUsed is 0
+func extractGasPriceFromFee(gasFeeJSON string, gasUsed int64) float64 {
+	if gasUsed <= 0 || gasFeeJSON == "" {
+		return 0.0
+	}
+
+	// Try to parse GasFee as JSON to extract amount
+	// GasFee JSON structure may contain "amount" field with coin information
+	var gasFeeData map[string]interface{}
+	if err := sonic.Unmarshal([]byte(gasFeeJSON), &gasFeeData); err != nil {
+		// If JSON parsing fails, try to extract numeric value from string
+		// This handles cases where GasFee might be stored in different formats
+		return 0.0
+	}
+
+	// Try to extract amount from GasFee structure
+	// Common structure: {"amount": [{"denom": "inj", "amount": "1000000"}]}
+	var totalAmount float64
+	if amounts, ok := gasFeeData["amount"].([]interface{}); ok {
+		for _, amt := range amounts {
+			if amtMap, ok := amt.(map[string]interface{}); ok {
+				if amountStr, ok := amtMap["amount"].(string); ok {
+					var amount float64
+					if _, err := fmt.Sscanf(amountStr, "%f", &amount); err == nil {
+						totalAmount += amount
+					}
+				}
+			}
+		}
+	} else if amountStr, ok := gasFeeData["amount"].(string); ok {
+		// Direct amount string
+		if _, err := fmt.Sscanf(amountStr, "%f", &totalAmount); err != nil {
+			return 0.0
+		}
+	} else {
+		// If amount extraction fails, return 0
+		return 0.0
+	}
+
+	if totalAmount > 0 {
+		return totalAmount / float64(gasUsed)
+	}
+
+	return 0.0
+}
+
+// calculateAverageBlockTime calculates average block time from the latest blocks.
+// Returns average time in seconds between consecutive blocks.
+func calculateAverageBlockTime(blocks []models.Block) float64 {
+	if len(blocks) < 2 {
+		return 0.0
+	}
+
+	// Sort blocks by height (ascending) to calculate time differences correctly
+	// Note: blocks are typically returned in DESC order, so we need to reverse
+	sortedBlocks := make([]models.Block, len(blocks))
+	copy(sortedBlocks, blocks)
+	for i, j := 0, len(sortedBlocks)-1; i < j; i, j = i+1, j-1 {
+		sortedBlocks[i], sortedBlocks[j] = sortedBlocks[j], sortedBlocks[i]
+	}
+
+	var totalTimeDiff float64
+	validPairs := 0
+
+	for i := 1; i < len(sortedBlocks); i++ {
+		prevTimestamp := sortedBlocks[i-1].BlockUnixTimestamp
+		currTimestamp := sortedBlocks[i].BlockUnixTimestamp
+
+		if currTimestamp > prevTimestamp {
+			// Convert from milliseconds to seconds
+			timeDiff := float64(currTimestamp-prevTimestamp) / MillisecondsPerSecond
+			totalTimeDiff += timeDiff
+			validPairs++
+		}
+	}
+
+	if validPairs == 0 {
+		return 0.0
+	}
+
+	return totalTimeDiff / float64(validPairs)
+}
+
+// calculateGasUtilization calculates gas utilization rate from transactions.
+// Gas utilization = (Σgas_used / Σgas_wanted) × 100%
+func calculateGasUtilization(txs []models.Transaction) float64 {
+	if len(txs) == 0 {
+		return 0.0
+	}
+
+	var totalGasUsed int64
+	var totalGasWanted int64
+
+	for _, tx := range txs {
+		if tx.GasUsed > 0 {
+			totalGasUsed += tx.GasUsed
+		}
+		if tx.GasWanted > 0 {
+			totalGasWanted += tx.GasWanted
+		}
+	}
+
+	if totalGasWanted == 0 {
+		return 0.0
+	}
+
+	return (float64(totalGasUsed) / float64(totalGasWanted)) * 100.0
 }

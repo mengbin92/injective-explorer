@@ -49,6 +49,9 @@ const (
 	MillisecondsPerSecond = 1000.0 // Conversion factor from milliseconds to seconds
 	StatsDays30           = 30     // Number of days for 30-day statistics
 	StatsHours24          = 24     // Number of hours for 24-hour statistics
+	GasPriceBlockCount    = 10     // Number of latest blocks to use for gas price calculation
+	BlockTimeBlockCount   = 100    // Number of latest blocks to use for average block time calculation
+	GasUtilizationBlockCount = 10  // Number of latest blocks to use for gas utilization calculation
 
 	// Chain query constants
 	RecentBlockThreshold = 1000 // Block height threshold for querying from chain (within last N blocks)

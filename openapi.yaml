@@ -501,6 +501,38 @@ components:
                         Average TPS (Transactions Per Second) calculated from the latest 100 blocks
                          TPS = total transactions / time span in seconds
                     format: double
+                active_addresses_24h:
+                    type: string
+                    description: Number of unique active addresses in the last 24 hours
+                avg_gas_price:
+                    type: number
+                    description: Current average gas price from the latest 10 blocks
+                    format: double
+                avg_block_time:
+                    type: number
+                    description: Average block time in seconds from the latest 100 blocks
+                    format: double
+                current_gas_price:
+                    type: number
+                    description: Current gas price (average from latest 10 blocks)
+                    format: double
+                max_gas_price_24h:
+                    type: number
+                    description: Maximum gas price in the last 24 hours
+                    format: double
+                min_gas_price_24h:
+                    type: number
+                    description: Minimum gas price in the last 24 hours
+                    format: double
+                failed_tx_count_24h:
+                    type: string
+                    description: Number of failed transactions in the last 24 hours
+                gas_utilization:
+                    type: number
+                    description: |-
+                        Gas utilization rate from the latest 10 blocks (percentage)
+                         Gas utilization = (Σgas_used / Σgas_wanted) × 100%
+                    format: double
             description: TransactionStatsResponse contains transaction volume statistics
         api.explorer.v1.TransactionUpdate:
             type: object

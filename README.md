@@ -6,6 +6,7 @@ A comprehensive blockchain explorer API service for the Injective network, built
 
 - **Block Queries**: Get latest blocks with pagination, query blocks by height, and retrieve latest block height
 - **Transaction Queries**: Get latest transactions with pagination and query transactions by hash
+- **Transaction Statistics**: Comprehensive transaction statistics including volume, active addresses, gas metrics, block time, and utilization rates
 - **Account Queries**: Get account information, transactions with pagination, and balances
 - **Streaming APIs**: Real-time streaming of blocks, transactions, and account updates via gRPC streaming
 - **Health Check**: Comprehensive health check endpoint with component status and latency metrics
@@ -572,6 +573,58 @@ Returns transaction details for the specified hash.
     }
 }
 ```
+
+#### Get Transaction Statistics
+```http
+GET /demo/transaction/stats
+```
+
+Returns comprehensive transaction statistics including volume, active addresses, gas metrics, block time, and utilization rates.
+
+**Response**:
+
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "total_count": 12345678,
+        "count_30d": 123456,
+        "count_24h": 12345,
+        "tps": 12.34,
+        "active_addresses_24h": 5678,
+        "avg_gas_price": 0.000176,
+        "avg_block_time": 2.15,
+        "current_gas_price": 0.000176,
+        "max_gas_price_24h": 0.000250,
+        "min_gas_price_24h": 0.000150,
+        "failed_tx_count_24h": 123,
+        "gas_utilization": 85.5
+    }
+}
+```
+
+**Response Fields**:
+- `total_count` (int64): Total transaction count (all time)
+- `count_30d` (int64): Transaction count in the last 30 days
+- `count_24h` (int64): Transaction count in the last 24 hours
+- `tps` (double): Average Transactions Per Second calculated from the latest 100 blocks
+- `active_addresses_24h` (int64): Number of unique active addresses in the last 24 hours (addresses with transaction activity)
+- `avg_gas_price` (double): Current average gas price from the latest 10 blocks
+- `avg_block_time` (double): Average block time in seconds from the latest 100 blocks
+- `current_gas_price` (double): Current gas price (average from latest 10 blocks)
+- `max_gas_price_24h` (double): Maximum gas price in the last 24 hours
+- `min_gas_price_24h` (double): Minimum gas price in the last 24 hours
+- `failed_tx_count_24h` (int64): Number of failed transactions in the last 24 hours
+- `gas_utilization` (double): Gas utilization rate from the latest 10 blocks (percentage). Formula: (Σgas_used / Σgas_wanted) × 100%
+
+**Calculation Details**:
+- **24h Active Addresses**: Counts unique addresses (`signer` field) that have at least one transaction in the last 24 hours
+- **Average Gas Price**: Calculated from transactions in the latest 10 blocks, using formula: GasFee amount / GasUsed
+- **Average Block Time**: Calculated from the time differences between consecutive blocks in the latest 100 blocks
+- **Gas Price Statistics**: 24h max/min gas prices are calculated from all transactions in the last 24 hours
+- **Failed Transactions**: Counts transactions where `code != 0` in the last 24 hours
+- **Gas Utilization**: Calculated from transactions in the latest 10 blocks as the ratio of total gas used to total gas wanted
 
 ### Account APIs
 
