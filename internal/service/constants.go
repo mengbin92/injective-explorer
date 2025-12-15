@@ -26,7 +26,8 @@ const (
 	ApproximateCountForAddress = 10000
 
 	// Error message constants
-	MaxErrorLength = 200
+	MaxErrorLength      = 200  // Maximum length for general error messages
+	MaxErrorLogLength   = 500  // Maximum length for error_log field in failed transactions
 
 	// Graceful shutdown timeout
 	GracefulShutdownTimeout = 30 * time.Second

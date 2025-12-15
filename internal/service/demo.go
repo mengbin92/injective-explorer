@@ -2775,7 +2775,91 @@ func getFailedTransactions24hCount(ctx context.Context, twentyFourHoursAgoUnix u
 	return totalCount, true, nil
 }
 
+// sanitizeErrorLog sanitizes and truncates error log messages for security and performance.
+// Removes sensitive information and limits length to prevent performance issues.
+func sanitizeErrorLog(errorLog string) string {
+	if errorLog == "" {
+		return ""
+	}
+
+	// Truncate to maximum length
+	if len(errorLog) > MaxErrorLogLength {
+		errorLog = errorLog[:MaxErrorLogLength] + "..."
+	}
+
+	// Remove common sensitive patterns (similar to sanitizeError)
+	sensitivePatterns := []string{
+		"/Users/",
+		"/home/",
+		"/root/",
+		"password",
+		"secret",
+		"private_key",
+		"api_key",
+	}
+
+	sanitized := errorLog
+	for _, pattern := range sensitivePatterns {
+		// Case-insensitive replacement
+		if strings.Contains(strings.ToLower(sanitized), strings.ToLower(pattern)) {
+			sanitized = strings.ReplaceAll(sanitized, pattern, "[REDACTED]")
+		}
+	}
+
+	return sanitized
+}
+
+// parseGasFee parses GasFee JSON string into structured GasFee protobuf message.
+// Returns nil if parsing fails or GasFee is empty.
+func parseGasFee(gasFeeJSON string) *pb.GasFee {
+	if gasFeeJSON == "" {
+		return nil
+	}
+
+	// Parse JSON structure
+	var gasFeeData map[string]interface{}
+	if err := sonic.Unmarshal([]byte(gasFeeJSON), &gasFeeData); err != nil {
+		global.Logger.Warnf("failed to parse gas fee JSON: %v", err)
+		return nil
+	}
+
+	gasFee := &pb.GasFee{}
+
+	// Parse amount array: [{"denom": "inj", "amount": "1000000"}]
+	if amounts, ok := gasFeeData["amount"].([]interface{}); ok {
+		gasFee.Amount = make([]*pb.GasFeeCoin, 0, len(amounts))
+		for _, amt := range amounts {
+			if amtMap, ok := amt.(map[string]interface{}); ok {
+				coin := &pb.GasFeeCoin{}
+				if denom, ok := amtMap["denom"].(string); ok {
+					coin.Denom = denom
+				}
+				if amount, ok := amtMap["amount"].(string); ok {
+					coin.Amount = amount
+				}
+				// Only add coin if it has valid data
+				if coin.Denom != "" || coin.Amount != "" {
+					gasFee.Amount = append(gasFee.Amount, coin)
+				}
+			}
+		}
+	}
+
+	// Parse gas_limit
+	if gasLimit, ok := gasFeeData["gas_limit"].(float64); ok {
+		gasFee.GasLimit = int64(gasLimit)
+	}
+
+	// Parse payer (optional)
+	if payer, ok := gasFeeData["payer"].(string); ok {
+		gasFee.Payer = payer
+	}
+
+	return gasFee
+}
+
 // convertToFailedTransactionInfos converts Transaction models to FailedTransactionInfo protobuf messages.
+// Applies sanitization to error_log and parses gas_fee into structured format.
 func convertToFailedTransactionInfos(txs []models.Transaction) []*pb.FailedTransactionInfo {
 	if len(txs) == 0 {
 		return nil
@@ -2783,17 +2867,23 @@ func convertToFailedTransactionInfos(txs []models.Transaction) []*pb.FailedTrans
 
 	failedTxInfos := make([]*pb.FailedTransactionInfo, 0, len(txs))
 	for _, tx := range txs {
+		// Parse and structure GasFee
+		gasFee := parseGasFee(tx.GasFee)
+
+		// Sanitize and truncate ErrorLog
+		sanitizedErrorLog := sanitizeErrorLog(tx.ErrorLog)
+
 		failedTxInfo := &pb.FailedTransactionInfo{
 			Hash:               tx.Hash,
 			BlockNumber:        tx.BlockNumber,
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
 			Code:               tx.Code,
 			Codespace:          tx.Codespace,
-			ErrorLog:           tx.ErrorLog,
+			ErrorLog:           sanitizedErrorLog,
 			Signer:             tx.Signer,
 			GasUsed:            tx.GasUsed,
 			GasWanted:          tx.GasWanted,
-			GasFee:             tx.GasFee,
+			GasFee:             gasFee,
 			TxType:             tx.TxType,
 		}
 		failedTxInfos = append(failedTxInfos, failedTxInfo)

@@ -120,6 +120,19 @@ message GetAccountBalancesRequest { string address = 1; }
 // hours
 message GetFailedTransactions24hRequest { PaginationRequest pagination = 1; }
 
+// GasFeeCoin represents a single coin in the gas fee
+message GasFeeCoin {
+  string denom = 1;  // Denomination (e.g., "inj")
+  string amount = 2; // Amount as string (e.g., "1000000")
+}
+
+// GasFee represents structured gas fee information
+message GasFee {
+  repeated GasFeeCoin amount = 1; // List of coins paid as gas fee
+  int64 gas_limit = 2 [ json_name = "gas_limit" ]; // Gas limit
+  string payer = 3; // Fee payer address (optional)
+}
+
 // FailedTransactionInfo contains information about a failed transaction
 message FailedTransactionInfo {
   string hash = 1;                                        // Transaction hash
@@ -128,12 +141,15 @@ message FailedTransactionInfo {
       [ json_name = "block_unix_timestamp" ]; // Block timestamp
   uint32 code = 4;      // Error code (non-zero for failed transactions)
   string codespace = 5; // Error codespace
-  string error_log = 6 [ json_name = "error_log" ];  // Error log message
-  string signer = 7;                                 // Transaction signer
+  string error_log = 6
+      [ json_name =
+            "error_log" ]; // Error log message (sanitized and truncated)
+  string signer = 7;       // Transaction signer
   int64 gas_used = 8 [ json_name = "gas_used" ];     // Gas used
   int64 gas_wanted = 9 [ json_name = "gas_wanted" ]; // Gas wanted
-  string gas_fee = 10 [ json_name = "gas_fee" ];     // Gas fee
-  string tx_type = 11 [ json_name = "tx_type" ];     // Transaction type
+  GasFee gas_fee = 10
+      [ json_name = "gas_fee" ]; // Structured gas fee information
+  string tx_type = 11 [ json_name = "tx_type" ]; // Transaction type
 }
 
 // FailedTransactions24hResponse contains failed transactions in the last 24

@@ -656,7 +656,16 @@ Returns a paginated list of failed transactions (code != 0) that occurred in the
                 "signer": "inj1hy63tfvfyxmr4j4pxk02q5hd3uy2j3w76kgd37",
                 "gas_used": 430964,
                 "gas_wanted": 475000,
-                "gas_fee": "{\"amount\":[{\"denom\":\"inj\",\"amount\":\"76000000000000\"}],\"gas_limit\":475000}",
+                "gas_fee": {
+                    "amount": [
+                        {
+                            "denom": "inj",
+                            "amount": "76000000000000"
+                        }
+                    ],
+                    "gas_limit": 475000,
+                    "payer": "inj1hy63tfvfyxmr4j4pxk02q5hd3uy2j3w76kgd37"
+                },
                 "tx_type": "injective"
             },
             {
@@ -669,7 +678,16 @@ Returns a paginated list of failed transactions (code != 0) that occurred in the
                 "signer": "inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z",
                 "gas_used": 21000,
                 "gas_wanted": 25000,
-                "gas_fee": "{\"amount\":[{\"denom\":\"inj\",\"amount\":\"5000000000000\"}],\"gas_limit\":25000}",
+                "gas_fee": {
+                    "amount": [
+                        {
+                            "denom": "inj",
+                            "amount": "5000000000000"
+                        }
+                    ],
+                    "gas_limit": 25000,
+                    "payer": "inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z"
+                },
                 "tx_type": "injective"
             }
         ],
@@ -692,11 +710,16 @@ Returns a paginated list of failed transactions (code != 0) that occurred in the
   - `block_unix_timestamp` (uint64): Block timestamp in Unix milliseconds
   - `code` (uint32): Error code (non-zero for failed transactions)
   - `codespace` (string): Error codespace (e.g., "sdk", "cosmos")
-  - `error_log` (string): Detailed error message explaining the failure reason
+  - `error_log` (string): Detailed error message explaining the failure reason (sanitized and truncated to 500 characters for security and performance)
   - `signer` (string): Transaction signer address
   - `gas_used` (int64): Actual gas used by the transaction
   - `gas_wanted` (int64): Maximum gas requested for the transaction
-  - `gas_fee` (string): Gas fee paid (JSON string)
+  - `gas_fee` (object): Structured gas fee information
+    - `amount` (array): List of coins paid as gas fee
+      - `denom` (string): Denomination (e.g., "inj")
+      - `amount` (string): Amount as string
+    - `gas_limit` (int64): Gas limit
+    - `payer` (string): Fee payer address (optional)
   - `tx_type` (string): Transaction type (e.g., "injective")
 - `pagination` (object): Pagination information
   - `page` (int32): Current page number
@@ -706,10 +729,12 @@ Returns a paginated list of failed transactions (code != 0) that occurred in the
   - `has_prev` (bool): Whether there is a previous page
   - `has_next` (bool): Whether there is a next page
 
-**Performance**:
+**Performance & Security**:
 - Uses parallel database queries for optimal performance
 - Supports both page-based and cursor-based pagination
 - Results are ordered by block timestamp (newest first)
+- Error logs are sanitized and truncated to 500 characters to prevent information leakage and performance issues
+- Gas fee information is structured (not JSON string) for better type safety and performance
 
 ### Account APIs
 
