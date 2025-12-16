@@ -88,20 +88,30 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 		return errors.New("database instance is nil after initialization")
 	}
 
-	// Configure connection pool settings
+	// Configure connection pool settings for better performance
 	sqlDB, err := gdb.DB()
 	if err != nil {
 		return errors.Wrap(err, "get sql db error")
 	}
 
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	// Optimize connection pool for high TPS:
+	// - MaxIdleConns: Keep more idle connections to reduce connection overhead
+	// - MaxOpenConns: Allow more concurrent connections for high load
+	// - ConnMaxLifetime: Recycle connections periodically to prevent stale connections
+	// - ConnMaxIdleTime: Close idle connections after 10 minutes to free resources
+	sqlDB.SetMaxIdleConns(50)                  // Increased from 10 to 50
+	sqlDB.SetMaxOpenConns(200)                 // Increased from 100 to 200
+	sqlDB.SetConnMaxLifetime(time.Hour)        // Keep existing
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute) // Close idle connections after 10 minutes
 
 	// Test the connection
 	if err := sqlDB.PingContext(ctx); err != nil {
 		return errors.Wrap(err, "ping database error")
 	}
+
+	// Register custom Sonic JSON serializer for high-performance JSON operations
+	// This replaces the default JSON serializer to reduce CPU usage
+	RegisterSonicJSONSerializer()
 
 	return nil
 }

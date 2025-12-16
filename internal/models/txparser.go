@@ -8,13 +8,14 @@
 package models
 
 import (
-	"encoding/json"
+	"encoding/json" // Only for json.RawMessage type
 	"errors"
 	"regexp"
 	"sort"
 	"strings"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"github.com/bytedance/sonic"
 	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
 )
 
@@ -94,9 +95,9 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 				if len(msgValue) > 0 {
 					// Try to unmarshal as JSON first (some indexers might return JSON)
 					var jsonValue map[string]interface{}
-					if err := json.Unmarshal(msgValue, &jsonValue); err == nil {
+					if err := sonic.Unmarshal(msgValue, &jsonValue); err == nil {
 						// It's already JSON, use it directly
-						if msgJSONBytes, err := json.Marshal(jsonValue); err == nil {
+						if msgJSONBytes, err := sonic.Marshal(jsonValue); err == nil {
 							txJSON.Messages = append(txJSON.Messages, MessageRaw{
 								Type:    typeURL,
 								Message: json.RawMessage(msgJSONBytes),
@@ -109,7 +110,7 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 						msgObj := map[string]interface{}{
 							"@type": typeURL,
 						}
-						if msgJSONBytes, err := json.Marshal(msgObj); err == nil {
+						if msgJSONBytes, err := sonic.Marshal(msgObj); err == nil {
 							txJSON.Messages = append(txJSON.Messages, MessageRaw{
 								Type:    typeURL,
 								Message: json.RawMessage(msgJSONBytes),
@@ -161,12 +162,12 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 	if len(logsBytes) > 0 {
 		// Try to parse as JSON array of logs
 		var logs []LogRaw
-		if err := json.Unmarshal(logsBytes, &logs); err == nil {
+		if err := sonic.Unmarshal(logsBytes, &logs); err == nil {
 			txJSON.Logs = append(txJSON.Logs, logs...)
 		} else {
 			// Try to parse as single log object
 			var singleLog LogRaw
-			if err := json.Unmarshal(logsBytes, &singleLog); err == nil {
+			if err := sonic.Unmarshal(logsBytes, &singleLog); err == nil {
 				txJSON.Logs = append(txJSON.Logs, singleLog)
 			} else {
 				// Try to find JSON array pattern in the string
@@ -177,7 +178,7 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 					endIdx := strings.LastIndex(logsStr, "]")
 					if startIdx >= 0 && endIdx > startIdx {
 						jsonArray := logsStr[startIdx : endIdx+1]
-						if err := json.Unmarshal([]byte(jsonArray), &logs); err == nil {
+						if err := sonic.Unmarshal([]byte(jsonArray), &logs); err == nil {
 							txJSON.Logs = append(txJSON.Logs, logs...)
 						}
 					}
@@ -418,10 +419,10 @@ func stringifyAttrValue(v interface{}) string {
 	case []interface{}:
 		// sometimes value is an array of objects (e.g. in some indexers)
 		// try to marshal simple patterns like [{"price_id":...}]
-		b, _ := json.Marshal(t)
+		b, _ := sonic.Marshal(t)
 		return string(b)
 	default:
-		b, _ := json.Marshal(t)
+		b, _ := sonic.Marshal(t)
 		return string(b)
 	}
 }
@@ -550,7 +551,7 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 				To     string `json:"to_address"`
 				Amount []Coin `json:"amount"`
 			}
-			if err := json.Unmarshal(m.Message, &tmp); err == nil {
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
 				res.From = firstNonEmpty(res.From, tmp.From)
 				res.To = firstNonEmpty(res.To, tmp.To)
 				res.Values = mergeCoins(res.Values, tmp.Amount)
@@ -564,7 +565,7 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 				Contract string `json:"contract"`
 				Funds    []Coin `json:"funds"`
 			}
-			if err := json.Unmarshal(m.Message, &tmp); err == nil {
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
 				res.From = firstNonEmpty(res.From, tmp.Sender)
 				res.To = firstNonEmpty(res.To, tmp.Contract)
 				res.Values = mergeCoins(res.Values, tmp.Funds)
@@ -580,7 +581,7 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 					Amount string `json:"amount"`
 				} `json:"token"`
 			}
-			if err := json.Unmarshal(m.Message, &tmp); err == nil {
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
 				res.From = firstNonEmpty(res.From, tmp.Sender)
 				res.To = firstNonEmpty(res.To, tmp.Receiver)
 				if tmp.Token.Amount != "" {

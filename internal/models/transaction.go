@@ -76,7 +76,37 @@ type Transaction struct {
 //     Falls back to GasFee.Payer if no signature address is available
 //     Note: The signer may not be the same as the fee payer in Injective
 func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData, storageThreshold int) *Transaction {
+	return TransactionFromProtoWithPool(detail, storageThreshold, nil)
+}
+
+// TransactionFromProtoWithPool converts a protobuf TxDetailData to a Transaction model,
+// optionally reusing a Transaction from the object pool to reduce allocations.
+// It compresses large fields (>1KB) and optionally uploads large fields to object storage.
+//
+// Parameters:
+//   - detail: The protobuf transaction detail data
+//   - storageThreshold: Storage threshold in bytes for compressed data. If 0 or negative, uses default 3KB (3072 bytes)
+//   - poolTx: Optional Transaction instance from object pool (can be nil)
+//
+// Returns:
+//   - *Transaction: A Transaction instance with data from the protobuf message
+//
+// Behavior:
+//   - Compresses Data, Messages, and Logs fields if they exceed 1KB
+//   - Uploads to object storage if enabled and compressed data size exceeds storageThreshold (default 3KB)
+//   - Decision is based on compressed data size to accurately reflect database storage needs
+//   - Uploads compressed data to object storage (binary gzip format) to save space and bandwidth
+//   - Sets storage keys and clears database fields after successful upload
+//   - Extracts signer (transaction initiator) from the first signature's address (Signatures[0].Address)
+//     Falls back to GasFee.Payer if no signature address is available
+//     Note: The signer may not be the same as the fee payer in Injective
+func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData, storageThreshold int, poolTx *Transaction) *Transaction {
 	if detail == nil {
+		// If poolTx was provided but detail is nil, return it to pool
+		if poolTx != nil {
+			// Note: We can't call PutTransactionToPool here due to circular dependency
+			// The caller should handle this case
+		}
 		return nil
 	}
 
@@ -153,32 +183,42 @@ func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData, storage
 		logsStr = encodeBinaryData(detail.Logs)
 	}
 
-	tx := &Transaction{
-		Id:                 detail.Id,
-		BlockNumber:        detail.BlockNumber,
-		BlockTimestamp:     detail.BlockTimestamp,
-		Hash:               detail.Hash,
-		Code:               detail.Code,
-		Data:               dataStr,
-		Info:               detail.Info,
-		GasWanted:          detail.GasWanted,
-		GasUsed:            detail.GasUsed,
-		GasFee:             gasFee,
-		Codespace:          detail.Codespace,
-		Events:             events,
-		TxType:             detail.TxType,
-		Messages:           messagesStr,
-		Signatures:         signatures,
-		Memo:               detail.Memo,
-		TxNumber:           detail.TxNumber,
-		BlockUnixTimestamp: detail.BlockUnixTimestamp,
-		ErrorLog:           detail.ErrorLog,
-		Logs:               logsStr,
-		ClaimIds:           detail.ClaimIds,
-		Signer:             signer,
-		To:                 to,
-		Value:              value,
+	var tx *Transaction
+	if poolTx != nil {
+		// Reuse transaction from pool
+		tx = poolTx
+		// Reset to zero values (pool transaction may contain old data)
+		*tx = Transaction{}
+	} else {
+		// Allocate new transaction
+		tx = &Transaction{}
 	}
+
+	// Populate transaction fields
+	tx.Id = detail.Id
+	tx.BlockNumber = detail.BlockNumber
+	tx.BlockTimestamp = detail.BlockTimestamp
+	tx.Hash = detail.Hash
+	tx.Code = detail.Code
+	tx.Data = dataStr
+	tx.Info = detail.Info
+	tx.GasWanted = detail.GasWanted
+	tx.GasUsed = detail.GasUsed
+	tx.GasFee = gasFee
+	tx.Codespace = detail.Codespace
+	tx.Events = events
+	tx.TxType = detail.TxType
+	tx.Messages = messagesStr
+	tx.Signatures = signatures
+	tx.Memo = detail.Memo
+	tx.TxNumber = detail.TxNumber
+	tx.BlockUnixTimestamp = detail.BlockUnixTimestamp
+	tx.ErrorLog = detail.ErrorLog
+	tx.Logs = logsStr
+	tx.ClaimIds = detail.ClaimIds
+	tx.Signer = signer
+	tx.To = to
+	tx.Value = value
 
 	// Upload large fields to object storage if enabled
 	// Only uploads and clears database fields if object storage is actually enabled (not NoOpStorage)

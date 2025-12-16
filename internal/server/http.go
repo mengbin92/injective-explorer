@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	v1 "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/conf"
@@ -68,6 +69,26 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 
 	// Create server instance
 	srv := khttp.NewServer(opts...)
+
+	// Optimize HTTP server for high TPS performance
+	// Access the underlying http.Server to configure connection pool and timeouts
+	if httpSrv := srv.Server; httpSrv != nil {
+		// Configure connection pool and timeouts for better performance
+		httpSrv.ReadTimeout = 30 * time.Second      // Maximum duration for reading the entire request
+		httpSrv.WriteTimeout = 30 * time.Second     // Maximum duration before timing out writes
+		httpSrv.IdleTimeout = 120 * time.Second     // Maximum amount of time to wait for the next request
+		httpSrv.ReadHeaderTimeout = 5 * time.Second // Maximum amount of time to read request headers
+
+		// Configure TCP keep-alive for better connection reuse
+		// This is done via the Listener, so we need to set it when the server starts
+		// For now, we'll configure the server to use keep-alive
+		httpSrv.SetKeepAlivesEnabled(true)
+		httpSrv.MaxHeaderBytes = 1 << 20 // 1MB max header size
+
+		// Optimize connection handling
+		// Note: These settings are applied to the underlying http.Server
+		// The actual connection pool is managed by Go's net/http package
+	}
 
 	// Register demo service
 	demoService := service.NewDemoService()

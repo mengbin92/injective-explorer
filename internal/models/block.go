@@ -36,8 +36,32 @@ type Block struct {
 // Returns:
 //   - *Block: A new Block instance with data from the protobuf message
 func BlockFromProto(detail *injective_explorer_rpcpb.BlockDetailInfo) *Block {
+	return BlockFromProtoWithPool(detail, nil)
+}
+
+// BlockFromProtoWithPool converts a protobuf BlockDetailInfo to a Block model,
+// optionally reusing a Block from the object pool to reduce allocations.
+//
+// Parameters:
+//   - detail: The protobuf block detail information
+//   - poolBlock: Optional Block instance from object pool (can be nil)
+//
+// Returns:
+//   - *Block: A Block instance with data from the protobuf message
+func BlockFromProtoWithPool(detail *injective_explorer_rpcpb.BlockDetailInfo, poolBlock *Block) *Block {
 	if detail == nil {
 		return nil
+	}
+
+	var block *Block
+	if poolBlock != nil {
+		// Reuse block from pool
+		block = poolBlock
+		// Reset to zero values (pool block may contain old data)
+		*block = Block{}
+	} else {
+		// Allocate new block
+		block = &Block{}
 	}
 
 	// Store Txs as JSON strings for reversible conversion
@@ -48,19 +72,20 @@ func BlockFromProto(detail *injective_explorer_rpcpb.BlockDetailInfo) *Block {
 	}
 	txs, _ := MarshalProtoSliceToJSON(txMessages)
 
-	return &Block{
-		Height:             detail.Height,
-		Proposer:           detail.Proposer,
-		Moniker:            detail.Moniker,
-		BlockHash:          detail.BlockHash,
-		ParentHash:         detail.ParentHash,
-		NumPrecommits:      detail.NumPreCommits,
-		NumTxs:             detail.NumTxs,
-		TotalTxs:           detail.TotalTxs,
-		Timestamp:          detail.Timestamp,
-		BlockUnixTimestamp: detail.BlockUnixTimestamp,
-		Txs:                txs,
-	}
+	// Populate block fields
+	block.Height = detail.Height
+	block.Proposer = detail.Proposer
+	block.Moniker = detail.Moniker
+	block.BlockHash = detail.BlockHash
+	block.ParentHash = detail.ParentHash
+	block.NumPrecommits = detail.NumPreCommits
+	block.NumTxs = detail.NumTxs
+	block.TotalTxs = detail.TotalTxs
+	block.Timestamp = detail.Timestamp
+	block.BlockUnixTimestamp = detail.BlockUnixTimestamp
+	block.Txs = txs
+
+	return block
 }
 
 // BlockToProto converts a Block model back to a protobuf BlockDetailInfo.

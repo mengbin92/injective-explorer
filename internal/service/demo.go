@@ -74,7 +74,8 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	// Normalize pagination parameters
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
 
-	global.Logger.Infof("get latest blocks: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
+	// Use Debug level for request details to reduce log overhead in production
+	global.Logger.Debugf("get latest blocks: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
 
 	// Create independent context for queries
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -87,7 +88,7 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 			// Log cache error but continue to database query (graceful degradation)
 			global.Logger.Warnf("failed to get blocks from cache, fallback to DB: %v", err)
 		} else if len(cachedBlocks) > 0 {
-			global.Logger.Infof("blocks found in cache: count=%d", len(cachedBlocks))
+			global.Logger.Debugf("blocks found in cache: count=%d", len(cachedBlocks))
 			// Try to get total count from cache first to avoid database query
 			total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalBlocks)
 			if total == 0 {
@@ -150,7 +151,7 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 
 	if err == nil && len(dbBlocks) > 0 {
 		// Found in database, convert to DTO and return
-		global.Logger.Infof("blocks found in database: count=%d, query_time=%v", len(dbBlocks), queryDuration)
+		global.Logger.Debugf("blocks found in database: count=%d, query_time=%v", len(dbBlocks), queryDuration)
 
 		if len(dbBlocks) > 0 {
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbBlocks, func(b models.Block) uint64 { return b.Height })
@@ -164,7 +165,7 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 	}
 
 	// Not found in database or conversion failed, query from chain
-	global.Logger.Infof("blocks not found in database or conversion failed, querying from chain")
+	global.Logger.Debugf("blocks not found in database or conversion failed, querying from chain")
 	client, err := GetSharedExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -227,7 +228,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		return s.errorReply(http.StatusBadRequest, "invalid block height", err), err
 	}
 
-	global.Logger.Infof("get block by height: height=%d", req.Height)
+	global.Logger.Debugf("get block by height: height=%d", req.Height)
 
 	// Create independent context for queries
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -236,7 +237,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 	// First, try to query from Redis cache
 	cachedBlock, err := getBlockFromCache(queryCtx, uint64(req.Height))
 	if err == nil && cachedBlock != nil {
-		global.Logger.Infof("block found in cache: height=%d", req.Height)
+		global.Logger.Debugf("block found in cache: height=%d", req.Height)
 		blockDTO := models.ToBlockDTO(cachedBlock, models.DTOModeWithDetail)
 		return s.marshalAndReply(blockDTO, "marshal block error")
 	}
@@ -249,7 +250,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 
 	if err == nil {
 		// Found in database, convert to DTO and return
-		global.Logger.Infof("block found in database: height=%d, query_time=%v", req.Height, queryDuration)
+		global.Logger.Debugf("block found in database: height=%d, query_time=%v", req.Height, queryDuration)
 
 		// Cache the block for future queries (async to avoid blocking)
 		go cacheBlock(context.Background(), &dbBlock)
@@ -260,13 +261,13 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 		// Database error (not just record not found), log and continue to query from chain
 		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v, query_time=%v", req.Height, err, queryDuration)
 	} else {
-		global.Logger.Infof("block not found in database: height=%d, query_time=%v", req.Height, queryDuration)
+		global.Logger.Debugf("block not found in database: height=%d, query_time=%v", req.Height, queryDuration)
 	}
 
 	// Not found in database or conversion failed, query from chain
 	// Only query from chain if block is reasonably recent (within last N blocks)
 	// For very old blocks, return error instead of waiting for slow chain query
-	global.Logger.Infof("block not found in database, querying from chain: height=%d", req.Height)
+	global.Logger.Debugf("block not found in database, querying from chain: height=%d", req.Height)
 	client, err := GetSharedExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -303,7 +304,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 //   - *pb.Reply: Response containing the latest block height
 //   - error: Error if the operation fails
 func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
-	global.Logger.Infof("get latest block height")
+	global.Logger.Debugf("get latest block height")
 
 	client := GetSharedTmClient()
 	height, err := client.GetLatestBlockHeight(ctx)
@@ -333,7 +334,7 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	// Normalize pagination parameters
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
 
-	global.Logger.Infof("get latest transactions: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
+	global.Logger.Debugf("get latest transactions: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
 
 	// Create independent context for queries
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -346,7 +347,7 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 			// Log cache error but continue to database query (graceful degradation)
 			global.Logger.Warnf("failed to get transactions from cache, fallback to DB: %v", err)
 		} else if len(cachedTxs) > 0 {
-			global.Logger.Infof("transactions found in cache: count=%d", len(cachedTxs))
+			global.Logger.Debugf("transactions found in cache: count=%d", len(cachedTxs))
 			// Try to get total count from cache first to avoid database query
 			total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalTransactions)
 			if total == 0 {
@@ -410,7 +411,7 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 
 	if err == nil && len(dbTxs) > 0 {
 		// Found in database, convert to DTO and return
-		global.Logger.Infof("transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
+		global.Logger.Debugf("transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
 
 		if len(dbTxs) > 0 {
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
@@ -424,7 +425,7 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 	}
 
 	// Not found in database or conversion failed, query from chain
-	global.Logger.Infof("transactions not found in database or conversion failed, querying from chain")
+	global.Logger.Debugf("transactions not found in database or conversion failed, querying from chain")
 	client, err := GetSharedExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -484,7 +485,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 		return s.errorReply(http.StatusBadRequest, "invalid transaction hash", err), err
 	}
 
-	global.Logger.Infof("get transaction by hash: hash=%s", hash)
+	global.Logger.Debugf("get transaction by hash: hash=%s", hash)
 
 	// Create independent context for queries
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -493,7 +494,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	// First, try to query from Redis cache
 	cachedTx, err := getTransactionFromCache(queryCtx, "0x"+hash)
 	if err == nil && cachedTx != nil {
-		global.Logger.Infof("transaction found in cache: hash=0x%s", hash)
+		global.Logger.Debugf("transaction found in cache: hash=0x%s", hash)
 		txDTO := models.ToTransactionDTO(cachedTx, models.DTOModeWithDetail)
 		return s.marshalAndReply(txDTO, "marshal transaction error")
 	}
@@ -503,14 +504,14 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	err = db.Get().WithContext(queryCtx).Where("hash = ?", "0x"+hash).First(&dbTx).Error
 	if err == nil {
 		// Found in database
-		global.Logger.Infof("transaction found in database: hash=0x%s, archived=%v", hash, dbTx.Archived)
+		global.Logger.Debugf("transaction found in database: hash=0x%s, archived=%v", hash, dbTx.Archived)
 
 		// If transaction is archived, load full data from archive table
 		if dbTx.Archived {
 			archiveService := NewArchiveService()
 			archivedTx, archiveErr := archiveService.GetArchivedTransaction(queryCtx, "0x"+hash)
 			if archiveErr == nil && archivedTx != nil {
-				global.Logger.Infof("transaction found in archive: hash=0x%s", hash)
+				global.Logger.Debugf("transaction found in archive: hash=0x%s", hash)
 				// Cache the transaction for future queries
 				cacheTransaction(queryCtx, archivedTx)
 				txDTO := models.ToTransactionDTO(archivedTx, models.DTOModeWithDetail)
@@ -546,7 +547,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	}
 
 	// Not found in database or conversion failed, query from chain
-	global.Logger.Infof("transaction not found in database or conversion failed, querying from chain: hash=%s", hash)
+	global.Logger.Debugf("transaction not found in database or conversion failed, querying from chain: hash=%s", hash)
 	client, err := GetSharedExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -596,7 +597,7 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
-	global.Logger.Infof("get account info: address=%s", address)
+	global.Logger.Debugf("get account info: address=%s", address)
 
 	// Create independent context for database query to avoid HTTP timeout issues
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -607,7 +608,7 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	err := db.Get().WithContext(dbCtx).Where("address = ?", address).First(&dbAccount).Error
 	if err == nil {
 		// Found in database, convert to DTO and return
-		global.Logger.Infof("account found in database: address=%s", address)
+		global.Logger.Debugf("account found in database: address=%s", address)
 		accountDTO := models.ToAccountDTO(&dbAccount)
 		return s.marshalAndReply(accountDTO, "marshal account error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -616,7 +617,7 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	}
 
 	// Not found in database or conversion failed, query from chain
-	global.Logger.Infof("account not found in database or conversion failed, querying from chain: address=%s", address)
+	global.Logger.Debugf("account not found in database or conversion failed, querying from chain: address=%s", address)
 	client, err := GetSharedChainClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
@@ -642,7 +643,7 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		err = db.Get().WithContext(dbCtx).Where("address = ?", address).First(&dbAccount).Error
 		if err == nil {
 			// Found in database with converted address
-			global.Logger.Infof("account found in database with converted address: address=%s", address)
+			global.Logger.Debugf("account found in database with converted address: address=%s", address)
 			accountDTO := models.ToAccountDTO(&dbAccount)
 			return s.marshalAndReply(accountDTO, "marshal account error")
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -717,7 +718,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
 	}
 
-	global.Logger.Infof("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v", address, page, pageSize, useCursor)
+	global.Logger.Debugf("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v", address, page, pageSize, useCursor)
 
 	// Create independent context for database query to avoid HTTP timeout issues
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -728,7 +729,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		cacheKey := fmt.Sprintf("cache:account:txs:%s", address)
 		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
 		if err == nil && len(cachedTxs) > 0 {
-			global.Logger.Infof("account transactions found in cache: address=%s, count=%d", address, len(cachedTxs))
+			global.Logger.Debugf("account transactions found in cache: address=%s, count=%d", address, len(cachedTxs))
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 			txDTOs := models.ToTransactionDTOs(cachedTxs)
 			// Use approximate count for cached data
@@ -792,7 +793,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	queryDuration := time.Since(startTime)
 
 	if err == nil && len(dbTxs) > 0 {
-		global.Logger.Infof("account transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
+		global.Logger.Debugf("account transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
 
 		// Cache the results for first page to improve subsequent queries
 		if !useCursor && page == MinPage {
@@ -812,7 +813,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	}
 
 	// Not found in database or conversion failed, query from chain
-	global.Logger.Infof("account transactions not found in database or conversion failed, querying from chain: address=%s", address)
+	global.Logger.Debugf("account transactions not found in database or conversion failed, querying from chain: address=%s", address)
 	client, err := GetSharedExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
@@ -869,7 +870,7 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
-	global.Logger.Infof("get account balances: address=%s", address)
+	global.Logger.Debugf("get account balances: address=%s", address)
 
 	// Create independent context for database query to avoid HTTP timeout issues
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -882,7 +883,7 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 		Find(&dbBalances).Error
 	if err == nil && len(dbBalances) > 0 {
 		// Found in database, convert to protobuf format and return
-		global.Logger.Infof("account balances found in database: address=%s, count=%d", address, len(dbBalances))
+		global.Logger.Debugf("account balances found in database: address=%s, count=%d", address, len(dbBalances))
 		// Convert from AccountBalance models to response format
 		balancesList := make([]map[string]interface{}, 0, len(dbBalances))
 		for _, dbBalance := range dbBalances {
@@ -906,7 +907,7 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	}
 
 	// Not found in database or conversion failed, query from chain
-	global.Logger.Infof("account balances not found in database or conversion failed, querying from chain: address=%s", address)
+	global.Logger.Debugf("account balances not found in database or conversion failed, querying from chain: address=%s", address)
 	client, err := GetSharedChainClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
@@ -2323,10 +2324,10 @@ type transactionStatsData struct {
 	activeAddresses24h int64
 	failedTxCount24h   int64
 	tps                float64
-	avgGas        float64
-	currentGas    float64
-	maxGas24h     float64
-	minGas24h     float64
+	avgGas             float64
+	currentGas         float64
+	maxGas24h          float64
+	minGas24h          float64
 	avgBlockTime       float64
 	gasUtilization     float64
 }
