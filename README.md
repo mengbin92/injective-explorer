@@ -23,7 +23,7 @@ A comprehensive blockchain explorer API service for the Injective network, built
 - **Data Storage Optimization**: Advanced storage optimization features including:
   - **Data Compression**: Automatic compression of large transaction fields (>1KB) to reduce storage by 60-80%
   - **Data Archiving**: Automatic archiving service with scheduled background execution (similar to sync service)
-  - **Storage Separation**: Optional object storage (MinIO/S3/OSS/COS) for large binary fields (>10KB, configurable)
+  - **Storage Separation**: Optional object storage (MinIO/S3/OSS/COS) for large binary fields (>3KB after compression, configurable via `storage_threshold`)
   - **Storage Key Reuse**: Reuses existing storage keys from sync time uploads to avoid duplicate storage
   - **Backward Compatibility**: Seamless support for both compressed and uncompressed data formats
   - **Automatic Retrieval**: Archived transactions are automatically retrieved when queried by hash
@@ -170,7 +170,7 @@ See `.env.example` for a complete list of available environment variables with d
 - `ARCHIVE_INTERVAL`: Archive execution interval in seconds (default: 86400s = 24h)
 - `ARCHIVE_AGE_MONTHS`: Archive transactions older than N months (default: 6)
 - `ARCHIVE_BATCH_SIZE`: Number of transactions per batch (default: 1000)
-- `ARCHIVE_STORAGE_THRESHOLD`: Storage threshold in bytes (default: 10240 = 10KB)
+- `ARCHIVE_STORAGE_THRESHOLD`: Storage threshold in bytes (default: 3072 = 3KB)
 - `ARCHIVE_USE_OBJECT_STORAGE`: Use object storage for large fields (default: auto-detect)
 
 #### Kratos Configuration System
@@ -307,7 +307,7 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 143726350 # 最早区块高度的默认值
+    earliest_height: 145969505 # 最早区块高度的默认值
 
 archive:
   # 是否启用自动归档（默认: false）
@@ -318,8 +318,10 @@ archive:
   age_months: ${ARCHIVE_AGE_MONTHS:6}
   # 批次大小，每批处理的交易数量（默认: 1000）
   batch_size: ${ARCHIVE_BATCH_SIZE:1000}
-  # 存储阈值（字节），超过此大小的字段会上传到对象存储（默认: 10KB）
-  storage_threshold: ${ARCHIVE_STORAGE_THRESHOLD:10240}
+  # 存储阈值（字节），基于压缩后数据大小判断，超过此大小的字段会上传到对象存储（默认: 3KB = 3072）
+  # 注意：判断基于压缩后的数据大小（实际数据库存储大小），而不是原始数据大小
+  # 3KB 的选择平衡了数据库性能（TEXT字段>3KB可能影响查询性能）和存储成本（对象存储通常比数据库存储更便宜）
+  storage_threshold: ${ARCHIVE_STORAGE_THRESHOLD:3072}
   # 是否使用对象存储，true=使用对象存储，false=存储在数据库，不设置则自动检测
   use_object_storage: true
 ```
@@ -593,11 +595,11 @@ Returns comprehensive transaction statistics including volume, active addresses,
         "count_24h": 12345,
         "tps": 12.34,
         "active_addresses_24h": 5678,
-        "avg_gas_price": 0.000176,
+        "avg_gas": 0.000176,
         "avg_block_time": 2.15,
-        "current_gas_price": 0.000176,
-        "max_gas_price_24h": 0.000250,
-        "min_gas_price_24h": 0.000150,
+        "current_gas": 0.000176,
+        "max_gas_24h": 0.000250,
+        "min_gas_24h": 0.000150,
         "failed_tx_count_24h": 123,
         "gas_utilization": 85.5
     }
@@ -610,11 +612,11 @@ Returns comprehensive transaction statistics including volume, active addresses,
 - `count_24h` (int64): Transaction count in the last 24 hours
 - `tps` (double): Average Transactions Per Second calculated from the latest 100 blocks
 - `active_addresses_24h` (int64): Number of unique active addresses in the last 24 hours (addresses with transaction activity)
-- `avg_gas_price` (double): Current average gas price from the latest 10 blocks
+- `avg_gas` (double): Current average gas price from the latest 10 blocks
 - `avg_block_time` (double): Average block time in seconds from the latest 100 blocks
-- `current_gas_price` (double): Current gas price (average from latest 10 blocks)
-- `max_gas_price_24h` (double): Maximum gas price in the last 24 hours
-- `min_gas_price_24h` (double): Minimum gas price in the last 24 hours
+- `current_gas` (double): Current gas price (average from latest 10 blocks)
+- `max_gas_24h` (double): Maximum gas price in the last 24 hours
+- `min_gas_24h` (double): Minimum gas price in the last 24 hours
 - `failed_tx_count_24h` (int64): Number of failed transactions in the last 24 hours
 - `gas_utilization` (double): Gas utilization rate from the latest 10 blocks (percentage). Formula: (Σgas_used / Σgas_wanted) × 100%
 
@@ -1273,7 +1275,7 @@ archive:
   interval: 86400s           # Execution interval (24 hours)
   age_months: 6              # Archive transactions older than 6 months
   batch_size: 1000           # Batch size for processing
-  storage_threshold: 10240   # Storage threshold (10KB)
+  storage_threshold: 3072    # Storage threshold (3KB, based on compressed data size)
   use_object_storage: true    # Use object storage for large fields
 ```
 
@@ -1299,7 +1301,7 @@ For detailed usage guide, see `docs/archive-usage-guide.md`.
 
 ### Storage Separation (Object Storage)
 
-**Optional Object Storage**: Large binary fields (>10KB) can be stored in object storage services (MinIO, AWS S3, Alibaba OSS, Tencent COS) instead of the database.
+**Optional Object Storage**: Large binary fields (>3KB after compression, configurable via `storage_threshold`) can be stored in object storage services (MinIO, AWS S3, Alibaba OSS, Tencent COS) instead of the database.
 
 **Features**:
 - Multiple provider support: MinIO, AWS S3, Alibaba OSS, Tencent COS
@@ -1326,7 +1328,7 @@ data:
 ```go
 migrationService := service.NewStorageMigrationService()
 config := service.DefaultMigrationConfig()
-config.Threshold = 10 * 1024  // 10KB threshold
+config.Threshold = 3 * 1024  // 3KB threshold (based on compressed data size)
 err := migrationService.MigrateTransactions(ctx, config)
 ```
 

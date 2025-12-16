@@ -2323,20 +2323,47 @@ type transactionStatsData struct {
 	activeAddresses24h int64
 	failedTxCount24h   int64
 	tps                float64
-	avgGasPrice        float64
-	currentGasPrice    float64
-	maxGasPrice24h     float64
-	minGasPrice24h     float64
+	avgGas        float64
+	currentGas    float64
+	maxGas24h     float64
+	minGas24h     float64
 	avgBlockTime       float64
 	gasUtilization     float64
 }
 
-// getTotalTransactionCount retrieves the total transaction count from the database.
+// getTotalTransactionCount retrieves the total transaction count from chain using GetTxs.
 func getTotalTransactionCount(ctx context.Context) (int64, error) {
-	totalCount, _, err := getApproximateCountWithError(db.Get(), &models.Transaction{}, ctx)
+	client, err := GetSharedExplorerClient()
 	if err != nil {
-		global.Logger.Warnf("failed to get total transaction count: %v, using fallback value", err)
-		return ApproximateCountFallback, nil // Return fallback instead of error
+		global.Logger.Warnf("failed to get explorer client: %v, fallback to DB", err)
+		return getTotalTransactionCountFromDB(ctx)
+	}
+
+	// Use GetTxs with limit=1 to get total count from paging info
+	transactions, err := client.GetTxs(ctx, &injective_explorer_rpcpb.GetTxsRequest{
+		Limit: 1,
+	})
+	if err != nil {
+		global.Logger.Warnf("failed to get total transaction count from chain: %v, fallback to DB", err)
+		return getTotalTransactionCountFromDB(ctx)
+	}
+
+	// Get total from paging info if available
+	if transactions != nil && transactions.Paging != nil {
+		return int64(transactions.Paging.Total), nil
+	}
+
+	global.Logger.Warnf("paging info not available in GetTxs response, fallback to DB")
+	return getTotalTransactionCountFromDB(ctx)
+}
+
+// getTotalTransactionCountFromDB retrieves total transaction count from database (fallback).
+func getTotalTransactionCountFromDB(ctx context.Context) (int64, error) {
+	var totalCount int64
+	err := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Count(&totalCount).Error
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total transaction count from DB: %w", err)
 	}
 	return totalCount, nil
 }
@@ -2678,10 +2705,10 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 		return err
 	})
 
-	// Parallel query 7: Calculate gas price statistics (avg, current, max, min)
+	// Parallel query 7: Calculate gas statistics (avg, current, max, min)
 	g.Go(func() error {
 		var err error
-		data.avgGasPrice, data.currentGasPrice, data.maxGasPrice24h, data.minGasPrice24h, err = calculateGasPriceStats(gCtx)
+		data.avgGas, data.currentGas, data.maxGas24h, data.minGas24h, err = calculateGasPriceStats(gCtx)
 		return err
 	})
 
@@ -2711,16 +2738,16 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 	stats.Count_24H = data.count24h
 	stats.Tps = data.tps
 	stats.ActiveAddresses_24H = data.activeAddresses24h
-	stats.AvgGasPrice = data.avgGasPrice
-	stats.CurrentGasPrice = data.currentGasPrice
-	stats.MaxGasPrice_24H = data.maxGasPrice24h
-	stats.MinGasPrice_24H = data.minGasPrice24h
+	stats.AvgGas = data.avgGas
+	stats.CurrentGas = data.currentGas
+	stats.MaxGas_24H = data.maxGas24h
+	stats.MinGas_24H = data.minGas24h
 	stats.AvgBlockTime = data.avgBlockTime
 	stats.FailedTxCount_24H = data.failedTxCount24h
 	stats.GasUtilization = data.gasUtilization
 
-	global.Logger.Infof("transaction statistics: total=%d, 30d=%d, 24h=%d, tps=%.2f, active_addr_24h=%d, avg_gas_price=%.6f, avg_block_time=%.2f, gas_utilization=%.2f%%",
-		stats.TotalCount, stats.Count_30D, stats.Count_24H, stats.Tps, stats.ActiveAddresses_24H, stats.AvgGasPrice, stats.AvgBlockTime, stats.GasUtilization)
+	global.Logger.Infof("transaction statistics: total=%d, 30d=%d, 24h=%d, tps=%.2f, active_addr_24h=%d, avg_gas=%.6f, avg_block_time=%.2f, gas_utilization=%.2f%%",
+		stats.TotalCount, stats.Count_30D, stats.Count_24H, stats.Tps, stats.ActiveAddresses_24H, stats.AvgGas, stats.AvgBlockTime, stats.GasUtilization)
 
 	// Cache the statistics for future queries (async to avoid blocking)
 	go cacheTransactionStats(context.Background(), stats)

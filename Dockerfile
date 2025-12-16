@@ -1,7 +1,7 @@
 # Build stage
 # Use standard golang image (Debian-based with glibc) instead of alpine
 # because wasmvm library requires glibc (libwasmvm.x86_64.so is compiled with glibc)
-FROM golang:1.25.3 AS builder
+FROM golang:1.25 AS builder
 
 # Install build dependencies for CGO
 RUN apt-get update && apt-get install -y --no-install-recommends \

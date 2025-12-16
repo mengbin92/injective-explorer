@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	pb "injective-explorer/api/explorer/v1"
 
@@ -131,15 +132,14 @@ func TestGetBlockByHeight(t *testing.T) {
 }
 
 func TestGetLatestTransactions(t *testing.T) {
-	network := common.LoadNetwork("testnet", "lb")
+	network := common.LoadNetwork("mainnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
 	if err != nil {
 		panic(err)
 	}
 
 	req := &injective_explorer_rpcpb.GetTxsRequest{
-		Limit:      1,
-		FromNumber: 98689098,
+		Limit: 1,
 	}
 
 	ctx := context.Background()
@@ -312,4 +312,77 @@ func toStruct(v interface{}) (*structpb.Struct, error) {
 	}
 
 	return &structData, nil
+}
+
+func TestGetGasPrice(t *testing.T) {
+	network := common.LoadNetwork("mainnet", "lb")
+	tmClient, _ := rpchttp.New(network.TmEndpoint)
+
+	// 初始化客户端
+	clientCtx, err := chainclient.NewClientContext(
+		network.ChainId,
+		"",
+		nil, // 对于只读查询可以传 nil
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
+
+	chainClient, err := chainclient.NewChainClientV2(
+		clientCtx,
+		network,
+		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	gasPrice := chainClient.CurrentChainGasPrice(context.Background())
+	fmt.Println(gasPrice)
+}
+
+func TestGetTxsStats(t *testing.T) {
+	// Prepare time boundaries for queries
+	now := time.Now()
+	thirtyDaysAgo := now.AddDate(0, 0, -30)
+	twentyFourHoursAgo := now.Add(-24 * time.Hour)
+
+	network := common.LoadNetwork("mainnet", "lb")
+	explorerClient, err := explorerclient.NewExplorerClient(network)
+	if err != nil {
+		panic(err)
+	}
+
+	// total
+	transactions, err := explorerClient.GetTxs(context.Background(), &injective_explorer_rpcpb.GetTxsRequest{
+		Limit: 1,
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("total: ", transactions.Paging.Total)
+
+	// 30d
+	transactions, err = explorerClient.GetTxs(context.Background(), &injective_explorer_rpcpb.GetTxsRequest{
+		Limit:     1,
+		StartTime: thirtyDaysAgo.UnixMilli(),
+		EndTime:   now.UnixMilli(),
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("30d: ", transactions.Paging.Total)
+
+	// 24h
+	transactions, err = explorerClient.GetTxs(context.Background(), &injective_explorer_rpcpb.GetTxsRequest{
+		Limit:     1,
+		StartTime: twentyFourHoursAgo.UnixMilli(),
+		EndTime:   now.UnixMilli(),
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("24h: ", transactions.Paging.Total)
 }

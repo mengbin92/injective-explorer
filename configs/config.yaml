@@ -89,7 +89,7 @@ sync:
 
   # 区块配置
   blocks:
-    earliest_height: 145804926 # 最早区块高度的默认值
+    earliest_height: 145969505 # 最早区块高度的默认值
 
 archive:
   # 是否启用自动归档（默认: false）

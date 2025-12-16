@@ -265,15 +265,15 @@ message TransactionStatsResponse {
   // Number of unique active addresses in the last 24 hours
   int64 active_addresses_24h = 5 [ json_name = "active_addresses_24h" ];
   // Current average gas price from the latest 10 blocks
-  double avg_gas_price = 6 [ json_name = "avg_gas_price" ];
+  double avg_gas = 6 [ json_name = "avg_gas" ];
   // Average block time in seconds from the latest 100 blocks
   double avg_block_time = 7 [ json_name = "avg_block_time" ];
   // Current gas price (average from latest 10 blocks)
-  double current_gas_price = 8 [ json_name = "current_gas_price" ];
+  double current_gas = 8 [ json_name = "current_gas" ];
   // Maximum gas price in the last 24 hours
-  double max_gas_price_24h = 9 [ json_name = "max_gas_price_24h" ];
+  double max_gas_24h = 9 [ json_name = "max_gas_24h" ];
   // Minimum gas price in the last 24 hours
-  double min_gas_price_24h = 10 [ json_name = "min_gas_price_24h" ];
+  double min_gas_24h = 10 [ json_name = "min_gas_24h" ];
   // Number of failed transactions in the last 24 hours
   int64 failed_tx_count_24h = 11 [ json_name = "failed_tx_count_24h" ];
   // Gas utilization rate from the latest 10 blocks (percentage)
