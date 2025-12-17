@@ -49,6 +49,28 @@ api:
 build:
 	mkdir -p bin/ && go build -ldflags "-X main.Version=$(VERSION)" -o ./bin/ ./...
 
+.PHONY: build-loadtest
+# build loadtest tool
+build-loadtest:
+	mkdir -p bin/ && go build -o bin/loadtest ./cmd/loadtest
+
+.PHONY: loadtest
+# run loadtest (usage: make loadtest URL=http://localhost:8000 C=10 D=30s)
+loadtest: build-loadtest
+	@if [ -z "$(D)" ] && [ -z "$(N)" ]; then \
+		echo "错误: 必须指定 D (持续时间) 或 N (请求数)"; \
+		echo "示例: make loadtest D=30s C=10"; \
+		echo "示例: make loadtest N=1000 C=10"; \
+		exit 1; \
+	fi
+	@URL=$(or $(URL),http://localhost:8000); \
+	C=$(or $(C),10); \
+	if [ -n "$(D)" ]; then \
+		./bin/loadtest -url $$URL -c $$C -d $(D) $(if $(ENDPOINT),-endpoint $(ENDPOINT)) $(if $(V),-v); \
+	elif [ -n "$(N)" ]; then \
+		./bin/loadtest -url $$URL -c $$C -n $(N) $(if $(ENDPOINT),-endpoint $(ENDPOINT)) $(if $(V),-v); \
+	fi
+
 .PHONY: generate
 # generate
 generate:
