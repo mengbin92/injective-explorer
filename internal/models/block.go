@@ -74,7 +74,9 @@ func BlockFromProtoWithPool(detail *injective_explorer_rpcpb.BlockDetailInfo, po
 
 	// Populate block fields
 	block.Height = detail.Height
-	block.Proposer = detail.Proposer
+	// Convert proposer address to Ethereum format for storage
+	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
+	block.Proposer = convertAddressToEthForStorage(detail.Proposer)
 	block.Moniker = detail.Moniker
 	block.BlockHash = detail.BlockHash
 	block.ParentHash = detail.ParentHash
@@ -120,6 +122,9 @@ func BlockToProto(block *Block) *injective_explorer_rpcpb.BlockDetailInfo {
 		txs = append(txs, &injective_explorer_rpcpb.TxData{})
 	}
 
+	// Convert proposer address back to Injective format if needed (for protobuf compatibility)
+	// Note: This is only needed if the protobuf expects Injective format
+	// For now, we'll use the stored Ethereum format as-is
 	return &injective_explorer_rpcpb.BlockDetailInfo{
 		Height:             block.Height,
 		Proposer:           block.Proposer,

@@ -7,13 +7,13 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
@@ -544,7 +544,7 @@ func (s *SyncService) processBlock(height uint64) error {
 		}
 
 		// Check if error is retryable (5xx errors, Unavailable, etc.)
-		if isRetryableError(err) {
+		if utils.IsRetryableError(err) {
 			if attempt < s.config.MaxRetryAttempts-1 {
 				global.Logger.Warnf("retryable error getting block at height %d (attempt %d/%d): %v, retrying in %v...",
 					height, attempt+1, s.config.MaxRetryAttempts, err, delay)
@@ -914,7 +914,7 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 		}
 
 		// Check if error is retryable
-		if isRetryableError(err) {
+		if utils.IsRetryableError(err) {
 			if attempt < s.config.MaxRetryAttempts-1 {
 				time.Sleep(delay)
 				delay *= 2 // Exponential backoff
@@ -1109,7 +1109,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 		}
 
 		// Check if error is retryable (5xx errors, Unavailable, etc.)
-		if isRetryableError(err) {
+		if utils.IsRetryableError(err) {
 			if attempt < s.config.MaxRetryAttempts-1 {
 				global.Logger.Warnf("retryable error getting transaction %s (attempt %d/%d): %v, retrying in %v...",
 					txHash, attempt+1, s.config.MaxRetryAttempts, err, delay)
@@ -1228,7 +1228,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	// Publish account events for addresses involved in the transaction
 	addresses := s.extractAddressesFromTransaction(txData)
 	for address := range addresses {
-		if address != "" && isValidAddress(address) {
+		if address != "" && utils.IsValidAddress(address) {
 			eventBus.PublishAccount(address, &AccountEvent{
 				Address: address,
 				Type:    EventTypeAccountUpdate,
@@ -1264,9 +1264,9 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 
 		// Try to extract addresses from event string
 		// Common patterns: "sender", "recipient", "from", "to", etc.
-		addressesFromEvent := extractAddressesFromString(eventStr)
+		addressesFromEvent := utils.ExtractAddressesFromString(eventStr)
 		for _, addr := range addressesFromEvent {
-			if isValidAddress(addr) {
+			if utils.IsValidAddress(addr) {
 				addresses[addr] = true
 			}
 		}
@@ -1275,9 +1275,9 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 	// Also try to extract from messages field if it contains address information
 	if len(txData.Messages) > 0 {
 		messagesStr := string(txData.Messages)
-		addressesFromMessages := extractAddressesFromString(messagesStr)
+		addressesFromMessages := utils.ExtractAddressesFromString(messagesStr)
 		for _, addr := range addressesFromMessages {
-			if isValidAddress(addr) {
+			if utils.IsValidAddress(addr) {
 				addresses[addr] = true
 			}
 		}
@@ -1287,7 +1287,7 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 		if signer == nil {
 			continue
 		}
-		if isValidAddress(signer.Address) {
+		if utils.IsValidAddress(signer.Address) {
 			addresses[signer.Address] = true
 		}
 	}
@@ -1394,9 +1394,9 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 
 		// Try to extract addresses from event string
 		// Common patterns: "sender", "recipient", "from", "to", etc.
-		addressesFromEvent := extractAddressesFromString(eventStr)
+		addressesFromEvent := utils.ExtractAddressesFromString(eventStr)
 		for _, addr := range addressesFromEvent {
-			if isValidAddress(addr) {
+			if utils.IsValidAddress(addr) {
 				addresses[addr] = true
 			}
 		}
@@ -1405,9 +1405,9 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 	// Also try to extract from messages field if it contains address information
 	if len(txData.Messages) > 0 {
 		messagesStr := string(txData.Messages)
-		addressesFromMessages := extractAddressesFromString(messagesStr)
+		addressesFromMessages := utils.ExtractAddressesFromString(messagesStr)
 		for _, addr := range addressesFromMessages {
-			if isValidAddress(addr) {
+			if utils.IsValidAddress(addr) {
 				addresses[addr] = true
 			}
 		}
@@ -1417,7 +1417,7 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 		if signer == nil {
 			continue
 		}
-		if isValidAddress(signer.Address) {
+		if utils.IsValidAddress(signer.Address) {
 			addresses[signer.Address] = true
 		}
 	}
@@ -1660,8 +1660,16 @@ func (s *SyncService) updateAccountBalances(ctx context.Context, address string)
 			continue
 		}
 
+		// Address conversion is handled in AccountBalanceFromProto
+		// Create AccountBalance directly with converted address
+		// We need to convert the address to Ethereum format first
+		ethAddress, err := models.InjToEthAddress(address)
+		if err != nil {
+			// If conversion fails, use original address (for backward compatibility)
+			ethAddress = address
+		}
 		balanceModel := &models.AccountBalance{
-			Address: address,
+			Address: ethAddress,
 			Denom:   denom,
 			Amount:  amountStr,
 		}
@@ -1698,33 +1706,6 @@ func (s *SyncService) updateAccountBalances(ctx context.Context, address string)
 	return nil
 }
 
-// extractAddressesFromString extracts Injective addresses from a string.
-// Injective addresses typically start with "inj1" and are 42 characters long.
-func extractAddressesFromString(s string) []string {
-	// Pattern for Injective addresses: inj1 followed by 38 characters (base58 encoded)
-	// Total length: 42 characters
-	re := regexp.MustCompile(`inj1[0-9a-z]{38}`)
-	matches := re.FindAllString(s, -1)
-
-	// Remove duplicates
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if !seen[match] {
-			seen[match] = true
-			result = append(result, match)
-		}
-	}
-
-	return result
-}
-
-// isValidAddress checks if a string is a valid Injective address.
-func isValidAddress(addr string) bool {
-	// Injective addresses start with "inj1" and are 42 characters long
-	return strings.HasPrefix(addr, "inj1") && len(addr) == 42
-}
-
 // extractAddressesFromTransaction extracts all addresses from a transaction.
 // It extracts addresses from events, messages, and signatures.
 func (s *SyncService) extractAddressesFromTransaction(txData *injective_explorer_rpcpb.TxDetailData) map[string]bool {
@@ -1740,9 +1721,9 @@ func (s *SyncService) extractAddressesFromTransaction(txData *injective_explorer
 			continue
 		}
 		eventStr := event.String()
-		addressesFromEvent := extractAddressesFromString(eventStr)
+		addressesFromEvent := utils.ExtractAddressesFromString(eventStr)
 		for _, addr := range addressesFromEvent {
-			if isValidAddress(addr) {
+			if utils.IsValidAddress(addr) {
 				addresses[addr] = true
 			}
 		}
@@ -1751,9 +1732,9 @@ func (s *SyncService) extractAddressesFromTransaction(txData *injective_explorer
 	// Extract addresses from messages
 	if len(txData.Messages) > 0 {
 		messagesStr := string(txData.Messages)
-		addressesFromMessages := extractAddressesFromString(messagesStr)
+		addressesFromMessages := utils.ExtractAddressesFromString(messagesStr)
 		for _, addr := range addressesFromMessages {
-			if isValidAddress(addr) {
+			if utils.IsValidAddress(addr) {
 				addresses[addr] = true
 			}
 		}
@@ -1764,53 +1745,12 @@ func (s *SyncService) extractAddressesFromTransaction(txData *injective_explorer
 		if signer == nil {
 			continue
 		}
-		if isValidAddress(signer.Address) {
+		if utils.IsValidAddress(signer.Address) {
 			addresses[signer.Address] = true
 		}
 	}
 
 	return addresses
-}
-
-// isRetryableError checks if an error is retryable.
-// Retryable errors include:
-// - 5xx HTTP status codes (500, 502, 503, 504)
-// - gRPC Unavailable errors
-// - Network timeout errors (but not context cancellation)
-func isRetryableError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errStr := err.Error()
-
-	// Check for gRPC status codes
-	if strings.Contains(errStr, "code = Unavailable") {
-		return true
-	}
-
-	// Check for HTTP 5xx status codes
-	if strings.Contains(errStr, "503") || strings.Contains(errStr, "Service Unavailable") {
-		return true
-	}
-	if strings.Contains(errStr, "500") || strings.Contains(errStr, "Internal Server Error") {
-		return true
-	}
-	if strings.Contains(errStr, "502") || strings.Contains(errStr, "Bad Gateway") {
-		return true
-	}
-	if strings.Contains(errStr, "504") || strings.Contains(errStr, "Gateway Timeout") {
-		return true
-	}
-
-	// Check for network-related errors (but not context cancellation)
-	if strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset") ||
-		strings.Contains(errStr, "no such host") {
-		return true
-	}
-
-	return false
 }
 
 // historicalBlockSync continuously syncs historical blocks in the background.

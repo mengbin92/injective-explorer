@@ -216,8 +216,10 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	tx.ErrorLog = detail.ErrorLog
 	tx.Logs = logsStr
 	tx.ClaimIds = detail.ClaimIds
-	tx.Signer = signer
-	tx.To = to
+	// Convert addresses to Ethereum format for storage
+	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
+	tx.Signer = convertAddressToEthForStorage(signer)
+	tx.To = convertAddressToEthForStorage(to)
 	tx.Value = value
 
 	// Upload large fields to object storage if enabled

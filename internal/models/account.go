@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
+	"github.com/btcsuite/btcd/btcutil/bech32"
 	"github.com/bytedance/sonic"
 	"github.com/cosmos/cosmos-sdk/codec"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	github_com_cosmos_cosmos_sdk_types "github.com/cosmos/cosmos-sdk/types"
-	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
@@ -91,7 +91,7 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 			}()
 			pubType = pubKey.Type()
 			pubValue = hex.EncodeToString(pubKey.Bytes())
-			pubAddress = fmt.Sprintf("0x%s",strings.ToLower(pubKey.Address().String()))
+			pubAddress = fmt.Sprintf("0x%s", strings.ToLower(pubKey.Address().String()))
 		}()
 
 		pub = &PubKey{
@@ -116,8 +116,11 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 		Sequence:      account.Sequence,
 	}
 	baseAccountJSON, _ := sonic.Marshal(baseAccount)
+	// Convert address to Ethereum format for storage
+	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
+	ethAddress := convertAddressToEthForStorage(address)
 	return &Account{
-		Address:     address,
+		Address:     ethAddress,
 		BaseAccount: string(baseAccountJSON),
 		CodeHash:    hex.EncodeToString(account.CodeHash),
 	}
@@ -148,44 +151,74 @@ type AccountBalance struct {
 // Returns:
 //   - *AccountBalance: A new AccountBalance instance with data from the coin
 func AccountBalanceFromProto(coin github_com_cosmos_cosmos_sdk_types.Coin, address string) *AccountBalance {
+	// Convert address to Ethereum format for storage
+	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
+	ethAddress := convertAddressToEthForStorage(address)
 	return &AccountBalance{
-		Address: address,
+		Address: ethAddress,
 		Denom:   coin.Denom,
 		Amount:  coin.Amount.String(),
 	}
 }
 
-// AccountToEthAccount converts an Account model back to an EthAccount.
-// Note: This requires the chain client's codec to properly marshal the account.
-// The function returns the JSON representation that can be used to reconstruct the account.
+// convertAddressToEthForStorage converts an address to Ethereum format (0x...) for database storage.
+// If the address is already in Ethereum format or empty, it returns the address as-is.
+// If the address is in Injective format (inj1...), it converts it to Ethereum format.
+// This function is used during data synchronization to store addresses in a consistent format.
+func convertAddressToEthForStorage(address string) string {
+	if address == "" {
+		return address
+	}
+	// If already Ethereum format, return as-is
+	if strings.HasPrefix(address, "0x") {
+		return address
+	}
+	// Try to convert from Injective format
+	ethAddr, err := InjToEthAddress(address)
+	if err != nil {
+		// If conversion fails, return original address (for backward compatibility)
+		// This handles edge cases where address might be in an unexpected format
+		return address
+	}
+	return ethAddr
+}
+
+// InjToEthAddress converts an Injective address (inj1...) to Ethereum address (0x...).
+// This is the reverse operation of EthToInjAddress.
 //
 // Parameters:
-//   - account: The Account model from database
+//   - injAddr: The Injective address string (inj1...)
 //
 // Returns:
-//   - JSON string representation of the account (for compatibility with existing API)
-func AccountToEthAccountJSON(account *Account) (string, error) {
-	if account == nil {
-		return "", errors.New("account is nil")
+//   - string: The Ethereum address (0x...)
+//   - error: Error if conversion fails
+func InjToEthAddress(injAddr string) (string, error) {
+	if !strings.HasPrefix(injAddr, "inj1") {
+		// If it's already an Ethereum address, return as-is
+		if strings.HasPrefix(injAddr, "0x") {
+			return injAddr, nil
+		}
+		return "", fmt.Errorf("invalid Injective address format: %s", injAddr)
 	}
 
-	// Parse BaseAccount from JSON
-	var baseAccount BaseAccount
-	if err := sonic.Unmarshal([]byte(account.BaseAccount), &baseAccount); err != nil {
-		return "", errors.Wrap(err, "failed to unmarshal base account")
-	}
-
-	// Create a simplified account structure for JSON output
-	accountJSON := map[string]interface{}{
-		"address":      account.Address,
-		"base_account": baseAccount,
-		"code_hash":    account.CodeHash,
-	}
-
-	jsonBytes, err := sonic.Marshal(accountJSON)
+	// 1. bech32 decode
+	hrp, data, err := bech32.Decode(injAddr)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to marshal account to JSON")
+		return "", fmt.Errorf("failed to decode bech32 address: %w", err)
+	}
+	if hrp != "inj" {
+		return "", fmt.Errorf("invalid HRP, expected 'inj', got '%s'", hrp)
 	}
 
-	return string(jsonBytes), nil
+	// 2. 5-bit → 8-bit
+	conv, err := bech32.ConvertBits(data, 5, 8, false)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert bits: %w", err)
+	}
+	if len(conv) != 20 {
+		return "", fmt.Errorf("invalid address length: expected 20 bytes, got %d", len(conv))
+	}
+
+	// 3. bytes → hex with 0x prefix
+	return fmt.Sprintf("0x%s", hex.EncodeToString(conv)), nil
 }

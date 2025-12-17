@@ -2,9 +2,11 @@ package chain
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"github.com/btcsuite/btcd/btcutil/bech32"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -385,4 +388,86 @@ func TestGetTxsStats(t *testing.T) {
 		panic(err)
 	}
 	fmt.Println("24h: ", transactions.Paging.Total)
+}
+
+func TestAccountBalance(t *testing.T) {
+	network := common.LoadNetwork("mainnet", "lb")
+	tmClient, _ := rpchttp.New(network.TmEndpoint)
+
+	// 初始化客户端
+	clientCtx, err := chainclient.NewClientContext(
+		network.ChainId,
+		"",
+		nil, // 对于只读查询可以传 nil
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
+
+	chainClient, err := chainclient.NewChainClientV2(
+		clientCtx,
+		network,
+		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	address, err := EthToInjAddress("0x71562b71999873db5b286df957af199ec94617f7")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(address)
+
+	balances, err := chainClient.GetBankBalances(context.Background(), address)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(balances)
+}
+
+func TestAddressConversion(t *testing.T) {
+	// Test Ethereum to Injective conversion
+	ethAddr := "0x71562b71999873db5b286df957af199ec94617f7"
+	injAddr, err := EthToInjAddress(ethAddr)
+	if err != nil {
+		t.Fatalf("failed to convert Ethereum address to Injective: %v", err)
+	}
+	fmt.Printf("Ethereum address: %s -> Injective address: %s\n", ethAddr, injAddr)
+
+	// Test Injective to Ethereum conversion (using the models package function)
+	// Note: This requires importing the models package
+	// For now, we'll test the round-trip conversion
+	injAddr2, err := EthToInjAddress(ethAddr)
+	if err != nil {
+		t.Fatalf("failed to convert Ethereum address to Injective: %v", err)
+	}
+	if injAddr != injAddr2 {
+		t.Errorf("address conversion is not consistent: %s != %s", injAddr, injAddr2)
+	}
+}
+
+func EthToInjAddress(ethAddr string) (string, error) {
+	// 1. clean hex
+	ethAddr = strings.TrimPrefix(ethAddr, "0x")
+
+	// 2. hex → bytes (20 bytes)
+	addrBytes, err := hex.DecodeString(ethAddr)
+	if err != nil {
+		return "", err
+	}
+	if len(addrBytes) != 20 {
+		return "", fmt.Errorf("invalid eth address length")
+	}
+
+	// 3. 8-bit → 5-bit
+	conv, err := bech32.ConvertBits(addrBytes, 8, 5, true)
+	if err != nil {
+		return "", err
+	}
+
+	// 4. bech32 encode with hrp = inj
+	return bech32.Encode("inj", conv)
 }

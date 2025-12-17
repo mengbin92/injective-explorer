@@ -17,6 +17,8 @@ import (
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
+
+	"injective-explorer/internal/utils"
 )
 
 // Coin represents a token amount.
@@ -495,11 +497,11 @@ func addDecimalStrings(a, b string) string {
 		return a
 	}
 	// reverse strings
-	ra := reverseString(a)
-	rb := reverseString(b)
+	ra := utils.ReverseString(a)
+	rb := utils.ReverseString(b)
 	carry := 0
 	res := []byte{}
-	n := max(len(ra), len(rb))
+	n := utils.Max(len(ra), len(rb))
 	for i := 0; i < n; i++ {
 		d1 := 0
 		if i < len(ra) {
@@ -516,26 +518,7 @@ func addDecimalStrings(a, b string) string {
 	if carry > 0 {
 		res = append(res, byte('0'+carry))
 	}
-	return reverseString(string(res))
-}
-
-func reverseString(s string) string {
-	b := []byte(s)
-	i := 0
-	j := len(b) - 1
-	for i < j {
-		b[i], b[j] = b[j], b[i]
-		i++
-		j--
-	}
-	return string(b)
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	return utils.ReverseString(string(res))
 }
 
 // extractFromMessagesJSON inspects the message array for known Msg shapes and fills res.
@@ -552,8 +535,8 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 				Amount []Coin `json:"amount"`
 			}
 			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = firstNonEmpty(res.From, tmp.From)
-				res.To = firstNonEmpty(res.To, tmp.To)
+				res.From = utils.FirstNonEmpty(res.From, tmp.From)
+				res.To = utils.FirstNonEmpty(res.To, tmp.To)
 				res.Values = mergeCoins(res.Values, tmp.Amount)
 				found = true
 			}
@@ -566,8 +549,8 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 				Funds    []Coin `json:"funds"`
 			}
 			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = firstNonEmpty(res.From, tmp.Sender)
-				res.To = firstNonEmpty(res.To, tmp.Contract)
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
 				res.Values = mergeCoins(res.Values, tmp.Funds)
 				found = true
 			}
@@ -582,8 +565,8 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 				} `json:"token"`
 			}
 			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = firstNonEmpty(res.From, tmp.Sender)
-				res.To = firstNonEmpty(res.To, tmp.Receiver)
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				res.To = utils.FirstNonEmpty(res.To, tmp.Receiver)
 				if tmp.Token.Amount != "" {
 					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Token.Denom, Amount: tmp.Token.Amount}})
 				}
@@ -598,11 +581,4 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 		}
 	}
 	return found
-}
-
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }

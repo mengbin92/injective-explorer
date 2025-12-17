@@ -27,6 +27,7 @@ A comprehensive blockchain explorer API service for the Injective network, built
   - **Storage Key Reuse**: Reuses existing storage keys from sync time uploads to avoid duplicate storage
   - **Backward Compatibility**: Seamless support for both compressed and uncompressed data formats
   - **Automatic Retrieval**: Archived transactions are automatically retrieved when queried by hash
+- **Address Format Optimization**: Unified Ethereum address format (0x...) storage for improved query performance and simplified display logic
 
 ## Architecture
 

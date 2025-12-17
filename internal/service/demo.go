@@ -11,10 +11,12 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
+	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
@@ -603,59 +605,41 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer dbCancel()
 
-	// First, try to query from database using the original address
+	// Convert address to database format (Ethereum format 0x...)
+	// Database now stores addresses in Ethereum format
+	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
+	if err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+	}
+
+	// First, try to query from database using Ethereum format address
 	var dbAccount models.Account
-	err := db.Get().WithContext(dbCtx).Where("address = ?", address).First(&dbAccount).Error
+	err = db.Get().WithContext(dbCtx).Where("address = ?", dbQueryAddress).First(&dbAccount).Error
 	if err == nil {
 		// Found in database, convert to DTO and return
-		global.Logger.Debugf("account found in database: address=%s", address)
+		global.Logger.Debugf("account found in database: dbQueryAddress=%s", dbQueryAddress)
 		accountDTO := models.ToAccountDTO(&dbAccount)
 		return s.marshalAndReply(accountDTO, "marshal account error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
-		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
+		global.Logger.Warnf("database query error (not record not found), querying from chain: dbQueryAddress=%s, error=%v", dbQueryAddress, err)
 	}
 
-	// Not found in database or conversion failed, query from chain
-	global.Logger.Debugf("account not found in database or conversion failed, querying from chain: address=%s", address)
+	// Not found in database, query from chain
+	// For chain queries, we need Injective format
 	client, err := GetSharedChainClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
 	}
 
-	// Determine address type and convert if needed
-	queryAddress := address
-	if strings.HasPrefix(queryAddress, "0x") {
-		// Ethereum address, need to convert to Injective address
-		evmAccountResp, err := client.FetchEVMCosmosAccount(ctx, queryAddress)
-		if err != nil {
-			global.Logger.Errorf("failed to fetch EVM cosmos account for %s: %v", queryAddress, err)
-			return s.errorReply(http.StatusInternalServerError, "failed to convert Ethereum address to Injective address", err), err
-		}
-		if evmAccountResp == nil || evmAccountResp.CosmosAddress == "" {
-			global.Logger.Errorf("empty cosmos address response for Ethereum address: %s", queryAddress)
-			return s.errorReply(http.StatusNotFound, "Injective address not found for Ethereum address", errors.New("cosmos address not found")), errors.New("cosmos address not found")
-		}
-		queryAddress = evmAccountResp.CosmosAddress
-		global.Logger.Infof("converted Ethereum address %s to Injective address %s", address, queryAddress)
-
-		// Try to query database again with converted address
-		err = db.Get().WithContext(dbCtx).Where("address = ?", address).First(&dbAccount).Error
-		if err == nil {
-			// Found in database with converted address
-			global.Logger.Debugf("account found in database with converted address: address=%s", address)
-			accountDTO := models.ToAccountDTO(&dbAccount)
-			return s.marshalAndReply(accountDTO, "marshal account error")
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			// Database error (not just record not found), log and continue
-			global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
-		}
-	} else if !strings.HasPrefix(queryAddress, "inj1") {
-		// Unknown address format, try to use as-is
-		global.Logger.Warnf("unknown address format, attempting to use as-is: %s", queryAddress)
+	chainQueryAddress, err := s.convertToQueryAddress(ctx, address, client, true)
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
 	}
 
-	account, err := client.GetAccount(ctx, queryAddress)
+	global.Logger.Debugf("account not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
+
+	account, err := client.GetAccount(ctx, chainQueryAddress)
 	if err != nil {
 		global.Logger.Errorf("get account error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get account error", err), err
@@ -663,13 +647,13 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 
 	// Check if account or account.Account is nil
 	if account == nil || account.Account == nil {
-		global.Logger.Errorf("account or account.Account is nil for address: %s", queryAddress)
+		global.Logger.Errorf("account or account.Account is nil for address: %s", chainQueryAddress)
 		return s.errorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account is nil")), errors.New("account is nil")
 	}
 
 	// Check if account value is empty
 	if len(account.Account.Value) == 0 {
-		global.Logger.Errorf("account value is empty for address: %s", queryAddress)
+		global.Logger.Errorf("account value is empty for address: %s", chainQueryAddress)
 		return s.errorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account value is empty")), errors.New("account value is empty")
 	}
 
@@ -680,8 +664,9 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 		return s.errorReply(http.StatusInternalServerError, "unmarshal eth account error", err), err
 	}
 
-	// Save to database for future queries (use original address for storage)
-	accountModel := models.AccountFromProto(ethAccount, address, client.ClientContext().Codec)
+	// Save to database for future queries
+	// AccountFromProto will automatically convert address to Ethereum format
+	accountModel := models.AccountFromProto(ethAccount, chainQueryAddress, client.ClientContext().Codec)
 	saveToDB(accountModel, "create account error")
 
 	accountDTO := models.ToAccountDTO(accountModel)
@@ -724,9 +709,15 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer dbCancel()
 
+	// Convert address to database format (Ethereum format 0x...)
+	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
+	if err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+	}
+
 	// First, try to query from Redis cache (only for first page without cursor)
 	if !useCursor && page == MinPage {
-		cacheKey := fmt.Sprintf("cache:account:txs:%s", address)
+		cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
 		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
 		if err == nil && len(cachedTxs) > 0 {
 			global.Logger.Debugf("account transactions found in cache: address=%s, count=%d", address, len(cachedTxs))
@@ -743,10 +734,11 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	// In production, consider creating a separate account_transactions table for better indexing
 	var dbTxs []models.Transaction
 
-	// Build base query with address filter
+	// Build base query with Ethereum format address filter
+	// Database stores addresses in Ethereum format (0x...)
 	// Use composite index idx_signer_timestamp for optimal performance
 	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
-		Where("signer = ?", address)
+		Where("signer = ?", dbQueryAddress)
 
 	// Optimize COUNT query: use shorter timeout and skip if it takes too long
 	// For better performance, we'll get count in parallel with data query or skip it
@@ -758,9 +750,9 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	// For first page, we can skip count to improve response time
 	if !useCursor && page > MinPage {
 		// Only get count for non-first pages to determine pagination
-		total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, address)
+		total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, dbQueryAddress)
 		if countErr != nil {
-			global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", address, countErr)
+			global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", dbQueryAddress, countErr)
 			total = ApproximateCountForAddress
 			isExactCount = false
 		}
@@ -789,7 +781,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	}
 
 	startTime := time.Now()
-	err := query.Find(&dbTxs).Error
+	err = query.Find(&dbTxs).Error
 	queryDuration := time.Since(startTime)
 
 	if err == nil && len(dbTxs) > 0 {
@@ -797,7 +789,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 
 		// Cache the results for first page to improve subsequent queries
 		if !useCursor && page == MinPage {
-			cacheKey := fmt.Sprintf("cache:account:txs:%s", address)
+			cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
 			cacheAccountTransactions(dbCtx, cacheKey, dbTxs)
 		}
 
@@ -812,9 +804,20 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
 	}
 
-	// Not found in database or conversion failed, query from chain
-	global.Logger.Debugf("account transactions not found in database or conversion failed, querying from chain: address=%s", address)
-	client, err := GetSharedExplorerClient()
+	// Not found in database, query from chain using explorer client
+	// For chain queries, we need Injective format
+	client, err := GetSharedChainClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
+	}
+
+	chainQueryAddress, err := s.convertToQueryAddress(ctx, address, client, true)
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
+	}
+
+	global.Logger.Debugf("account transactions not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
+	explorerClient, err := GetSharedExplorerClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
@@ -823,8 +826,8 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
-	transactions, err := client.GetAccountTxs(callCtx, &injective_explorer_rpcpb.GetAccountTxsRequest{
-		Address: address,
+	transactions, err := explorerClient.GetAccountTxs(callCtx, &injective_explorer_rpcpb.GetAccountTxsRequest{
+		Address: chainQueryAddress,
 		Limit:   pageSize,
 	})
 	if err != nil {
@@ -876,10 +879,16 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer dbCancel()
 
-	// First, try to query from database
+	// Convert address to database format (Ethereum format 0x...)
+	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
+	if err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+	}
+
+	// First, try to query from database using Ethereum format address
 	var dbBalances []models.AccountBalance
-	err := db.Get().WithContext(dbCtx).
-		Where("address = ?", address).
+	err = db.Get().WithContext(dbCtx).
+		Where("address = ?", dbQueryAddress).
 		Find(&dbBalances).Error
 	if err == nil && len(dbBalances) > 0 {
 		// Found in database, convert to protobuf format and return
@@ -906,14 +915,21 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
 	}
 
-	// Not found in database or conversion failed, query from chain
-	global.Logger.Debugf("account balances not found in database or conversion failed, querying from chain: address=%s", address)
+	// Not found in database, query from chain
+	// For chain queries, we need Injective format
 	client, err := GetSharedChainClient()
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
 	}
 
-	balances, err := client.GetBankBalances(ctx, address)
+	chainQueryAddress, err := s.convertToQueryAddress(ctx, address, client, true)
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
+	}
+
+	global.Logger.Debugf("account balances not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
+
+	balances, err := client.GetBankBalances(ctx, chainQueryAddress)
 	if err != nil {
 		global.Logger.Errorf("get account balances error: %v", err)
 		return s.errorReply(http.StatusInternalServerError, "get account balances error", err), err
@@ -923,7 +939,8 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 	balancesList := make([]map[string]interface{}, 0, len(dbBalances))
 	if balances != nil && balances.Balances != nil {
 		for _, balance := range balances.Balances {
-			balanceModel := models.AccountBalanceFromProto(balance, address)
+			// AccountBalanceFromProto will automatically convert address to Ethereum format
+			balanceModel := models.AccountBalanceFromProto(balance, chainQueryAddress)
 			saveToDB(balanceModel, "create account balance error")
 			balanceMap := map[string]interface{}{
 				"denom":  balance.Denom,
@@ -951,7 +968,7 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 //   - *pb.Reply: A reply with sanitized error information
 func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply {
 	// Sanitize error message to prevent sensitive information leakage
-	sanitizedErr := s.sanitizeError(err)
+	sanitizedErr := utils.SanitizeError(err, MaxErrorLength)
 	return &pb.Reply{
 		Code:    int32(code),
 		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
@@ -1473,57 +1490,6 @@ func (s *DemoService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply
 		Message: "success",
 		Data:    structData,
 	}, nil
-}
-
-// sanitizeError removes sensitive information from error messages.
-// This prevents leaking internal details like file paths, connection strings, etc.
-//
-// Parameters:
-//   - err: The original error that may contain sensitive information
-//
-// Returns:
-//   - string: A sanitized error message safe to return to clients
-func (s *DemoService) sanitizeError(err error) string {
-	if err == nil {
-		return "unknown error"
-	}
-
-	errMsg := err.Error()
-
-	// Remove common sensitive patterns
-	sensitivePatterns := []string{
-		// File paths
-		"/Users/",
-		"/home/",
-		"C:\\",
-		// Connection strings
-		"@tcp(",
-		"postgres://",
-		"redis://",
-		// API keys and tokens
-		"Bearer ",
-		"Authorization:",
-		// Stack traces (keep only first line)
-	}
-
-	for _, pattern := range sensitivePatterns {
-		if strings.Contains(errMsg, pattern) {
-			// Return a generic error message if sensitive patterns are detected
-			return "internal server error"
-		}
-	}
-
-	// If error contains stack trace, only return the first line
-	if idx := strings.Index(errMsg, "\n"); idx > 0 {
-		errMsg = errMsg[:idx]
-	}
-
-	// Limit error message length to prevent information leakage
-	if len(errMsg) > MaxErrorLength {
-		errMsg = errMsg[:MaxErrorLength] + "..."
-	}
-
-	return errMsg
 }
 
 // StreamLatestBlocks streams the latest blocks as they are added to the chain.
@@ -3185,4 +3151,58 @@ func calculateGasUtilization(txs []models.Transaction) float64 {
 	}
 
 	return (float64(totalGasUsed) / float64(totalGasWanted)) * 100.0
+}
+
+// convertToQueryAddress converts an address to the format used for database/chain queries.
+// Since database now stores addresses in Ethereum format (0x...), we need to convert:
+// - If input is Ethereum format (0x...), return as-is (database format)
+// - If input is Injective format (inj1...), convert to Ethereum format for database query
+// - For chain queries, we still need Injective format, so we convert back if needed
+//
+// Parameters:
+//   - ctx: Context for the request
+//   - address: The address to convert (can be inj1... or 0x...)
+//   - client: The chain client for address conversion (used only if chain query is needed)
+//   - forChainQuery: If true, returns Injective format for chain queries; if false, returns Ethereum format for database
+//
+// Returns:
+//   - string: The converted address
+//   - error: Error if conversion fails
+func (s *DemoService) convertToQueryAddress(ctx context.Context, address string, client chainclient.ChainClientV2, forChainQuery bool) (string, error) {
+	// If already Ethereum format
+	if strings.HasPrefix(address, "0x") {
+		if forChainQuery {
+			// For chain queries, convert Ethereum to Injective
+			if client == nil {
+				return "", errors.New("chain client is required for Ethereum to Injective conversion")
+			}
+			evmAccountResp, err := client.FetchEVMCosmosAccount(ctx, address)
+			if err != nil {
+				return "", errors.Wrapf(err, "failed to fetch EVM cosmos account for %s", address)
+			}
+			if evmAccountResp == nil || evmAccountResp.CosmosAddress == "" {
+				return "", errors.Errorf("Injective address not found for Ethereum address: %s", address)
+			}
+			return evmAccountResp.CosmosAddress, nil
+		}
+		// For database queries, return as-is (database stores Ethereum format)
+		return address, nil
+	}
+
+	// If Injective format
+	if strings.HasPrefix(address, "inj1") {
+		if forChainQuery {
+			// For chain queries, return as-is
+			return address, nil
+		}
+		// For database queries, convert to Ethereum format
+		ethAddr, err := models.InjToEthAddress(address)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to convert Injective address to Ethereum: %s", address)
+		}
+		return ethAddr, nil
+	}
+
+	// Unknown format, return as-is (let validation handle it)
+	return address, nil
 }

@@ -23,10 +23,12 @@ const (
 // - pb.TransactionDTO
 
 // ToAccountDTO converts an Account model to proto AccountDTO.
+// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
 func ToAccountDTO(account *Account) *pb.AccountDTO {
 	if account == nil {
 		return nil
 	}
+
 	return &pb.AccountDTO{
 		Address:     account.Address,
 		BaseAccount: account.BaseAccount,
@@ -35,10 +37,12 @@ func ToAccountDTO(account *Account) *pb.AccountDTO {
 }
 
 // ToAccountBalanceDTO converts an AccountBalance model to proto AccountBalanceDTO.
+// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
 func ToAccountBalanceDTO(balance *AccountBalance) *pb.AccountBalanceDTO {
 	if balance == nil {
 		return nil
 	}
+
 	return &pb.AccountBalanceDTO{
 		Address: balance.Address,
 		Denom:   balance.Denom,
@@ -59,10 +63,12 @@ func ToAccountBalanceDTOs(balances []AccountBalance) []*pb.AccountBalanceDTO {
 }
 
 // ToBlockDTO converts a Block model to proto BlockDTO.
+// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
 func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 	if block == nil {
 		return nil
 	}
+
 	if isDetail {
 		return &pb.BlockDTO{
 			Height:             block.Height,
@@ -147,6 +153,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 		messagesStr := decompressForDTO(tx.Messages)
 		logsStr := decompressForDTO(tx.Logs)
 
+		// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed
 		return &pb.TransactionDTO{
 			Id:                 tx.Id,
 			BlockNumber:        tx.BlockNumber,
@@ -177,6 +184,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 		// For non-detail mode, also decompress Messages if present
 		messagesStr := decompressForDTO(tx.Messages)
 
+		// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed
 		return &pb.TransactionDTO{
 			BlockNumber:        tx.BlockNumber,
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
