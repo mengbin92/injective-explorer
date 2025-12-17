@@ -1,0 +1,200 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// ContractInfoService provides contract information query and management
+// services. This service supports various contract types (token contracts, NFT
+// contracts, etc.), with token contracts being the primary use case currently.
+service ContractInfoService {
+  // CreateContractInfo creates a new contract information.
+  rpc CreateContractInfo(CreateContractInfoRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/demo/contract/info"
+      body : "*"
+    };
+  }
+
+  // GetContractInfoByAddress retrieves contract information by address.
+  rpc GetContractInfoByAddress(GetContractInfoByAddressRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/contract/info/by-address"
+    };
+  }
+
+  // GetContractsBySymbol retrieves contracts by symbol (supports one-to-many
+  // relationship). This is primarily used for token contracts, but can be
+  // extended for other contract types.
+  rpc GetContractsBySymbol(GetContractsBySymbolRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/contract/info/by-symbol"
+    };
+  }
+
+  // ListContractInfos lists contract information with various filter
+  // conditions.
+  rpc ListContractInfos(ListContractInfosRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/contract/info/list"
+    };
+  }
+
+  // UpdateContractInfo updates contract information.
+  rpc UpdateContractInfo(UpdateContractInfoRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/demo/contract/info"
+      body : "*"
+    };
+  }
+
+  // DeleteContractInfo deletes contract information (soft delete).
+  rpc DeleteContractInfo(DeleteContractInfoRequest)
+      returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete : "/demo/contract/info"
+    };
+  }
+
+  // AddContractTag adds a tag to a contract.
+  rpc AddContractTag(AddContractTagRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/demo/contract/info/tag"
+      body : "*"
+    };
+  }
+
+  // RemoveContractTag removes a tag from a contract.
+  rpc RemoveContractTag(RemoveContractTagRequest)
+      returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete : "/demo/contract/info/tag"
+    };
+  }
+
+  // GetContractTags retrieves all tags for a contract.
+  rpc GetContractTags(GetContractTagsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/contract/info/tags"
+    };
+  }
+}
+
+// Request messages
+message CreateContractInfoRequest {
+  string contract_address = 1; // Contract address (required)
+  string name =
+      2; // Contract name (optional, generic name for all contract types)
+  string token_name = 3;    // Token name (optional, for token contracts)
+  string token_symbol = 4;  // Token symbol (optional, for token contracts)
+  string contract_type = 5; // Contract type (optional, default: cosmwasm)
+  string chain_id = 6;      // Chain ID (optional, default: injective-1)
+  string verification_status =
+      7; // Verification status (optional, default: unverified)
+  map<string, string> metadata = 8; // Extended metadata (optional)
+  repeated string tags = 9;         // Tag list (optional)
+}
+
+message GetContractInfoByAddressRequest {
+  string contract_address = 1; // Contract address (required)
+  string chain_id = 2;         // Chain ID (optional)
+}
+
+message GetContractsBySymbolRequest {
+  string symbol =
+      1; // Symbol (required, e.g., token symbol for token contracts)
+  string chain_id = 2;              // Chain ID (optional, for filtering)
+  string contract_type = 3;         // Contract type (optional, for filtering)
+  PaginationRequest pagination = 4; // Pagination parameters
+}
+
+message ListContractInfosRequest {
+  string chain_id = 1;            // Chain ID (optional)
+  string contract_type = 2;       // Contract type (optional)
+  string verification_status = 3; // Verification status (optional)
+  string name = 4;   // Name (optional, fuzzy match on name or token_name)
+  string symbol = 5; // Symbol (optional, fuzzy match on token_symbol)
+  PaginationRequest pagination = 6; // Pagination parameters
+}
+
+message UpdateContractInfoRequest {
+  string contract_address = 1; // Contract address (required)
+  string chain_id = 2;         // Chain ID (required)
+  string name = 3;             // Contract name (optional)
+  string token_name = 4;       // Token name (optional, for token contracts)
+  string token_symbol = 5;     // Token symbol (optional, for token contracts)
+  string contract_type = 6;    // Contract type (optional)
+  string verification_status = 7;   // Verification status (optional)
+  map<string, string> metadata = 8; // Extended metadata (optional)
+}
+
+message DeleteContractInfoRequest {
+  string contract_address = 1; // Contract address (required)
+  string chain_id = 2;         // Chain ID (required)
+}
+
+message AddContractTagRequest {
+  string contract_address = 1; // Contract address (required)
+  string chain_id = 2;         // Chain ID (required)
+  string tag_type = 3;         // Tag type (required)
+  string tag_value = 4;        // Tag value (optional)
+  string tag_color = 5;        // Tag color (optional)
+  string description = 6;      // Tag description (optional)
+  string created_by = 7;       // Creator (optional)
+}
+
+message RemoveContractTagRequest {
+  string contract_address = 1; // Contract address (required)
+  string chain_id = 2;         // Chain ID (required)
+  string tag_type = 3;         // Tag type (required)
+}
+
+message GetContractTagsRequest {
+  string contract_address = 1; // Contract address (required)
+  string chain_id = 2;         // Chain ID (required)
+}
+
+// Response data messages (used in Reply.data as Struct)
+// ContractInfoDTO represents contract information in the response
+message ContractInfoDTO {
+  uint64 id = 1;
+  string contract_address = 2 [ json_name = "contract_address" ];
+  string name = 3; // Generic contract name
+  string token_name = 4
+      [ json_name = "token_name" ]; // Token name (for token contracts)
+  string token_symbol = 5
+      [ json_name = "token_symbol" ]; // Token symbol (for token contracts)
+  string contract_type = 6 [ json_name = "contract_type" ];
+  string chain_id = 7 [ json_name = "chain_id" ];
+  string verification_status = 8 [ json_name = "verification_status" ];
+  bool is_verified = 9 [ json_name = "is_verified" ];
+  string verified_at = 10
+      [ json_name = "verified_at" ]; // ISO 8601 format timestamp
+  string verified_by = 11 [ json_name = "verified_by" ];
+  map<string, string> metadata = 12;
+  repeated ContractTagInfoDTO tags = 13;
+  string created_at = 14
+      [ json_name = "created_at" ]; // ISO 8601 format timestamp
+  string updated_at = 15
+      [ json_name = "updated_at" ]; // ISO 8601 format timestamp
+}
+
+// ContractTagInfoDTO represents contract tag information in the response
+message ContractTagInfoDTO {
+  uint64 id = 1;
+  string contract_address = 2 [ json_name = "contract_address" ];
+  string chain_id = 3 [ json_name = "chain_id" ];
+  string tag_type = 4 [ json_name = "tag_type" ];
+  string tag_value = 5 [ json_name = "tag_value" ];
+  string tag_color = 6 [ json_name = "tag_color" ];
+  string description = 7;
+  string created_by = 8 [ json_name = "created_by" ];
+  string created_at = 9 [ json_name = "created_at" ];
+}

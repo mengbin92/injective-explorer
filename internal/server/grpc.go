@@ -41,5 +41,8 @@ func NewGRPCServer(c *conf.Server, logger log.Logger) *grpc.Server {
 	demoService := service.NewDemoService()
 	v1.RegisterDemoServer(srv, demoService)
 
+	contractInfoService := service.NewContractInfoService()
+	v1.RegisterContractInfoServiceServer(srv, contractInfoService)
+
 	return srv
 }

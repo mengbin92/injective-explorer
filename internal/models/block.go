@@ -76,7 +76,7 @@ func BlockFromProtoWithPool(detail *injective_explorer_rpcpb.BlockDetailInfo, po
 	block.Height = detail.Height
 	// Convert proposer address to Ethereum format for storage
 	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
-	block.Proposer = convertAddressToEthForStorage(detail.Proposer)
+	block.Proposer = ConvertAddressToEthForStorage(detail.Proposer)
 	block.Moniker = detail.Moniker
 	block.BlockHash = detail.BlockHash
 	block.ParentHash = detail.ParentHash

@@ -8,7 +8,13 @@
 package models
 
 import (
+	"time"
+
 	pb "injective-explorer/api/explorer/v1"
+
+	"github.com/bytedance/sonic"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -21,6 +27,8 @@ const (
 // - pb.AccountBalanceDTO
 // - pb.BlockDTO
 // - pb.TransactionDTO
+// - pb.ContractInfoDTO
+// - pb.ContractTagInfoDTO
 
 // ToAccountDTO converts an Account model to proto AccountDTO.
 // Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
@@ -64,9 +72,27 @@ func ToAccountBalanceDTOs(balances []AccountBalance) []*pb.AccountBalanceDTO {
 
 // ToBlockDTO converts a Block model to proto BlockDTO.
 // Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
+// Txs field is converted from JSON strings to JSON objects (google.protobuf.Struct) for frontend use.
 func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 	if block == nil {
 		return nil
+	}
+
+	// Convert Txs from JSON strings to JSON objects
+	var txs []*structpb.Struct
+	if len(block.Txs) > 0 {
+		txs = make([]*structpb.Struct, 0, len(block.Txs))
+		for _, txStr := range block.Txs {
+			if txStr == "" {
+				continue
+			}
+			// Parse JSON string to structpb.Struct
+			var txStruct structpb.Struct
+			if err := protojson.Unmarshal([]byte(txStr), &txStruct); err == nil {
+				txs = append(txs, &txStruct)
+			}
+			// If parsing fails, skip this transaction (graceful degradation)
+		}
 	}
 
 	if isDetail {
@@ -79,7 +105,7 @@ func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 			NumPrecommits:      block.NumPrecommits,
 			NumTxs:             block.NumTxs,
 			TotalTxs:           block.TotalTxs,
-			Txs:                block.Txs,
+			Txs:                txs,
 			Timestamp:          block.Timestamp,
 			BlockUnixTimestamp: block.BlockUnixTimestamp,
 		}
@@ -206,6 +232,113 @@ func ToTransactionDTOs(txs []Transaction) []*pb.TransactionDTO {
 	dtos := make([]*pb.TransactionDTO, 0, len(txs))
 	for _, tx := range txs {
 		dtos = append(dtos, ToTransactionDTO(&tx, DTOModeWithoutDetail))
+	}
+	return dtos
+}
+
+// ToContractTagInfoDTO converts a ContractTag model to ContractTagInfoDTO proto message.
+func ToContractTagInfoDTO(tag *ContractTag) *pb.ContractTagInfoDTO {
+	if tag == nil {
+		return nil
+	}
+
+	var createdAt string
+	if !tag.CreatedAt.IsZero() {
+		createdAt = tag.CreatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.ContractTagInfoDTO{
+		Id:              uint64(tag.ID),
+		ContractAddress: tag.ContractAddress,
+		ChainId:         tag.ChainID,
+		TagType:         tag.TagType,
+		TagValue:        tag.TagValue,
+		TagColor:        tag.TagColor,
+		Description:     tag.Description,
+		CreatedBy:       tag.CreatedBy,
+		CreatedAt:       createdAt,
+	}
+}
+
+// ToContractTagInfoDTOs converts a slice of ContractTag models to proto ContractTagInfoDTOs.
+func ToContractTagInfoDTOs(tags []ContractTag) []*pb.ContractTagInfoDTO {
+	if tags == nil {
+		return nil
+	}
+	dtos := make([]*pb.ContractTagInfoDTO, 0, len(tags))
+	for _, tag := range tags {
+		dtos = append(dtos, ToContractTagInfoDTO(&tag))
+	}
+	return dtos
+}
+
+// ToContractInfoDTO converts a ContractInfo model to ContractInfoDTO proto message.
+func ToContractInfoDTO(contract *ContractInfo) *pb.ContractInfoDTO {
+	if contract == nil {
+		return nil
+	}
+
+	// Convert tags
+	tags := make([]*pb.ContractTagInfoDTO, 0, len(contract.Tags))
+	for _, tag := range contract.Tags {
+		tags = append(tags, ToContractTagInfoDTO(&tag))
+	}
+
+	// Convert metadata
+	metadata := make(map[string]string)
+	if contract.Metadata != nil {
+		for k, v := range contract.Metadata {
+			// Convert value to string
+			if str, ok := v.(string); ok {
+				metadata[k] = str
+			} else {
+				// Marshal non-string values to JSON string
+				if jsonBytes, err := sonic.Marshal(v); err == nil {
+					metadata[k] = string(jsonBytes)
+				}
+			}
+		}
+	}
+
+	// Format timestamps
+	var verifiedAt, createdAt, updatedAt string
+	if contract.VerifiedAt != nil {
+		verifiedAt = contract.VerifiedAt.Format(time.RFC3339)
+	}
+	if !contract.CreatedAt.IsZero() {
+		createdAt = contract.CreatedAt.Format(time.RFC3339)
+	}
+	if !contract.UpdatedAt.IsZero() {
+		updatedAt = contract.UpdatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.ContractInfoDTO{
+		Id:                 uint64(contract.ID),
+		ContractAddress:    contract.ContractAddress,
+		Name:               contract.Name,
+		TokenName:          contract.TokenName,
+		TokenSymbol:        contract.TokenSymbol,
+		ContractType:       contract.ContractType,
+		ChainId:            contract.ChainID,
+		VerificationStatus: contract.VerificationStatus,
+		IsVerified:         contract.IsVerified,
+		VerifiedAt:         verifiedAt,
+		VerifiedBy:         contract.VerifiedBy,
+		Metadata:           metadata,
+		Tags:               tags,
+		CreatedAt:          createdAt,
+		UpdatedAt:          updatedAt,
+	}
+}
+
+// ToContractInfoDTOs converts a slice of ContractInfo models to proto ContractInfoDTOs.
+func ToContractInfoDTOs(contracts []ContractInfo) []*pb.ContractInfoDTO {
+	if contracts == nil {
+		return nil
+	}
+	dtos := make([]*pb.ContractInfoDTO, 0, len(contracts))
+	for _, contract := range contracts {
+		dtos = append(dtos, ToContractInfoDTO(&contract))
 	}
 	return dtos
 }

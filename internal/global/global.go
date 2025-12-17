@@ -92,6 +92,8 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		&models.Account{},
 		&models.AccountBalance{},
 		&models.TransactionDataArchive{},
+		&models.ContractInfo{},
+		&models.ContractTag{},
 	)
 	if err != nil {
 		panic(err)

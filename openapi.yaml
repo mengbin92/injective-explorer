@@ -3,7 +3,7 @@
 
 openapi: 3.0.3
 info:
-    title: Demo API
+    title: ""
     version: 0.0.1
 paths:
     /demo/account/balances:
@@ -132,6 +132,251 @@ paths:
             tags:
                 - Demo
             operationId: Demo_GetLatestBlockHeight
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/contract/info:
+        put:
+            tags:
+                - ContractInfoService
+            description: UpdateContractInfo updates contract information.
+            operationId: ContractInfoService_UpdateContractInfo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdateContractInfoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        post:
+            tags:
+                - ContractInfoService
+            description: CreateContractInfo creates a new contract information.
+            operationId: ContractInfoService_CreateContractInfo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.CreateContractInfoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        delete:
+            tags:
+                - ContractInfoService
+            description: DeleteContractInfo deletes contract information (soft delete).
+            operationId: ContractInfoService_DeleteContractInfo
+            parameters:
+                - name: contractAddress
+                  in: query
+                  schema:
+                    type: string
+                - name: chainId
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /demo/contract/info/by-address:
+        get:
+            tags:
+                - ContractInfoService
+            description: GetContractInfoByAddress retrieves contract information by address.
+            operationId: ContractInfoService_GetContractInfoByAddress
+            parameters:
+                - name: contractAddress
+                  in: query
+                  schema:
+                    type: string
+                - name: chainId
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/contract/info/by-symbol:
+        get:
+            tags:
+                - ContractInfoService
+            description: |-
+                GetContractsBySymbol retrieves contracts by symbol (supports one-to-many
+                 relationship). This is primarily used for token contracts, but can be
+                 extended for other contract types.
+            operationId: ContractInfoService_GetContractsBySymbol
+            parameters:
+                - name: symbol
+                  in: query
+                  schema:
+                    type: string
+                - name: chainId
+                  in: query
+                  schema:
+                    type: string
+                - name: contractType
+                  in: query
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.pageSize
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/contract/info/list:
+        get:
+            tags:
+                - ContractInfoService
+            description: |-
+                ListContractInfos lists contract information with various filter
+                 conditions.
+            operationId: ContractInfoService_ListContractInfos
+            parameters:
+                - name: chainId
+                  in: query
+                  schema:
+                    type: string
+                - name: contractType
+                  in: query
+                  schema:
+                    type: string
+                - name: verificationStatus
+                  in: query
+                  schema:
+                    type: string
+                - name: name
+                  in: query
+                  schema:
+                    type: string
+                - name: symbol
+                  in: query
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.pageSize
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/contract/info/tag:
+        post:
+            tags:
+                - ContractInfoService
+            description: AddContractTag adds a tag to a contract.
+            operationId: ContractInfoService_AddContractTag
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.AddContractTagRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        delete:
+            tags:
+                - ContractInfoService
+            description: RemoveContractTag removes a tag from a contract.
+            operationId: ContractInfoService_RemoveContractTag
+            parameters:
+                - name: contractAddress
+                  in: query
+                  schema:
+                    type: string
+                - name: chainId
+                  in: query
+                  schema:
+                    type: string
+                - name: tagType
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /demo/contract/info/tags:
+        get:
+            tags:
+                - ContractInfoService
+            description: GetContractTags retrieves all tags for a contract.
+            operationId: ContractInfoService_GetContractTags
+            parameters:
+                - name: contractAddress
+                  in: query
+                  schema:
+                    type: string
+                - name: chainId
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -371,6 +616,23 @@ components:
                         type: string
                     description: Additional metadata
             description: AccountUpdateData contains account update information
+        api.explorer.v1.AddContractTagRequest:
+            type: object
+            properties:
+                contractAddress:
+                    type: string
+                chainId:
+                    type: string
+                tagType:
+                    type: string
+                tagValue:
+                    type: string
+                tagColor:
+                    type: string
+                description:
+                    type: string
+                createdBy:
+                    type: string
         api.explorer.v1.BlockDTO:
             type: object
             properties:
@@ -393,7 +655,7 @@ components:
                 txs:
                     type: array
                     items:
-                        type: string
+                        type: object
                 timestamp:
                     type: string
                 block_unix_timestamp:
@@ -430,6 +692,32 @@ components:
                         $ref: '#/components/schemas/api.explorer.v1.HealthDetails'
                     description: Health details for each component (database, redis, etc.)
             description: CheckHealthyResponse contains the health status of the service
+        api.explorer.v1.CreateContractInfoRequest:
+            type: object
+            properties:
+                contractAddress:
+                    type: string
+                name:
+                    type: string
+                tokenName:
+                    type: string
+                tokenSymbol:
+                    type: string
+                contractType:
+                    type: string
+                chainId:
+                    type: string
+                verificationStatus:
+                    type: string
+                metadata:
+                    type: object
+                    additionalProperties:
+                        type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+            description: Request messages
         api.explorer.v1.HealthDetails:
             type: object
             properties:
@@ -530,5 +818,31 @@ components:
                 timestamp:
                     type: string
                     description: Timestamp of the update
+        api.explorer.v1.UpdateContractInfoRequest:
+            type: object
+            properties:
+                contractAddress:
+                    type: string
+                chainId:
+                    type: string
+                name:
+                    type: string
+                tokenName:
+                    type: string
+                tokenSymbol:
+                    type: string
+                contractType:
+                    type: string
+                verificationStatus:
+                    type: string
+                metadata:
+                    type: object
+                    additionalProperties:
+                        type: string
 tags:
+    - name: ContractInfoService
+      description: |-
+        ContractInfoService provides contract information query and management
+         services. This service supports various contract types (token contracts, NFT
+         contracts, etc.), with token contracts being the primary use case currently.
     - name: Demo

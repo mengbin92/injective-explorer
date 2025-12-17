@@ -94,6 +94,10 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 	demoService := service.NewDemoService()
 	v1.RegisterDemoHTTPServer(srv, demoService)
 
+	// Register contract info service
+	contractInfoService := service.NewContractInfoService()
+	v1.RegisterContractInfoServiceHTTPServer(srv, contractInfoService)
+
 	// Register Swagger routes if enabled
 	if c.EnableSwagger {
 		registerSwaggerUI(srv, logger, corsMiddleware, enableCors)

@@ -11,6 +11,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -1505,7 +1506,7 @@ type BlockDTO struct {
 	NumPrecommits      int64                  `protobuf:"varint,6,opt,name=num_precommits,proto3" json:"num_precommits,omitempty"`
 	NumTxs             int64                  `protobuf:"varint,7,opt,name=num_txs,proto3" json:"num_txs,omitempty"`
 	TotalTxs           int64                  `protobuf:"varint,8,opt,name=total_txs,proto3" json:"total_txs,omitempty"`
-	Txs                []string               `protobuf:"bytes,9,rep,name=txs,proto3" json:"txs,omitempty"`
+	Txs                []*structpb.Struct     `protobuf:"bytes,9,rep,name=txs,proto3" json:"txs,omitempty"` // Transaction data as JSON objects
 	Timestamp          string                 `protobuf:"bytes,10,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	BlockUnixTimestamp uint64                 `protobuf:"varint,11,opt,name=block_unix_timestamp,proto3" json:"block_unix_timestamp,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -1598,7 +1599,7 @@ func (x *BlockDTO) GetTotalTxs() int64 {
 	return 0
 }
 
-func (x *BlockDTO) GetTxs() []string {
+func (x *BlockDTO) GetTxs() []*structpb.Struct {
 	if x != nil {
 		return x.Txs
 	}
@@ -1852,7 +1853,7 @@ var File_explorer_v1_demo_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\n" +
-	"\x16explorer/v1/demo.proto\x12\x0fapi.explorer.v1\x1a\x18explorer/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\"1\n" +
+	"\x16explorer/v1/demo.proto\x12\x0fapi.explorer.v1\x1a\x18explorer/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\"1\n" +
 	"\x17GetBlockByHeightRequest\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\x03R\x06height\"1\n" +
 	"\x1bGetTransactionByHashRequest\x12\x12\n" +
@@ -1965,7 +1966,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x11AccountBalanceDTO\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x14\n" +
 	"\x05denom\x18\x02 \x01(\tR\x05denom\x12\x16\n" +
-	"\x06amount\x18\x03 \x01(\tR\x06amount\"\xde\x02\n" +
+	"\x06amount\x18\x03 \x01(\tR\x06amount\"\xf7\x02\n" +
 	"\bBlockDTO\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\x04R\x06height\x12\x1a\n" +
 	"\bproposer\x18\x02 \x01(\tR\bproposer\x12\x18\n" +
@@ -1976,8 +1977,8 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\vparent_hash\x18\x05 \x01(\tR\vparent_hash\x12&\n" +
 	"\x0enum_precommits\x18\x06 \x01(\x03R\x0enum_precommits\x12\x18\n" +
 	"\anum_txs\x18\a \x01(\x03R\anum_txs\x12\x1c\n" +
-	"\ttotal_txs\x18\b \x01(\x03R\ttotal_txs\x12\x10\n" +
-	"\x03txs\x18\t \x03(\tR\x03txs\x12\x1c\n" +
+	"\ttotal_txs\x18\b \x01(\x03R\ttotal_txs\x12)\n" +
+	"\x03txs\x18\t \x03(\v2\x17.google.protobuf.StructR\x03txs\x12\x1c\n" +
 	"\ttimestamp\x18\n" +
 	" \x01(\tR\ttimestamp\x122\n" +
 	"\x14block_unix_timestamp\x18\v \x01(\x04R\x14block_unix_timestamp\"\x94\x05\n" +
@@ -2072,8 +2073,9 @@ var file_explorer_v1_demo_proto_goTypes = []any{
 	nil,                                     // 27: api.explorer.v1.AccountUpdateData.MetadataEntry
 	(*PaginationRequest)(nil),               // 28: api.explorer.v1.PaginationRequest
 	(*PaginationInfo)(nil),                  // 29: api.explorer.v1.PaginationInfo
-	(*emptypb.Empty)(nil),                   // 30: google.protobuf.Empty
-	(*Reply)(nil),                           // 31: api.explorer.v1.Reply
+	(*structpb.Struct)(nil),                 // 30: google.protobuf.Struct
+	(*emptypb.Empty)(nil),                   // 31: google.protobuf.Empty
+	(*Reply)(nil),                           // 32: api.explorer.v1.Reply
 }
 var file_explorer_v1_demo_proto_depIdxs = []int32{
 	28, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
@@ -2089,40 +2091,41 @@ var file_explorer_v1_demo_proto_depIdxs = []int32{
 	23, // 10: api.explorer.v1.AccountUpdateData.balances:type_name -> api.explorer.v1.AccountBalanceDTO
 	27, // 11: api.explorer.v1.AccountUpdateData.metadata:type_name -> api.explorer.v1.AccountUpdateData.MetadataEntry
 	18, // 12: api.explorer.v1.AccountUpdate.data:type_name -> api.explorer.v1.AccountUpdateData
-	11, // 13: api.explorer.v1.CheckHealthyResponse.DetailsEntry.value:type_name -> api.explorer.v1.HealthDetails
-	28, // 14: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
-	0,  // 15: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
-	30, // 16: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
-	28, // 17: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
-	1,  // 18: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
-	2,  // 19: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
-	3,  // 20: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
-	4,  // 21: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
-	30, // 22: api.explorer.v1.Demo.GetTransactionStats:input_type -> google.protobuf.Empty
-	5,  // 23: api.explorer.v1.Demo.GetFailedTransactions24h:input_type -> api.explorer.v1.GetFailedTransactions24hRequest
-	10, // 24: api.explorer.v1.Demo.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
-	13, // 25: api.explorer.v1.Demo.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
-	14, // 26: api.explorer.v1.Demo.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
-	15, // 27: api.explorer.v1.Demo.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
-	31, // 28: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
-	31, // 29: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
-	31, // 30: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
-	31, // 31: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
-	31, // 32: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
-	31, // 33: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
-	31, // 34: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
-	31, // 35: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	31, // 36: api.explorer.v1.Demo.GetTransactionStats:output_type -> api.explorer.v1.Reply
-	31, // 37: api.explorer.v1.Demo.GetFailedTransactions24h:output_type -> api.explorer.v1.Reply
-	12, // 38: api.explorer.v1.Demo.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
-	16, // 39: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
-	17, // 40: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
-	19, // 41: api.explorer.v1.Demo.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
-	28, // [28:42] is the sub-list for method output_type
-	14, // [14:28] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	30, // 13: api.explorer.v1.BlockDTO.txs:type_name -> google.protobuf.Struct
+	11, // 14: api.explorer.v1.CheckHealthyResponse.DetailsEntry.value:type_name -> api.explorer.v1.HealthDetails
+	28, // 15: api.explorer.v1.Demo.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
+	0,  // 16: api.explorer.v1.Demo.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
+	31, // 17: api.explorer.v1.Demo.GetLatestBlockHeight:input_type -> google.protobuf.Empty
+	28, // 18: api.explorer.v1.Demo.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
+	1,  // 19: api.explorer.v1.Demo.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
+	2,  // 20: api.explorer.v1.Demo.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
+	3,  // 21: api.explorer.v1.Demo.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
+	4,  // 22: api.explorer.v1.Demo.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
+	31, // 23: api.explorer.v1.Demo.GetTransactionStats:input_type -> google.protobuf.Empty
+	5,  // 24: api.explorer.v1.Demo.GetFailedTransactions24h:input_type -> api.explorer.v1.GetFailedTransactions24hRequest
+	10, // 25: api.explorer.v1.Demo.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
+	13, // 26: api.explorer.v1.Demo.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
+	14, // 27: api.explorer.v1.Demo.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
+	15, // 28: api.explorer.v1.Demo.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
+	32, // 29: api.explorer.v1.Demo.GetLatestBlocks:output_type -> api.explorer.v1.Reply
+	32, // 30: api.explorer.v1.Demo.GetBlockByHeight:output_type -> api.explorer.v1.Reply
+	32, // 31: api.explorer.v1.Demo.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
+	32, // 32: api.explorer.v1.Demo.GetLatestTransactions:output_type -> api.explorer.v1.Reply
+	32, // 33: api.explorer.v1.Demo.GetTransactionByHash:output_type -> api.explorer.v1.Reply
+	32, // 34: api.explorer.v1.Demo.GetAccountInfo:output_type -> api.explorer.v1.Reply
+	32, // 35: api.explorer.v1.Demo.GetAccountTransactions:output_type -> api.explorer.v1.Reply
+	32, // 36: api.explorer.v1.Demo.GetAccountBalances:output_type -> api.explorer.v1.Reply
+	32, // 37: api.explorer.v1.Demo.GetTransactionStats:output_type -> api.explorer.v1.Reply
+	32, // 38: api.explorer.v1.Demo.GetFailedTransactions24h:output_type -> api.explorer.v1.Reply
+	12, // 39: api.explorer.v1.Demo.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
+	16, // 40: api.explorer.v1.Demo.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
+	17, // 41: api.explorer.v1.Demo.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
+	19, // 42: api.explorer.v1.Demo.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
+	29, // [29:43] is the sub-list for method output_type
+	15, // [15:29] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_explorer_v1_demo_proto_init() }

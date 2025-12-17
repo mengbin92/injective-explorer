@@ -121,7 +121,7 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 	baseAccountJSON, _ := sonic.Marshal(baseAccount)
 	// Convert address to Ethereum format for storage
 	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
-	ethAddress := convertAddressToEthForStorage(address)
+	ethAddress := ConvertAddressToEthForStorage(address)
 	return &Account{
 		Address:     ethAddress,
 		BaseAccount: string(baseAccountJSON),
@@ -156,7 +156,7 @@ type AccountBalance struct {
 func AccountBalanceFromProto(coin github_com_cosmos_cosmos_sdk_types.Coin, address string) *AccountBalance {
 	// Convert address to Ethereum format for storage
 	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
-	ethAddress := convertAddressToEthForStorage(address)
+	ethAddress := ConvertAddressToEthForStorage(address)
 	return &AccountBalance{
 		Address: ethAddress,
 		Denom:   coin.Denom,
@@ -164,7 +164,7 @@ func AccountBalanceFromProto(coin github_com_cosmos_cosmos_sdk_types.Coin, addre
 	}
 }
 
-// convertAddressToEthForStorage converts an address to Ethereum format (0x...) for database storage.
+// ConvertAddressToEthForStorage converts an address to Ethereum format (0x...) for database storage.
 // This function ensures all addresses are stored in a consistent Ethereum format (0x...) in the database,
 // regardless of the input format (Injective inj1... or Ethereum 0x...).
 //
@@ -182,7 +182,7 @@ func AccountBalanceFromProto(coin github_com_cosmos_cosmos_sdk_types.Coin, addre
 //
 // Note: If conversion fails, the original address is returned for backward compatibility
 // with existing data that might be in unexpected formats.
-func convertAddressToEthForStorage(address string) string {
+func ConvertAddressToEthForStorage(address string) string {
 	if address == "" {
 		return address
 	}

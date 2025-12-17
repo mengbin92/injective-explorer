@@ -5,6 +5,7 @@ package api.explorer.v1;
 import "explorer/v1/common.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
@@ -302,7 +303,7 @@ message BlockDTO {
   int64 num_precommits = 6 [ json_name = "num_precommits" ];
   int64 num_txs = 7 [ json_name = "num_txs" ];
   int64 total_txs = 8 [ json_name = "total_txs" ];
-  repeated string txs = 9;
+  repeated google.protobuf.Struct txs = 9; // Transaction data as JSON objects
   string timestamp = 10;
   uint64 block_unix_timestamp = 11 [ json_name = "block_unix_timestamp" ];
 }
