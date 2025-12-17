@@ -136,17 +136,18 @@ func TestExtractToAndValueFromProto_FromGasFee(t *testing.T) {
 
 	to, value := extractToAndValueFromProto(nil, nil, nil, nil, gasFee)
 
-	// Should return empty values when no transfer events found
-	assert.Empty(t, to)
-	assert.Empty(t, value)
+	// Should return default values when no transfer events found (non-transfer transaction)
+	assert.Equal(t, "-", to)
+	assert.Equal(t, "0", value)
 }
 
 func TestExtractToAndValueFromProto_EmptyInput(t *testing.T) {
 	// Test case: Empty input
 	to, value := extractToAndValueFromProto(nil, nil, nil, nil, nil)
 
-	assert.Empty(t, to)
-	assert.Empty(t, value)
+	// Should return default values for non-transfer transactions
+	assert.Equal(t, "-", to)
+	assert.Equal(t, "0", value)
 }
 
 func TestExtractFromToValue_TransferEvent(t *testing.T) {
@@ -179,6 +180,7 @@ func TestExtractFromToValue_TransferEvent(t *testing.T) {
 	assert.Len(t, result.Values, 1)
 	assert.Equal(t, "100", result.Values[0].Amount)
 	assert.Equal(t, "inj", result.Values[0].Denom)
+	assert.True(t, result.ShouldShowValue, "transfer event should show to/value")
 }
 
 func TestExtractFromToValue_MsgSend(t *testing.T) {
@@ -210,6 +212,7 @@ func TestExtractFromToValue_MsgSend(t *testing.T) {
 	assert.Len(t, result.Values, 1)
 	assert.Equal(t, "1000", result.Values[0].Amount)
 	assert.Equal(t, "inj", result.Values[0].Denom)
+	assert.True(t, result.ShouldShowValue, "MsgSend should show to/value")
 }
 
 func TestExtractFromToValue_WasmExecuteContract(t *testing.T) {
@@ -241,6 +244,7 @@ func TestExtractFromToValue_WasmExecuteContract(t *testing.T) {
 	assert.Len(t, result.Values, 1)
 	assert.Equal(t, "500", result.Values[0].Amount)
 	assert.Equal(t, "inj", result.Values[0].Denom)
+	assert.True(t, result.ShouldShowValue, "MsgExecuteContract with funds should show to/value")
 }
 
 func TestExtractFromToValue_IbcTransfer(t *testing.T) {
@@ -273,10 +277,12 @@ func TestExtractFromToValue_IbcTransfer(t *testing.T) {
 	assert.Len(t, result.Values, 1)
 	assert.Equal(t, "2000", result.Values[0].Amount)
 	assert.Equal(t, "inj", result.Values[0].Denom)
+	assert.True(t, result.ShouldShowValue, "IBC MsgTransfer should show to/value")
 }
 
 func TestExtractFromToValue_LastResortSignature(t *testing.T) {
 	// Test case: No transfer events or messages, fallback to signature
+	// For non-transfer transactions, we should not show to/value
 	tx := &TxJSON{
 		Signatures: []SignatureRaw{
 			{Address: "inj1signer"},
@@ -289,6 +295,7 @@ func TestExtractFromToValue_LastResortSignature(t *testing.T) {
 	assert.Equal(t, "inj1signer", result.From)
 	assert.Empty(t, result.To)
 	assert.Empty(t, result.Values)
+	assert.False(t, result.ShouldShowValue, "non-transfer transaction should not show to/value")
 }
 
 func TestExtractFromToValue_NilInput(t *testing.T) {
@@ -413,4 +420,209 @@ func TestExtractFromEventsJSON_NoTransferEvents(t *testing.T) {
 	assert.False(t, found)
 	assert.Empty(t, res.From)
 	assert.Empty(t, res.To)
+}
+
+func TestExtractFromToValue_NonTransferTransaction(t *testing.T) {
+	// Test case: Exchange order (not a transfer, should not show to/value)
+	msgJSON := json.RawMessage(`{
+		"sender": "inj1sender",
+		"market_id": "0x123",
+		"order_type": "BUY",
+		"price": "1000",
+		"quantity": "1"
+	}`)
+
+	tx := &TxJSON{
+		Messages: []MessageRaw{
+			{
+				Type:    "/injective.exchange.v1beta1.MsgCreateSpotOrder",
+				Message: msgJSON,
+			},
+		},
+		Signatures: []SignatureRaw{
+			{Address: "inj1sender"},
+		},
+	}
+
+	result, err := extractFromToValue(tx)
+
+	require.NoError(t, err)
+	assert.Equal(t, "inj1sender", result.From, "should extract signer")
+	assert.Empty(t, result.To, "non-transfer transaction should not have 'to'")
+	assert.Empty(t, result.Values, "non-transfer transaction should not have 'value'")
+	assert.False(t, result.ShouldShowValue, "order transaction should not show to/value")
+}
+
+func TestExtractFromToValue_WasmExecuteContractWithoutFunds(t *testing.T) {
+	// Test case: Contract call without funds (not a transfer)
+	msgJSON := json.RawMessage(`{
+		"sender": "inj1sender",
+		"contract": "inj1contract",
+		"msg": {"action": "query"},
+		"funds": []
+	}`)
+
+	tx := &TxJSON{
+		Messages: []MessageRaw{
+			{
+				Type:    "/cosmwasm.wasm.v1.MsgExecuteContract",
+				Message: msgJSON,
+			},
+		},
+		Signatures: []SignatureRaw{
+			{Address: "inj1sender"},
+		},
+	}
+
+	result, err := extractFromToValue(tx)
+
+	require.NoError(t, err)
+	assert.Equal(t, "inj1sender", result.From, "should extract signer")
+	assert.Empty(t, result.To, "contract call without funds should not have 'to'")
+	assert.Empty(t, result.Values, "contract call without funds should not have 'value'")
+	assert.False(t, result.ShouldShowValue, "contract call without funds should not show to/value")
+}
+
+func TestExtractFromToValue_OrderWithGasFeeEvents(t *testing.T) {
+	// Test case: Exchange order transaction with gas fee events
+	// Even though there are transfer events (from gas fee payment),
+	// this should NOT show to/value because the message type is not a transfer
+	msgJSON := json.RawMessage(`{
+		"sender": "inj1sender",
+		"market_id": "0x123",
+		"order_type": "BUY",
+		"price": "1000",
+		"quantity": "1"
+	}`)
+
+	tx := &TxJSON{
+		Messages: []MessageRaw{
+			{
+				Type:    "/injective.exchange.v1beta1.MsgCancelSpotOrder",
+				Message: msgJSON,
+			},
+		},
+		Logs: []LogRaw{
+			{
+				MsgIndex: "0",
+				Events: []EventRaw{
+					{
+						Type: "transfer",
+						Attributes: []AttributeRaw{
+							{Key: "sender", Value: "inj1sender"},
+							{Key: "recipient", Value: "inj1feeCollector"},
+							{Key: "amount", Value: "1000000000000000inj"}, // gas fee
+						},
+					},
+					{
+						Type: "coin_spent",
+						Attributes: []AttributeRaw{
+							{Key: "spender", Value: "inj1sender"},
+							{Key: "amount", Value: "1000000000000000inj"}, // gas fee
+						},
+					},
+				},
+			},
+		},
+		Signatures: []SignatureRaw{
+			{Address: "inj1sender"},
+		},
+	}
+
+	result, err := extractFromToValue(tx)
+
+	require.NoError(t, err)
+	assert.Equal(t, "inj1sender", result.From, "should extract signer")
+	assert.Empty(t, result.To, "order transaction should not have 'to' even with transfer events")
+	assert.Empty(t, result.Values, "order transaction should not have 'value' even with transfer events")
+	assert.False(t, result.ShouldShowValue, "order transaction should not show to/value even if gas fee events exist")
+}
+
+func TestIsValueTransfer(t *testing.T) {
+	// Test cases for IsValueTransfer function
+	tests := []struct {
+		name     string
+		msgType  string
+		hasFunds bool
+		expected bool
+	}{
+		{
+			name:     "MsgSend should be transfer",
+			msgType:  "/cosmos.bank.v1beta1.MsgSend",
+			hasFunds: false,
+			expected: true,
+		},
+		{
+			name:     "IBC MsgTransfer should be transfer",
+			msgType:  "/ibc.applications.transfer.v1.MsgTransfer",
+			hasFunds: false,
+			expected: true,
+		},
+		{
+			name:     "Exchange MsgDeposit should be transfer",
+			msgType:  "/injective.exchange.v1beta1.MsgDeposit",
+			hasFunds: false,
+			expected: true,
+		},
+		{
+			name:     "Exchange MsgWithdraw should be transfer",
+			msgType:  "/injective.exchange.v1beta1.MsgWithdraw",
+			hasFunds: false,
+			expected: true,
+		},
+		{
+			name:     "MsgExecuteContract with funds should be transfer",
+			msgType:  "/cosmwasm.wasm.v1.MsgExecuteContract",
+			hasFunds: true,
+			expected: true,
+		},
+		{
+			name:     "MsgExecuteContract without funds should NOT be transfer",
+			msgType:  "/cosmwasm.wasm.v1.MsgExecuteContract",
+			hasFunds: false,
+			expected: false,
+		},
+		{
+			name:     "Exchange order should NOT be transfer",
+			msgType:  "/injective.exchange.v1beta1.MsgCreateSpotOrder",
+			hasFunds: false,
+			expected: false,
+		},
+		{
+			name:     "Staking delegate should NOT be transfer",
+			msgType:  "/cosmos.staking.v1beta1.MsgDelegate",
+			hasFunds: false,
+			expected: false,
+		},
+		{
+			name:     "Governance vote should NOT be transfer",
+			msgType:  "/cosmos.gov.v1beta1.MsgVote",
+			hasFunds: false,
+			expected: false,
+		},
+		{
+			name:     "Oracle relay should NOT be transfer",
+			msgType:  "/injective.oracle.v1beta1.MsgRelayPriceFeedPrice",
+			hasFunds: false,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsValueTransfer(tt.msgType, tt.hasFunds)
+			assert.Equal(t, tt.expected, result, "IsValueTransfer(%q, %v) = %v, want %v", tt.msgType, tt.hasFunds, result, tt.expected)
+		})
+	}
+}
+
+func TestExtractToAndValueFromProto_DefaultValues(t *testing.T) {
+	// Test case: Non-transfer transaction should return default values
+	// This is already covered by TestExtractToAndValueFromProto_FromGasFee and
+	// TestExtractToAndValueFromProto_EmptyInput, but we verify the default values explicitly
+	to, value := extractToAndValueFromProto(nil, nil, nil, nil, nil)
+
+	// Non-transfer transactions should return default values
+	assert.Equal(t, "-", to, "non-transfer transaction should return '-' for to")
+	assert.Equal(t, "0", value, "non-transfer transaction should return '0' for value")
 }

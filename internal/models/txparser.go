@@ -35,6 +35,9 @@ type ExtractResult struct {
 	// Additional debugging info
 	MsgTypes []string `json:"msg_types,omitempty"`
 	Notes    []string `json:"notes,omitempty"`
+	// ShouldShowValue indicates whether this transaction should display to/value
+	// Only true for actual asset transfers (A → B), not for instructions/state changes
+	ShouldShowValue bool `json:"should_show_value,omitempty"`
 }
 
 // Minimal structs matching the JSON layout. We only include the fields we need.
@@ -208,8 +211,14 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 	// Extract using event-first logic
 	result, err := extractFromToValue(txJSON)
 	if err != nil {
-		// If extraction fails, return empty values
-		return "", ""
+		// If extraction fails, return default values
+		return "-", "0"
+	}
+
+	// Only return to/value if this is a value transfer transaction
+	// For non-transfer transactions (instructions, state changes), return default values
+	if !result.ShouldShowValue {
+		return "-", "0"
 	}
 
 	// Convert result to to/value strings
@@ -221,12 +230,65 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 			valueParts = append(valueParts, coin.Amount+coin.Denom)
 		}
 		value = strings.Join(valueParts, ",")
+	} else {
+		// If no values found even for transfer transaction, return "0"
+		value = "0"
+	}
+
+	// If to is empty even for transfer transaction, return "-"
+	if to == "" {
+		to = "-"
 	}
 
 	return to, value
 }
 
+// IsValueTransfer determines if a message type represents an actual asset transfer (A → B)
+// that should display to/value. Returns true only for genuine transfers, not for
+// instructions, state changes, or module operations.
+//
+// Rules:
+// - Only true for: MsgSend, MsgTransfer (IBC), MsgDeposit/Withdraw (Exchange), MsgExecuteContract (with funds)
+// - False for: orders, staking, governance, oracle, authz, etc. (these are instructions/state changes)
+func IsValueTransfer(msgType string, hasFunds bool) bool {
+	switch msgType {
+	case "/cosmos.bank.v1beta1.MsgSend",
+		"/ibc.applications.transfer.v1.MsgTransfer",
+		"/injective.exchange.v1beta1.MsgDeposit",
+		"/injective.exchange.v1beta1.MsgWithdraw":
+		return true
+	case "/cosmwasm.wasm.v1.MsgExecuteContract":
+		// Only show to/value if funds > 0 (actual transfer to contract)
+		return hasFunds
+	default:
+		return false
+	}
+}
+
+// hasAnyValueTransferMessage checks if any message in the transaction is a value transfer type.
+// This is used to determine if the transaction should show to/value fields.
+func hasAnyValueTransferMessage(tx *TxJSON) bool {
+	for _, m := range tx.Messages {
+		// For MsgExecuteContract, need to check if it has funds
+		if m.Type == "/cosmwasm.wasm.v1.MsgExecuteContract" {
+			var tmp struct {
+				Funds []Coin `json:"funds"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				if len(tmp.Funds) > 0 {
+					return true
+				}
+			}
+		} else if IsValueTransfer(m.Type, false) {
+			return true
+		}
+	}
+	return false
+}
+
 // extractFromToValue accepts a TxJSON structure and returns a best-effort normalized ExtractResult using event-first logic.
+// It only extracts to/value for transactions that represent actual asset transfers (A → B),
+// not for instructions, state changes, or module operations.
 func extractFromToValue(tx *TxJSON) (*ExtractResult, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
@@ -234,8 +296,63 @@ func extractFromToValue(tx *TxJSON) (*ExtractResult, error) {
 
 	res := &ExtractResult{}
 
+	// Collect all message types for context
+	for _, m := range tx.Messages {
+		res.MsgTypes = append(res.MsgTypes, m.Type)
+	}
+
+	// Check if this transaction contains any value transfer messages
+	// If not, we should not extract to/value (it's an instruction/state change, not a transfer)
+	hasTransferMsg := hasAnyValueTransferMessage(tx)
+	hasNonTransferMsg := false
+	// Check if there are any known non-transfer message types
+	for _, m := range tx.Messages {
+		if m.Type == "" {
+			continue // Skip empty message types
+		}
+		// For MsgExecuteContract, we need to check funds
+		if m.Type == "/cosmwasm.wasm.v1.MsgExecuteContract" {
+			var tmp struct {
+				Funds []Coin `json:"funds"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				if len(tmp.Funds) == 0 {
+					hasNonTransferMsg = true
+					break
+				}
+			}
+		} else if !IsValueTransfer(m.Type, false) {
+			// Known non-transfer message type
+			hasNonTransferMsg = true
+			break
+		}
+	}
+
 	// 1) Event-first pass: parse logs for coin_spent / coin_received / transfer / wasm events
+	// Events are the most reliable indicator of actual transfers
+	// BUT: We must check message types - even if events exist (e.g., gas fee events),
+	// we should only show to/value if the message type is actually a transfer type
 	if eventsFound := extractFromEventsJSON(tx, res); eventsFound {
+		// Decision logic:
+		// 1. If there are transfer message types -> show to/value (even if only events found)
+		// 2. If there are non-transfer message types -> don't show to/value (events are likely gas fee)
+		// 3. If no messages at all -> show to/value (rely on events, assume they're valid transfers)
+		if hasTransferMsg {
+			// Transfer message type exists, show to/value
+			res.ShouldShowValue = true
+		} else if hasNonTransferMsg {
+			// Non-transfer message type exists, don't show to/value even if events found
+			// (those events are likely gas fee related, not the transaction's purpose)
+			res.To = ""
+			res.Values = nil
+			res.ShouldShowValue = false
+			res.Notes = append(res.Notes, "transfer events found but message type is not a transfer - ignoring to/value")
+		} else {
+			// No messages or unknown message types, rely on events
+			// This handles cases where transactions only have events (e.g., contract internal transfers)
+			res.ShouldShowValue = true
+			res.Notes = append(res.Notes, "no known message types found, relying on events for to/value")
+		}
 		// fill missing 'from' from signatures if absent
 		if res.From == "" {
 			if len(tx.Signatures) > 0 {
@@ -243,46 +360,47 @@ func extractFromToValue(tx *TxJSON) (*ExtractResult, error) {
 				res.Notes = append(res.Notes, "from filled from first signature")
 			}
 		}
-		// set msg types from messages array for context
-		for _, m := range tx.Messages {
-			res.MsgTypes = append(res.MsgTypes, m.Type)
-		}
 		return res, nil
 	}
 
 	// 2) Message-level fallback: inspect each message for known transfer fields
-	extracted := extractFromMessagesJSON(tx, res)
-	if extracted {
-		// if still no from, try signatures/gasFee.payer
-		if res.From == "" {
-			if len(tx.Signatures) > 0 {
-				res.From = tx.Signatures[0].Address
-				res.Notes = append(res.Notes, "from filled from first signature")
-			} else if tx.GasFee != nil && tx.GasFee.Payer != "" {
-				res.From = tx.GasFee.Payer
-				res.Notes = append(res.Notes, "from filled from gasFee.payer")
+	// Only extract if this is a value transfer message type
+	if hasTransferMsg {
+		extracted := extractFromMessagesJSON(tx, res)
+		if extracted {
+			res.ShouldShowValue = true
+			// if still no from, try signatures/gasFee.payer
+			if res.From == "" {
+				if len(tx.Signatures) > 0 {
+					res.From = tx.Signatures[0].Address
+					res.Notes = append(res.Notes, "from filled from first signature")
+				} else if tx.GasFee != nil && tx.GasFee.Payer != "" {
+					res.From = tx.GasFee.Payer
+					res.Notes = append(res.Notes, "from filled from gasFee.payer")
+				}
 			}
+			return res, nil
 		}
-		for _, m := range tx.Messages {
-			res.MsgTypes = append(res.MsgTypes, m.Type)
-		}
-		return res, nil
 	}
 
-	// 3) Last-resort: use signature or gasFee
+	// 3) For non-transfer transactions (instructions, state changes), we still extract signer
+	// but mark that to/value should not be shown
+	res.ShouldShowValue = false
 	if len(tx.Signatures) > 0 {
 		res.From = tx.Signatures[0].Address
-		res.Notes = append(res.Notes, "from set from signature (last resort)")
+		res.Notes = append(res.Notes, "non-transfer transaction: signer only, no to/value")
 		return res, nil
 	}
 
 	if tx.GasFee != nil && tx.GasFee.Payer != "" {
 		res.From = tx.GasFee.Payer
-		res.Notes = append(res.Notes, "from set from gasFee.payer (last resort)")
+		res.Notes = append(res.Notes, "non-transfer transaction: payer only, no to/value")
 		return res, nil
 	}
 
-	return res, errors.New("cannot determine from/to/value")
+	// If we can't determine anything, still return a result (empty but valid)
+	res.Notes = append(res.Notes, "cannot determine transaction details")
+	return res, nil
 }
 
 // extractFromEventsJSON scans logs/events and tries to populate res. It returns true if
@@ -521,11 +639,14 @@ func addDecimalStrings(a, b string) string {
 	return utils.ReverseString(string(res))
 }
 
-// extractFromMessagesJSON inspects the message array for known Msg shapes and fills res.
+// extractFromMessagesJSON inspects the message array for known transfer Msg shapes and fills res.
+// Only processes messages that represent actual asset transfers (A → B).
 // Returns true if any transfer information was extracted.
 func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 	found := false
 	for _, m := range tx.Messages {
+		// Only process value transfer message types
+		// Non-transfer messages (orders, staking, governance, etc.) are skipped
 		switch m.Type {
 		case "/cosmos.bank.v1beta1.MsgSend":
 			// shape: {"from_address":"...","to_address":"...","amount":[{"denom":"...","amount":"..."}]}
@@ -543,16 +664,23 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 
 		case "/cosmwasm.wasm.v1.MsgExecuteContract":
 			// shape: {"sender":"...","contract":"...","msg":{...},"funds":[{denom,amount}]}
+			// Only extract if funds > 0 (actual transfer to contract)
 			var tmp struct {
 				Sender   string `json:"sender"`
 				Contract string `json:"contract"`
 				Funds    []Coin `json:"funds"`
 			}
 			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
-				res.Values = mergeCoins(res.Values, tmp.Funds)
-				found = true
+				// Only treat as transfer if funds are present
+				if len(tmp.Funds) > 0 {
+					res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+					res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
+					res.Values = mergeCoins(res.Values, tmp.Funds)
+					found = true
+				} else {
+					// Contract call without funds - not a transfer, just record the contract
+					res.Notes = append(res.Notes, "contract call without funds: "+tmp.Contract)
+				}
 			}
 
 		case "/ibc.applications.transfer.v1.MsgTransfer":
@@ -573,11 +701,59 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 				found = true
 			}
 
+		case "/injective.exchange.v1beta1.MsgDeposit":
+			// Exchange deposit: user deposits funds to exchange module
+			var tmp struct {
+				Sender       string `json:"sender"`
+				SubaccountId string `json:"subaccount_id"`
+				Amount       struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				// Exchange module doesn't have a single "to" address, use subaccount or mark as exchange
+				if tmp.SubaccountId != "" {
+					res.To = tmp.SubaccountId
+				}
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.exchange.v1beta1.MsgWithdraw":
+			// Exchange withdraw: user withdraws funds from exchange module
+			var tmp struct {
+				Sender       string `json:"sender"`
+				SubaccountId string `json:"subaccount_id"`
+				Amount       struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				// For withdraw, from is the exchange module/subaccount, to is the sender
+				if tmp.SubaccountId != "" {
+					res.From = tmp.SubaccountId
+				}
+				res.To = utils.FirstNonEmpty(res.To, tmp.Sender)
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
 		default:
-			// Add more known injective/exchange msg type cases here, eg:
-			// "/injective.exchange.v1beta1.MsgCreateSpotOrder"
-			// those usually have no to/value but you may want to annotate msg types
-			res.MsgTypes = append(res.MsgTypes, m.Type)
+			// All other message types are NOT value transfers:
+			// - Exchange orders (CreateSpotOrder, CancelSpotOrder, etc.) - instructions, not transfers
+			// - Staking (Delegate, Undelegate, etc.) - state changes, not transfers
+			// - Governance (Vote, Deposit, etc.) - instructions/config, not transfers
+			// - Oracle (RelayPriceFeedPrice, etc.) - data submission, not transfers
+			// - Authz/Feegrant - permissions, not transfers
+			// - IBC control messages - channel management, not transfers
+			// These are already recorded in res.MsgTypes, but we don't extract to/value for them
 		}
 	}
 	return found
