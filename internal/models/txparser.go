@@ -247,9 +247,20 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 // that should display to/value. Returns true only for genuine transfers, not for
 // instructions, state changes, or module operations.
 //
+// This function implements the core rule: "Only transactions that represent actual asset
+// transfers (A → B) should display to/value. Instructions, state changes, and module
+// operations should not display these fields."
+//
 // Rules:
-// - Only true for: MsgSend, MsgTransfer (IBC), MsgDeposit/Withdraw (Exchange), MsgExecuteContract (with funds)
-// - False for: orders, staking, governance, oracle, authz, etc. (these are instructions/state changes)
+//   - Returns true for: MsgSend, MsgTransfer (IBC), MsgDeposit/Withdraw (Exchange), MsgExecuteContract (with funds > 0)
+//   - Returns false for: orders, staking, governance, oracle, authz, etc. (these are instructions/state changes)
+//
+// Parameters:
+//   - msgType: The message type URL (e.g., "/cosmos.bank.v1beta1.MsgSend")
+//   - hasFunds: For MsgExecuteContract, whether the contract call includes funds
+//
+// Returns:
+//   - bool: true if this message type represents an asset transfer, false otherwise
 func IsValueTransfer(msgType string, hasFunds bool) bool {
 	switch msgType {
 	case "/cosmos.bank.v1beta1.MsgSend",
@@ -267,6 +278,15 @@ func IsValueTransfer(msgType string, hasFunds bool) bool {
 
 // hasAnyValueTransferMessage checks if any message in the transaction is a value transfer type.
 // This is used to determine if the transaction should show to/value fields.
+//
+// The function iterates through all messages in the transaction and checks if any of them
+// represent actual asset transfers. For MsgExecuteContract, it also checks if funds are present.
+//
+// Parameters:
+//   - tx: The transaction JSON structure containing messages
+//
+// Returns:
+//   - bool: true if at least one message is a value transfer type, false otherwise
 func hasAnyValueTransferMessage(tx *TxJSON) bool {
 	for _, m := range tx.Messages {
 		// For MsgExecuteContract, need to check if it has funds

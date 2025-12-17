@@ -91,7 +91,10 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 			}()
 			pubType = pubKey.Type()
 			pubValue = hex.EncodeToString(pubKey.Bytes())
-			pubAddress = fmt.Sprintf("0x%s", strings.ToLower(pubKey.Address().String()))
+			// 预先计算小写地址，避免重复调用 ToLower
+			addrStr := pubKey.Address().String()
+			lowerAddr := strings.ToLower(addrStr)
+			pubAddress = fmt.Sprintf("0x%s", lowerAddr)
 		}()
 
 		pub = &PubKey{
@@ -162,63 +165,118 @@ func AccountBalanceFromProto(coin github_com_cosmos_cosmos_sdk_types.Coin, addre
 }
 
 // convertAddressToEthForStorage converts an address to Ethereum format (0x...) for database storage.
-// If the address is already in Ethereum format or empty, it returns the address as-is.
-// If the address is in Injective format (inj1...), it converts it to Ethereum format.
-// This function is used during data synchronization to store addresses in a consistent format.
+// This function ensures all addresses are stored in a consistent Ethereum format (0x...) in the database,
+// regardless of the input format (Injective inj1... or Ethereum 0x...).
+//
+// Storage Policy:
+//   - All addresses in the database are stored in Ethereum format (0x...) for consistency
+//   - This simplifies queries and ensures uniform display in the browser
+//   - Injective addresses (inj1...) are converted to Ethereum format (0x...)
+//   - Ethereum addresses are validated and normalized to lowercase
+//
+// Parameters:
+//   - address: The address to convert (can be inj1... or 0x... format)
+//
+// Returns:
+//   - string: The address in Ethereum format (0x...), or original if conversion fails
+//
+// Note: If conversion fails, the original address is returned for backward compatibility
+// with existing data that might be in unexpected formats.
 func convertAddressToEthForStorage(address string) string {
 	if address == "" {
 		return address
 	}
-	// If already Ethereum format, return as-is
+
+	// If already Ethereum format, validate and normalize (lowercase)
 	if strings.HasPrefix(address, "0x") {
-		return address
+		// Normalize to lowercase for consistency
+		return strings.ToLower(address)
 	}
+
 	// Try to convert from Injective format
 	ethAddr, err := InjToEthAddress(address)
 	if err != nil {
 		// If conversion fails, return original address (for backward compatibility)
 		// This handles edge cases where address might be in an unexpected format
+		// In production, you might want to log this error for monitoring
 		return address
 	}
+
 	return ethAddr
+}
+
+// 错误定义
+var (
+	ErrInvalidAddress = fmt.Errorf("invalid address format")
+	ErrConversion     = fmt.Errorf("address conversion failed")
+)
+
+// IsValidInjectiveAddress 验证 Injective 地址格式
+// 检查地址是否符合 inj1... 格式且能正确解码
+func IsValidInjectiveAddress(addr string) bool {
+	if addr == "" {
+		return false
+	}
+	if len(addr) < 10 || !strings.HasPrefix(addr, "inj1") {
+		return false
+	}
+	_, _, err := bech32.Decode(addr)
+	return err == nil
 }
 
 // InjToEthAddress converts an Injective address (inj1...) to Ethereum address (0x...).
 // This is the reverse operation of EthToInjAddress.
 //
 // Parameters:
-//   - injAddr: The Injective address string (inj1...)
+//   - injAddr: The Injective address string (inj1...) or Ethereum address (0x...)
 //
 // Returns:
 //   - string: The Ethereum address (0x...)
 //   - error: Error if conversion fails
 func InjToEthAddress(injAddr string) (string, error) {
-	if !strings.HasPrefix(injAddr, "inj1") {
-		// If it's already an Ethereum address, return as-is
-		if strings.HasPrefix(injAddr, "0x") {
-			return injAddr, nil
+	if injAddr == "" {
+		return "", fmt.Errorf("%w: empty address", ErrInvalidAddress)
+	}
+
+	// If it's already an Ethereum address, validate and return as-is
+	if strings.HasPrefix(injAddr, "0x") {
+		// Basic validation: should be 42 characters (0x + 40 hex chars)
+		if len(injAddr) != 42 {
+			return "", fmt.Errorf("%w: invalid Ethereum address length", ErrInvalidAddress)
 		}
-		return "", fmt.Errorf("invalid Injective address format: %s", injAddr)
+		// Validate hex characters
+		for i := 2; i < len(injAddr); i++ {
+			c := injAddr[i]
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return "", fmt.Errorf("%w: invalid hex character in Ethereum address", ErrInvalidAddress)
+			}
+		}
+		return strings.ToLower(injAddr), nil
+	}
+
+	// Validate Injective address format
+	if !IsValidInjectiveAddress(injAddr) {
+		return "", fmt.Errorf("%w: invalid Injective address format: %s", ErrInvalidAddress, injAddr)
 	}
 
 	// 1. bech32 decode
 	hrp, data, err := bech32.Decode(injAddr)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode bech32 address: %w", err)
+		return "", fmt.Errorf("%w: failed to decode bech32 address: %v", ErrConversion, err)
 	}
 	if hrp != "inj" {
-		return "", fmt.Errorf("invalid HRP, expected 'inj', got '%s'", hrp)
+		return "", fmt.Errorf("%w: invalid HRP, expected 'inj', got '%s'", ErrConversion, hrp)
 	}
 
 	// 2. 5-bit → 8-bit
 	conv, err := bech32.ConvertBits(data, 5, 8, false)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert bits: %w", err)
+		return "", fmt.Errorf("%w: failed to convert bits: %v", ErrConversion, err)
 	}
 	if len(conv) != 20 {
-		return "", fmt.Errorf("invalid address length: expected 20 bytes, got %d", len(conv))
+		return "", fmt.Errorf("%w: invalid address length: expected 20 bytes, got %d", ErrConversion, len(conv))
 	}
 
-	// 3. bytes → hex with 0x prefix
-	return fmt.Sprintf("0x%s", hex.EncodeToString(conv)), nil
+	// 3. bytes → hex with 0x prefix (lowercase for consistency)
+	return fmt.Sprintf("0x%s", strings.ToLower(hex.EncodeToString(conv))), nil
 }
