@@ -321,6 +321,7 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 
 // GetBlockGasUtilization retrieves gas utilization statistics for the latest N blocks.
 // Formula: (Σgas_used / Σmax_gas) × 100%, where Σmax_gas = block_count × max_gas_per_block
+// Results are cached to improve response time.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
@@ -330,6 +331,18 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 //   - *pb.Reply: Response containing gas utilization statistics
 //   - error: Error if the operation fails
 func (s *DemoService) GetBlockGasUtilization(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+	// Try to get from cache first
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		cached, err := redisClient.Get(ctx, CacheKeyBlockGasUtilization).Result()
+		if err == nil {
+			var response pb.BlockGasUtilizationResponse
+			if err := sonic.Unmarshal([]byte(cached), &response); err == nil {
+				return s.marshalAndReply(&response, "marshal block gas utilization error")
+			}
+		}
+	}
+
 	rpcCtx, rpcCancel := context.WithTimeout(context.Background(), BlockQueryTimeout)
 	maxGas, err := GetBlockMaxGas(rpcCtx)
 	rpcCancel()
@@ -354,6 +367,19 @@ func (s *DemoService) GetBlockGasUtilization(ctx context.Context, req *emptypb.E
 		BlockCount:       blockCount,
 		TransactionCount: transactionCount,
 		BlockGasLimit:    maxGas,
+	}
+
+	// Cache the result
+	if redisClient != nil {
+		go func() {
+			ctx := context.Background()
+			responseJSON, err := sonic.Marshal(response)
+			if err == nil {
+				if err := redisClient.Set(ctx, CacheKeyBlockGasUtilization, responseJSON, CacheBlockGasUtilizationTTL).Err(); err != nil {
+					global.Logger.Warnf("failed to cache block gas utilization: %v", err)
+				}
+			}
+		}()
 	}
 
 	global.Logger.Infof("block gas utilization: %.2f%%, total_gas_used=%d, total_gas_limit=%d, blocks=%d, txs=%d, max_gas=%d",
@@ -2627,6 +2653,7 @@ func calculateAverageBlockTimeFromDB(ctx context.Context) (float64, error) {
 
 // GetBlockMaxGas retrieves the maximum gas limit per block from Tendermint consensus parameters.
 // This is used to calculate block gas utilization.
+// Results are cached to reduce RPC calls.
 //
 // Parameters:
 //   - ctx: Context for RPC call (should have appropriate timeout, e.g., BlockQueryTimeout)
@@ -2635,8 +2662,18 @@ func calculateAverageBlockTimeFromDB(ctx context.Context) (float64, error) {
 //   - int64: The maximum gas limit per block (returns BlockGasLimit on error)
 //   - error: Always returns nil (uses default value on error)
 func GetBlockMaxGas(ctx context.Context) (int64, error) {
-	// Use the underlying Tendermint RPC HTTP client to access ConsensusParams
-	// The tmclient.TendermintClient wrapper doesn't expose this method
+	// Try to get from cache first
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		cached, err := redisClient.Get(ctx, CacheKeyBlockMaxGas).Result()
+		if err == nil {
+			var maxGas int64
+			if _, err := fmt.Sscanf(cached, "%d", &maxGas); err == nil && maxGas > 0 {
+				return maxGas, nil
+			}
+		}
+	}
+
 	tmClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
 	if err != nil {
 		global.Logger.Warnf("failed to create Tendermint RPC client for consensus params: %v, using default gas limit", err)
@@ -2662,6 +2699,16 @@ func GetBlockMaxGas(ctx context.Context) (int64, error) {
 	if maxGas <= 0 {
 		global.Logger.Warnf("invalid max gas from consensus params: %d, using default", maxGas)
 		return BlockGasLimit, nil
+	}
+
+	// Cache the result
+	if redisClient != nil {
+		go func() {
+			ctx := context.Background()
+			if err := redisClient.Set(ctx, CacheKeyBlockMaxGas, fmt.Sprintf("%d", maxGas), CacheBlockMaxGasTTL).Err(); err != nil {
+				global.Logger.Warnf("failed to cache block max gas: %v", err)
+			}
+		}()
 	}
 
 	return maxGas, nil

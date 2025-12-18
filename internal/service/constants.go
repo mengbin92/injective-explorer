@@ -81,11 +81,15 @@ const (
 	CacheKeyTotalTransactions     = "cache:total:transactions"      // Total transactions cache key
 	CacheKeyTransactionStats      = "cache:transaction:stats"       // Transaction statistics cache key
 	CacheKeyFailedTransactions24H = "cache:failed:transactions:24h" // Failed transactions 24h count cache key
+	CacheKeyBlockMaxGas           = "cache:block:max:gas"           // Block max gas cache key
+	CacheKeyBlockGasUtilization   = "cache:block:gas:utilization"   // Block gas utilization cache key
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 5 * time.Minute                 // Single block cache expiration time (5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
 	CacheTransactionStatsTTL      = 1 * time.Minute                 // Transaction statistics cache expiration time (1 minute)
 	CacheFailedTransactions24HTTL = 2 * time.Minute                 // Failed transactions 24h count cache expiration time (2 minutes)
+	CacheBlockMaxGasTTL           = 10 * time.Minute                // Block max gas cache expiration time (10 minutes)
+	CacheBlockGasUtilizationTTL   = 1 * time.Minute                 // Block gas utilization cache expiration time (1 minute)
 )
 
 // Default sync configuration values (used when config is not provided)
