@@ -94,6 +94,19 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/block/gas-utilization:
+        get:
+            tags:
+                - Demo
+            description: Get block gas utilization for the latest 10 blocks
+            operationId: Demo_GetBlockGasUtilization
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /demo/block/latest:
         get:
             tags:

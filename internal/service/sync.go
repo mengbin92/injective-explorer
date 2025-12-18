@@ -1039,8 +1039,8 @@ func (s *SyncService) transactionProcessor(id int) {
 				id, processedCount, emptyCount, errorCount)
 			return
 		default:
-			// Process transaction immediately (no ticker, continuous processing)
-			err := s.processTransaction(redisClient)
+			// Process transactions in batch for better performance
+			batchProcessed, err := s.processTransactionBatch(redisClient)
 			if err != nil {
 				if err == errQueueEmpty {
 					// Queue is empty, this is normal
@@ -1050,19 +1050,331 @@ func (s *SyncService) transactionProcessor(id int) {
 				} else {
 					// Real error occurred
 					errorCount++
-					global.Logger.Errorf("transaction processor %d: error processing transaction (error count: %d): %v", id, errorCount, err)
+					global.Logger.Errorf("transaction processor %d: error processing transaction batch (error count: %d): %v", id, errorCount, err)
 					// Wait a bit before retrying to avoid hammering on errors
 					time.Sleep(s.config.TxProcessInterval)
 				}
 			} else {
-				// Successfully processed
-				processedCount++
+				// Successfully processed batch
+				processedCount += batchProcessed
 			}
 		}
 	}
 }
 
 var errQueueEmpty = errors.New("queue is empty")
+
+// processTransactionBatch processes a batch of transactions from the Redis queue for better performance.
+// This matches the batch processing approach used for blocks to maintain consistent sync speed.
+func (s *SyncService) processTransactionBatch(redisClient *redis.Client) (int, error) {
+	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
+	defer cancel()
+
+	// Collect a batch of transaction hashes from the queue
+	batchSize := s.config.TxBatchSize
+	if batchSize <= 0 {
+		batchSize = 50 // Default batch size
+	}
+
+	txHashes := make([]string, 0, batchSize)
+	blockTimeout := s.config.TxProcessInterval
+	if blockTimeout < time.Second {
+		blockTimeout = time.Second
+	}
+
+	// Collect transaction hashes from queue (non-blocking, collect what's available)
+	// Note: Redis BRPopLPush requires minimum timeout of 1 second
+	redisTimeout := blockTimeout
+	if redisTimeout < time.Second {
+		redisTimeout = time.Second
+	}
+	for i := 0; i < batchSize; i++ {
+		txHash, err := redisClient.BRPopLPush(ctx, s.config.TxHashQueueKey, s.config.TxHashProcessingQueueKey, redisTimeout).Result()
+		if err != nil {
+			if err == redis.Nil || err.Error() == "redis: nil" || strings.Contains(err.Error(), "redis: nil") {
+				// Queue is empty or timeout, break and process what we have
+				break
+			}
+			// Real error, return it
+			if len(txHashes) == 0 {
+				return 0, errors.Wrap(err, "failed to pop from tx hash queue")
+			}
+			// If we have some hashes, continue processing them
+			global.Logger.Warnf("error popping tx hash (collected %d): %v, continuing with batch", len(txHashes), err)
+			break
+		}
+		txHashes = append(txHashes, txHash)
+	}
+
+	if len(txHashes) == 0 {
+		return 0, errQueueEmpty
+	}
+
+	global.Logger.Debugf("processing transaction batch: size=%d", len(txHashes))
+
+	// Process batch: get transaction details, convert to models, and batch insert/update
+	successCount, err := s.processTransactionBatchInternal(ctx, redisClient, txHashes)
+	if err != nil {
+		// Put failed hashes back to queue
+		pipe := redisClient.Pipeline()
+		for _, hash := range txHashes {
+			pipe.LPush(ctx, s.config.TxHashQueueKey, hash)
+			pipe.LRem(ctx, s.config.TxHashProcessingQueueKey, 0, hash)
+		}
+		pipe.Exec(ctx) // Ignore errors for cleanup
+		return successCount, err
+	}
+
+	return successCount, nil
+}
+
+// processTransactionBatchInternal processes a batch of transaction hashes.
+// It fetches transaction details concurrently, converts them to models, and batch inserts/updates them.
+func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redisClient *redis.Client, txHashes []string) (int, error) {
+	storageThreshold := getStorageThresholdForSync()
+
+	// Step 1: Fetch transaction details concurrently
+	type txResult struct {
+		hash    string
+		txResp  *injective_explorer_rpcpb.GetTxByTxHashResponse
+		err     error
+		retries int
+	}
+
+	txResults := make([]txResult, len(txHashes))
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, 10) // Limit concurrent RPC calls to 10
+
+	for i, txHash := range txHashes {
+		wg.Add(1)
+		go func(idx int, hash string) {
+			defer wg.Done()
+			semaphore <- struct{}{}        // Acquire semaphore
+			defer func() { <-semaphore }() // Release semaphore
+
+			result := txResult{hash: hash}
+			delay := s.config.RetryDelay
+
+			for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
+				result.txResp, result.err = s.explorerClient.GetTxByTxHash(ctx, hash)
+				if result.err == nil {
+					break
+				}
+
+				// Check if error is due to context cancellation or timeout
+				errStr := result.err.Error()
+				if errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded) ||
+					strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context deadline exceeded") {
+					result.retries = attempt + 1
+					return
+				}
+
+				// Check if error is retryable
+				if utils.IsRetryableError(result.err) {
+					if attempt < s.config.MaxRetryAttempts-1 {
+						time.Sleep(delay)
+						delay *= 2 // Exponential backoff
+						result.retries = attempt + 1
+						continue
+					}
+				}
+
+				// Non-retryable error or max retries reached
+				result.retries = attempt + 1
+				return
+			}
+
+			txResults[idx] = result
+		}(i, txHash)
+	}
+
+	wg.Wait()
+
+	// Step 2: Convert successful responses to models
+	type txModelData struct {
+		hash    string
+		txModel *models.Transaction
+		txData  *injective_explorer_rpcpb.TxDetailData
+		err     error
+	}
+
+	txModels := make([]txModelData, 0, len(txHashes))
+	for _, result := range txResults {
+		if result.err != nil {
+			global.Logger.Warnf("failed to get transaction %s after %d attempts: %v", result.hash, result.retries, result.err)
+			continue
+		}
+
+		if result.txResp == nil || result.txResp.Data == nil {
+			global.Logger.Warnf("transaction response is nil for hash %s", result.hash)
+			continue
+		}
+
+		poolTx := GetTransactionFromPool()
+		txModel := models.TransactionFromProtoWithPool(result.txResp.Data, storageThreshold, poolTx)
+		if txModel == nil {
+			PutTransactionToPool(poolTx)
+			global.Logger.Errorf("failed to convert transaction %s to model", result.hash)
+			continue
+		}
+
+		txModels = append(txModels, txModelData{
+			hash:    result.hash,
+			txModel: txModel,
+			txData:  result.txResp.Data,
+		})
+		// Note: We keep the original hash for queue cleanup, but use txModel.Hash for database operations
+	}
+
+	if len(txModels) == 0 {
+		// All transactions failed, clean up processing queue
+		pipe := redisClient.Pipeline()
+		for _, hash := range txHashes {
+			pipe.LRem(ctx, s.config.TxHashProcessingQueueKey, 0, hash)
+		}
+		pipe.Exec(ctx)
+		return 0, errors.New("all transactions in batch failed to fetch or convert")
+	}
+
+	// Step 3: Batch check which transactions already exist
+	txHashesToCheck := make([]string, len(txModels))
+	for i, tm := range txModels {
+		txHashesToCheck[i] = tm.txModel.Hash
+	}
+
+	var existingTxs []models.Transaction
+	err := db.Get().WithContext(ctx).
+		Select("id, hash").
+		Where("hash IN ?", txHashesToCheck).
+		Find(&existingTxs).Error
+	if err != nil {
+		global.Logger.Errorf("failed to check existing transactions: %v", err)
+		// Continue anyway, will check individually
+	}
+
+	existingTxMap := make(map[string]uint, len(existingTxs))
+	for _, tx := range existingTxs {
+		existingTxMap[tx.Hash] = tx.ID
+	}
+
+	// Step 4: Separate into inserts and updates
+	txsToInsert := make([]*models.Transaction, 0, len(txModels))
+	txsToUpdate := make([]*models.Transaction, 0, len(txModels))
+	txDataMap := make(map[string]*injective_explorer_rpcpb.TxDetailData, len(txModels))
+
+	for _, tm := range txModels {
+		txDataMap[tm.txModel.Hash] = tm.txData
+		// Use hash to check existence (hash is the unique identifier)
+		if id, exists := existingTxMap[tm.txModel.Hash]; exists {
+			tm.txModel.ID = id
+			txsToUpdate = append(txsToUpdate, tm.txModel)
+		} else {
+			txsToInsert = append(txsToInsert, tm.txModel)
+		}
+	}
+
+	// Step 5: Batch insert new transactions
+	successCount := 0
+	batchSize := s.config.TxBatchSize
+	if batchSize <= 0 {
+		batchSize = 50 // Default batch size
+	}
+	if len(txsToInsert) > 0 {
+		err = db.Get().WithContext(ctx).CreateInBatches(txsToInsert, batchSize).Error
+		if err != nil {
+			global.Logger.Errorf("failed to batch insert transactions: %v", err)
+			return 0, errors.Wrap(err, "failed to batch insert transactions")
+		}
+		successCount += len(txsToInsert)
+		global.Logger.Debugf("batch inserted %d transactions", len(txsToInsert))
+	}
+
+	// Step 6: Batch update existing transactions
+	if len(txsToUpdate) > 0 {
+		// Update in batches
+		for i := 0; i < len(txsToUpdate); i += batchSize {
+			end := i + batchSize
+			if end > len(txsToUpdate) {
+				end = len(txsToUpdate)
+			}
+			batch := txsToUpdate[i:end]
+
+			err = db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				for _, txModel := range batch {
+					if err := tx.Model(txModel).Updates(txModel).Error; err != nil {
+						return errors.Wrapf(err, "failed to update transaction %s", txModel.Hash)
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				global.Logger.Errorf("failed to batch update transactions: %v", err)
+				return successCount, errors.Wrap(err, "failed to batch update transactions")
+			}
+		}
+		successCount += len(txsToUpdate)
+		global.Logger.Debugf("batch updated %d transactions", len(txsToUpdate))
+	}
+
+	// Step 7: Update accounts for all transactions (can be done in background)
+	// Note: Account updates are done individually but can be optimized later
+	go func() {
+		accountCtx, accountCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer accountCancel()
+		for _, tm := range txModels {
+			if err := s.updateAccountsFromTransaction(accountCtx, tm.txData); err != nil {
+				global.Logger.Warnf("failed to update accounts from transaction %s: %v", tm.hash, err)
+			}
+		}
+	}()
+
+	// Step 8: Cache transactions and publish events
+	eventBus := GetEventBus()
+	for _, tm := range txModels {
+		// Cache transaction to Redis
+		cacheTransaction(ctx, tm.txModel)
+
+		// Publish transaction event
+		isUpdate := existingTxMap[tm.txModel.Hash] != 0
+		txEventType := EventTypeTransactionNew
+		if isUpdate {
+			txEventType = EventTypeTransactionUpdate
+		}
+		eventBus.PublishTransaction(&TransactionEvent{
+			Transaction: tm.txModel,
+			Type:        txEventType,
+		})
+
+		// Publish account events
+		addresses := s.extractAddressesFromTransaction(tm.txData)
+		for address := range addresses {
+			if address != "" && utils.IsValidAddress(address) {
+				eventBus.PublishAccount(address, &AccountEvent{
+					Address: address,
+					Type:    EventTypeAccountUpdate,
+					Data:    map[string]interface{}{"transaction": tm.txModel, "type": "update"},
+				})
+			}
+		}
+
+		// Return transaction to pool
+		go func(tx *models.Transaction) {
+			time.Sleep(100 * time.Millisecond)
+			PutTransactionToPool(tx)
+		}(tm.txModel)
+	}
+
+	// Step 9: Clean up processing queue for successful transactions
+	// Use original hash from queue (tm.hash) for cleanup, as it matches what's in the queue
+	pipe := redisClient.Pipeline()
+	for _, tm := range txModels {
+		pipe.LRem(ctx, s.config.TxHashProcessingQueueKey, 0, tm.hash)
+	}
+	pipe.Exec(ctx) // Ignore errors for cleanup
+
+	global.Logger.Debugf("batch processed %d/%d transactions successfully", successCount, len(txHashes))
+	return successCount, nil
+}
 
 // processTransaction processes a single transaction from the Redis queue.
 // It uses BRPOPLPUSH to move the transaction hash to a processing queue,
@@ -1774,13 +2086,19 @@ func (s *SyncService) historicalBlockSync() {
 		return
 	}
 
-	// Get earliest block height supported by the RPC node
+	// Get earliest block height: use config value as default, override with RPC node value if available
 	earliestBlockHeight := s.config.EarliestBlockHeight
 	if status != nil && status.SyncInfo.EarliestBlockHeight > 0 {
-		earliestBlockHeight = uint64(status.SyncInfo.EarliestBlockHeight)
-		global.Logger.Infof("RPC node supports blocks from height %d", earliestBlockHeight)
+		rpcEarliestHeight := uint64(status.SyncInfo.EarliestBlockHeight)
+		// Use the larger value to ensure we don't sync below what the RPC node supports
+		if rpcEarliestHeight > earliestBlockHeight {
+			earliestBlockHeight = rpcEarliestHeight
+			global.Logger.Infof("RPC node earliest block height %d is higher than config %d, using RPC value", rpcEarliestHeight, s.config.EarliestBlockHeight)
+		} else {
+			global.Logger.Infof("using config earliest block height %d (RPC node supports from %d)", earliestBlockHeight, rpcEarliestHeight)
+		}
 	} else {
-		global.Logger.Infof("RPC node earliest block height not available, defaulting to block 1")
+		global.Logger.Infof("RPC node earliest block height not available, using config value: %d", earliestBlockHeight)
 	}
 
 	// Initialize historical sync height from database
@@ -1841,10 +2159,14 @@ func (s *SyncService) historicalBlockSync() {
 			currentHeight := s.getCurrentHeight()
 			historicalHeight := s.getHistoricalSyncHeight()
 
-			// Get earliest block height from RPC node status
+			// Get earliest block height: use config value as default, override with RPC node value if it's higher
 			earliestBlockHeight := s.config.EarliestBlockHeight
 			if status != nil && status.SyncInfo.EarliestBlockHeight > 0 {
-				earliestBlockHeight = uint64(status.SyncInfo.EarliestBlockHeight)
+				rpcEarliestHeight := uint64(status.SyncInfo.EarliestBlockHeight)
+				// Use the larger value to ensure we don't sync below what the RPC node supports
+				if rpcEarliestHeight > earliestBlockHeight {
+					earliestBlockHeight = rpcEarliestHeight
+				}
 			}
 
 			// Get minimum height in database to determine sync target

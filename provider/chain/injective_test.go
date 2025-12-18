@@ -22,6 +22,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/bech32"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -389,4 +390,14 @@ func EthToInjAddress(ethAddr string) (string, error) {
 
 	// 4. bech32 encode with hrp = inj
 	return bech32.Encode("inj", conv)
+}
+
+func TestGetBlockMaxGas(t *testing.T) {
+	network := common.LoadNetwork("mainnet", "lb")
+	tmClient, err := rpchttp.NewWithTimeout(network.TmEndpoint, 10)
+	assert.NoError(t, err, "failed to create TM client")
+
+	consensusParams, err := tmClient.ConsensusParams(context.Background(), nil)
+	assert.NoError(t, err, "failed to get consensus params")
+	fmt.Println(consensusParams.ConsensusParams.Block.MaxGas)
 }

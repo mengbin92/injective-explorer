@@ -63,6 +63,13 @@ service Demo {
     };
   }
 
+  // Get block gas utilization for the latest 10 blocks
+  rpc GetBlockGasUtilization(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/block/gas-utilization"
+    };
+  }
+
   // Get failed transactions in the last 24 hours with failure reasons
   rpc GetFailedTransactions24h(GetFailedTransactions24hRequest)
       returns (Reply) {
@@ -251,6 +258,24 @@ message AccountUpdate {
 }
 
 message LatestBlockHeightResponse { int64 height = 1; }
+
+// BlockGasUtilizationResponse contains gas utilization statistics for the
+// latest 10 blocks
+message BlockGasUtilizationResponse {
+  // Gas utilization rate (percentage)
+  // Gas utilization = (Σgas_used / Σmax_gas) × 100%
+  double gas_utilization = 1 [ json_name = "gas_utilization" ];
+  // Total gas used across all transactions in the latest 10 blocks
+  int64 total_gas_used = 2 [ json_name = "total_gas_used" ];
+  // Total gas limit (10 blocks × max_gas per block)
+  int64 total_gas_limit = 3 [ json_name = "total_gas_limit" ];
+  // Number of blocks analyzed
+  int32 block_count = 4 [ json_name = "block_count" ];
+  // Total number of transactions in the analyzed blocks
+  int64 transaction_count = 5 [ json_name = "transaction_count" ];
+  // Max gas per block (gas limit)
+  int64 block_gas_limit = 6 [ json_name = "block_gas_limit" ];
+}
 
 // TransactionStatsResponse contains transaction volume statistics
 message TransactionStatsResponse {

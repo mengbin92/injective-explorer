@@ -19,6 +19,7 @@ import (
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
+	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
@@ -316,6 +317,49 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 	}
 
 	return s.marshalAndReply(&pb.LatestBlockHeightResponse{Height: height}, "marshal height error")
+}
+
+// GetBlockGasUtilization retrieves gas utilization statistics for the latest N blocks.
+// Formula: (Σgas_used / Σmax_gas) × 100%, where Σmax_gas = block_count × max_gas_per_block
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Empty request (no parameters needed)
+//
+// Returns:
+//   - *pb.Reply: Response containing gas utilization statistics
+//   - error: Error if the operation fails
+func (s *DemoService) GetBlockGasUtilization(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+	rpcCtx, rpcCancel := context.WithTimeout(context.Background(), BlockQueryTimeout)
+	maxGas, err := GetBlockMaxGas(rpcCtx)
+	rpcCancel()
+	if err != nil {
+		global.Logger.Warnf("failed to get block max gas from consensus params: %v, using default", err)
+		maxGas = BlockGasLimit
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	gasUtilization, totalGasUsed, totalGasLimit, blockCount, transactionCount, err := calculateBlockGasUtilization(queryCtx, maxGas)
+	if err != nil {
+		global.Logger.Errorf("failed to calculate block gas utilization: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "failed to calculate block gas utilization", err), err
+	}
+
+	response := &pb.BlockGasUtilizationResponse{
+		GasUtilization:   gasUtilization,
+		TotalGasUsed:     totalGasUsed,
+		TotalGasLimit:    totalGasLimit,
+		BlockCount:       blockCount,
+		TransactionCount: transactionCount,
+		BlockGasLimit:    maxGas,
+	}
+
+	global.Logger.Infof("block gas utilization: %.2f%%, total_gas_used=%d, total_gas_limit=%d, blocks=%d, txs=%d, max_gas=%d",
+		gasUtilization, totalGasUsed, totalGasLimit, blockCount, transactionCount, maxGas)
+
+	return s.marshalAndReply(response, "marshal block gas utilization error")
 }
 
 // GetLatestTransactions retrieves the latest transactions from the blockchain with pagination.
@@ -2446,28 +2490,30 @@ func calculateGasPriceStats(ctx context.Context) (avgGasPrice, currentGasPrice, 
 	twentyFourHoursAgo := now.Add(-StatsHours24 * time.Hour)
 	twentyFourHoursAgoUnix := uint64(twentyFourHoursAgo.Unix())
 
-	// Get latest blocks for average gas price calculation
-	var latestBlocksForGas []models.Block
+	// Get latest block heights only (optimized: only select height field)
+	var blockHeights []uint64
 	err = db.Get().WithContext(ctx).Model(&models.Block{}).
+		Select("height").
 		Order("height DESC").
 		Limit(GasPriceBlockCount).
-		Find(&latestBlocksForGas).Error
+		Pluck("height", &blockHeights).Error
 	if err != nil {
 		global.Logger.Warnf("failed to get latest %d blocks for gas price: %v", GasPriceBlockCount, err)
 		return 0.0, 0.0, 0.0, 0.0, nil // Return zeros instead of error
 	}
 
 	// Calculate average gas price from latest blocks
-	if len(latestBlocksForGas) > 0 {
-		var blockHeights []uint64
-		for _, block := range latestBlocksForGas {
-			blockHeights = append(blockHeights, block.Height)
+	if len(blockHeights) > 0 {
+		// Optimized: only select gas_used and gas_fee fields to avoid loading large fields
+		type GasTxInfo struct {
+			GasUsed int64
+			GasFee  string
 		}
-
-		var gasTxs []models.Transaction
+		var gasTxs []GasTxInfo
 		err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+			Select("gas_used, gas_fee").
 			Where("block_number IN ? AND gas_used > 0 AND gas_fee != ''", blockHeights).
-			Find(&gasTxs).Error
+			Scan(&gasTxs).Error
 		if err == nil && len(gasTxs) > 0 {
 			var totalGasPrice float64
 			validGasPrices := 0
@@ -2488,14 +2534,18 @@ func calculateGasPriceStats(ctx context.Context) (avgGasPrice, currentGasPrice, 
 	}
 
 	// Calculate 24h max/min gas prices
-	// Note: Since gas_fee is stored as JSON, we need to fetch transactions and calculate in Go
-	// This is still more efficient than loading all transactions if we use LIMIT with proper indexing
-	var gasTxs24h []models.Transaction
+	// Optimized: only select gas_used and gas_fee fields to avoid loading large fields
+	type GasTx24hInfo struct {
+		GasUsed int64
+		GasFee  string
+	}
+	var gasTxs24h []GasTx24hInfo
 	err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Select("gas_used, gas_fee").
 		Where("block_unix_timestamp >= ? AND gas_used > 0 AND gas_fee != ''", twentyFourHoursAgoUnix).
 		Order("block_unix_timestamp DESC").
 		Limit(10000). // Limit to prevent memory issues, should cover most cases
-		Find(&gasTxs24h).Error
+		Scan(&gasTxs24h).Error
 	if err != nil {
 		global.Logger.Warnf("failed to get 24h gas transactions: %v", err)
 		return avgGasPrice, currentGasPrice, 0.0, 0.0, nil
@@ -2529,51 +2579,240 @@ func calculateGasPriceStats(ctx context.Context) (avgGasPrice, currentGasPrice, 
 }
 
 // calculateAverageBlockTimeFromDB retrieves blocks and calculates average block time.
+// Optimized: only selects height and block_unix_timestamp fields to avoid loading large fields.
 func calculateAverageBlockTimeFromDB(ctx context.Context) (float64, error) {
-	var blocksForBlockTime []models.Block
+	type BlockTimeInfo struct {
+		Height             uint64
+		BlockUnixTimestamp uint64
+	}
+	var blocksForBlockTime []BlockTimeInfo
 	err := db.Get().WithContext(ctx).Model(&models.Block{}).
+		Select("height, block_unix_timestamp").
 		Order("height DESC").
 		Limit(BlockTimeBlockCount).
-		Find(&blocksForBlockTime).Error
+		Scan(&blocksForBlockTime).Error
 	if err != nil {
 		global.Logger.Warnf("failed to get latest %d blocks for block time: %v", BlockTimeBlockCount, err)
 		return 0.0, nil // Return 0 instead of error for non-critical metric
 	}
 
-	return calculateAverageBlockTime(blocksForBlockTime), nil
-}
-
-// calculateGasUtilizationFromDB retrieves transactions and calculates gas utilization.
-func calculateGasUtilizationFromDB(ctx context.Context) (float64, error) {
-	var blocksForGasUtil []models.Block
-	err := db.Get().WithContext(ctx).Model(&models.Block{}).
-		Order("height DESC").
-		Limit(GasUtilizationBlockCount).
-		Find(&blocksForGasUtil).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get latest %d blocks for gas utilization: %v", GasUtilizationBlockCount, err)
-		return 0.0, nil // Return 0 instead of error for non-critical metric
-	}
-
-	if len(blocksForGasUtil) == 0 {
+	if len(blocksForBlockTime) < 2 {
 		return 0.0, nil
 	}
 
-	var blockHeights []uint64
-	for _, block := range blocksForGasUtil {
-		blockHeights = append(blockHeights, block.Height)
+	// Calculate average block time from the retrieved data
+	var totalTimeDiff float64
+	validPairs := 0
+
+	// Iterate from the end (oldest) to the beginning (newest)
+	// Compare each block with the previous one (which has higher height)
+	for i := len(blocksForBlockTime) - 1; i > 0; i-- {
+		currTimestamp := blocksForBlockTime[i].BlockUnixTimestamp
+		prevTimestamp := blocksForBlockTime[i-1].BlockUnixTimestamp
+
+		if currTimestamp > 0 && prevTimestamp > 0 && prevTimestamp > currTimestamp {
+			// Convert from milliseconds to seconds
+			timeDiff := float64(prevTimestamp-currTimestamp) / MillisecondsPerSecond
+			totalTimeDiff += timeDiff
+			validPairs++
+		}
 	}
 
-	var utilTxs []models.Transaction
+	if validPairs == 0 {
+		return 0.0, nil
+	}
+
+	return totalTimeDiff / float64(validPairs), nil
+}
+
+// GetBlockMaxGas retrieves the maximum gas limit per block from Tendermint consensus parameters.
+// This is used to calculate block gas utilization.
+//
+// Parameters:
+//   - ctx: Context for RPC call (should have appropriate timeout, e.g., BlockQueryTimeout)
+//
+// Returns:
+//   - int64: The maximum gas limit per block (returns BlockGasLimit on error)
+//   - error: Always returns nil (uses default value on error)
+func GetBlockMaxGas(ctx context.Context) (int64, error) {
+	// Use the underlying Tendermint RPC HTTP client to access ConsensusParams
+	// The tmclient.TendermintClient wrapper doesn't expose this method
+	tmClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
+	if err != nil {
+		global.Logger.Warnf("failed to create Tendermint RPC client for consensus params: %v, using default gas limit", err)
+		return BlockGasLimit, nil
+	}
+
+	consensusParams, err := tmClient.ConsensusParams(ctx, nil)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			global.Logger.Warnf("RPC timeout while getting consensus parameters: %v, using default gas limit", err)
+		} else {
+			global.Logger.Warnf("failed to get consensus parameters: %v, using default gas limit", err)
+		}
+		return BlockGasLimit, nil
+	}
+
+	if consensusParams == nil {
+		global.Logger.Warnf("consensus params is nil, using default gas limit")
+		return BlockGasLimit, nil
+	}
+
+	maxGas := consensusParams.ConsensusParams.Block.MaxGas
+	if maxGas <= 0 {
+		global.Logger.Warnf("invalid max gas from consensus params: %d, using default", maxGas)
+		return BlockGasLimit, nil
+	}
+
+	return maxGas, nil
+}
+
+// calculateBlockGasUtilization calculates gas utilization for the latest N blocks.
+// Formula: (Σgas_used / Σmax_gas) × 100%, where Σmax_gas = block_count × max_gas_per_block
+//
+// Parameters:
+//   - ctx: Context for database queries (should have appropriate timeout)
+//   - maxGas: Maximum gas limit per block (from consensus parameters or default)
+//
+// Returns:
+//   - gasUtilization: Gas utilization percentage
+//   - totalGasUsed: Total gas used across all transactions
+//   - totalGasLimit: Total gas limit (block_count × max_gas_per_block)
+//   - blockCount: Number of blocks analyzed
+//   - transactionCount: Total number of transactions
+//   - error: Always returns nil (graceful degradation on errors)
+func calculateBlockGasUtilization(ctx context.Context, maxGas int64) (gasUtilization float64, totalGasUsed int64, totalGasLimit int64, blockCount int32, transactionCount int64, err error) {
+	if maxGas <= 0 {
+		global.Logger.Warnf("invalid max gas: %d, using default", maxGas)
+		maxGas = BlockGasLimit
+	}
+
+	var blockHeights []uint64
+	err = db.Get().WithContext(ctx).Model(&models.Block{}).
+		Select("height").
+		Order("height DESC").
+		Limit(GasUtilizationBlockCount).
+		Pluck("height", &blockHeights).Error
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			global.Logger.Warnf("database query timeout for gas utilization: %v", err)
+		} else {
+			global.Logger.Warnf("failed to get latest %d blocks for gas utilization: %v", GasUtilizationBlockCount, err)
+		}
+		return 0.0, 0, 0, 0, 0, nil
+	}
+
+	blockCount = int32(len(blockHeights))
+	if blockCount == 0 {
+		return 0.0, 0, 0, 0, 0, nil
+	}
+
+	totalGasLimit = int64(blockCount) * maxGas
+
+	var result struct {
+		TotalGasUsed int64 `gorm:"column:total_gas_used"`
+		TxCount      int64 `gorm:"column:tx_count"`
+	}
+
 	err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Select("COALESCE(SUM(gas_used), 0) as total_gas_used, COUNT(hash) as tx_count").
 		Where("block_number IN ?", blockHeights).
-		Find(&utilTxs).Error
+		Scan(&result).Error
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			global.Logger.Warnf("database query timeout for transaction aggregation: %v", err)
+		} else {
+			global.Logger.Warnf("failed to get transactions for gas utilization: %v", err)
+		}
+		return 0.0, 0, totalGasLimit, blockCount, 0, nil
+	}
+
+	totalGasUsed = result.TotalGasUsed
+	transactionCount = result.TxCount
+
+	if totalGasLimit == 0 {
+		return 0.0, totalGasUsed, totalGasLimit, blockCount, transactionCount, nil
+	}
+
+	gasUtilization = (float64(totalGasUsed) / float64(totalGasLimit)) * 100.0
+	return gasUtilization, totalGasUsed, totalGasLimit, blockCount, transactionCount, nil
+}
+
+// calculateGasUtilizationFromDB calculates gas utilization from transactions in the latest N blocks.
+// Formula: (Σgas_used / Σgas_wanted) × 100%
+// This function is used for transaction statistics, not block-level gas utilization.
+//
+// Parameters:
+//   - ctx: Context for database queries
+//
+// Returns:
+//   - float64: Gas utilization percentage (returns 0.0 on error)
+//   - error: Always returns nil (graceful degradation on errors)
+func calculateGasUtilizationFromDB(ctx context.Context) (float64, error) {
+	var blockHeights []uint64
+	err := db.Get().WithContext(ctx).Model(&models.Block{}).
+		Select("height").
+		Order("height DESC").
+		Limit(GasUtilizationBlockCount).
+		Pluck("height", &blockHeights).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get latest %d blocks for gas utilization: %v", GasUtilizationBlockCount, err)
+		return 0.0, nil
+	}
+
+	if len(blockHeights) == 0 {
+		return 0.0, nil
+	}
+
+	var utilTxs []GasUtilTxInfo
+	err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Select("gas_used, gas_wanted").
+		Where("block_number IN ?", blockHeights).
+		Scan(&utilTxs).Error
 	if err != nil {
 		global.Logger.Warnf("failed to get transactions for gas utilization: %v", err)
 		return 0.0, nil
 	}
 
-	return calculateGasUtilization(utilTxs), nil
+	return calculateGasUtilizationFromTxs(utilTxs), nil
+}
+
+// GasUtilTxInfo represents transaction gas information for utilization calculation.
+type GasUtilTxInfo struct {
+	GasUsed   int64 `gorm:"column:gas_used"`
+	GasWanted int64 `gorm:"column:gas_wanted"`
+}
+
+// calculateGasUtilizationFromTxs calculates gas utilization from transaction gas info.
+// Formula: (Σgas_used / Σgas_wanted) × 100%
+//
+// Parameters:
+//   - txs: Slice of transaction gas information
+//
+// Returns:
+//   - float64: Gas utilization percentage (returns 0.0 if no transactions or totalGasWanted is 0)
+func calculateGasUtilizationFromTxs(txs []GasUtilTxInfo) float64 {
+	if len(txs) == 0 {
+		return 0.0
+	}
+
+	var totalGasUsed int64
+	var totalGasWanted int64
+
+	for _, tx := range txs {
+		if tx.GasUsed > 0 {
+			totalGasUsed += tx.GasUsed
+		}
+		if tx.GasWanted > 0 {
+			totalGasWanted += tx.GasWanted
+		}
+	}
+
+	if totalGasWanted == 0 {
+		return 0.0
+	}
+
+	return (float64(totalGasUsed) / float64(totalGasWanted)) * 100.0
 }
 
 // GetTransactionStats retrieves transaction volume statistics from the database.
@@ -3224,7 +3463,13 @@ func calculateAverageBlockTime(blocks []models.Block) float64 {
 }
 
 // calculateGasUtilization calculates gas utilization rate from transactions.
-// Gas utilization = (Σgas_used / Σgas_wanted) × 100%
+// Formula: (Σgas_used / Σgas_wanted) × 100%
+//
+// Parameters:
+//   - txs: Slice of transactions
+//
+// Returns:
+//   - float64: Gas utilization percentage (returns 0.0 if no transactions or totalGasWanted is 0)
 func calculateGasUtilization(txs []models.Transaction) float64 {
 	if len(txs) == 0 {
 		return 0.0

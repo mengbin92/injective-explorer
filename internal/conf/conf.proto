@@ -128,6 +128,7 @@ message Sync {
     int32 historical_sync = 2;
     int32 missing_block_check = 3;
     int32 backward_sync_log = 4;
+    int32 tx_batch = 5; // Transaction batch size for batch processing
   }
 
   message Retry {

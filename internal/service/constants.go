@@ -45,14 +45,15 @@ const (
 	AccountTransactionLimit = 50 // Maximum number of transactions to return for account queries
 
 	// Transaction statistics constants
-	TPSBlockCount            = 100    // Number of latest blocks to use for TPS calculation
-	AvgBlockTimeSeconds      = 2.0    // Average block time in seconds (for Cosmos chains)
-	MillisecondsPerSecond    = 1000.0 // Conversion factor from milliseconds to seconds
-	StatsDays30              = 30     // Number of days for 30-day statistics
-	StatsHours24             = 24     // Number of hours for 24-hour statistics
-	GasPriceBlockCount       = 10     // Number of latest blocks to use for gas price calculation
-	BlockTimeBlockCount      = 100    // Number of latest blocks to use for average block time calculation
-	GasUtilizationBlockCount = 10     // Number of latest blocks to use for gas utilization calculation
+	TPSBlockCount            = 100         // Number of latest blocks to use for TPS calculation
+	AvgBlockTimeSeconds      = 2.0         // Average block time in seconds (for Cosmos chains)
+	MillisecondsPerSecond    = 1000.0      // Conversion factor from milliseconds to seconds
+	StatsDays30              = 30          // Number of days for 30-day statistics
+	StatsHours24             = 24          // Number of hours for 24-hour statistics
+	GasPriceBlockCount       = 10          // Number of latest blocks to use for gas price calculation
+	BlockTimeBlockCount      = 100         // Number of latest blocks to use for average block time calculation
+	GasUtilizationBlockCount = 10          // Number of latest blocks to use for gas utilization calculation
+	BlockGasLimit            = 150_000_000 // Default block gas limit for Injective (fallback value if consensus params query fails)
 
 	// Chain query constants
 	RecentBlockThreshold = 1000 // Block height threshold for querying from chain (within last N blocks)
@@ -106,6 +107,7 @@ const (
 	defaultHistoricalSyncBatchSize    = 5                      // Historical sync batch size
 	defaultMissingBlockCheckBatchSize = 100                    // Batch size for finding missing blocks
 	defaultBackwardSyncLogBatchSize   = 100                    // Backward sync progress log interval (every N blocks)
+	defaultTxBatchSize                = 50                     // Transaction batch size for batch processing
 	defaultMaxRetryAttempts           = 3                      // Maximum retry attempts
 	defaultRetryDelay                 = 2 * time.Second        // Initial retry delay
 	defaultEarliestBlockHeight        = uint64(1)              // Earliest block height
@@ -130,6 +132,7 @@ type SyncConfig struct {
 	HistoricalSyncBatchSize    int
 	MissingBlockCheckBatchSize int
 	BackwardSyncLogBatchSize   int
+	TxBatchSize                int
 	MaxRetryAttempts           int
 	RetryDelay                 time.Duration
 	EarliestBlockHeight        uint64
@@ -156,6 +159,7 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		HistoricalSyncBatchSize:    defaultHistoricalSyncBatchSize,
 		MissingBlockCheckBatchSize: defaultMissingBlockCheckBatchSize,
 		BackwardSyncLogBatchSize:   defaultBackwardSyncLogBatchSize,
+		TxBatchSize:                defaultTxBatchSize,
 		MaxRetryAttempts:           defaultMaxRetryAttempts,
 		RetryDelay:                 defaultRetryDelay,
 		EarliestBlockHeight:        defaultEarliestBlockHeight,
@@ -228,6 +232,9 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		}
 		if sync.BatchSize.BackwardSyncLog > 0 {
 			cfg.BackwardSyncLogBatchSize = int(sync.BatchSize.BackwardSyncLog)
+		}
+		if sync.BatchSize.TxBatch > 0 {
+			cfg.TxBatchSize = int(sync.BatchSize.TxBatch)
 		}
 	}
 

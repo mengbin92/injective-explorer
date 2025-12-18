@@ -29,6 +29,7 @@ const (
 	Demo_GetAccountTransactions_FullMethodName   = "/api.explorer.v1.Demo/GetAccountTransactions"
 	Demo_GetAccountBalances_FullMethodName       = "/api.explorer.v1.Demo/GetAccountBalances"
 	Demo_GetTransactionStats_FullMethodName      = "/api.explorer.v1.Demo/GetTransactionStats"
+	Demo_GetBlockGasUtilization_FullMethodName   = "/api.explorer.v1.Demo/GetBlockGasUtilization"
 	Demo_GetFailedTransactions24H_FullMethodName = "/api.explorer.v1.Demo/GetFailedTransactions24h"
 	Demo_CheckHealthy_FullMethodName             = "/api.explorer.v1.Demo/CheckHealthy"
 	Demo_StreamLatestBlocks_FullMethodName       = "/api.explorer.v1.Demo/StreamLatestBlocks"
@@ -49,6 +50,8 @@ type DemoClient interface {
 	GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
+	// Get block gas utilization for the latest 10 blocks
+	GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
 	// Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error)
 	// Health check endpoint for gRPC-Web
@@ -160,6 +163,16 @@ func (c *demoClient) GetTransactionStats(ctx context.Context, in *emptypb.Empty,
 	return out, nil
 }
 
+func (c *demoClient) GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, Demo_GetBlockGasUtilization_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *demoClient) GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
@@ -250,6 +263,8 @@ type DemoServer interface {
 	GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
 	GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error)
+	// Get block gas utilization for the latest 10 blocks
+	GetBlockGasUtilization(context.Context, *emptypb.Empty) (*Reply, error)
 	// Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error)
 	// Health check endpoint for gRPC-Web
@@ -297,6 +312,9 @@ func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBa
 }
 func (UnimplementedDemoServer) GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTransactionStats not implemented")
+}
+func (UnimplementedDemoServer) GetBlockGasUtilization(context.Context, *emptypb.Empty) (*Reply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBlockGasUtilization not implemented")
 }
 func (UnimplementedDemoServer) GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFailedTransactions24H not implemented")
@@ -496,6 +514,24 @@ func _Demo_GetTransactionStats_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Demo_GetBlockGasUtilization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServer).GetBlockGasUtilization(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Demo_GetBlockGasUtilization_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServer).GetBlockGasUtilization(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Demo_GetFailedTransactions24H_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetFailedTransactions24HRequest)
 	if err := dec(in); err != nil {
@@ -607,6 +643,10 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTransactionStats",
 			Handler:    _Demo_GetTransactionStats_Handler,
+		},
+		{
+			MethodName: "GetBlockGasUtilization",
+			Handler:    _Demo_GetBlockGasUtilization_Handler,
 		},
 		{
 			MethodName: "GetFailedTransactions24h",
