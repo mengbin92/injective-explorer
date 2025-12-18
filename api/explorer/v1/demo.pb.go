@@ -540,11 +540,12 @@ func (x *FailedTransactionInfo) GetTxType() string {
 // FailedTransactions24hResponse contains failed transactions in the last 24
 // hours
 type FailedTransactions24HResponse struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Transactions  []*FailedTransactionInfo `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"` // List of failed transactions
-	Pagination    *PaginationInfo          `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`     // Pagination information
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState   `protogen:"open.v1"`
+	Transactions    []*FailedTransactionInfo `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`           // List of failed transactions
+	Pagination      *PaginationInfo          `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`               // Pagination information
+	SuccessRate_24H float64                  `protobuf:"fixed64,3,opt,name=success_rate_24h,proto3" json:"success_rate_24h,omitempty"` // Overall success rate in the last 24 hours (percentage, 0-100)
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *FailedTransactions24HResponse) Reset() {
@@ -589,6 +590,13 @@ func (x *FailedTransactions24HResponse) GetPagination() *PaginationInfo {
 		return x.Pagination
 	}
 	return nil
+}
+
+func (x *FailedTransactions24HResponse) GetSuccessRate_24H() float64 {
+	if x != nil {
+		return x.SuccessRate_24H
+	}
+	return 0
 }
 
 // Health check messages
@@ -1986,12 +1994,13 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"gas_wanted\x121\n" +
 	"\agas_fee\x18\n" +
 	" \x01(\v2\x17.api.explorer.v1.GasFeeR\agas_fee\x12\x18\n" +
-	"\atx_type\x18\v \x01(\tR\atx_type\"\xac\x01\n" +
+	"\atx_type\x18\v \x01(\tR\atx_type\"\xd8\x01\n" +
 	"\x1dFailedTransactions24hResponse\x12J\n" +
 	"\ftransactions\x18\x01 \x03(\v2&.api.explorer.v1.FailedTransactionInfoR\ftransactions\x12?\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x1f.api.explorer.v1.PaginationInfoR\n" +
-	"pagination\"/\n" +
+	"pagination\x12*\n" +
+	"\x10success_rate_24h\x18\x03 \x01(\x01R\x10success_rate_24h\"/\n" +
 	"\x13CheckHealthyRequest\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\"\\\n" +
 	"\rHealthDetails\x12\x16\n" +

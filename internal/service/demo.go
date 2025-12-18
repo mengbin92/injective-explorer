@@ -3314,6 +3314,7 @@ func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetF
 	var failedTxs []models.Transaction
 	var totalCount int64
 	var isExactCount bool
+	var totalTxCount24h int64
 
 	// Parallel query 1: Get failed transactions list
 	g.Go(func() error {
@@ -3338,6 +3339,13 @@ func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetF
 		isExactCount = false
 	}
 
+	// Parallel query 3: Get total transaction count in 24h for success rate calculation
+	g.Go(func() error {
+		var err error
+		totalTxCount24h, err = getTransactionCount24h(gCtx, twentyFourHoursAgoUnix)
+		return err
+	})
+
 	// Wait for all parallel queries to complete
 	if err := g.Wait(); err != nil {
 		global.Logger.Errorf("failed to fetch failed transactions: %v", err)
@@ -3357,13 +3365,22 @@ func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetF
 		HasNext:    int64(len(failedTxs)) == int64(pageSize) && (int64(page)*int64(pageSize) < totalCount || !isExactCount),
 	}
 
-	// Build response
-	response := &pb.FailedTransactions24HResponse{
-		Transactions: failedTxInfos,
-		Pagination:   paginationInfo,
+	// Calculate success rate
+	var successRate float64
+	if totalTxCount24h > 0 {
+		successRate = float64(totalTxCount24h-int64(len(failedTxs))) / float64(totalTxCount24h) * 100
+	} else {
+		successRate = 100.0 // If no transactions, consider 100% success rate
 	}
 
-	global.Logger.Infof("retrieved %d failed transactions (24h), total=%d, exact=%v", len(failedTxs), totalCount, isExactCount)
+	// Build response
+	response := &pb.FailedTransactions24HResponse{
+		Transactions:   failedTxInfos,
+		Pagination:     paginationInfo,
+		SuccessRate_24H: successRate,
+	}
+
+	global.Logger.Infof("retrieved %d failed transactions (24h), total=%d, exact=%v, success_rate=%.2f%%", len(failedTxs), totalCount, isExactCount, successRate)
 
 	return s.marshalAndReply(response, "marshal failed transactions error")
 }

@@ -166,6 +166,9 @@ message FailedTransactions24hResponse {
   repeated FailedTransactionInfo transactions =
       1;                         // List of failed transactions
   PaginationInfo pagination = 2; // Pagination information
+  double success_rate_24h = 3 [
+    json_name = "success_rate_24h"
+  ]; // Overall success rate in the last 24 hours (percentage, 0-100)
 }
 
 // Health check messages
