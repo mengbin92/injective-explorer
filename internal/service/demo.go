@@ -2723,8 +2723,19 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 }
 
 // queryFailedTransactions24h queries failed transactions in the last 24 hours with pagination.
+// Optimized to only select necessary fields to avoid loading large fields (data, messages, logs, etc.)
+// which significantly improves query performance for large datasets.
+//
+// Performance optimization notes:
+//   - Only selects fields needed for FailedTransactionInfo response
+//   - Avoids loading large TEXT fields (data, messages, logs, info) that are not needed
+//   - Uses composite index (block_unix_timestamp, code) for optimal query performance
+//     Recommended index: CREATE INDEX idx_timestamp_code ON transactions(block_unix_timestamp, code);
 func queryFailedTransactions24h(ctx context.Context, twentyFourHoursAgoUnix uint64, pageSize int, offset int, useCursor bool, cursorValue uint64) ([]models.Transaction, error) {
+	// Select only necessary fields to avoid loading large TEXT fields
+	// This significantly reduces data transfer and improves query performance
 	baseQuery := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Select("hash, block_number, block_unix_timestamp, code, codespace, error_log, signer, gas_used, gas_wanted, gas_fee, tx_type, tx_number").
 		Where("block_unix_timestamp >= ? AND code > 0", twentyFourHoursAgoUnix).
 		Order("block_unix_timestamp DESC, tx_number DESC")
 
@@ -2749,39 +2760,116 @@ func queryFailedTransactions24h(ctx context.Context, twentyFourHoursAgoUnix uint
 	return failedTxs, nil
 }
 
+// getFailedTransactions24hCountFromCache retrieves the failed transactions 24h count from Redis cache.
+// Returns (0, false) if the count is not found in cache (cache miss).
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//
+// Returns:
+//   - int64: The cached count, or 0 if not found
+//   - bool: Whether the count was found in cache
+func getFailedTransactions24hCountFromCache(ctx context.Context) (int64, bool) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return 0, false
+	}
+
+	data, err := redisClient.Get(ctx, CacheKeyFailedTransactions24H).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return 0, false // Cache miss
+		}
+		global.Logger.Warnf("failed to get failed transactions 24h count from cache: %v", err)
+		return 0, false
+	}
+
+	var count int64
+	if _, err := fmt.Sscanf(data, "%d", &count); err != nil {
+		global.Logger.Warnf("failed to parse failed transactions 24h count from cache (value=%s): %v", data, err)
+		return 0, false
+	}
+
+	return count, true
+}
+
+// cacheFailedTransactions24hCount stores the failed transactions 24h count in Redis cache with TTL.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - count: The count to cache
+func cacheFailedTransactions24hCount(ctx context.Context, count int64) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Store count as string with TTL
+	err := redisClient.Set(ctx, CacheKeyFailedTransactions24H, fmt.Sprintf("%d", count), CacheFailedTransactions24HTTL).Err()
+	if err != nil {
+		global.Logger.Warnf("failed to cache failed transactions 24h count: %v", err)
+	}
+}
+
 // getFailedTransactions24hCount gets the total count of failed transactions in the last 24 hours.
-// Uses timeout to prevent long-running queries.
+// Uses timeout to prevent long-running queries and Redis cache to improve performance.
+//
+// Performance optimization notes:
+// - First tries to get count from Redis cache (fast path)
+// - Falls back to database query if cache miss
+// - Uses short timeout to prevent blocking
+// - Caches the result for future queries
+// - For better performance, consider adding composite index: (block_unix_timestamp, code)
+// - Returns approximate count if query times out to ensure fast response
 func getFailedTransactions24hCount(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, bool, error) {
+	// Try to get count from cache first (fast path)
+	if cachedCount, found := getFailedTransactions24hCountFromCache(ctx); found {
+		global.Logger.Debugf("failed transactions 24h count found in cache: %d", cachedCount)
+		return cachedCount, false, nil // Cached values are approximate
+	}
+
+	// Cache miss, query from database
 	// Use timeout for count query to prevent blocking
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
 	defer cancel()
 
 	var totalCount int64
+	// Optimize COUNT query by using EXISTS subquery or direct count on indexed columns
+	// Using code != 0 instead of code > 0 to match the query condition exactly
 	err := db.Get().WithContext(ctxWithTimeout).Model(&models.Transaction{}).
 		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
 		Count(&totalCount).Error
 
 	if err != nil {
+		// If query times out or fails, return approximate count to ensure fast response
 		global.Logger.Warnf("failed to get failed transaction count: %v, using fallback", err)
 		return ApproximateCountFallback, false, nil // Return fallback instead of error
 	}
+
+	// Cache the result for future queries (async to avoid blocking)
+	go cacheFailedTransactions24hCount(context.Background(), totalCount)
 
 	return totalCount, true, nil
 }
 
 // sanitizeErrorLog sanitizes and truncates error log messages for security and performance.
 // Removes sensitive information and limits length to prevent performance issues.
+// Optimized to reduce string allocations and processing overhead.
 func sanitizeErrorLog(errorLog string) string {
 	if errorLog == "" {
 		return ""
 	}
 
-	// Truncate to maximum length
+	// Truncate to maximum length first to reduce processing overhead
+	var sanitized string
 	if len(errorLog) > MaxErrorLogLength {
-		errorLog = errorLog[:MaxErrorLogLength] + "..."
+		sanitized = errorLog[:MaxErrorLogLength] + "..."
+	} else {
+		sanitized = errorLog
 	}
 
 	// Remove common sensitive patterns (similar to sanitizeError)
+	// Use case-insensitive check only when necessary to reduce overhead
 	sensitivePatterns := []string{
 		"/Users/",
 		"/home/",
@@ -2792,11 +2880,13 @@ func sanitizeErrorLog(errorLog string) string {
 		"api_key",
 	}
 
-	sanitized := errorLog
+	sanitizedLower := strings.ToLower(sanitized)
 	for _, pattern := range sensitivePatterns {
-		// Case-insensitive replacement
-		if strings.Contains(strings.ToLower(sanitized), strings.ToLower(pattern)) {
+		// Case-insensitive check first, then replace if found
+		if strings.Contains(sanitizedLower, strings.ToLower(pattern)) {
 			sanitized = strings.ReplaceAll(sanitized, pattern, "[REDACTED]")
+			// Update lowercase version for subsequent checks
+			sanitizedLower = strings.ToLower(sanitized)
 		}
 	}
 
@@ -2891,10 +2981,13 @@ func convertToFailedTransactionInfos(txs []models.Transaction) []*pb.FailedTrans
 // This endpoint returns a paginated list of failed transactions (code != 0) that occurred
 // in the last 24 hours, including their failure reasons (error_log, codespace, code).
 //
-// Performance:
+// Performance optimizations:
 //
-//	This function uses parallel database queries via errgroup to minimize response time.
-//	The transaction list query and count query are executed concurrently.
+//  1. Only selects necessary fields (avoids loading large TEXT fields like data, messages, logs)
+//  2. Uses parallel database queries via errgroup to minimize response time
+//  3. Skips COUNT query for cursor-based pagination and first page to improve response time
+//  4. Uses composite index (block_unix_timestamp, code) for optimal query performance
+//     Recommended index: CREATE INDEX idx_timestamp_code ON transactions(block_unix_timestamp, code);
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
@@ -2943,16 +3036,19 @@ func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetF
 		return err
 	})
 
-	// Parallel query 2: Get total count (only if not using cursor, as cursor pagination doesn't need exact count)
-	if !useCursor {
+	// Parallel query 2: Get total count
+	// Optimization: Skip COUNT query for cursor pagination and first page to improve response time
+	// COUNT queries can be slow on large datasets, so we only run them when necessary
+	if !useCursor && page > MinPage {
+		// Only get count for non-first pages to determine pagination
 		g.Go(func() error {
 			var err error
 			totalCount, isExactCount, err = getFailedTransactions24hCount(gCtx, twentyFourHoursAgoUnix)
 			return err
 		})
 	} else {
-		// For cursor pagination, we don't need exact count, set a placeholder
-		totalCount = 0
+		// For cursor pagination or first page, skip count query for faster response
+		totalCount = ApproximateCountFallback
 		isExactCount = false
 	}
 

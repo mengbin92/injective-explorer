@@ -26,8 +26,8 @@ const (
 	ApproximateCountForAddress = 10000
 
 	// Error message constants
-	MaxErrorLength      = 200  // Maximum length for general error messages
-	MaxErrorLogLength   = 500  // Maximum length for error_log field in failed transactions
+	MaxErrorLength    = 200 // Maximum length for general error messages
+	MaxErrorLogLength = 500 // Maximum length for error_log field in failed transactions
 
 	// Graceful shutdown timeout
 	GracefulShutdownTimeout = 30 * time.Second
@@ -45,14 +45,14 @@ const (
 	AccountTransactionLimit = 50 // Maximum number of transactions to return for account queries
 
 	// Transaction statistics constants
-	TPSBlockCount         = 100    // Number of latest blocks to use for TPS calculation
-	AvgBlockTimeSeconds   = 2.0    // Average block time in seconds (for Cosmos chains)
-	MillisecondsPerSecond = 1000.0 // Conversion factor from milliseconds to seconds
-	StatsDays30           = 30     // Number of days for 30-day statistics
-	StatsHours24          = 24     // Number of hours for 24-hour statistics
-	GasPriceBlockCount    = 10     // Number of latest blocks to use for gas price calculation
-	BlockTimeBlockCount   = 100    // Number of latest blocks to use for average block time calculation
-	GasUtilizationBlockCount = 10  // Number of latest blocks to use for gas utilization calculation
+	TPSBlockCount            = 100    // Number of latest blocks to use for TPS calculation
+	AvgBlockTimeSeconds      = 2.0    // Average block time in seconds (for Cosmos chains)
+	MillisecondsPerSecond    = 1000.0 // Conversion factor from milliseconds to seconds
+	StatsDays30              = 30     // Number of days for 30-day statistics
+	StatsHours24             = 24     // Number of hours for 24-hour statistics
+	GasPriceBlockCount       = 10     // Number of latest blocks to use for gas price calculation
+	BlockTimeBlockCount      = 100    // Number of latest blocks to use for average block time calculation
+	GasUtilizationBlockCount = 10     // Number of latest blocks to use for gas utilization calculation
 
 	// Chain query constants
 	RecentBlockThreshold = 1000 // Block height threshold for querying from chain (within last N blocks)
@@ -72,17 +72,19 @@ const (
 
 // Redis cache key constants
 const (
-	CacheKeyBlockList         = "cache:block:list"         // Block list cache key
-	CacheKeyTransactionList   = "cache:transaction:list"   // Transaction list cache key
-	CacheKeyBlockPrefix       = "cache:block:"             // Block cache key prefix
-	CacheKeyTransactionPrefix = "cache:transaction:"       // Transaction cache key prefix
-	CacheKeyTotalBlocks       = "cache:total:blocks"       // Total blocks cache key
-	CacheKeyTotalTransactions = "cache:total:transactions" // Total transactions cache key
-	CacheKeyTransactionStats  = "cache:transaction:stats"  // Transaction statistics cache key
-	CacheTotalTTL             = 5 * time.Minute            // Total count cache expiration time (5 minutes)
-	CacheBlockTTL             = 5 * time.Minute            // Single block cache expiration time (5 minutes)
-	CacheTransactionTTL       = 5 * time.Minute            // Single transaction cache expiration time (5 minutes)
-	CacheTransactionStatsTTL  = 1 * time.Minute            // Transaction statistics cache expiration time (1 minute)
+	CacheKeyBlockList             = "cache:block:list"              // Block list cache key
+	CacheKeyTransactionList       = "cache:transaction:list"        // Transaction list cache key
+	CacheKeyBlockPrefix           = "cache:block:"                  // Block cache key prefix
+	CacheKeyTransactionPrefix     = "cache:transaction:"            // Transaction cache key prefix
+	CacheKeyTotalBlocks           = "cache:total:blocks"            // Total blocks cache key
+	CacheKeyTotalTransactions     = "cache:total:transactions"      // Total transactions cache key
+	CacheKeyTransactionStats      = "cache:transaction:stats"       // Transaction statistics cache key
+	CacheKeyFailedTransactions24H = "cache:failed:transactions:24h" // Failed transactions 24h count cache key
+	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
+	CacheBlockTTL                 = 5 * time.Minute                 // Single block cache expiration time (5 minutes)
+	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
+	CacheTransactionStatsTTL      = 1 * time.Minute                 // Transaction statistics cache expiration time (1 minute)
+	CacheFailedTransactions24HTTL = 2 * time.Minute                 // Failed transactions 24h count cache expiration time (2 minutes)
 )
 
 // Default sync configuration values (used when config is not provided)
