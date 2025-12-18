@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/btcutil/bech32"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestInjToEthAddress(t *testing.T) {
@@ -62,15 +63,11 @@ func TestAddressConversionRoundTrip(t *testing.T) {
 
 	// Convert Ethereum to Injective
 	injAddr, err := ethToInjAddressForTest(ethAddr)
-	if err != nil {
-		t.Fatalf("failed to convert Ethereum to Injective: %v", err)
-	}
+	assert.NoError(t, err, "failed to convert Ethereum to Injective")
 
 	// Convert back to Ethereum
 	ethAddr2, err := InjToEthAddress(injAddr)
-	if err != nil {
-		t.Fatalf("failed to convert Injective to Ethereum: %v", err)
-	}
+	assert.NoError(t, err, "failed to convert Injective to Ethereum")
 
 	// Compare (case-insensitive for hex)
 	if ethAddr2 != ethAddr {

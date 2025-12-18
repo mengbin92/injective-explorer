@@ -4,6 +4,8 @@ package models
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCompressData(t *testing.T) {
@@ -107,9 +109,7 @@ func TestDecompressData(t *testing.T) {
 	if len(tests) > 0 {
 		lastTest := &tests[len(tests)-1]
 		compressed, err := CompressData(lastTest.original)
-		if err != nil {
-			t.Fatalf("Failed to prepare compressed data for test: %v", err)
-		}
+		assert.NoError(t, err, "Failed to prepare compressed data for test")
 		lastTest.dataStr = compressed
 	}
 
@@ -162,15 +162,11 @@ func TestCompressDecompressRoundTrip(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Compress
 			compressed, err := CompressData(tc.data)
-			if err != nil {
-				t.Fatalf("CompressData() error = %v", err)
-			}
+			assert.NoError(t, err, "CompressData() error")
 
 			// Decompress
 			decompressed, err := DecompressData(compressed)
-			if err != nil {
-				t.Fatalf("DecompressData() error = %v", err)
-			}
+			assert.NoError(t, err, "DecompressData() error")
 
 			// Verify round trip
 			if !bytes.Equal(decompressed, tc.data) {
@@ -190,15 +186,11 @@ func TestCompressString(t *testing.T) {
 	}
 
 	result, err := CompressString(largeStr)
-	if err != nil {
-		t.Fatalf("CompressString() error = %v", err)
-	}
+	assert.NoError(t, err, "CompressString() error")
 
 	// Decompress and verify
 	decompressed, err := DecompressString(result)
-	if err != nil {
-		t.Fatalf("DecompressString() error = %v", err)
-	}
+	assert.NoError(t, err, "DecompressString() error")
 
 	if decompressed != largeStr {
 		t.Errorf("CompressString/DecompressString round trip failed")

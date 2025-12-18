@@ -2725,7 +2725,7 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 // queryFailedTransactions24h queries failed transactions in the last 24 hours with pagination.
 func queryFailedTransactions24h(ctx context.Context, twentyFourHoursAgoUnix uint64, pageSize int, offset int, useCursor bool, cursorValue uint64) ([]models.Transaction, error) {
 	baseQuery := db.Get().WithContext(ctx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
+		Where("block_unix_timestamp >= ? AND code > 0", twentyFourHoursAgoUnix).
 		Order("block_unix_timestamp DESC, tx_number DESC")
 
 	// Apply cursor-based pagination if cursor is provided

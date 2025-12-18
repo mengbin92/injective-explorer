@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -50,9 +51,7 @@ func TestUnmarshalProtoFromBase64(t *testing.T) {
 
 	// Marshal it first
 	encoded, err := MarshalProtoToBase64(testMsg)
-	if err != nil {
-		t.Fatalf("Failed to marshal test message: %v", err)
-	}
+	assert.NoError(t, err, "Failed to marshal test message")
 
 	// Test unmarshaling
 	var unmarshaled injective_explorer_rpcpb.TxData
@@ -137,16 +136,12 @@ func TestRoundTrip(t *testing.T) {
 
 	// Marshal
 	encoded, err := MarshalProtoToBase64(original)
-	if err != nil {
-		t.Fatalf("MarshalProtoToBase64() error = %v", err)
-	}
+	assert.NoError(t, err, "MarshalProtoToBase64() error")
 
 	// Unmarshal
 	var unmarshaled injective_explorer_rpcpb.TxData
 	err = UnmarshalProtoFromBase64(encoded, &unmarshaled)
-	if err != nil {
-		t.Fatalf("UnmarshalProtoFromBase64() error = %v", err)
-	}
+	assert.NoError(t, err, "UnmarshalProtoFromBase64() error")
 
 	// Compare
 	if unmarshaled.Hash != original.Hash {

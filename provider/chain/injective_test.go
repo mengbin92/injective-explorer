@@ -22,6 +22,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/bech32"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -33,21 +34,15 @@ func TestInjectiveWithSDK(t *testing.T) {
 	tmClient := tmclient.NewRPCClient(network.TmEndpoint)
 
 	blockHeight, err := tmClient.GetLatestBlockHeight(context.Background())
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get latest block height")
 
 	tmBlock, err := tmClient.GetBlock(context.Background(), blockHeight)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get block")
 	str, _ := json.MarshalIndent(tmBlock, "", "\t")
 	fmt.Print(string(str))
 
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	ctx := context.Background()
 	res, err := explorerClient.GetBlock(ctx, fmt.Sprintf("%d", blockHeight))
@@ -71,9 +66,7 @@ func TestGetAccountBalances(t *testing.T) {
 		"",
 		nil, // 对于只读查询可以传 nil
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create client context")
 
 	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
 
@@ -82,22 +75,16 @@ func TestGetAccountBalances(t *testing.T) {
 		network,
 		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create chain client")
 
 	balances, err := chainClient.GetBankBalances(context.Background(), "inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z")
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get bank balances")
 	fmt.Println(balances)
 	injBalance := balances.Balances.AmountOf("inj")
 	fmt.Println(injBalance)
 
 	block, err := chainClient.FetchBlockByHeight(context.Background(), 139454029)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to fetch block by height")
 	fmt.Println(block.String())
 
 	chainClient.FetchValidatorSetByHeight(context.Background(), 139454029, nil)
@@ -107,39 +94,29 @@ func TestGetBlocks(t *testing.T) {
 	network := common.LoadNetwork("testnet", "lb")
 
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	ctx := context.Background()
 	blocks, err := explorerClient.GetBlocks(ctx)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get blocks")
 	fmt.Println(blocks.String())
 }
 
 func TestGetBlockByHeight(t *testing.T) {
 	network := common.LoadNetwork("testnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	ctx := context.Background()
 	blocks, err := explorerClient.GetBlock(ctx, "98688735")
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get block")
 	fmt.Println(blocks.String())
 }
 
 func TestGetLatestTransactions(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	req := &injective_explorer_rpcpb.GetTxsRequest{
 		Limit: 1,
@@ -147,13 +124,9 @@ func TestGetLatestTransactions(t *testing.T) {
 
 	ctx := context.Background()
 	transactions, err := explorerClient.GetTxs(ctx, req)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get transactions")
 	structData, err := toStruct(transactions)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to convert to struct")
 	reply := &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
@@ -174,9 +147,7 @@ func TestGetAccountInfo(t *testing.T) {
 		"",
 		nil, // 对于只读查询可以传 nil
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create client context")
 
 	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
 
@@ -185,18 +156,12 @@ func TestGetAccountInfo(t *testing.T) {
 		network,
 		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create chain client")
 
 	account, err := chainClient.GetAccount(context.Background(), "inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z")
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get account")
 	structData, err := toStruct(account)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to convert to struct")
 	reply := &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "success",
@@ -210,15 +175,11 @@ func TestGetAccountInfo(t *testing.T) {
 func TestGetValidators(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	ctx := context.Background()
 	validators, err := explorerClient.FetchValidators(ctx)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to fetch validators")
 	fmt.Println(validators.String())
 	fmt.Println(len(validators.Data))
 }
@@ -226,15 +187,11 @@ func TestGetValidators(t *testing.T) {
 func TestGetValidatorByValidatorAddress(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	ctx := context.Background()
 	validator, err := explorerClient.FetchValidator(ctx, "injvaloper13v0sulppc8pgtk4907p3vaqgq54vyl9yqmf7av")
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to fetch validator")
 	fmt.Println(validator.String())
 }
 
@@ -251,20 +208,14 @@ func TestChainClientFetchValidator(t *testing.T) {
 		"5d386fbdbf11f1141010f81a46b40f94887367562bd33b452bbaa6ce1cd1381e",
 		false,
 	)
-
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to init cosmos keyring")
 
 	clientCtx, err := chainclient.NewClientContext(
 		network.ChainId,
 		senderAddress.String(),
 		cosmosKeyring,
 	)
-
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create client context")
 
 	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
 
@@ -273,30 +224,22 @@ func TestChainClientFetchValidator(t *testing.T) {
 		network,
 		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create chain client")
 
 	validatorAddr := "injvaloper13v0sulppc8pgtk4907p3vaqgq54vyl9yqmf7av"
 	validator, err := chainClient.FetchValidatorDistributionInfo(context.Background(), validatorAddr)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to fetch validator distribution info")
 	fmt.Println(validator.String())
 }
 
 func TestGetTransactionsByHash(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	ctx := context.Background()
 	transaction, err := explorerClient.GetTxByTxHash(ctx, "0xD129861AD54EEDB17E16C456524791258E098F75719C9CCA75C9936A65B692C3")
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get transaction by hash")
 
 	fmt.Println(transaction.Data.GetClaimIds())
 }
@@ -327,9 +270,7 @@ func TestGetGasPrice(t *testing.T) {
 		"",
 		nil, // 对于只读查询可以传 nil
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create client context")
 
 	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
 
@@ -338,9 +279,7 @@ func TestGetGasPrice(t *testing.T) {
 		network,
 		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create chain client")
 
 	gasPrice := chainClient.CurrentChainGasPrice(context.Background())
 	fmt.Println(gasPrice)
@@ -354,17 +293,13 @@ func TestGetTxsStats(t *testing.T) {
 
 	network := common.LoadNetwork("mainnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create explorer client")
 
 	// total
 	transactions, err := explorerClient.GetTxs(context.Background(), &injective_explorer_rpcpb.GetTxsRequest{
 		Limit: 1,
 	})
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get transactions (total)")
 	fmt.Println("total: ", transactions.Paging.Total)
 
 	// 30d
@@ -373,9 +308,7 @@ func TestGetTxsStats(t *testing.T) {
 		StartTime: thirtyDaysAgo.UnixMilli(),
 		EndTime:   now.UnixMilli(),
 	})
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get transactions (30d)")
 	fmt.Println("30d: ", transactions.Paging.Total)
 
 	// 24h
@@ -384,9 +317,7 @@ func TestGetTxsStats(t *testing.T) {
 		StartTime: twentyFourHoursAgo.UnixMilli(),
 		EndTime:   now.UnixMilli(),
 	})
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get transactions (24h)")
 	fmt.Println("24h: ", transactions.Paging.Total)
 }
 
@@ -400,9 +331,7 @@ func TestAccountBalance(t *testing.T) {
 		"",
 		nil, // 对于只读查询可以传 nil
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create client context")
 
 	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmClient)
 
@@ -411,20 +340,14 @@ func TestAccountBalance(t *testing.T) {
 		network,
 		common.OptionGasPrices(client.DefaultGasPriceWithDenom),
 	)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to create chain client")
 
 	address, err := EthToInjAddress("0x71562b71999873db5b286df957af199ec94617f7")
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to convert Ethereum address to Injective")
 	fmt.Println(address)
 
 	balances, err := chainClient.GetBankBalances(context.Background(), address)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(t, err, "failed to get bank balances")
 	fmt.Println(balances)
 }
 
@@ -432,18 +355,14 @@ func TestAddressConversion(t *testing.T) {
 	// Test Ethereum to Injective conversion
 	ethAddr := "0x71562b71999873db5b286df957af199ec94617f7"
 	injAddr, err := EthToInjAddress(ethAddr)
-	if err != nil {
-		t.Fatalf("failed to convert Ethereum address to Injective: %v", err)
-	}
+	assert.NoError(t, err, "failed to convert Ethereum address to Injective")
 	fmt.Printf("Ethereum address: %s -> Injective address: %s\n", ethAddr, injAddr)
 
 	// Test Injective to Ethereum conversion (using the models package function)
 	// Note: This requires importing the models package
 	// For now, we'll test the round-trip conversion
 	injAddr2, err := EthToInjAddress(ethAddr)
-	if err != nil {
-		t.Fatalf("failed to convert Ethereum address to Injective: %v", err)
-	}
+	assert.NoError(t, err, "failed to convert Ethereum address to Injective (round-trip)")
 	if injAddr != injAddr2 {
 		t.Errorf("address conversion is not consistent: %s != %s", injAddr, injAddr2)
 	}
