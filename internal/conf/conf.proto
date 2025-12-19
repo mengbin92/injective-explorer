@@ -112,7 +112,6 @@ message Sync {
     google.protobuf.Duration historical_batch_delay = 4;
     google.protobuf.Duration backward_sync_log = 5;
     google.protobuf.Duration rpc_status_retry = 6;
-    google.protobuf.Duration validator_sync = 7; // Validator sync interval
   }
 
   message Timeouts { google.protobuf.Duration block_query = 1; }

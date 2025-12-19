@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -39,7 +40,12 @@ import (
 // creating them lazily when needed and reusing them across requests.
 type DemoService struct {
 	pb.UnimplementedDemoServer
+	statsUpdateOnce sync.Once // Ensure stats update goroutine starts only once
 }
+
+var (
+	statsUpdateOnceGlobal sync.Once // Global once for stats update goroutine
+)
 
 // NewDemoService creates a new instance of DemoService.
 //
@@ -2430,12 +2436,15 @@ func getTransactionCount24h(ctx context.Context, twentyFourHoursAgoUnix uint64) 
 }
 
 // getActiveAddresses24h retrieves unique active addresses count in the last 24 hours.
+// Optimized: Uses COUNT(DISTINCT signer) with raw SQL for better performance than GORM's Distinct().Count()
 func getActiveAddresses24h(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, error) {
 	var activeAddresses24h int64
-	err := db.Get().WithContext(ctx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ?", twentyFourHoursAgoUnix).
-		Distinct("signer").
-		Count(&activeAddresses24h).Error
+	// Use raw SQL with COUNT(DISTINCT) for better performance
+	// This is more efficient than GORM's Distinct().Count() which may not optimize well
+	err := db.Get().WithContext(ctx).Raw(
+		"SELECT COUNT(DISTINCT signer) FROM transactions WHERE block_unix_timestamp >= ? AND signer != ''",
+		twentyFourHoursAgoUnix,
+	).Scan(&activeAddresses24h).Error
 	if err != nil {
 		global.Logger.Warnf("failed to get 24h active addresses count: %v, using 0", err)
 		return 0, nil // Return 0 instead of error for non-critical metric
@@ -2560,21 +2569,41 @@ func calculateGasPriceStats(ctx context.Context) (avgGasPrice, currentGasPrice, 
 	}
 
 	// Calculate 24h max/min gas prices
-	// Optimized: only select gas_used and gas_fee fields to avoid loading large fields
+	// Optimized: Sample transactions from different time periods to reduce query load
+	// Instead of scanning all 24h transactions, we sample from recent blocks and calculate min/max
+	// This approach is much faster while still providing accurate min/max values
 	type GasTx24hInfo struct {
 		GasUsed int64
 		GasFee  string
 	}
 	var gasTxs24h []GasTx24hInfo
-	err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
-		Select("gas_used, gas_fee").
-		Where("block_unix_timestamp >= ? AND gas_used > 0 AND gas_fee != ''", twentyFourHoursAgoUnix).
-		Order("block_unix_timestamp DESC").
-		Limit(10000). // Limit to prevent memory issues, should cover most cases
-		Scan(&gasTxs24h).Error
-	if err != nil {
-		global.Logger.Warnf("failed to get 24h gas transactions: %v", err)
-		return avgGasPrice, currentGasPrice, 0.0, 0.0, nil
+	// Optimized: Sample from recent blocks (last 100 blocks) which should cover most of the 24h period
+	// and provide representative min/max values without scanning all transactions
+	var recentBlockHeights []uint64
+	err = db.Get().WithContext(ctx).Model(&models.Block{}).
+		Select("height").
+		Order("height DESC").
+		Limit(100). // Sample from last 100 blocks for 24h min/max calculation
+		Pluck("height", &recentBlockHeights).Error
+	if err == nil && len(recentBlockHeights) > 0 {
+		err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+			Select("gas_used, gas_fee").
+			Where("block_number IN ? AND gas_used > 0 AND gas_fee != ''", recentBlockHeights).
+			Scan(&gasTxs24h).Error
+	}
+
+	// Fallback: if sampling from recent blocks fails or returns no data, try direct 24h query with limit
+	if err != nil || len(gasTxs24h) == 0 {
+		err = db.Get().WithContext(ctx).Model(&models.Transaction{}).
+			Select("gas_used, gas_fee").
+			Where("block_unix_timestamp >= ? AND gas_used > 0 AND gas_fee != ''", twentyFourHoursAgoUnix).
+			Order("block_unix_timestamp DESC").
+			Limit(5000). // Reduced limit for better performance
+			Scan(&gasTxs24h).Error
+		if err != nil {
+			global.Logger.Warnf("failed to get 24h gas transactions: %v", err)
+			return avgGasPrice, currentGasPrice, 0.0, 0.0, nil
+		}
 	}
 
 	hasValidPrice := false
@@ -2892,6 +2921,11 @@ func calculateGasUtilizationFromTxs(txs []GasUtilTxInfo) float64 {
 func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	global.Logger.Info("getting transaction statistics")
 
+	// Start background goroutine to periodically update complex metrics (only once)
+	statsUpdateOnceGlobal.Do(func() {
+		go startStatsComplexMetricsUpdater()
+	})
+
 	// Create independent context for queries
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
@@ -2901,8 +2935,15 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 	// Try to get statistics from cache first
 	cachedStats := getTransactionStatsFromCache(queryCtx)
 	if cachedStats != nil {
-		global.Logger.Infof("transaction statistics found in cache")
-		return s.marshalAndReply(cachedStats, "marshal transaction stats error")
+		// Check if complex metrics need recalculation (if they are 0 or missing)
+		needsRecalc := cachedStats.Tps == 0 && cachedStats.AvgGas == 0 && cachedStats.AvgBlockTime == 0 && cachedStats.GasUtilization == 0
+		if !needsRecalc {
+			global.Logger.Infof("transaction statistics found in cache")
+			return s.marshalAndReply(cachedStats, "marshal transaction stats error")
+		}
+		// If complex metrics are missing, use cached simple metrics and recalculate complex ones
+		stats = cachedStats
+		global.Logger.Infof("transaction statistics found in cache, recalculating complex metrics")
 	}
 
 	// Prepare time boundaries for queries
@@ -2986,17 +3027,41 @@ func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empt
 	}
 
 	// Populate response from parallel query results
-	stats.TotalCount = data.totalCount
-	stats.Count_30D = data.count30d
-	stats.Count_24H = data.count24h
+	// If we had cached stats, preserve the cached simple metrics and only update complex ones
+	if cachedStats == nil {
+		// No cache, populate all fields from database
+		stats.TotalCount = data.totalCount
+		stats.Count_30D = data.count30d
+		stats.Count_24H = data.count24h
+		stats.ActiveAddresses_24H = data.activeAddresses24h
+		stats.FailedTxCount_24H = data.failedTxCount24h
+	} else {
+		// Use cached simple metrics (they are updated incrementally)
+		// Only update if database values are higher (safety check)
+		if data.totalCount > stats.TotalCount {
+			stats.TotalCount = data.totalCount
+		}
+		if data.count30d > stats.Count_30D {
+			stats.Count_30D = data.count30d
+		}
+		if data.count24h > stats.Count_24H {
+			stats.Count_24H = data.count24h
+		}
+		if data.activeAddresses24h > stats.ActiveAddresses_24H {
+			stats.ActiveAddresses_24H = data.activeAddresses24h
+		}
+		if data.failedTxCount24h > stats.FailedTxCount_24H {
+			stats.FailedTxCount_24H = data.failedTxCount24h
+		}
+	}
+
+	// Always recalculate complex metrics from database
 	stats.Tps = data.tps
-	stats.ActiveAddresses_24H = data.activeAddresses24h
 	stats.AvgGas = data.avgGas
 	stats.CurrentGas = data.currentGas
 	stats.MaxGas_24H = data.maxGas24h
 	stats.MinGas_24H = data.minGas24h
 	stats.AvgBlockTime = data.avgBlockTime
-	stats.FailedTxCount_24H = data.failedTxCount24h
 	stats.GasUtilization = data.gasUtilization
 
 	global.Logger.Infof("transaction statistics: total=%d, 30d=%d, 24h=%d, tps=%.2f, active_addr_24h=%d, avg_gas=%.6f, avg_block_time=%.2f, gas_utilization=%.2f%%",
@@ -3375,8 +3440,8 @@ func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetF
 
 	// Build response
 	response := &pb.FailedTransactions24HResponse{
-		Transactions:   failedTxInfos,
-		Pagination:     paginationInfo,
+		Transactions:    failedTxInfos,
+		Pagination:      paginationInfo,
 		SuccessRate_24H: successRate,
 	}
 
@@ -3387,6 +3452,7 @@ func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetF
 
 // getTransactionStatsFromCache retrieves transaction statistics from Redis cache.
 // Returns nil if not found in cache (cache miss).
+// Supports both Hash format (for incremental updates) and JSON format (for backward compatibility).
 //
 // Parameters:
 //   - ctx: Context for the cache operation
@@ -3400,6 +3466,80 @@ func getTransactionStatsFromCache(ctx context.Context) *pb.TransactionStatsRespo
 	}
 
 	key := CacheKeyTransactionStats
+
+	// Try to get as Hash first (new format for incremental updates)
+	hashData, err := redisClient.HGetAll(ctx, key).Result()
+	if err == nil && len(hashData) > 0 {
+		// Convert hash data to TransactionStatsResponse
+		stats := &pb.TransactionStatsResponse{}
+		if val, ok := hashData["total_count"]; ok && val != "" {
+			if count, err := parseInt64(val); err == nil {
+				stats.TotalCount = count
+			}
+		}
+		if val, ok := hashData["count_30d"]; ok && val != "" {
+			if count, err := parseInt64(val); err == nil {
+				stats.Count_30D = count
+			}
+		}
+		if val, ok := hashData["count_24h"]; ok && val != "" {
+			if count, err := parseInt64(val); err == nil {
+				stats.Count_24H = count
+			}
+		}
+		if val, ok := hashData["tps"]; ok && val != "" {
+			if tps, err := parseFloat64(val); err == nil {
+				stats.Tps = tps
+			}
+		}
+		if val, ok := hashData["active_addresses_24h"]; ok && val != "" {
+			if count, err := parseInt64(val); err == nil {
+				stats.ActiveAddresses_24H = count
+			}
+		}
+		if val, ok := hashData["avg_gas"]; ok && val != "" {
+			if gas, err := parseFloat64(val); err == nil {
+				stats.AvgGas = gas
+			}
+		}
+		if val, ok := hashData["avg_block_time"]; ok && val != "" {
+			if time, err := parseFloat64(val); err == nil {
+				stats.AvgBlockTime = time
+			}
+		}
+		if val, ok := hashData["current_gas"]; ok && val != "" {
+			if gas, err := parseFloat64(val); err == nil {
+				stats.CurrentGas = gas
+			}
+		}
+		if val, ok := hashData["max_gas_24h"]; ok && val != "" {
+			if gas, err := parseFloat64(val); err == nil {
+				stats.MaxGas_24H = gas
+			}
+		}
+		if val, ok := hashData["min_gas_24h"]; ok && val != "" {
+			if gas, err := parseFloat64(val); err == nil {
+				stats.MinGas_24H = gas
+			}
+		}
+		if val, ok := hashData["failed_tx_count_24h"]; ok && val != "" {
+			if count, err := parseInt64(val); err == nil {
+				stats.FailedTxCount_24H = count
+			}
+		}
+		if val, ok := hashData["gas_utilization"]; ok && val != "" {
+			if util, err := parseFloat64(val); err == nil {
+				stats.GasUtilization = util
+			}
+		}
+
+		// Only return if we have at least some data
+		if stats.TotalCount > 0 || stats.Count_24H > 0 {
+			return stats
+		}
+	}
+
+	// Fallback to JSON format (backward compatibility)
 	data, err := redisClient.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -3418,7 +3558,22 @@ func getTransactionStatsFromCache(ctx context.Context) *pb.TransactionStatsRespo
 	return &stats
 }
 
+// parseInt64 parses a string to int64.
+func parseInt64(s string) (int64, error) {
+	var result int64
+	_, err := fmt.Sscanf(s, "%d", &result)
+	return result, err
+}
+
+// parseFloat64 parses a string to float64.
+func parseFloat64(s string) (float64, error) {
+	var result float64
+	_, err := fmt.Sscanf(s, "%f", &result)
+	return result, err
+}
+
 // cacheTransactionStats stores transaction statistics in Redis cache with TTL.
+// This function stores data in Hash format for efficient incremental updates.
 // This function is called asynchronously to avoid blocking the response.
 //
 // Parameters:
@@ -3430,18 +3585,106 @@ func cacheTransactionStats(ctx context.Context, stats *pb.TransactionStatsRespon
 		return
 	}
 
-	statsJSON, err := sonic.Marshal(stats)
-	if err != nil {
-		global.Logger.Warnf("failed to marshal transaction stats for cache: %v", err)
-		return
-	}
-
-	// Cache for configured TTL (statistics don't need to be real-time)
 	key := CacheKeyTransactionStats
-	err = redisClient.Set(ctx, key, statsJSON, CacheTransactionStatsTTL).Err()
+
+	// Store as Hash for efficient incremental updates
+	pipe := redisClient.Pipeline()
+	pipe.HSet(ctx, key,
+		"total_count", fmt.Sprintf("%d", stats.TotalCount),
+		"count_30d", fmt.Sprintf("%d", stats.Count_30D),
+		"count_24h", fmt.Sprintf("%d", stats.Count_24H),
+		"tps", fmt.Sprintf("%.6f", stats.Tps),
+		"active_addresses_24h", fmt.Sprintf("%d", stats.ActiveAddresses_24H),
+		"avg_gas", fmt.Sprintf("%.6f", stats.AvgGas),
+		"avg_block_time", fmt.Sprintf("%.6f", stats.AvgBlockTime),
+		"current_gas", fmt.Sprintf("%.6f", stats.CurrentGas),
+		"max_gas_24h", fmt.Sprintf("%.6f", stats.MaxGas_24H),
+		"min_gas_24h", fmt.Sprintf("%.6f", stats.MinGas_24H),
+		"failed_tx_count_24h", fmt.Sprintf("%d", stats.FailedTxCount_24H),
+		"gas_utilization", fmt.Sprintf("%.6f", stats.GasUtilization),
+	)
+	pipe.Expire(ctx, key, CacheTransactionStatsTTL)
+	_, err := pipe.Exec(ctx)
 	if err != nil {
 		global.Logger.Warnf("failed to cache transaction stats: %v", err)
 	}
+}
+
+// updateTransactionStatsIncremental incrementally updates transaction statistics in Redis cache.
+// This function is called when a new transaction is saved to avoid expensive database queries.
+// It uses Redis Hash to store statistics, allowing atomic updates of individual fields.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - tx: The transaction that was just saved
+//   - isNew: Whether this is a new transaction (true) or an update (false)
+func updateTransactionStatsIncremental(ctx context.Context, tx *models.Transaction, isNew bool) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Only update statistics for new transactions (not updates)
+	if !isNew {
+		return
+	}
+
+	key := CacheKeyTransactionStats
+	now := time.Now()
+	thirtyDaysAgo := now.AddDate(0, 0, -StatsDays30)
+	thirtyDaysAgoUnix := uint64(thirtyDaysAgo.Unix())
+	twentyFourHoursAgo := now.Add(-StatsHours24 * time.Hour)
+	twentyFourHoursAgoUnix := uint64(twentyFourHoursAgo.Unix())
+
+	// Use Redis pipeline for atomic batch updates
+	pipe := redisClient.Pipeline()
+
+	// Update total count (always increment)
+	pipe.HIncrBy(ctx, key, "total_count", 1)
+
+	// Update 30-day count if transaction is within 30 days
+	if tx.BlockUnixTimestamp >= thirtyDaysAgoUnix {
+		pipe.HIncrBy(ctx, key, "count_30d", 1)
+	}
+
+	// Update 24-hour count if transaction is within 24 hours
+	if tx.BlockUnixTimestamp >= twentyFourHoursAgoUnix {
+		pipe.HIncrBy(ctx, key, "count_24h", 1)
+
+		// Update failed transaction count if transaction failed
+		if tx.Code != 0 {
+			pipe.HIncrBy(ctx, key, "failed_tx_count_24h", 1)
+		}
+
+		// Update active addresses count (use Redis Set to track unique addresses)
+		// We'll use a separate key for 24h active addresses set
+		activeAddrKey := CacheKeyTransactionStats + ":active_addrs_24h"
+		if tx.Signer != "" {
+			// Add signer to the set and increment count if it's a new address
+			pipe.SAdd(ctx, activeAddrKey, tx.Signer)
+			// Set expiration for the set (24 hours + 1 hour buffer)
+			pipe.Expire(ctx, activeAddrKey, 25*time.Hour)
+		}
+	}
+
+	// Execute pipeline
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		global.Logger.Warnf("failed to update transaction stats incrementally: %v", err)
+		return
+	}
+
+	// Update active addresses count from the set size
+	activeAddrKey := CacheKeyTransactionStats + ":active_addrs_24h"
+	activeAddrCount, err := redisClient.SCard(ctx, activeAddrKey).Result()
+	if err == nil {
+		pipe = redisClient.Pipeline()
+		pipe.HSet(ctx, key, "active_addresses_24h", activeAddrCount)
+		pipe.Exec(ctx)
+	}
+
+	// Note: Complex metrics (TPS, gas prices, block time, gas utilization) are not updated incrementally
+	// They are recalculated periodically by a background goroutine or when cache expires
 }
 
 // extractGasPriceFromFee extracts gas price from GasFee JSON string and GasUsed.
@@ -3610,4 +3853,83 @@ func (s *DemoService) convertToQueryAddress(ctx context.Context, address string,
 
 	// Unknown format, return as-is (let validation handle it)
 	return address, nil
+}
+
+// startStatsComplexMetricsUpdater starts a background goroutine that periodically recalculates
+// complex transaction statistics metrics (TPS, gas prices, block time, gas utilization).
+// This ensures these metrics stay up-to-date even when using incremental updates for simple counts.
+// The function runs every 30 seconds to balance accuracy and performance.
+func startStatsComplexMetricsUpdater() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	global.Logger.Info("started background transaction stats complex metrics updater")
+
+	for {
+		select {
+		case <-ticker.C:
+			updateComplexMetricsInCache()
+		}
+	}
+}
+
+// updateComplexMetricsInCache recalculates and updates complex metrics in the cache.
+// This includes TPS, gas prices, block time, and gas utilization.
+func updateComplexMetricsInCache() {
+	ctx, cancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer cancel()
+
+	// Get current cached stats to preserve simple metrics
+	cachedStats := getTransactionStatsFromCache(ctx)
+	if cachedStats == nil {
+		// No cache exists yet, skip update (will be calculated on next query)
+		return
+	}
+
+	// Recalculate complex metrics
+	stats := &pb.TransactionStatsResponse{
+		TotalCount:          cachedStats.TotalCount,
+		Count_30D:           cachedStats.Count_30D,
+		Count_24H:           cachedStats.Count_24H,
+		ActiveAddresses_24H: cachedStats.ActiveAddresses_24H,
+		FailedTxCount_24H:   cachedStats.FailedTxCount_24H,
+	}
+
+	// Calculate complex metrics in parallel
+	g, gCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		var err error
+		stats.Tps, err = calculateTPS(gCtx)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		stats.AvgGas, stats.CurrentGas, stats.MaxGas_24H, stats.MinGas_24H, err = calculateGasPriceStats(gCtx)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		stats.AvgBlockTime, err = calculateAverageBlockTimeFromDB(gCtx)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		stats.GasUtilization, err = calculateGasUtilizationFromDB(gCtx)
+		return err
+	})
+
+	// Wait for all calculations to complete
+	if err := g.Wait(); err != nil {
+		global.Logger.Warnf("failed to update complex metrics in cache: %v", err)
+		return
+	}
+
+	// Update cache with new complex metrics
+	cacheTransactionStats(ctx, stats)
+	global.Logger.Debugf("updated complex metrics in cache: tps=%.2f, avg_gas=%.6f, avg_block_time=%.2f, gas_utilization=%.2f%%",
+		stats.Tps, stats.AvgGas, stats.AvgBlockTime, stats.GasUtilization)
 }

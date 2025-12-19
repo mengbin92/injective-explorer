@@ -86,7 +86,7 @@ const (
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 5 * time.Minute                 // Single block cache expiration time (5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
-	CacheTransactionStatsTTL      = 1 * time.Minute                 // Transaction statistics cache expiration time (1 minute)
+	CacheTransactionStatsTTL      = 5 * time.Minute                 // Transaction statistics cache expiration time (5 minutes)
 	CacheFailedTransactions24HTTL = 2 * time.Minute                 // Failed transactions 24h count cache expiration time (2 minutes)
 	CacheBlockMaxGasTTL           = 10 * time.Minute                // Block max gas cache expiration time (10 minutes)
 	CacheBlockGasUtilizationTTL   = 1 * time.Minute                 // Block gas utilization cache expiration time (1 minute)
@@ -103,7 +103,6 @@ const (
 	defaultBlockQueryTimeout          = 30 * time.Second       // Block query timeout
 	defaultBackwardSyncLogInterval    = 10 * time.Second       // Backward sync progress log interval
 	defaultRpcStatusRetryDelay        = 5 * time.Second        // Retry delay after RPC node status fetch failure
-	defaultValidatorSyncInterval      = 10 * time.Minute       // Staking info sync interval (default 10 minutes, originally used for Validator sync, now Validator sync is removed)
 	defaultConcurrentTxProcessors     = 5                      // Number of concurrent transaction processors
 	defaultBackwardSyncWorkers        = 5                      // Number of backward sync worker threads
 	defaultHistoricalSyncWorkers      = 2                      // Number of historical sync worker threads
@@ -128,7 +127,6 @@ type SyncConfig struct {
 	BlockQueryTimeout          time.Duration
 	BackwardSyncLogInterval    time.Duration
 	RpcStatusRetryDelay        time.Duration
-	ValidatorSyncInterval      time.Duration
 	ConcurrentTxProcessors     int
 	BackwardSyncWorkers        int
 	HistoricalSyncWorkers      int
@@ -155,7 +153,6 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		BlockQueryTimeout:          defaultBlockQueryTimeout,
 		BackwardSyncLogInterval:    defaultBackwardSyncLogInterval,
 		RpcStatusRetryDelay:        defaultRpcStatusRetryDelay,
-		ValidatorSyncInterval:      defaultValidatorSyncInterval,
 		ConcurrentTxProcessors:     defaultConcurrentTxProcessors,
 		BackwardSyncWorkers:        defaultBackwardSyncWorkers,
 		HistoricalSyncWorkers:      defaultHistoricalSyncWorkers,
@@ -199,9 +196,6 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		}
 		if sync.Intervals.RpcStatusRetry != nil {
 			cfg.RpcStatusRetryDelay = sync.Intervals.RpcStatusRetry.AsDuration()
-		}
-		if sync.Intervals.ValidatorSync != nil {
-			cfg.ValidatorSyncInterval = sync.Intervals.ValidatorSync.AsDuration()
 		}
 	}
 

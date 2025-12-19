@@ -1334,8 +1334,15 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		// Cache transaction to Redis
 		cacheTransaction(ctx, tm.txModel)
 
-		// Publish transaction event
+		// Update transaction statistics incrementally (async to avoid blocking)
 		isUpdate := existingTxMap[tm.txModel.Hash] != 0
+		go func(tx *models.Transaction, isNew bool) {
+			statsCtx, statsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer statsCancel()
+			updateTransactionStatsIncremental(statsCtx, tx, isNew)
+		}(tm.txModel, !isUpdate)
+
+		// Publish transaction event
 		txEventType := EventTypeTransactionNew
 		if isUpdate {
 			txEventType = EventTypeTransactionUpdate
@@ -1525,6 +1532,13 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Cache transaction to Redis
 	cacheTransaction(ctx, txModel)
+
+	// Update transaction statistics incrementally (async to avoid blocking)
+	go func() {
+		statsCtx, statsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer statsCancel()
+		updateTransactionStatsIncremental(statsCtx, txModel, !isTxUpdate)
+	}()
 
 	// Publish transaction event for streaming
 	eventBus := GetEventBus()

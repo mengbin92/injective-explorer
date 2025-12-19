@@ -21,7 +21,7 @@ data:
     read_timeout: 0.2s
     write_timeout: 0.2s
   object_storage:
-    enabled: false # 测试时启用，生产环境根据需要设置
+    enabled: true # 测试时启用，生产环境根据需要设置
     provider: ${OBJECT_STORAGE_PROVIDER:minio} # s3, oss, cos, minio
     endpoint: ${OBJECT_STORAGE_ENDPOINT:localhost:19000}
     access_key_id: ${OBJECT_STORAGE_ACCESS_KEY:minioadmin}
@@ -63,7 +63,6 @@ sync:
     historical_batch_delay: 1s # 历史同步批次延迟
     backward_sync_log: 10s # 向后同步进度日志时间间隔
     rpc_status_retry: 5s # RPC 状态获取失败重试延迟
-    validator_sync: 600s # Validator 同步间隔（默认10分钟）
 
   # 超时配置
   timeouts:
@@ -94,7 +93,7 @@ sync:
 
 archive:
   # 是否启用自动归档（默认: false）
-  enabled: false
+  enabled: true
   # 归档执行间隔（默认: 24h = 86400s），使用秒数格式，例如: 86400s (24h), 43200s (12h), 3600s (1h)
   interval: ${ARCHIVE_INTERVAL:600s}
   # 归档周期（月），归档此时间之前的交易数据（默认: 6）
@@ -104,6 +103,6 @@ archive:
   # 存储阈值（字节），基于压缩后数据大小判断，超过此大小的字段会上传到对象存储（默认: 3KB）
   # 注意：判断基于压缩后的数据大小（实际数据库存储大小），而不是原始数据大小
   # 3KB 的选择平衡了数据库性能（TEXT字段>3KB可能影响查询性能）和存储成本（对象存储通常比数据库存储更便宜）
-  storage_threshold: ${ARCHIVE_STORAGE_THRESHOLD:3072}
+  storage_threshold: ${ARCHIVE_STORAGE_THRESHOLD:512}
   # 是否使用对象存储，true=使用对象存储，false=存储在数据库，不设置则自动检测
   use_object_storage: true
