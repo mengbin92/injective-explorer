@@ -42,8 +42,6 @@ type ContractInfo struct {
 }
 
 // TableName specifies the table name for ContractInfo.
-// The table name is "token_contracts" for historical reasons, but this model
-// supports all contract types, not just token contracts.
 func (ContractInfo) TableName() string {
-	return "token_contracts"
+	return "contract_infos"
 }
