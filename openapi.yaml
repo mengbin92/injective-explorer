@@ -488,6 +488,29 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.TransactionUpdate'
+    /demo/token/price-marketcap:
+        get:
+            tags:
+                - Demo
+            description: |-
+                Get token price and market cap (supports multiple tokens)
+                 If token symbol is not specified, uses the default token from configuration
+            operationId: Demo_GetTokenPriceAndMarketCap
+            parameters:
+                - name: token_symbol
+                  in: query
+                  description: |-
+                    Token symbol (e.g., "inj", "mycoin"). If not specified, uses default token
+                     from configuration
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /demo/transaction/by-hash:
         get:
             tags:

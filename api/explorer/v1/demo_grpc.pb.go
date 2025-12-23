@@ -20,21 +20,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Demo_GetLatestBlocks_FullMethodName          = "/api.explorer.v1.Demo/GetLatestBlocks"
-	Demo_GetBlockByHeight_FullMethodName         = "/api.explorer.v1.Demo/GetBlockByHeight"
-	Demo_GetLatestBlockHeight_FullMethodName     = "/api.explorer.v1.Demo/GetLatestBlockHeight"
-	Demo_GetLatestTransactions_FullMethodName    = "/api.explorer.v1.Demo/GetLatestTransactions"
-	Demo_GetTransactionByHash_FullMethodName     = "/api.explorer.v1.Demo/GetTransactionByHash"
-	Demo_GetAccountInfo_FullMethodName           = "/api.explorer.v1.Demo/GetAccountInfo"
-	Demo_GetAccountTransactions_FullMethodName   = "/api.explorer.v1.Demo/GetAccountTransactions"
-	Demo_GetAccountBalances_FullMethodName       = "/api.explorer.v1.Demo/GetAccountBalances"
-	Demo_GetTransactionStats_FullMethodName      = "/api.explorer.v1.Demo/GetTransactionStats"
-	Demo_GetBlockGasUtilization_FullMethodName   = "/api.explorer.v1.Demo/GetBlockGasUtilization"
-	Demo_GetFailedTransactions24H_FullMethodName = "/api.explorer.v1.Demo/GetFailedTransactions24h"
-	Demo_CheckHealthy_FullMethodName             = "/api.explorer.v1.Demo/CheckHealthy"
-	Demo_StreamLatestBlocks_FullMethodName       = "/api.explorer.v1.Demo/StreamLatestBlocks"
-	Demo_StreamLatestTransactions_FullMethodName = "/api.explorer.v1.Demo/StreamLatestTransactions"
-	Demo_StreamAccountUpdates_FullMethodName     = "/api.explorer.v1.Demo/StreamAccountUpdates"
+	Demo_GetLatestBlocks_FullMethodName           = "/api.explorer.v1.Demo/GetLatestBlocks"
+	Demo_GetBlockByHeight_FullMethodName          = "/api.explorer.v1.Demo/GetBlockByHeight"
+	Demo_GetLatestBlockHeight_FullMethodName      = "/api.explorer.v1.Demo/GetLatestBlockHeight"
+	Demo_GetLatestTransactions_FullMethodName     = "/api.explorer.v1.Demo/GetLatestTransactions"
+	Demo_GetTransactionByHash_FullMethodName      = "/api.explorer.v1.Demo/GetTransactionByHash"
+	Demo_GetAccountInfo_FullMethodName            = "/api.explorer.v1.Demo/GetAccountInfo"
+	Demo_GetAccountTransactions_FullMethodName    = "/api.explorer.v1.Demo/GetAccountTransactions"
+	Demo_GetAccountBalances_FullMethodName        = "/api.explorer.v1.Demo/GetAccountBalances"
+	Demo_GetTransactionStats_FullMethodName       = "/api.explorer.v1.Demo/GetTransactionStats"
+	Demo_GetBlockGasUtilization_FullMethodName    = "/api.explorer.v1.Demo/GetBlockGasUtilization"
+	Demo_GetFailedTransactions24H_FullMethodName  = "/api.explorer.v1.Demo/GetFailedTransactions24h"
+	Demo_CheckHealthy_FullMethodName              = "/api.explorer.v1.Demo/CheckHealthy"
+	Demo_StreamLatestBlocks_FullMethodName        = "/api.explorer.v1.Demo/StreamLatestBlocks"
+	Demo_StreamLatestTransactions_FullMethodName  = "/api.explorer.v1.Demo/StreamLatestTransactions"
+	Demo_StreamAccountUpdates_FullMethodName      = "/api.explorer.v1.Demo/StreamAccountUpdates"
+	Demo_GetTokenPriceAndMarketCap_FullMethodName = "/api.explorer.v1.Demo/GetTokenPriceAndMarketCap"
 )
 
 // DemoClient is the client API for Demo service.
@@ -63,6 +64,9 @@ type DemoClient interface {
 	StreamLatestTransactions(ctx context.Context, in *StreamLatestTransactionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TransactionUpdate], error)
 	// Stream account updates (balance changes, new transactions, etc.)
 	StreamAccountUpdates(ctx context.Context, in *StreamAccountUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AccountUpdate], error)
+	// Get token price and market cap (supports multiple tokens)
+	// If token symbol is not specified, uses the default token from configuration
+	GetTokenPriceAndMarketCap(ctx context.Context, in *GetTokenPriceAndMarketCapRequest, opts ...grpc.CallOption) (*Reply, error)
 }
 
 type demoClient struct {
@@ -250,6 +254,16 @@ func (c *demoClient) StreamAccountUpdates(ctx context.Context, in *StreamAccount
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Demo_StreamAccountUpdatesClient = grpc.ServerStreamingClient[AccountUpdate]
 
+func (c *demoClient) GetTokenPriceAndMarketCap(ctx context.Context, in *GetTokenPriceAndMarketCapRequest, opts ...grpc.CallOption) (*Reply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, Demo_GetTokenPriceAndMarketCap_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DemoServer is the server API for Demo service.
 // All implementations must embed UnimplementedDemoServer
 // for forward compatibility.
@@ -276,6 +290,9 @@ type DemoServer interface {
 	StreamLatestTransactions(*StreamLatestTransactionsRequest, grpc.ServerStreamingServer[TransactionUpdate]) error
 	// Stream account updates (balance changes, new transactions, etc.)
 	StreamAccountUpdates(*StreamAccountUpdatesRequest, grpc.ServerStreamingServer[AccountUpdate]) error
+	// Get token price and market cap (supports multiple tokens)
+	// If token symbol is not specified, uses the default token from configuration
+	GetTokenPriceAndMarketCap(context.Context, *GetTokenPriceAndMarketCapRequest) (*Reply, error)
 	mustEmbedUnimplementedDemoServer()
 }
 
@@ -330,6 +347,9 @@ func (UnimplementedDemoServer) StreamLatestTransactions(*StreamLatestTransaction
 }
 func (UnimplementedDemoServer) StreamAccountUpdates(*StreamAccountUpdatesRequest, grpc.ServerStreamingServer[AccountUpdate]) error {
 	return status.Error(codes.Unimplemented, "method StreamAccountUpdates not implemented")
+}
+func (UnimplementedDemoServer) GetTokenPriceAndMarketCap(context.Context, *GetTokenPriceAndMarketCapRequest) (*Reply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTokenPriceAndMarketCap not implemented")
 }
 func (UnimplementedDemoServer) mustEmbedUnimplementedDemoServer() {}
 func (UnimplementedDemoServer) testEmbeddedByValue()              {}
@@ -601,6 +621,24 @@ func _Demo_StreamAccountUpdates_Handler(srv interface{}, stream grpc.ServerStrea
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Demo_StreamAccountUpdatesServer = grpc.ServerStreamingServer[AccountUpdate]
 
+func _Demo_GetTokenPriceAndMarketCap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTokenPriceAndMarketCapRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServer).GetTokenPriceAndMarketCap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Demo_GetTokenPriceAndMarketCap_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServer).GetTokenPriceAndMarketCap(ctx, req.(*GetTokenPriceAndMarketCapRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Demo_ServiceDesc is the grpc.ServiceDesc for Demo service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -655,6 +693,10 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CheckHealthy",
 			Handler:    _Demo_CheckHealthy_Handler,
+		},
+		{
+			MethodName: "GetTokenPriceAndMarketCap",
+			Handler:    _Demo_GetTokenPriceAndMarketCap_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -24,6 +24,9 @@ var (
 	// ArchiveConfig is the global archive configuration.
 	// It is set during initialization and can be used to access archive configuration values.
 	ArchiveConfig *conf.Archive
+	// TokenPriceConfig is the global token price service configuration.
+	// It is set during initialization and can be used to access token price configuration.
+	TokenPriceConfig *conf.TokenPrice
 )
 
 // Init initializes global variables including the logger, chain configuration, and archive configuration.
@@ -45,6 +48,9 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 
 	// Save archive config globally for later use
 	ArchiveConfig = bc.GetArchive()
+
+	// Save token price config globally for later use
+	TokenPriceConfig = bc.GetTokenPrice()
 
 	Logger = log.NewHelper(logger)
 	Logger.Infof("logger initialized: %v", bc.Log)

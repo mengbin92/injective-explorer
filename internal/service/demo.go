@@ -3933,3 +3933,90 @@ func updateComplexMetricsInCache() {
 	global.Logger.Debugf("updated complex metrics in cache: tps=%.2f, avg_gas=%.6f, avg_block_time=%.2f, gas_utilization=%.2f%%",
 		stats.Tps, stats.AvgGas, stats.AvgBlockTime, stats.GasUtilization)
 }
+
+// GetTokenPriceAndMarketCap retrieves token price and market cap information.
+// It supports multiple tokens through configuration. If token_symbol is not specified,
+// it uses the default token from configuration.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing optional token_symbol
+//
+// Returns:
+//   - *pb.Reply: Response containing price, supply, and market cap information
+//   - error: Error if the operation fails
+func (s *DemoService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb.GetTokenPriceAndMarketCapRequest) (*pb.Reply, error) {
+	tokenSymbol := ""
+	if req != nil {
+		tokenSymbol = req.TokenSymbol
+	}
+
+	global.Logger.Infof("getting token price and market cap for token: %s",
+		tokenSymbol)
+
+	// Load token configuration from global config
+	tokenConfig, err := LoadTokenConfigFromConf(nil, tokenSymbol)
+	if err != nil {
+		global.Logger.Errorf("failed to load token config: %v", err)
+		return s.errorReply(http.StatusBadRequest,
+			fmt.Sprintf("token configuration not found: %s", tokenSymbol), err), err
+	}
+
+	// Get chain client
+	chainClient, err := GetSharedChainClient()
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "failed to get chain client", err), err
+	}
+
+	// Fetch price and supply data
+	priceData, err := GetTokenPriceAndMarketCap(ctx, chainClient, tokenConfig)
+	if err != nil {
+		global.Logger.Errorf("failed to get price and market cap: %v", err)
+		return s.errorReply(http.StatusInternalServerError, "failed to get price and market cap", err), err
+	}
+
+	// Calculate market cap (only if supply is available)
+	var marketCap float64
+	var totalSupplyStr string
+	var totalSupplyFormatted string
+	var totalSupplyFromChainStr string
+	var totalSupplyFromChainFormatted string
+
+	if priceData.TotalSupply != nil {
+		marketCap = CalculateMarketCap(priceData.PriceUSD, priceData.TotalSupply, tokenConfig.Decimals)
+		totalSupplyStr = priceData.TotalSupply.String()
+		totalSupplyFormatted = priceData.TotalSupplyString
+	} else {
+		// Supply unavailable, market cap cannot be calculated
+		marketCap = 0
+		totalSupplyStr = ""
+		totalSupplyFormatted = ""
+		global.Logger.Warnf("supply unavailable for %s, market cap set to 0", tokenConfig.Symbol)
+	}
+
+	// Add chain supply for reference (if available)
+	if priceData.TotalSupplyFromChain != nil {
+		totalSupplyFromChainStr = priceData.TotalSupplyFromChain.String()
+		// Use the formatTokenAmount function from price.go
+		// Since it's in the same package, we can call it directly
+		totalSupplyFromChainFormatted = formatTokenAmount(priceData.TotalSupplyFromChain, tokenConfig.Decimals)
+	}
+
+	// Build response
+	response := &pb.TokenPriceAndMarketCapResponse{
+		TokenSymbol:                   priceData.TokenSymbol,
+		TokenName:                     priceData.TokenName,
+		PriceUsd:                      priceData.PriceUSD,
+		TotalSupply:                   totalSupplyStr,
+		TotalSupplyFormatted:          totalSupplyFormatted,
+		MarketCapUsd:                  marketCap,
+		PriceChange_24H:               priceData.PriceChange24h,
+		LastUpdated:                   priceData.LastUpdated,
+		PriceSource:                   priceData.PriceSource,
+		SupplySource:                  priceData.SupplySource,
+		TotalSupplyFromChain:          totalSupplyFromChainStr,
+		TotalSupplyFromChainFormatted: totalSupplyFromChainFormatted,
+	}
+
+	return s.marshalAndReply(response, "marshal price and market cap response error")
+}

@@ -109,6 +109,15 @@ service Demo {
       get : "/demo/stream/account"
     };
   }
+
+  // Get token price and market cap (supports multiple tokens)
+  // If token symbol is not specified, uses the default token from configuration
+  rpc GetTokenPriceAndMarketCap(GetTokenPriceAndMarketCapRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      get : "/demo/token/price-marketcap"
+    };
+  }
 }
 
 message GetBlockByHeightRequest { int64 height = 1; }
@@ -123,6 +132,13 @@ message GetAccountTransactionsRequest {
 }
 
 message GetAccountBalancesRequest { string address = 1; }
+
+// GetTokenPriceAndMarketCapRequest requests token price and market cap
+message GetTokenPriceAndMarketCapRequest {
+  // Token symbol (e.g., "inj", "mycoin"). If not specified, uses default token
+  // from configuration
+  string token_symbol = 1 [ json_name = "token_symbol" ];
+}
 
 // GetFailedTransactions24hRequest requests failed transactions in the last 24
 // hours
@@ -364,4 +380,37 @@ message TransactionDTO {
                      // tx, or recipient in other tx types)
   string value = 24; // Transaction value (corresponds to 'value' field in
                      // ethereum tx, or amount in other tx types)
+}
+
+// TokenPriceAndMarketCapResponse contains token price and market cap
+// information
+message TokenPriceAndMarketCapResponse {
+  // Token symbol (e.g., "inj", "mycoin")
+  string token_symbol = 1 [ json_name = "token_symbol" ];
+  // Token display name (e.g., "Injective", "My Token")
+  string token_name = 2 [ json_name = "token_name" ];
+  // Current price in USD
+  double price_usd = 3 [ json_name = "price_usd" ];
+  // Total supply of tokens (in base units, e.g., 1 token = 10^decimals base
+  // units)
+  string total_supply = 4 [ json_name = "total_supply" ];
+  // Total supply in human-readable format (tokens)
+  string total_supply_formatted = 5 [ json_name = "total_supply_formatted" ];
+  // Market cap in USD (price * total_supply)
+  double market_cap_usd = 6 [ json_name = "market_cap_usd" ];
+  // Price change percentage in the last 24 hours
+  double price_change_24h = 7 [ json_name = "price_change_24h" ];
+  // Last updated timestamp (Unix timestamp in seconds)
+  int64 last_updated = 8 [ json_name = "last_updated" ];
+  // Price source (e.g., "coingecko", "custom")
+  string price_source = 9 [ json_name = "price_source" ];
+  // Supply source (e.g., "coingecko", "chain")
+  // "coingecko" means total supply after accounting for burned tokens
+  // "chain" means on-chain supply (before accounting for burned tokens)
+  string supply_source = 10 [ json_name = "supply_source" ];
+  // On-chain supply (before burn) for reference, in base units
+  string total_supply_from_chain = 11 [ json_name = "total_supply_from_chain" ];
+  // On-chain supply (before burn) in human-readable format
+  string total_supply_from_chain_formatted = 12
+      [ json_name = "total_supply_from_chain_formatted" ];
 }

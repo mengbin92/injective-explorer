@@ -13,6 +13,7 @@ message Bootstrap {
   Chain chain = 5;
   Sync sync = 6;
   Archive archive = 7;
+  TokenPrice token_price = 8; // Token price service configuration
 }
 
 message Server {
@@ -151,4 +152,36 @@ message Archive {
   google.protobuf.Duration interval = 5;
   // Whether to enable automatic archiving (default: false)
   bool enabled = 6;
+}
+
+message TokenPrice {
+  // Default token configuration (used when no token is specified)
+  TokenConfig default_token = 1;
+  // Map of token symbols to their configurations
+  // Key: token symbol (e.g., "inj", "mycoin")
+  // Value: token configuration
+  map<string, TokenConfig> tokens = 2;
+  // Price cache TTL (default: 5 minutes)
+  google.protobuf.Duration price_cache_ttl = 3;
+  // Supply cache TTL (default: 1 hour)
+  google.protobuf.Duration supply_cache_ttl = 4;
+}
+
+message TokenConfig {
+  // Token symbol (e.g., "inj", "mycoin")
+  string symbol = 1;
+  // Token denom on chain (e.g., "inj", "mycoin")
+  string denom = 2;
+  // CoinGecko API coin ID (e.g., "injective-protocol", "my-token")
+  // If empty, price fetching will be disabled for this token
+  string coingecko_id = 3;
+  // Number of decimal places (default: 18, like Ethereum/Injective)
+  int32 decimals = 4;
+  // Price source: "coingecko", "custom", etc. (default: "coingecko")
+  string price_source = 5;
+  // Custom price API URL (optional, used when price_source is "custom")
+  // Should return JSON with "price" and "change_24h" fields
+  string custom_price_url = 6;
+  // Display name for the token (e.g., "Injective", "My Token")
+  string display_name = 7;
 }

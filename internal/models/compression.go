@@ -14,7 +14,8 @@ import (
 const (
 	// CompressionThreshold is the minimum size (in bytes) before compression is applied.
 	// Data smaller than this threshold will not be compressed to avoid overhead.
-	CompressionThreshold = 1024 // 1KB
+	// CompressionThreshold = 1024 // 1KB
+	CompressionThreshold = 512 // 512B
 
 	// CompressionPrefix is the prefix used to identify compressed data.
 	// This allows backward compatibility with uncompressed data.
