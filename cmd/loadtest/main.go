@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -20,10 +21,10 @@ import (
 const (
 	// DefaultMinLatency 默认最小延迟值（微秒），用于初始化
 	DefaultMinLatency = int64(1e9)
-	// DefaultMaxIdleConns 默认最大空闲连接数
-	DefaultMaxIdleConns = 100
-	// DefaultMaxIdleConnsPerHost 每个host的最大空闲连接数
-	DefaultMaxIdleConnsPerHost = 20
+	// DefaultMaxIdleConns 默认最大空闲连接数（已优化为200）
+	DefaultMaxIdleConns = 200
+	// DefaultMaxIdleConnsPerHost 每个host的最大空闲连接数（已优化为100）
+	DefaultMaxIdleConnsPerHost = 100
 	// DefaultIdleConnTimeout 空闲连接超时时间
 	DefaultIdleConnTimeout = 90 * time.Second
 	// DefaultTLSHandshakeTimeout TLS握手超时时间
@@ -289,11 +290,12 @@ func main() {
 	client := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			MaxIdleConns:        DefaultMaxIdleConns,
-			MaxIdleConnsPerHost: DefaultMaxIdleConnsPerHost,
+			MaxIdleConns:        200,                    // 增加总连接数
+			MaxIdleConnsPerHost: 100,                    // 增加每个host的连接数
 			IdleConnTimeout:     DefaultIdleConnTimeout,
-			DisableCompression:  false, // 启用压缩
+			DisableCompression:  false,                  // 启用压缩
 			TLSHandshakeTimeout: DefaultTLSHandshakeTimeout,
+			ForceAttemptHTTP2:   true,                   // 尝试使用 HTTP/2（如果服务器支持）
 		},
 	}
 
@@ -428,11 +430,6 @@ func makeRequest(client *http.Client, ep EndpointConfig) error {
 
 	stats.RecordRequest()
 
-	// 确保响应体被关闭（修复资源泄漏）
-	if resp != nil {
-		defer resp.Body.Close()
-	}
-
 	if err != nil {
 		if verbose {
 			color.Red("[%s] 请求失败: %v\n", ep.Name, err)
@@ -441,6 +438,14 @@ func makeRequest(client *http.Client, ep EndpointConfig) error {
 		stats.RecordLatency(latency)
 		return fmt.Errorf("HTTP请求失败: %w", err)
 	}
+
+	// 确保响应体被关闭（修复资源泄漏）
+	// 关键修复：读取并丢弃响应体，确保连接可以复用
+	// HTTP/1.1 要求必须读取完响应体才能复用连接
+	// 如果不读取，连接会被关闭，每个请求都需要建立新连接，导致性能急剧下降
+	// 这在本地测试时影响不大（连接建立很快），但在服务器测试时影响显著（网络延迟高）
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 
 	// 记录状态码
 	stats.RecordStatus(resp.StatusCode)
