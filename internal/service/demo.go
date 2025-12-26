@@ -14,6 +14,7 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
+	"injective-explorer/provider/chain"
 	"injective-explorer/provider/db"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
@@ -21,6 +22,7 @@ import (
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
@@ -4012,4 +4014,317 @@ func (s *DemoService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb.Get
 	}
 
 	return s.marshalAndReply(response, "marshal price and market cap response error")
+}
+
+// GetEVMTransaction retrieves EVM transaction details by EVM hash.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the EVM transaction hash
+//
+// Returns:
+//   - *pb.Reply: Response containing the EVM transaction details
+//   - error: Error if the operation fails or validation fails
+func (s *DemoService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMTransactionRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	// Sanitize and validate transaction hash
+	hash := SanitizeHash(req.Hash)
+	if err := ValidateTransactionHash(hash); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid transaction hash", err), err
+	}
+
+	global.Logger.Debugf("get EVM transaction by hash: hash=%s", hash)
+
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Query transaction from database by EVM hash (not Cosmos hash)
+	var dbTx models.Transaction
+	evmHash := "0x" + hash
+	err := db.Get().WithContext(queryCtx).Where("evm_hash = ?", evmHash).First(&dbTx).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return s.errorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction %s not found", evmHash), err), status.Errorf(codes.NotFound, "EVM transaction %s not found", evmHash)
+		}
+		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
+	}
+
+	// Load EVM transaction details
+	evmDetails, err := models.LoadEVMTransactionDetails(queryCtx, &dbTx)
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "failed to load EVM transaction details", err), err
+	}
+
+	// If details not synced yet, try to fetch from EVM RPC
+	if evmDetails == nil {
+		evmClient, err := chain.NewEVMClient(global.NetworkName)
+		if err != nil {
+			return s.errorReply(http.StatusInternalServerError, "failed to create EVM client", err), err
+		}
+		defer evmClient.Close()
+
+		evmCtx, evmCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer evmCancel()
+
+		evmDetails, err = evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(dbTx.EVMHash))
+		if err != nil {
+			return s.errorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction details not found for %s", dbTx.EVMHash), err), err
+		}
+	}
+
+	// Convert to DTO
+	evmDTO := models.ToEVMTransactionDTO(evmDetails, &dbTx)
+	if evmDTO == nil {
+		return s.errorReply(http.StatusInternalServerError, "failed to convert EVM transaction to DTO", errors.New("conversion failed")), errors.New("conversion failed")
+	}
+
+	return s.marshalAndReply(evmDTO, "marshal EVM transaction error")
+}
+
+// GetEVMTransactions retrieves a list of EVM transactions with pagination.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing pagination parameters
+//
+// Returns:
+//   - *pb.Reply: Response containing the list of EVM transactions with pagination info
+//   - error: Error if the operation fails
+func (s *DemoService) GetEVMTransactions(ctx context.Context, req *pb.GetEVMTransactionsRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	// Normalize pagination parameters
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get EVM transactions: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
+
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Query EVM transactions from database (where evm_hash is not empty)
+	var dbTxs []models.Transaction
+	var total int64
+	var isExactCount bool
+
+	// Get approximate or exact count
+	var countErr error
+	total, isExactCount, countErr = getApproximateCountWithError(db.Get().Where("evm_hash != '' AND evm_hash IS NOT NULL"), &models.Transaction{}, queryCtx)
+	if countErr != nil {
+		global.Logger.Warnf("failed to get approximate count for EVM transactions: %v, using fallback value", countErr)
+		total = ApproximateCountFallback
+		isExactCount = false
+	}
+
+	// Build query
+	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+		Where("evm_hash != '' AND evm_hash IS NOT NULL")
+
+	if useCursor {
+		// Use cursor-based pagination
+		query = query.Where("tx_number < ?", cursorValue).
+			Order("block_unix_timestamp DESC, tx_number DESC").
+			Limit(int(pageSize))
+	} else {
+		// Use page-based pagination
+		query = query.Order("block_unix_timestamp DESC, tx_number DESC").
+			Offset(offset).
+			Limit(int(pageSize))
+	}
+
+	err := query.Find(&dbTxs).Error
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
+	}
+
+	if len(dbTxs) == 0 {
+		// No transactions found
+		txsResp := buildPaginatedResponse([]*pb.EVMTransactionDTO{}, page, pageSize, total, isExactCount, useCursor, cursorValue, "", 0)
+		return s.marshalAndReply(txsResp, "marshal EVM transactions error")
+	}
+
+	// Load EVM transaction details for all transactions
+	evmDetailsList := make([]*chain.TransactionDetails, 0, len(dbTxs))
+	txMap := make(map[string]*models.Transaction, len(dbTxs))
+
+	for i := range dbTxs {
+		txMap[dbTxs[i].Hash] = &dbTxs[i]
+		evmDetails, err := models.LoadEVMTransactionDetails(queryCtx, &dbTxs[i])
+		if err == nil && evmDetails != nil {
+			evmDetailsList = append(evmDetailsList, evmDetails)
+		}
+	}
+
+	// Convert to DTOs
+	evmDTOs := models.ToEVMTransactionDTOs(evmDetailsList, txMap)
+
+	// If some details are not loaded, try to fetch from EVM RPC (async, don't block response)
+	if len(evmDTOs) < len(dbTxs) {
+		go func() {
+			evmClient, err := chain.NewEVMClient(global.NetworkName)
+			if err != nil {
+				global.Logger.Warnf("failed to create EVM client for async fetch: %v", err)
+				return
+			}
+			defer evmClient.Close()
+
+			evmCtx, evmCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer evmCancel()
+
+			for i := range dbTxs {
+				if dbTxs[i].EVMHash == "" {
+					continue
+				}
+				// Check if already loaded
+				alreadyLoaded := false
+				for _, details := range evmDetailsList {
+					if details.Hash == dbTxs[i].EVMHash {
+						alreadyLoaded = true
+						break
+					}
+				}
+				if !alreadyLoaded {
+					details, err := evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(dbTxs[i].EVMHash))
+					if err == nil && details != nil {
+						// Details fetched, but response already sent
+						// This is for future requests
+						global.Logger.Debugf("async fetched EVM details for %s", dbTxs[i].EVMHash)
+					}
+				}
+			}
+		}()
+	}
+
+	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+	txsResp := buildPaginatedResponse(evmDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(evmDTOs))
+	return s.marshalAndReply(txsResp, "marshal EVM transactions error")
+}
+
+// GetEVMAccountTransactions retrieves EVM transactions for a specific account address.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the account address and pagination parameters
+//
+// Returns:
+//   - *pb.Reply: Response containing the list of EVM transactions for the account with pagination info
+//   - error: Error if the operation fails or validation fails
+func (s *DemoService) GetEVMAccountTransactions(ctx context.Context, req *pb.GetEVMAccountTransactionsRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	// Sanitize and validate address
+	address := SanitizeAddress(req.Address)
+	if err := ValidateAddress(address); err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
+	}
+
+	// Normalize pagination parameters
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get EVM account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v, cursor=%v", address, page, pageSize, useCursor, cursorValue)
+
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Convert address to database format (Ethereum format 0x...)
+	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
+	if err != nil {
+		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+	}
+
+	// Query EVM transactions for the account
+	// EVM transactions are identified by evm_hash not empty
+	// We need to load EVM details to check from/to addresses
+	var dbTxs []models.Transaction
+
+	// Build base query
+	baseQuery := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
+		Where("evm_hash != '' AND evm_hash IS NOT NULL")
+
+	// For account transactions, we need to check EVM details for from/to addresses
+	// This is a two-step process: first get transactions, then filter by EVM details
+	// For better performance, we'll query transactions and filter in memory
+	// In production, consider creating a separate index or table for EVM account transactions
+
+	if useCursor {
+		query := baseQuery.Where("tx_number < ?", cursorValue).
+			Order("block_unix_timestamp DESC, tx_number DESC").
+			Limit(int(pageSize * 2)) // Get more to account for filtering
+		err = query.Find(&dbTxs).Error
+	} else {
+		query := baseQuery.Order("block_unix_timestamp DESC, tx_number DESC").
+			Offset(offset).
+			Limit(int(pageSize * 2)) // Get more to account for filtering
+		err = query.Find(&dbTxs).Error
+	}
+
+	if err != nil {
+		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
+	}
+
+	// Filter transactions by account address in EVM details
+	filteredTxs := make([]models.Transaction, 0, len(dbTxs))
+	evmDetailsList := make([]*chain.TransactionDetails, 0, len(dbTxs))
+	txMap := make(map[string]*models.Transaction, len(dbTxs))
+
+	for i := range dbTxs {
+		evmDetails, err := models.LoadEVMTransactionDetails(queryCtx, &dbTxs[i])
+		if err != nil {
+			continue
+		}
+
+		// If details not loaded, try to fetch from EVM RPC
+		if evmDetails == nil && dbTxs[i].EVMHash != "" {
+			evmClient, err := chain.NewEVMClient(global.NetworkName)
+			if err == nil {
+				evmCtx, evmCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				evmDetails, err = evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(dbTxs[i].EVMHash))
+				evmCancel()
+				evmClient.Close()
+			}
+		}
+
+		if evmDetails == nil {
+			continue
+		}
+
+		// Check if account is involved in this transaction
+		if strings.EqualFold(evmDetails.From, dbQueryAddress) || strings.EqualFold(evmDetails.To, dbQueryAddress) {
+			filteredTxs = append(filteredTxs, dbTxs[i])
+			evmDetailsList = append(evmDetailsList, evmDetails)
+			txMap[dbTxs[i].Hash] = &dbTxs[i]
+
+			// Stop if we have enough results
+			if len(filteredTxs) >= int(pageSize) {
+				break
+			}
+		}
+	}
+
+	// Convert to DTOs
+	evmDTOs := models.ToEVMTransactionDTOs(evmDetailsList, txMap)
+
+	// Use approximate count (exact count would require loading all EVM details)
+	total := int64(ApproximateCountForAddress)
+	isExactCount := false
+
+	nextCursor := ""
+	if len(filteredTxs) > 0 {
+		nextCursor = calculateNextCursor(useCursor, cursorValue, filteredTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+	}
+
+	txsResp := buildPaginatedResponse(evmDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(evmDTOs))
+	return s.marshalAndReply(txsResp, "marshal EVM account transactions error")
 }

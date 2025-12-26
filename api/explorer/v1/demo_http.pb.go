@@ -78,9 +78,9 @@ func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
 	r.GET("/demo/transaction/stats", _Demo_GetTransactionStats0_HTTP_Handler(srv))
 	r.GET("/demo/block/gas-utilization", _Demo_GetBlockGasUtilization0_HTTP_Handler(srv))
 	r.GET("/demo/transaction/failed-24h", _Demo_GetFailedTransactions24H0_HTTP_Handler(srv))
-	r.GET("/api/v1/evm/transaction/{hash}", _Demo_GetEVMTransaction0_HTTP_Handler(srv))
-	r.GET("/api/v1/evm/transactions", _Demo_GetEVMTransactions0_HTTP_Handler(srv))
-	r.GET("/api/v1/evm/account/{address}/transactions", _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv))
+	r.GET("/demo/evm/transaction/{hash}", _Demo_GetEVMTransaction0_HTTP_Handler(srv))
+	r.GET("/demo/evm/transactions", _Demo_GetEVMTransactions0_HTTP_Handler(srv))
+	r.GET("/demo/evm/account/{address}/transactions", _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv))
 	r.GET("/demo/health", _Demo_CheckHealthy0_HTTP_Handler(srv))
 	r.GET("/demo/token/price-marketcap", _Demo_GetTokenPriceAndMarketCap0_HTTP_Handler(srv))
 }
@@ -514,7 +514,7 @@ func (c *DemoHTTPClientImpl) GetBlockGasUtilization(ctx context.Context, in *emp
 // GetEVMAccountTransactions Get EVM account transactions
 func (c *DemoHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/api/v1/evm/account/{address}/transactions"
+	pattern := "/demo/evm/account/{address}/transactions"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetEVMAccountTransactions))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -529,7 +529,7 @@ func (c *DemoHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, in *
 // Get EVM transaction by hash
 func (c *DemoHTTPClientImpl) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/api/v1/evm/transaction/{hash}"
+	pattern := "/demo/evm/transaction/{hash}"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetEVMTransaction))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -543,7 +543,7 @@ func (c *DemoHTTPClientImpl) GetEVMTransaction(ctx context.Context, in *GetEVMTr
 // GetEVMTransactions Get EVM transactions list
 func (c *DemoHTTPClientImpl) GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/api/v1/evm/transactions"
+	pattern := "/demo/evm/transactions"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetEVMTransactions))
 	opts = append(opts, http.PathTemplate(pattern))

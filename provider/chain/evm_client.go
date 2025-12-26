@@ -104,6 +104,15 @@ func (c *EVMClient) GetTransactionByHash(ctx context.Context, txHash common.Hash
 	return tx, isPending, nil
 }
 
+// GetTransactionReceiptByHash gets a transaction receipt by hash
+func (c *EVMClient) GetTransactionReceiptByHash(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+	receipt, err := c.client.TransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get transaction receipt by hash: %s", txHash.Hex())
+	}
+	return receipt, nil
+}
+
 // GetTransactionSender gets the sender address of a transaction
 func (c *EVMClient) GetTransactionSender(ctx context.Context, tx *types.Transaction, blockNumber *big.Int) (common.Address, error) {
 	signer := types.NewEIP155Signer(c.chainID)

@@ -8,9 +8,13 @@
 package models
 
 import (
+	"context"
+	"encoding/json"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/provider/chain"
+	"injective-explorer/provider/storage"
 
 	"github.com/bytedance/sonic"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -180,7 +184,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 		logsStr := decompressForDTO(tx.Logs)
 
 		// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed
-		return &pb.TransactionDTO{
+		txDTO := &pb.TransactionDTO{
 			Id:                 tx.Id,
 			BlockNumber:        tx.BlockNumber,
 			BlockTimestamp:     tx.BlockTimestamp,
@@ -206,6 +210,16 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			To:                 tx.To,
 			Value:              tx.Value,
 		}
+
+		// Load EVM transaction details if available
+		if tx.EVMHash != "" {
+			evmDetails, err := LoadEVMTransactionDetails(context.Background(), tx)
+			if err == nil && evmDetails != nil {
+				txDTO.EvmTransaction = ToEVMTransactionDTO(evmDetails, tx)
+			}
+		}
+
+		return txDTO
 	} else {
 		// For non-detail mode, also decompress Messages if present
 		messagesStr := decompressForDTO(tx.Messages)
@@ -339,6 +353,126 @@ func ToContractInfoDTOs(contracts []ContractInfo) []*pb.ContractInfoDTO {
 	dtos := make([]*pb.ContractInfoDTO, 0, len(contracts))
 	for _, contract := range contracts {
 		dtos = append(dtos, ToContractInfoDTO(&contract))
+	}
+	return dtos
+}
+
+// LoadEVMTransactionDetails loads EVM transaction details from storage or database.
+//
+// Parameters:
+//   - ctx: Context for cancellation
+//   - tx: Transaction model
+//
+// Returns:
+//   - *chain.TransactionDetails: EVM transaction details, or nil if not found or not synced
+//   - error: Error if the operation fails
+func LoadEVMTransactionDetails(ctx context.Context, tx *Transaction) (*chain.TransactionDetails, error) {
+	if tx == nil {
+		return nil, nil
+	}
+
+	// Check if EVM details are synced
+	if !tx.EVMDetailsSynced {
+		return nil, nil
+	}
+
+	// Load from object storage if storage key exists
+	if tx.EVMDetailsStorageKey != "" {
+		storageClient := storage.Get()
+		if storageClient != nil {
+			detailsBytes, err := storageClient.GetObject(ctx, tx.EVMDetailsStorageKey)
+			if err == nil {
+				var details chain.TransactionDetails
+				if err := json.Unmarshal(detailsBytes, &details); err == nil {
+					return &details, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+// ToEVMTransactionDTO converts TransactionDetails to EVMTransactionDTO.
+//
+// Parameters:
+//   - details: EVM transaction details
+//   - tx: Transaction model (for block timestamp)
+//
+// Returns:
+//   - *pb.EVMTransactionDTO: EVM transaction DTO
+func ToEVMTransactionDTO(details *chain.TransactionDetails, tx *Transaction) *pb.EVMTransactionDTO {
+	if details == nil {
+		return nil
+	}
+
+	// Convert logs
+	logs := make([]*pb.EVMLogDTO, 0, len(details.Logs))
+	for _, log := range details.Logs {
+		logs = append(logs, &pb.EVMLogDTO{
+			Address:     log.Address,
+			Topics:      log.Topics,
+			Data:        log.Data,
+			BlockNumber: details.BlockNumber,
+			TxHash:      details.Hash,
+			TxIndex:     uint32(details.TransactionIndex),
+			LogIndex:    uint32(log.Index),
+		})
+	}
+
+	// Determine if contract call or creation
+	isContractCall := details.To != "" && details.ContractAddress == ""
+	isContractCreate := details.ContractAddress != ""
+
+	// Use transaction block timestamp if available, otherwise use details timestamp
+	blockTimestamp := details.Timestamp.Format(time.RFC3339)
+	if tx != nil && tx.BlockTimestamp != "" {
+		blockTimestamp = tx.BlockTimestamp
+	}
+
+	return &pb.EVMTransactionDTO{
+		Hash:             details.Hash,
+		BlockNumber:      details.BlockNumber,
+		BlockTimestamp:   blockTimestamp,
+		From:             details.From,
+		To:               details.To,
+		Value:            details.Value,
+		Nonce:            details.Nonce,
+		GasPrice:         details.GasPrice,
+		GasLimit:         details.GasLimit,
+		GasUsed:          details.GasUsed,
+		InputData:        details.Input,
+		ContractAddress:  details.ContractAddress,
+		MethodId:         details.Method,
+		Status:           details.Status,
+		Logs:             logs,
+		TransactionFee:   details.TransactionFee,
+		IsContractCall:   isContractCall,
+		IsContractCreate: isContractCreate,
+	}
+}
+
+// ToEVMTransactionDTOs converts a slice of TransactionDetails to EVMTransactionDTOs.
+//
+// Parameters:
+//   - detailsList: Slice of EVM transaction details
+//   - txMap: Map of transaction hash to Transaction model (for block timestamps)
+//
+// Returns:
+//   - []*pb.EVMTransactionDTO: Slice of EVM transaction DTOs
+func ToEVMTransactionDTOs(detailsList []*chain.TransactionDetails, txMap map[string]*Transaction) []*pb.EVMTransactionDTO {
+	if detailsList == nil {
+		return nil
+	}
+	dtos := make([]*pb.EVMTransactionDTO, 0, len(detailsList))
+	for _, details := range detailsList {
+		var tx *Transaction
+		if txMap != nil {
+			tx = txMap[details.Hash]
+		}
+		if dto := ToEVMTransactionDTO(details, tx); dto != nil {
+			dtos = append(dtos, dto)
+		}
 	}
 	return dtos
 }

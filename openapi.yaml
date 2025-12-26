@@ -6,88 +6,6 @@ info:
     title: ""
     version: 0.0.1
 paths:
-    /api/v1/evm/account/{address}/transactions:
-        get:
-            tags:
-                - Demo
-            description: Get EVM account transactions
-            operationId: Demo_GetEVMAccountTransactions
-            parameters:
-                - name: address
-                  in: path
-                  required: true
-                  schema:
-                    type: string
-                - name: page
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageSize
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: cursor
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/evm/transaction/{hash}:
-        get:
-            tags:
-                - Demo
-            description: |-
-                EVM 交易相关 API
-                 Get EVM transaction by hash
-            operationId: Demo_GetEVMTransaction
-            parameters:
-                - name: hash
-                  in: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/evm/transactions:
-        get:
-            tags:
-                - Demo
-            description: Get EVM transactions list
-            operationId: Demo_GetEVMTransactions
-            parameters:
-                - name: page
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageSize
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: cursor
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /demo/account/balances:
         get:
             tags:
@@ -469,6 +387,88 @@ paths:
                   schema:
                     type: string
                 - name: chainId
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/evm/account/{address}/transactions:
+        get:
+            tags:
+                - Demo
+            description: Get EVM account transactions
+            operationId: Demo_GetEVMAccountTransactions
+            parameters:
+                - name: address
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: cursor
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/evm/transaction/{hash}:
+        get:
+            tags:
+                - Demo
+            description: |-
+                EVM 交易相关 API
+                 Get EVM transaction by hash
+            operationId: Demo_GetEVMTransaction
+            parameters:
+                - name: hash
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /demo/evm/transactions:
+        get:
+            tags:
+                - Demo
+            description: Get EVM transactions list
+            operationId: Demo_GetEVMTransactions
+            parameters:
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: cursor
                   in: query
                   schema:
                     type: string

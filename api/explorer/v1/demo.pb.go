@@ -2841,7 +2841,7 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\rsupply_source\x18\n" +
 	" \x01(\tR\rsupply_source\x128\n" +
 	"\x17total_supply_from_chain\x18\v \x01(\tR\x17total_supply_from_chain\x12L\n" +
-	"!total_supply_from_chain_formatted\x18\f \x01(\tR!total_supply_from_chain_formatted2\xd4\x12\n" +
+	"!total_supply_from_chain_formatted\x18\f \x01(\tR!total_supply_from_chain_formatted2\xce\x12\n" +
 	"\x04Demo\x12i\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/demo/block/latest\x12s\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/demo/block/by-height\x12i\n" +
@@ -2853,10 +2853,10 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/account/balances\x12f\n" +
 	"\x13GetTransactionStats\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/demo/transaction/stats\x12m\n" +
 	"\x16GetBlockGasUtilization\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/demo/block/gas-utilization\x12\x8a\x01\n" +
-	"\x18GetFailedTransactions24h\x120.api.explorer.v1.GetFailedTransactions24hRequest\x1a\x16.api.explorer.v1.Reply\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/demo/transaction/failed-24h\x12~\n" +
-	"\x11GetEVMTransaction\x12).api.explorer.v1.GetEVMTransactionRequest\x1a\x16.api.explorer.v1.Reply\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/evm/transaction/{hash}\x12z\n" +
-	"\x12GetEVMTransactions\x12*.api.explorer.v1.GetEVMTransactionsRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/evm/transactions\x12\x9a\x01\n" +
-	"\x19GetEVMAccountTransactions\x121.api.explorer.v1.GetEVMAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"2\x82\xd3\xe4\x93\x02,\x12*/api/v1/evm/account/{address}/transactions\x12q\n" +
+	"\x18GetFailedTransactions24h\x120.api.explorer.v1.GetFailedTransactions24hRequest\x1a\x16.api.explorer.v1.Reply\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/demo/transaction/failed-24h\x12|\n" +
+	"\x11GetEVMTransaction\x12).api.explorer.v1.GetEVMTransactionRequest\x1a\x16.api.explorer.v1.Reply\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/demo/evm/transaction/{hash}\x12x\n" +
+	"\x12GetEVMTransactions\x12*.api.explorer.v1.GetEVMTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/demo/evm/transactions\x12\x98\x01\n" +
+	"\x19GetEVMAccountTransactions\x121.api.explorer.v1.GetEVMAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"0\x82\xd3\xe4\x93\x02*\x12(/demo/evm/account/{address}/transactions\x12q\n" +
 	"\fCheckHealthy\x12$.api.explorer.v1.CheckHealthyRequest\x1a%.api.explorer.v1.CheckHealthyResponse\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/demo/health\x12}\n" +
 	"\x12StreamLatestBlocks\x12*.api.explorer.v1.StreamLatestBlocksRequest\x1a\x1c.api.explorer.v1.BlockUpdate\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/demo/stream/blocks0\x01\x12\x95\x01\n" +
 	"\x18StreamLatestTransactions\x120.api.explorer.v1.StreamLatestTransactionsRequest\x1a\".api.explorer.v1.TransactionUpdate\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/demo/stream/transactions0\x01\x12\x84\x01\n" +

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -316,4 +317,22 @@ func TestEVMClient_GetGasPrice(t *testing.T) {
 	assert.Greater(t, gasPrice.Int64(), int64(0))
 
 	fmt.Printf("Current gas price: %s wei\n", gasPrice.String())
+}
+
+func TestGetTransactionDetails(t *testing.T) {
+	client, err := NewEVMClient("mainnet")
+	require.NoError(t, err)
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	txHash := common.HexToHash("0xf0fae8bb6af7071875bc827d4998ff1fa190b20a986619fc38ce0612f57aceac")
+	details, err := client.GetTransactionDetails(ctx, txHash)
+	require.NoError(t, err)
+	assert.NotNil(t, details)
+
+	detailsBytes, err := sonic.Marshal(details)
+	require.NoError(t, err)
+	fmt.Println(string(detailsBytes))
 }

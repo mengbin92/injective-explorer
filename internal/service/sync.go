@@ -41,6 +41,9 @@ type SyncService struct {
 	chainClient    chainclient.ChainClientV2
 	tmClient       tmclient.TendermintClient
 
+	// EVM details sync service
+	evmDetailsSyncService *EVMDetailsSyncService
+
 	// Current processed block height
 	currentHeight uint64
 	heightMutex   sync.RWMutex
@@ -111,6 +114,18 @@ func (s *SyncService) Start() error {
 		// Continue anyway, will process them eventually
 	}
 
+	// Start EVM details sync service
+	evmConfig := LoadEVMDetailsSyncConfig(nil)
+	evmConfig.QueueKey = s.config.EVMDetailsQueueKey
+	evmDetailsSyncService, err := NewEVMDetailsSyncService(s.ctx, evmConfig)
+	if err != nil {
+		global.Logger.Warnf("failed to create EVM details sync service: %v", err)
+		// Continue without EVM details sync
+	} else {
+		s.evmDetailsSyncService = evmDetailsSyncService
+		evmDetailsSyncService.Start()
+	}
+
 	global.Logger.Infof("blockchain sync service started, initialization in progress, %d transaction processors", s.config.ConcurrentTxProcessors)
 	return nil
 }
@@ -150,6 +165,11 @@ func (s *SyncService) initializeAndSync() {
 func (s *SyncService) Stop() error {
 	global.Logger.Infof("stopping blockchain sync service")
 	s.cancel()
+
+	// Stop EVM details sync service
+	if s.evmDetailsSyncService != nil {
+		s.evmDetailsSyncService.Stop()
+	}
 
 	// Wait for all goroutines to finish with timeout
 	done := make(chan struct{})
@@ -1218,6 +1238,51 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			continue
 		}
 
+		// Check if this is an EVM transaction and extract EVM hash
+		if IsEVMTransaction(result.txResp.Data) {
+			evmHash := ExtractEVMHash(result.txResp.Data)
+
+			// If hash not found in explorer data, try to get from chainClient (abci.Event)
+			// This is synchronous to ensure data consistency in batch processing
+			if evmHash == "" && s.chainClient != nil {
+				evmCtx, evmCancel := context.WithTimeout(ctx, 10*time.Second)
+				txResp, err := s.chainClient.GetTx(evmCtx, txModel.Hash)
+				evmCancel()
+
+				if err == nil && txResp != nil && txResp.TxResponse != nil {
+					evmHash = ExtractEVMHashFromABCIEvents(txResp.TxResponse.Events)
+					if evmHash != "" {
+						global.Logger.Debugf("extracted EVM hash %s from abci events for transaction %s", evmHash, txModel.Hash)
+					}
+				} else if err != nil {
+					global.Logger.Debugf("failed to get tx from chainClient for EVM hash extraction: %v", err)
+				}
+			}
+
+			if evmHash != "" {
+				txModel.EVMHash = evmHash
+				txModel.EVMDetailsSynced = false
+				global.Logger.Debugf("extracted EVM hash %s for transaction %s", evmHash, txModel.Hash)
+
+				// Push to EVM details queue for async processing
+				go func(cosmosHash, evmHash string) {
+					evmCtx, evmCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer evmCancel()
+
+					// Push to Redis queue
+					redisClient := cache.GetRedisClient()
+					if redisClient != nil {
+						taskStr := fmt.Sprintf("%s:%s", cosmosHash, evmHash)
+						if err := redisClient.LPush(evmCtx, s.config.EVMDetailsQueueKey, taskStr).Err(); err != nil {
+							global.Logger.Warnf("failed to push EVM details task to queue: %v", err)
+						}
+					}
+				}(txModel.Hash, evmHash)
+			} else {
+				global.Logger.Debugf("EVM transaction detected but hash not found for transaction %s", txModel.Hash)
+			}
+		}
+
 		txModels = append(txModels, txModelData{
 			hash:    result.hash,
 			txModel: txModel,
@@ -1301,7 +1366,39 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 			err = db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				for _, txModel := range batch {
-					if err := tx.Model(txModel).Updates(txModel).Error; err != nil {
+					// Use Select to explicitly specify fields to update, including EVMHash
+					// This ensures zero-value fields are updated correctly
+					updateFields := map[string]interface{}{
+						"block_number":         txModel.BlockNumber,
+						"block_timestamp":      txModel.BlockTimestamp,
+						"code":                 txModel.Code,
+						"data":                 txModel.Data,
+						"info":                 txModel.Info,
+						"gas_wanted":           txModel.GasWanted,
+						"gas_used":             txModel.GasUsed,
+						"gas_fee":              txModel.GasFee,
+						"codespace":            txModel.Codespace,
+						"events":               txModel.Events,
+						"tx_type":              txModel.TxType,
+						"messages":             txModel.Messages,
+						"signatures":           txModel.Signatures,
+						"memo":                 txModel.Memo,
+						"tx_number":            txModel.TxNumber,
+						"block_unix_timestamp": txModel.BlockUnixTimestamp,
+						"error_log":            txModel.ErrorLog,
+						"logs":                 txModel.Logs,
+						"claim_ids":            txModel.ClaimIds,
+						"signer":               txModel.Signer,
+						"to":                   txModel.To,
+						"value":                txModel.Value,
+						"archived":             txModel.Archived,
+						"data_storage_key":     txModel.DataStorageKey,
+						"messages_storage_key": txModel.MessagesStorageKey,
+						"logs_storage_key":     txModel.LogsStorageKey,
+						"evm_hash":             txModel.EVMHash,
+						"evm_details_synced":   txModel.EVMDetailsSynced,
+					}
+					if err := tx.Model(txModel).Updates(updateFields).Error; err != nil {
 						return errors.Wrapf(err, "failed to update transaction %s", txModel.Hash)
 					}
 				}

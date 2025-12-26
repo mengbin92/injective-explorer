@@ -82,14 +82,14 @@ service Demo {
   // Get EVM transaction by hash
   rpc GetEVMTransaction(GetEVMTransactionRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/api/v1/evm/transaction/{hash}"
+      get : "/demo/evm/transaction/{hash}"
     };
   }
 
   // Get EVM transactions list
   rpc GetEVMTransactions(GetEVMTransactionsRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/api/v1/evm/transactions"
+      get : "/demo/evm/transactions"
     };
   }
 
@@ -97,7 +97,7 @@ service Demo {
   rpc GetEVMAccountTransactions(GetEVMAccountTransactionsRequest)
       returns (Reply) {
     option (google.api.http) = {
-      get : "/api/v1/evm/account/{address}/transactions"
+      get : "/demo/evm/account/{address}/transactions"
     };
   }
 

@@ -114,12 +114,20 @@ const (
 	defaultMaxRetryAttempts           = 3                      // Maximum retry attempts
 	defaultRetryDelay                 = 2 * time.Second        // Initial retry delay
 	defaultEarliestBlockHeight        = uint64(1)              // Earliest block height
+	defaultEVMDetailsQueueKey         = "evm:details:queue"    // Redis key name for EVM details queue
+	defaultEVMDetailsWorkerCount      = 3                      // Number of EVM details sync workers
+	defaultEVMDetailsBatchSize       = 10                     // EVM details batch size
+	defaultEVMDetailsRetryDelay      = 5 * time.Second        // EVM details retry delay
+	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
+	defaultEVMDetailsProcessInterval = 2 * time.Second        // EVM details process interval
+	defaultEVMDetailsTimeout         = 30 * time.Second        // EVM details timeout
 )
 
 // SyncConfig holds the sync service configuration with default values.
 type SyncConfig struct {
 	TxHashQueueKey             string
 	TxHashProcessingQueueKey   string
+	EVMDetailsQueueKey         string
 	BlockPollInterval          time.Duration
 	TxProcessInterval          time.Duration
 	HistoricalSyncInterval     time.Duration
@@ -146,6 +154,7 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 	cfg := &SyncConfig{
 		TxHashQueueKey:             defaultTxHashQueueKey,
 		TxHashProcessingQueueKey:   defaultTxHashProcessingQueueKey,
+		EVMDetailsQueueKey:         defaultEVMDetailsQueueKey,
 		BlockPollInterval:          defaultBlockPollInterval,
 		TxProcessInterval:          defaultTxProcessInterval,
 		HistoricalSyncInterval:     defaultHistoricalSyncInterval,
@@ -252,4 +261,23 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 	}
 
 	return cfg
+}
+
+// LoadEVMDetailsSyncConfig loads EVM details sync configuration with default values.
+//
+// Parameters:
+//   - bc: Bootstrap config (can be nil to use defaults)
+//
+// Returns:
+//   - *EVMDetailsSyncConfig: EVM details sync configuration
+func LoadEVMDetailsSyncConfig(bc *conf.Bootstrap) *EVMDetailsSyncConfig {
+	return &EVMDetailsSyncConfig{
+		QueueKey:         defaultEVMDetailsQueueKey,
+		WorkerCount:      defaultEVMDetailsWorkerCount,
+		BatchSize:        defaultEVMDetailsBatchSize,
+		RetryDelay:       defaultEVMDetailsRetryDelay,
+		MaxRetryAttempts: defaultEVMDetailsMaxRetryAttempts,
+		ProcessInterval:  defaultEVMDetailsProcessInterval,
+		Timeout:          defaultEVMDetailsTimeout,
+	}
 }

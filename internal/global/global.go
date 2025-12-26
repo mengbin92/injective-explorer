@@ -21,6 +21,8 @@ var (
 	Logger *log.Helper
 	// ChainConfig is the global chain configuration for the Injective blockchain network.
 	ChainConfig common.Network
+	// NetworkName is the network name ("mainnet" or "testnet").
+	NetworkName string
 	// ArchiveConfig is the global archive configuration.
 	// It is set during initialization and can be used to access archive configuration values.
 	ArchiveConfig *conf.Archive
@@ -59,8 +61,10 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	switch bc.Chain.Network {
 	case "mainnet":
 		ChainConfig = common.LoadNetwork("mainnet", "lb")
+		NetworkName = "mainnet"
 	case "testnet":
 		ChainConfig = common.LoadNetwork("testnet", "lb")
+		NetworkName = "testnet"
 	default:
 		// Custom network configuration
 		ChainConfig = common.Network{
@@ -80,6 +84,14 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 			ChainCookieAssistant:    &common.BareMetalLoadBalancedCookieAssistant{},
 			ExchangeCookieAssistant: &common.BareMetalLoadBalancedCookieAssistant{},
 			ExplorerCookieAssistant: &common.BareMetalLoadBalancedCookieAssistant{},
+		}
+		// Infer network name from chain ID for custom networks
+		if bc.Chain.ChainId == "injective-1" {
+			NetworkName = "mainnet"
+		} else if bc.Chain.ChainId == "injective-888" {
+			NetworkName = "testnet"
+		} else {
+			NetworkName = bc.Chain.Network // Use configured network name
 		}
 	}
 

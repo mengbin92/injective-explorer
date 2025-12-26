@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"log"
+	"time"
 	"unicode/utf8"
 
 	"injective-explorer/provider/storage"
@@ -50,7 +51,12 @@ type Transaction struct {
 	Archived           bool     `json:"archived" gorm:"column:archived;default:0;index"`                                                         // Archived indicates whether this transaction has been archived
 	DataStorageKey     string   `json:"data_storage_key" gorm:"column:data_storage_key"`                                                         // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
 	MessagesStorageKey string   `json:"messages_storage_key" gorm:"column:messages_storage_key"`                                                 // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
-	LogsStorageKey     string   `json:"logs_storage_key" gorm:"column:logs_storage_key"`                                                         // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)
+	LogsStorageKey         string     `json:"logs_storage_key" gorm:"column:logs_storage_key"`                                                         // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)
+	EVMHash                string     `json:"evm_hash" gorm:"type:varchar(128);column:evm_hash;index:idx_evm_hash"`                                    // EVMHash is the EVM transaction hash (indexed for EVM transaction queries)
+	EVMDetailsStorageKey   string     `json:"evm_details_storage_key" gorm:"column:evm_details_storage_key"`                                          // EVMDetailsStorageKey is the object storage key for EVM transaction details (no index: only used in migration with IS NULL checks)
+	EVMDetailsSynced        bool       `json:"evm_details_synced" gorm:"column:evm_details_synced;default:0;index:idx_evm_details_synced"`             // EVMDetailsSynced indicates whether EVM transaction details have been synced
+	EVMDetailsSyncError     string     `json:"evm_details_sync_error" gorm:"type:text;column:evm_details_sync_error"`                                   // EVMDetailsSyncError contains error information if EVM details sync failed
+	EVMDetailsSyncAt        *time.Time `json:"evm_details_sync_at" gorm:"column:evm_details_sync_at"`                                                 // EVMDetailsSyncAt is the timestamp when EVM details were synced
 }
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.
