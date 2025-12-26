@@ -13,7 +13,7 @@ message PaginationRequest {
   // 页码，从1开始，默认1（基于页数的分页）
   int32 page = 1;
   // 每页大小，默认20，最大100
-  int32 page_size = 2;
+  int32 page_size = 2 [ json_name = "page_size" ];
   // 游标（基于游标的分页，用于大数据集优化，优先级高于 page）
   // 对于区块：使用区块高度(height)
   // 对于交易：使用交易号(tx_number)或区块高度+交易号的组合
@@ -25,15 +25,15 @@ message PaginationInfo {
   // 当前页码
   int32 page = 1;
   // 每页大小
-  int32 page_size = 2;
+  int32 page_size = 2 [ json_name = "page_size" ];
   // 总记录数
   int64 total = 3;
   // 总页数
-  int32 total_pages = 4;
+  int32 total_pages = 4 [ json_name = "total_pages" ];
   // 是否有上一页
-  bool has_prev = 5;
+  bool has_prev = 5 [ json_name = "has_prev" ];
   // 是否有下一页
-  bool has_next = 6;
+  bool has_next = 6 [ json_name = "has_next" ];
 }
 
 // 通用响应结构

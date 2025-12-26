@@ -28,7 +28,7 @@ type PaginationRequest struct {
 	// 页码，从1开始，默认1（基于页数的分页）
 	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// 每页大小，默认20，最大100
-	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,proto3" json:"page_size,omitempty"`
 	// 游标（基于游标的分页，用于大数据集优化，优先级高于 page）
 	// 对于区块：使用区块高度(height)
 	// 对于交易：使用交易号(tx_number)或区块高度+交易号的组合
@@ -94,15 +94,15 @@ type PaginationInfo struct {
 	// 当前页码
 	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// 每页大小
-	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,proto3" json:"page_size,omitempty"`
 	// 总记录数
 	Total int64 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
 	// 总页数
-	TotalPages int32 `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
+	TotalPages int32 `protobuf:"varint,4,opt,name=total_pages,proto3" json:"total_pages,omitempty"`
 	// 是否有上一页
-	HasPrev bool `protobuf:"varint,5,opt,name=has_prev,json=hasPrev,proto3" json:"has_prev,omitempty"`
+	HasPrev bool `protobuf:"varint,5,opt,name=has_prev,proto3" json:"has_prev,omitempty"`
 	// 是否有下一页
-	HasNext       bool `protobuf:"varint,6,opt,name=has_next,json=hasNext,proto3" json:"has_next,omitempty"`
+	HasNext       bool `protobuf:"varint,6,opt,name=has_next,proto3" json:"has_next,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -247,19 +247,18 @@ var File_explorer_v1_common_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x18explorer/v1/common.proto\x12\x0fapi.explorer.v1\x1a\x1cgoogle/protobuf/struct.proto\"\\\n" +
+	"\x18explorer/v1/common.proto\x12\x0fapi.explorer.v1\x1a\x1cgoogle/protobuf/struct.proto\"]\n" +
 	"\x11PaginationRequest\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x16\n" +
-	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\xae\x01\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1c\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\tpage_size\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\xb2\x01\n" +
 	"\x0ePaginationInfo\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x14\n" +
-	"\x05total\x18\x03 \x01(\x03R\x05total\x12\x1f\n" +
-	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\x12\x19\n" +
-	"\bhas_prev\x18\x05 \x01(\bR\ahasPrev\x12\x19\n" +
-	"\bhas_next\x18\x06 \x01(\bR\ahasNext\"b\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1c\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\tpage_size\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x03R\x05total\x12 \n" +
+	"\vtotal_pages\x18\x04 \x01(\x05R\vtotal_pages\x12\x1a\n" +
+	"\bhas_prev\x18\x05 \x01(\bR\bhas_prev\x12\x1a\n" +
+	"\bhas_next\x18\x06 \x01(\bR\bhas_next\"b\n" +
 	"\x05Reply\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12+\n" +

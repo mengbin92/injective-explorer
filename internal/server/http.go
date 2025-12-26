@@ -2,6 +2,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -44,12 +45,19 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 	// Initialize rate limiter
 	rateLimiter := middleware.NewRateLimiter()
 
+	// Initialize usage stats service
+	statsService := service.NewUsageStatsService()
+
+	// Start log processor in background
+	ctx := context.Background()
+	statsService.StartLogProcessor(ctx)
+
 	// Initialize server options with recovery middleware
-	// Token auth and rate limit middleware are applied selectively
+	// Token auth, rate limit, and stats middleware are applied selectively
 	opts := []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
-			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter),
+			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService),
 		),
 	}
 

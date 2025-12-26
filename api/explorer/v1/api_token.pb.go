@@ -70,10 +70,10 @@ func (x *CreateTokenRequest) GetName() string {
 // CreateTokenResponse returns the created token
 type CreateTokenResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`                                   // Full token (only shown once)
-	TokenPreview  string                 `protobuf:"bytes,2,opt,name=token_preview,json=tokenPreview,proto3" json:"token_preview,omitempty"` // Token preview (inj_xxx...xxx)
-	TokenId       int64                  `protobuf:"varint,3,opt,name=token_id,json=tokenId,proto3" json:"token_id,omitempty"`               // Token ID
-	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`                               // Success message
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`                 // Full token (only shown once)
+	TokenPreview  string                 `protobuf:"bytes,2,opt,name=token_preview,proto3" json:"token_preview,omitempty"` // Token preview (inj_xxx...xxx)
+	TokenId       int64                  `protobuf:"varint,3,opt,name=token_id,proto3" json:"token_id,omitempty"`          // Token ID
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`             // Success message
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,11 +223,11 @@ type TokenInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	TokenPreview  string                 `protobuf:"bytes,3,opt,name=token_preview,json=tokenPreview,proto3" json:"token_preview,omitempty"` // inj_xxx...xxx
-	PlanType      string                 `protobuf:"bytes,4,opt,name=plan_type,json=planType,proto3" json:"plan_type,omitempty"`             // free/paid
-	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`                                 // active/disabled
-	CreatedAt     string                 `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	LastUsedAt    string                 `protobuf:"bytes,7,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"` // Empty if never used
+	TokenPreview  string                 `protobuf:"bytes,3,opt,name=token_preview,proto3" json:"token_preview,omitempty"` // inj_xxx...xxx
+	PlanType      string                 `protobuf:"bytes,4,opt,name=plan_type,proto3" json:"plan_type,omitempty"`         // free/paid
+	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`               // active/disabled
+	CreatedAt     string                 `protobuf:"bytes,6,opt,name=created_at,proto3" json:"created_at,omitempty"`
+	LastUsedAt    string                 `protobuf:"bytes,7,opt,name=last_used_at,proto3" json:"last_used_at,omitempty"` // Empty if never used
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -314,7 +314,7 @@ func (x *TokenInfo) GetLastUsedAt() string {
 // DeleteTokenRequest deletes a token
 type DeleteTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	TokenId       int64                  `protobuf:"varint,1,opt,name=token_id,json=tokenId,proto3" json:"token_id,omitempty"`
+	TokenId       int64                  `protobuf:"varint,1,opt,name=token_id,proto3" json:"token_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -404,7 +404,7 @@ func (x *DeleteTokenResponse) GetMessage() string {
 // GetTokenUsageRequest gets token usage
 type GetTokenUsageRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	TokenId       int64                  `protobuf:"varint,1,opt,name=token_id,json=tokenId,proto3" json:"token_id,omitempty"`
+	TokenId       int64                  `protobuf:"varint,1,opt,name=token_id,proto3" json:"token_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -449,10 +449,10 @@ func (x *GetTokenUsageRequest) GetTokenId() int64 {
 // GetTokenUsageResponse returns usage statistics
 type GetTokenUsageResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	TotalCalls    int64                  `protobuf:"varint,1,opt,name=total_calls,json=totalCalls,proto3" json:"total_calls,omitempty"`
-	SuccessCalls  int64                  `protobuf:"varint,2,opt,name=success_calls,json=successCalls,proto3" json:"success_calls,omitempty"`
-	FailedCalls   int64                  `protobuf:"varint,3,opt,name=failed_calls,json=failedCalls,proto3" json:"failed_calls,omitempty"`
-	LastUsedAt    string                 `protobuf:"bytes,4,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"`
+	TotalCalls    int64                  `protobuf:"varint,1,opt,name=total_calls,proto3" json:"total_calls,omitempty"`
+	SuccessCalls  int64                  `protobuf:"varint,2,opt,name=success_calls,proto3" json:"success_calls,omitempty"`
+	FailedCalls   int64                  `protobuf:"varint,3,opt,name=failed_calls,proto3" json:"failed_calls,omitempty"`
+	LastUsedAt    string                 `protobuf:"bytes,4,opt,name=last_used_at,proto3" json:"last_used_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -521,38 +521,36 @@ const file_explorer_v1_api_token_proto_rawDesc = "" +
 	"\n" +
 	"\x1bexplorer/v1/api_token.proto\x12\x0fapi.explorer.v1\x1a\x1cgoogle/api/annotations.proto\"(\n" +
 	"\x12CreateTokenRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x85\x01\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x87\x01\n" +
 	"\x13CreateTokenResponse\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12#\n" +
-	"\rtoken_preview\x18\x02 \x01(\tR\ftokenPreview\x12\x19\n" +
-	"\btoken_id\x18\x03 \x01(\x03R\atokenId\x12\x18\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12$\n" +
+	"\rtoken_preview\x18\x02 \x01(\tR\rtoken_preview\x12\x1a\n" +
+	"\btoken_id\x18\x03 \x01(\x03R\btoken_id\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\"\x13\n" +
 	"\x11ListTokensRequest\"H\n" +
 	"\x12ListTokensResponse\x122\n" +
-	"\x06tokens\x18\x01 \x03(\v2\x1a.api.explorer.v1.TokenInfoR\x06tokens\"\xca\x01\n" +
+	"\x06tokens\x18\x01 \x03(\v2\x1a.api.explorer.v1.TokenInfoR\x06tokens\"\xcf\x01\n" +
 	"\tTokenInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
-	"\rtoken_preview\x18\x03 \x01(\tR\ftokenPreview\x12\x1b\n" +
-	"\tplan_type\x18\x04 \x01(\tR\bplanType\x12\x16\n" +
-	"\x06status\x18\x05 \x01(\tR\x06status\x12\x1d\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
+	"\rtoken_preview\x18\x03 \x01(\tR\rtoken_preview\x12\x1c\n" +
+	"\tplan_type\x18\x04 \x01(\tR\tplan_type\x12\x16\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\x12\x1e\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\tR\tcreatedAt\x12 \n" +
-	"\flast_used_at\x18\a \x01(\tR\n" +
-	"lastUsedAt\"/\n" +
-	"\x12DeleteTokenRequest\x12\x19\n" +
-	"\btoken_id\x18\x01 \x01(\x03R\atokenId\"/\n" +
+	"created_at\x18\x06 \x01(\tR\n" +
+	"created_at\x12\"\n" +
+	"\flast_used_at\x18\a \x01(\tR\flast_used_at\"0\n" +
+	"\x12DeleteTokenRequest\x12\x1a\n" +
+	"\btoken_id\x18\x01 \x01(\x03R\btoken_id\"/\n" +
 	"\x13DeleteTokenResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"1\n" +
-	"\x14GetTokenUsageRequest\x12\x19\n" +
-	"\btoken_id\x18\x01 \x01(\x03R\atokenId\"\xa2\x01\n" +
-	"\x15GetTokenUsageResponse\x12\x1f\n" +
-	"\vtotal_calls\x18\x01 \x01(\x03R\n" +
-	"totalCalls\x12#\n" +
-	"\rsuccess_calls\x18\x02 \x01(\x03R\fsuccessCalls\x12!\n" +
-	"\ffailed_calls\x18\x03 \x01(\x03R\vfailedCalls\x12 \n" +
-	"\flast_used_at\x18\x04 \x01(\tR\n" +
-	"lastUsedAt2\xfc\x03\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"2\n" +
+	"\x14GetTokenUsageRequest\x12\x1a\n" +
+	"\btoken_id\x18\x01 \x01(\x03R\btoken_id\"\xa7\x01\n" +
+	"\x15GetTokenUsageResponse\x12 \n" +
+	"\vtotal_calls\x18\x01 \x01(\x03R\vtotal_calls\x12$\n" +
+	"\rsuccess_calls\x18\x02 \x01(\x03R\rsuccess_calls\x12\"\n" +
+	"\ffailed_calls\x18\x03 \x01(\x03R\ffailed_calls\x12\"\n" +
+	"\flast_used_at\x18\x04 \x01(\tR\flast_used_at2\xfc\x03\n" +
 	"\x0fAPITokenService\x12s\n" +
 	"\vCreateToken\x12#.api.explorer.v1.CreateTokenRequest\x1a$.api.explorer.v1.CreateTokenResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v1/tokens\x12m\n" +
 	"\n" +

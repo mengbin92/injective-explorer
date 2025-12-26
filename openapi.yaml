@@ -56,7 +56,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pagination.pageSize
+                - name: pagination.page_size
                   in: query
                   description: 每页大小，默认20，最大100
                   schema:
@@ -133,7 +133,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pageSize
+                - name: page_size
                   in: query
                   description: 每页大小，默认20，最大100
                   schema:
@@ -271,7 +271,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pagination.pageSize
+                - name: pagination.page_size
                   in: query
                   description: 每页大小，默认20，最大100
                   schema:
@@ -327,7 +327,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pagination.pageSize
+                - name: pagination.page_size
                   in: query
                   description: 每页大小，默认20，最大100
                   schema:
@@ -638,14 +638,14 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.CreateTokenResponse'
-    /api/v1/tokens/{tokenId}:
+    /api/v1/tokens/{token_id}:
         delete:
             tags:
                 - APITokenService
             description: DeleteToken deletes a token
             operationId: APITokenService_DeleteToken
             parameters:
-                - name: tokenId
+                - name: token_id
                   in: path
                   required: true
                   schema:
@@ -657,14 +657,14 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.DeleteTokenResponse'
-    /api/v1/tokens/{tokenId}/usage:
+    /api/v1/tokens/{token_id}/usage:
         get:
             tags:
                 - APITokenService
             description: GetTokenUsage gets token usage statistics
             operationId: APITokenService_GetTokenUsage
             parameters:
-                - name: tokenId
+                - name: token_id
                   in: path
                   required: true
                   schema:
@@ -706,7 +706,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pagination.pageSize
+                - name: pagination.page_size
                   in: query
                   description: 每页大小，默认20，最大100
                   schema:
@@ -739,7 +739,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pageSize
+                - name: page_size
                   in: query
                   description: 每页大小，默认20，最大100
                   schema:
@@ -930,9 +930,9 @@ components:
             properties:
                 token:
                     type: string
-                tokenPreview:
+                token_preview:
                     type: string
-                tokenId:
+                token_id:
                     type: string
                 message:
                     type: string
@@ -1012,13 +1012,13 @@ components:
         api.explorer.v1.GetTokenUsageResponse:
             type: object
             properties:
-                totalCalls:
+                total_calls:
                     type: string
-                successCalls:
+                success_calls:
                     type: string
-                failedCalls:
+                failed_calls:
                     type: string
-                lastUsedAt:
+                last_used_at:
                     type: string
             description: GetTokenUsageResponse returns usage statistics
         api.explorer.v1.HealthDetails:
@@ -1064,15 +1064,15 @@ components:
                     type: string
                 name:
                     type: string
-                tokenPreview:
+                token_preview:
                     type: string
-                planType:
+                plan_type:
                     type: string
                 status:
                     type: string
-                createdAt:
+                created_at:
                     type: string
-                lastUsedAt:
+                last_used_at:
                     type: string
             description: TokenInfo represents token information
         api.explorer.v1.TransactionDTO:

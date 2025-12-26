@@ -5,22 +5,26 @@ import (
 	"context"
 	"strings"
 
+	"injective-explorer/internal/service"
+
 	"github.com/go-kratos/kratos/v2/middleware"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 )
 
-// SelectiveAuthAndRateLimitMiddleware creates a middleware that applies token auth and rate limiting
-// to all routes except token management endpoints (/api/v1/tokens).
+// SelectiveAuthAndRateLimitMiddleware creates a middleware that applies token auth, rate limiting,
+// and statistics recording to all routes except token management endpoints (/api/v1/tokens).
 // Token management endpoints use user authentication (handled in service).
 //
 // Parameters:
 //   - rateLimiter: The rate limiter instance
+//   - statsService: The usage stats service instance
 //
 // Returns:
-//   - middleware.Middleware: A middleware function that selectively applies auth and rate limiting
-func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter) middleware.Middleware {
+//   - middleware.Middleware: A middleware function that selectively applies auth, rate limiting, and stats
+func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService *service.UsageStatsService) middleware.Middleware {
 	authMiddleware := AuthMiddleware()
 	rateLimitMiddleware := RateLimitMiddleware(rateLimiter)
+	statsMiddleware := StatsMiddleware(statsService)
 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
@@ -29,15 +33,17 @@ func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter) middleware.Mi
 				path := request.URL.Path
 				if strings.HasPrefix(path, "/api/v1/tokens") {
 					// Token management endpoints use user auth (handled in service)
-					// Skip token auth and rate limiting
+					// Skip token auth, rate limiting, and stats
 					return handler(ctx, req)
 				}
 			}
 
-			// Apply auth middleware
+			// Apply middleware chain: auth -> rate limit -> stats -> handler
 			authHandler := authMiddleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-				// Apply rate limit middleware
-				rateLimitHandler := rateLimitMiddleware(handler)
+				rateLimitHandler := rateLimitMiddleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+					statsHandler := statsMiddleware(handler)
+					return statsHandler(ctx, req)
+				})
 				return rateLimitHandler(ctx, req)
 			})
 

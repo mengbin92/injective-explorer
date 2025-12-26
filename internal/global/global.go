@@ -112,6 +112,12 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		&models.TransactionDataArchive{},
 		&models.ContractInfo{},
 		&models.ContractTag{},
+		// API management tables
+		&models.APIToken{},
+		&models.APIPlan{},
+		&models.APIRequestLog{},
+		&models.UserUsageStats{},
+		&models.UsageDailyStats{},
 	)
 	if err != nil {
 		panic(err)

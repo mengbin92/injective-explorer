@@ -1,0 +1,604 @@
+{
+	"info": {
+		"_postman_id": "api-management-collection",
+		"name": "Injective Explorer - API Management",
+		"description": "API Management collection for token management and API access",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Token Management",
+			"item": [
+				{
+					"name": "Create Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('token');",
+									"    pm.expect(jsonData).to.have.property('token_preview');",
+									"    pm.expect(jsonData).to.have.property('token_id');",
+									"    ",
+									"    // Save token for later use",
+									"    pm.environment.set(\"api_token\", jsonData.token);",
+									"    pm.environment.set(\"token_id\", jsonData.token_id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"My API Token\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens"
+							]
+						},
+						"description": "Create a new API token. The full token is only shown once in the response."
+					},
+					"response": []
+				},
+				{
+					"name": "List Tokens",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tokens array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tokens');",
+									"    pm.expect(jsonData.tokens).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens"
+							]
+						},
+						"description": "List all API tokens for the authenticated user."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Token Usage",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has usage statistics\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('total_calls');",
+									"    pm.expect(jsonData).to.have.property('success_calls');",
+									"    pm.expect(jsonData).to.have.property('failed_calls');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens",
+								"{{token_id}}",
+								"usage"
+							]
+						},
+						"description": "Get usage statistics for a specific token."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has success message\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens",
+								"{{token_id}}"
+							]
+						},
+						"description": "Delete an API token. Only tokens owned by the authenticated user can be deleted."
+					},
+					"response": []
+				}
+			],
+			"description": "Token management endpoints require X-User-ID header for authentication."
+		},
+		{
+			"name": "API Access (with Token)",
+			"item": [
+				{
+					"name": "Get Latest Blocks",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response time is less than 500ms\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(500);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"description": "API token for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest?page=1&page_size=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get latest blocks. Requires Bearer token authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Transaction By Hash",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"description": "API token for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/transaction/by-hash?hash={{tx_hash}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transaction",
+								"by-hash"
+							],
+							"query": [
+								{
+									"key": "hash",
+									"value": "{{tx_hash}}",
+									"description": "Transaction hash"
+								}
+							]
+						},
+						"description": "Get transaction by hash. Requires Bearer token authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Account Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"description": "API token for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/account/info?address={{account_address}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"account",
+								"info"
+							],
+							"query": [
+								{
+									"key": "address",
+									"value": "{{account_address}}",
+									"description": "Account address (inj1... or 0x...)"
+								}
+							]
+						},
+						"description": "Get account information. Requires Bearer token authentication."
+					},
+					"response": []
+				}
+			],
+			"description": "API endpoints that require Bearer token authentication. Rate limiting applies: IP (100/min), Token (5/sec), User (100k/month)."
+		},
+		{
+			"name": "Rate Limit Tests",
+			"item": [
+				{
+					"name": "Test IP Rate Limit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 429) {",
+									"    pm.test(\"Rate limit exceeded\", function () {",
+									"        pm.expect(pm.response.json().message).to.include('rate limit');",
+									"    });",
+									"} else {",
+									"    pm.test(\"Request allowed\", function () {",
+									"        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test IP rate limit (100 requests per minute). Run this request multiple times quickly to trigger rate limit."
+					},
+					"response": []
+				},
+				{
+					"name": "Test Token Rate Limit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 429) {",
+									"    pm.test(\"Token rate limit exceeded\", function () {",
+									"        var jsonData = pm.response.json();",
+									"        pm.expect(jsonData.message || jsonData.error).to.include('rate limit');",
+									"    });",
+									"} else {",
+									"    pm.test(\"Request allowed\", function () {",
+									"        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test token rate limit (5 requests per second). Run this request 6+ times per second to trigger rate limit."
+					},
+					"response": []
+				},
+				{
+					"name": "Test Invalid Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates invalid token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message || jsonData.error).to.include('token');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer invalid_token_12345"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test authentication with invalid token. Should return 401 Unauthorized."
+					},
+					"response": []
+				},
+				{
+					"name": "Test Missing Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates missing Authorization header\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message || jsonData.error).to.include('Authorization');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test API access without token. Should return 401 Unauthorized."
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for rate limiting and authentication scenarios."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "test_user_123",
+			"type": "string"
+		},
+		{
+			"key": "api_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "token_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "tx_hash",
+			"value": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"type": "string"
+		},
+		{
+			"key": "account_address",
+			"value": "inj1...",
+			"type": "string"
+		}
+	]
+}
+
