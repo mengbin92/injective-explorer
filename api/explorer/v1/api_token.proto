@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+
+// APITokenService provides API token management services
+service APITokenService {
+  // CreateToken creates a new API token
+  rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/tokens"
+      body: "*"
+    };
+  }
+
+  // ListTokens lists all tokens for a user
+  rpc ListTokens(ListTokensRequest) returns (ListTokensResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/tokens"
+    };
+  }
+
+  // DeleteToken deletes a token
+  rpc DeleteToken(DeleteTokenRequest) returns (DeleteTokenResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/tokens/{token_id}"
+    };
+  }
+
+  // GetTokenUsage gets token usage statistics
+  rpc GetTokenUsage(GetTokenUsageRequest) returns (GetTokenUsageResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/tokens/{token_id}/usage"
+    };
+  }
+}
+
+// CreateTokenRequest creates a new token
+message CreateTokenRequest {
+  string name = 1; // Token name (required, 1-50 characters)
+}
+
+// CreateTokenResponse returns the created token
+message CreateTokenResponse {
+  string token = 1;        // Full token (only shown once)
+  string token_preview = 2; // Token preview (inj_xxx...xxx)
+  int64 token_id = 3;     // Token ID
+  string message = 4;     // Success message
+}
+
+// ListTokensRequest lists tokens
+message ListTokensRequest {
+  // Empty, uses authenticated user from context
+}
+
+// ListTokensResponse returns token list
+message ListTokensResponse {
+  repeated TokenInfo tokens = 1;
+}
+
+// TokenInfo represents token information
+message TokenInfo {
+  int64 id = 1;
+  string name = 2;
+  string token_preview = 3; // inj_xxx...xxx
+  string plan_type = 4;     // free/paid
+  string status = 5;        // active/disabled
+  string created_at = 6;
+  string last_used_at = 7;  // Empty if never used
+}
+
+// DeleteTokenRequest deletes a token
+message DeleteTokenRequest {
+  int64 token_id = 1;
+}
+
+// DeleteTokenResponse confirms deletion
+message DeleteTokenResponse {
+  string message = 1;
+}
+
+// GetTokenUsageRequest gets token usage
+message GetTokenUsageRequest {
+  int64 token_id = 1;
+}
+
+// GetTokenUsageResponse returns usage statistics
+message GetTokenUsageResponse {
+  int64 total_calls = 1;
+  int64 success_calls = 2;
+  int64 failed_calls = 3;
+  string last_used_at = 4;
+}
+

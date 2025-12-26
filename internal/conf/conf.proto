@@ -14,6 +14,7 @@ message Bootstrap {
   Sync sync = 6;
   Archive archive = 7;
   TokenPrice token_price = 8; // Token price service configuration
+  APIManagement api_management = 9; // API management configuration
 }
 
 message Server {
@@ -199,4 +200,33 @@ message TokenConfig {
   string custom_price_url = 6;
   // Display name for the token (e.g., "Injective", "My Token")
   string display_name = 7;
+}
+
+message APIManagement {
+  RateLimit rate_limit = 1;
+  UsageStats usage_stats = 2;
+  IPLocation ip_location = 3;
+  ArchiveUsage archive_usage = 4;
+  
+  message RateLimit {
+    int32 ip_per_minute = 1;        // IP每分钟限制
+    int32 ip_per_hour = 2;           // IP每小时限制
+    int32 token_per_second = 3;     // Token每秒限制
+    int32 default_monthly_limit = 4; // 默认月度限额
+  }
+  
+  message UsageStats {
+    int32 async_delay_seconds = 1;   // 异步统计延迟（1-5秒）
+    int32 archive_days = 2;          // 归档天数（90天）
+  }
+  
+  message IPLocation {
+    string geoip_db_path = 1;        // GeoIP2数据库路径
+  }
+  
+  message ArchiveUsage {
+    bool enabled = 1;
+    google.protobuf.Duration interval = 2;
+    int32 batch_size = 3;
+  }
 }

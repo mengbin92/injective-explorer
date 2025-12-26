@@ -11,6 +11,7 @@ import (
 
 	v1 "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/conf"
+	"injective-explorer/internal/middleware"
 	"injective-explorer/internal/service"
 
 	"github.com/bytedance/sonic"
@@ -40,10 +41,15 @@ var (
 // Returns:
 //   - *khttp.Server: A configured HTTP server ready to accept connections
 func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
+	// Initialize rate limiter
+	rateLimiter := middleware.NewRateLimiter()
+
 	// Initialize server options with recovery middleware
+	// Token auth and rate limit middleware are applied selectively
 	opts := []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
+			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter),
 		),
 	}
 
@@ -90,13 +96,19 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 		// The actual connection pool is managed by Go's net/http package
 	}
 
-	// Register explorer service
+	// Register explorer service (auth and rate limiting applied via middleware)
 	explorerService := service.NewExplorerService()
 	v1.RegisterExplorerHTTPServer(srv, explorerService)
 
-	// Register contract info service
+	// Register contract info service (auth and rate limiting applied via middleware)
 	contractInfoService := service.NewContractInfoService()
 	v1.RegisterContractInfoServiceHTTPServer(srv, contractInfoService)
+
+	// Register API token service
+	// Note: User authentication is handled within the service (from X-User-ID header)
+	// In production, this should be replaced with proper JWT/session validation
+	apiTokenService := service.NewAPITokenService()
+	v1.RegisterAPITokenServiceHTTPServer(srv, apiTokenService)
 
 	// Register Swagger routes if enabled
 	if c.EnableSwagger {

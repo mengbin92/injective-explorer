@@ -607,6 +607,75 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tokens:
+        get:
+            tags:
+                - APITokenService
+            description: ListTokens lists all tokens for a user
+            operationId: APITokenService_ListTokens
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.ListTokensResponse'
+        post:
+            tags:
+                - APITokenService
+            description: CreateToken creates a new API token
+            operationId: APITokenService_CreateToken
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.CreateTokenRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.CreateTokenResponse'
+    /api/v1/tokens/{tokenId}:
+        delete:
+            tags:
+                - APITokenService
+            description: DeleteToken deletes a token
+            operationId: APITokenService_DeleteToken
+            parameters:
+                - name: tokenId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.DeleteTokenResponse'
+    /api/v1/tokens/{tokenId}/usage:
+        get:
+            tags:
+                - APITokenService
+            description: GetTokenUsage gets token usage statistics
+            operationId: APITokenService_GetTokenUsage
+            parameters:
+                - name: tokenId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.GetTokenUsageResponse'
     /api/v1/transaction/by-hash:
         get:
             tags:
@@ -850,6 +919,30 @@ components:
                     items:
                         type: string
             description: Request messages
+        api.explorer.v1.CreateTokenRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+            description: CreateTokenRequest creates a new token
+        api.explorer.v1.CreateTokenResponse:
+            type: object
+            properties:
+                token:
+                    type: string
+                tokenPreview:
+                    type: string
+                tokenId:
+                    type: string
+                message:
+                    type: string
+            description: CreateTokenResponse returns the created token
+        api.explorer.v1.DeleteTokenResponse:
+            type: object
+            properties:
+                message:
+                    type: string
+            description: DeleteTokenResponse confirms deletion
         api.explorer.v1.EVMLogDTO:
             type: object
             properties:
@@ -916,6 +1009,18 @@ components:
                 is_contract_create:
                     type: boolean
             description: EVMTransactionDTO represents an EVM transaction in Etherscan-like format
+        api.explorer.v1.GetTokenUsageResponse:
+            type: object
+            properties:
+                totalCalls:
+                    type: string
+                successCalls:
+                    type: string
+                failedCalls:
+                    type: string
+                lastUsedAt:
+                    type: string
+            description: GetTokenUsageResponse returns usage statistics
         api.explorer.v1.HealthDetails:
             type: object
             properties:
@@ -930,6 +1035,14 @@ components:
                     description: Optional latency in milliseconds
                     format: double
             description: HealthDetails contains detailed health information for each component
+        api.explorer.v1.ListTokensResponse:
+            type: object
+            properties:
+                tokens:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.explorer.v1.TokenInfo'
+            description: ListTokensResponse returns token list
         api.explorer.v1.Reply:
             type: object
             properties:
@@ -944,6 +1057,24 @@ components:
                     type: object
                     description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
             description: 通用响应结构
+        api.explorer.v1.TokenInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                tokenPreview:
+                    type: string
+                planType:
+                    type: string
+                status:
+                    type: string
+                createdAt:
+                    type: string
+                lastUsedAt:
+                    type: string
+            description: TokenInfo represents token information
         api.explorer.v1.TransactionDTO:
             type: object
             properties:
@@ -1042,6 +1173,8 @@ components:
                     additionalProperties:
                         type: string
 tags:
+    - name: APITokenService
+      description: APITokenService provides API token management services
     - name: ContractInfoService
       description: |-
         ContractInfoService provides contract information query and management
