@@ -29,6 +29,7 @@ const OperationExplorerGetBlockGasUtilization = "/api.explorer.v1.Explorer/GetBl
 const OperationExplorerGetEVMAccountTransactions = "/api.explorer.v1.Explorer/GetEVMAccountTransactions"
 const OperationExplorerGetEVMTransaction = "/api.explorer.v1.Explorer/GetEVMTransaction"
 const OperationExplorerGetEVMTransactions = "/api.explorer.v1.Explorer/GetEVMTransactions"
+const OperationExplorerGetFailedTransactions1000 = "/api.explorer.v1.Explorer/GetFailedTransactions1000"
 const OperationExplorerGetFailedTransactions24h = "/api.explorer.v1.Explorer/GetFailedTransactions24h"
 const OperationExplorerGetLatestBlockHeight = "/api.explorer.v1.Explorer/GetLatestBlockHeight"
 const OperationExplorerGetLatestBlocks = "/api.explorer.v1.Explorer/GetLatestBlocks"
@@ -53,6 +54,8 @@ type ExplorerHTTPServer interface {
 	GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error)
 	// GetEVMTransactions Get EVM transactions list
 	GetEVMTransactions(context.Context, *GetEVMTransactionsRequest) (*Reply, error)
+	// GetFailedTransactions1000 Get failure statistics for the latest 1000 transactions
+	GetFailedTransactions1000(context.Context, *emptypb.Empty) (*Reply, error)
 	// GetFailedTransactions24H Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error)
 	GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error)
@@ -78,6 +81,7 @@ func RegisterExplorerHTTPServer(s *http.Server, srv ExplorerHTTPServer) {
 	r.GET("/api/v1/transaction/stats", _Explorer_GetTransactionStats0_HTTP_Handler(srv))
 	r.GET("/api/v1/block/gas-utilization", _Explorer_GetBlockGasUtilization0_HTTP_Handler(srv))
 	r.GET("/api/v1/transaction/failed-24h", _Explorer_GetFailedTransactions24H0_HTTP_Handler(srv))
+	r.GET("/api/v1/transaction/failed-1000", _Explorer_GetFailedTransactions10000_HTTP_Handler(srv))
 	r.GET("/api/v1/evm/transaction/{hash}", _Explorer_GetEVMTransaction0_HTTP_Handler(srv))
 	r.GET("/api/v1/evm/transactions", _Explorer_GetEVMTransactions0_HTTP_Handler(srv))
 	r.GET("/api/v1/evm/account/{address}/transactions", _Explorer_GetEVMAccountTransactions0_HTTP_Handler(srv))
@@ -294,6 +298,25 @@ func _Explorer_GetFailedTransactions24H0_HTTP_Handler(srv ExplorerHTTPServer) fu
 	}
 }
 
+func _Explorer_GetFailedTransactions10000_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in emptypb.Empty
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationExplorerGetFailedTransactions1000)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetFailedTransactions1000(ctx, req.(*emptypb.Empty))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _Explorer_GetEVMTransaction0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetEVMTransactionRequest
@@ -411,6 +434,8 @@ type ExplorerHTTPClient interface {
 	GetEVMTransaction(ctx context.Context, req *GetEVMTransactionRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	// GetEVMTransactions Get EVM transactions list
 	GetEVMTransactions(ctx context.Context, req *GetEVMTransactionsRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	// GetFailedTransactions1000 Get failure statistics for the latest 1000 transactions
+	GetFailedTransactions1000(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
 	// GetFailedTransactions24H Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(ctx context.Context, req *GetFailedTransactions24HRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
@@ -546,6 +571,20 @@ func (c *ExplorerHTTPClientImpl) GetEVMTransactions(ctx context.Context, in *Get
 	pattern := "/api/v1/evm/transactions"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationExplorerGetEVMTransactions))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetFailedTransactions1000 Get failure statistics for the latest 1000 transactions
+func (c *ExplorerHTTPClientImpl) GetFailedTransactions1000(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/api/v1/transaction/failed-1000"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationExplorerGetFailedTransactions1000))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

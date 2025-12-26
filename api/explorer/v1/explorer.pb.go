@@ -360,6 +360,68 @@ func (x *GetFailedTransactions24HRequest) GetPagination() *PaginationRequest {
 	return nil
 }
 
+// FailedTransactions1000Response contains failed transactions in the latest
+// 1000 transactions
+type FailedTransactions1000Response struct {
+	state            protoimpl.MessageState   `protogen:"open.v1"`
+	Transactions     []*FailedTransactionInfo `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`             // List of failed transactions
+	Pagination       *PaginationInfo          `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`                 // Pagination information
+	SuccessRate_1000 float64                  `protobuf:"fixed64,3,opt,name=success_rate_1000,proto3" json:"success_rate_1000,omitempty"` // Overall success rate in the latest 1000 transactions (percentage, 0-100)
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *FailedTransactions1000Response) Reset() {
+	*x = FailedTransactions1000Response{}
+	mi := &file_explorer_v1_explorer_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FailedTransactions1000Response) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FailedTransactions1000Response) ProtoMessage() {}
+
+func (x *FailedTransactions1000Response) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_explorer_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FailedTransactions1000Response.ProtoReflect.Descriptor instead.
+func (*FailedTransactions1000Response) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *FailedTransactions1000Response) GetTransactions() []*FailedTransactionInfo {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
+func (x *FailedTransactions1000Response) GetPagination() *PaginationInfo {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
+func (x *FailedTransactions1000Response) GetSuccessRate_1000() float64 {
+	if x != nil {
+		return x.SuccessRate_1000
+	}
+	return 0
+}
+
 // EVM 交易相关请求和响应
 type GetEVMTransactionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -370,7 +432,7 @@ type GetEVMTransactionRequest struct {
 
 func (x *GetEVMTransactionRequest) Reset() {
 	*x = GetEVMTransactionRequest{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[7]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -382,7 +444,7 @@ func (x *GetEVMTransactionRequest) String() string {
 func (*GetEVMTransactionRequest) ProtoMessage() {}
 
 func (x *GetEVMTransactionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[7]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -395,7 +457,7 @@ func (x *GetEVMTransactionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetEVMTransactionRequest.ProtoReflect.Descriptor instead.
 func (*GetEVMTransactionRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{7}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetEVMTransactionRequest) GetHash() string {
@@ -416,7 +478,7 @@ type GetEVMTransactionsRequest struct {
 
 func (x *GetEVMTransactionsRequest) Reset() {
 	*x = GetEVMTransactionsRequest{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[8]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -428,7 +490,7 @@ func (x *GetEVMTransactionsRequest) String() string {
 func (*GetEVMTransactionsRequest) ProtoMessage() {}
 
 func (x *GetEVMTransactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[8]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -441,7 +503,7 @@ func (x *GetEVMTransactionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetEVMTransactionsRequest.ProtoReflect.Descriptor instead.
 func (*GetEVMTransactionsRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{8}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetEVMTransactionsRequest) GetPage() int32 {
@@ -477,7 +539,7 @@ type GetEVMAccountTransactionsRequest struct {
 
 func (x *GetEVMAccountTransactionsRequest) Reset() {
 	*x = GetEVMAccountTransactionsRequest{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[9]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +551,7 @@ func (x *GetEVMAccountTransactionsRequest) String() string {
 func (*GetEVMAccountTransactionsRequest) ProtoMessage() {}
 
 func (x *GetEVMAccountTransactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[9]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +564,7 @@ func (x *GetEVMAccountTransactionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetEVMAccountTransactionsRequest.ProtoReflect.Descriptor instead.
 func (*GetEVMAccountTransactionsRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{9}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetEVMAccountTransactionsRequest) GetAddress() string {
@@ -544,7 +606,7 @@ type GasFeeCoin struct {
 
 func (x *GasFeeCoin) Reset() {
 	*x = GasFeeCoin{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[10]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -556,7 +618,7 @@ func (x *GasFeeCoin) String() string {
 func (*GasFeeCoin) ProtoMessage() {}
 
 func (x *GasFeeCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[10]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -569,7 +631,7 @@ func (x *GasFeeCoin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GasFeeCoin.ProtoReflect.Descriptor instead.
 func (*GasFeeCoin) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{10}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GasFeeCoin) GetDenom() string {
@@ -598,7 +660,7 @@ type GasFee struct {
 
 func (x *GasFee) Reset() {
 	*x = GasFee{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[11]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -610,7 +672,7 @@ func (x *GasFee) String() string {
 func (*GasFee) ProtoMessage() {}
 
 func (x *GasFee) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[11]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -623,7 +685,7 @@ func (x *GasFee) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GasFee.ProtoReflect.Descriptor instead.
 func (*GasFee) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{11}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GasFee) GetAmount() []*GasFeeCoin {
@@ -667,7 +729,7 @@ type FailedTransactionInfo struct {
 
 func (x *FailedTransactionInfo) Reset() {
 	*x = FailedTransactionInfo{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[12]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -679,7 +741,7 @@ func (x *FailedTransactionInfo) String() string {
 func (*FailedTransactionInfo) ProtoMessage() {}
 
 func (x *FailedTransactionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[12]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -692,7 +754,7 @@ func (x *FailedTransactionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailedTransactionInfo.ProtoReflect.Descriptor instead.
 func (*FailedTransactionInfo) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{12}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *FailedTransactionInfo) GetHash() string {
@@ -785,7 +847,7 @@ type FailedTransactions24HResponse struct {
 
 func (x *FailedTransactions24HResponse) Reset() {
 	*x = FailedTransactions24HResponse{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[13]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -797,7 +859,7 @@ func (x *FailedTransactions24HResponse) String() string {
 func (*FailedTransactions24HResponse) ProtoMessage() {}
 
 func (x *FailedTransactions24HResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[13]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -810,7 +872,7 @@ func (x *FailedTransactions24HResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailedTransactions24HResponse.ProtoReflect.Descriptor instead.
 func (*FailedTransactions24HResponse) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{13}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *FailedTransactions24HResponse) GetTransactions() []*FailedTransactionInfo {
@@ -845,7 +907,7 @@ type CheckHealthyRequest struct {
 
 func (x *CheckHealthyRequest) Reset() {
 	*x = CheckHealthyRequest{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[14]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -857,7 +919,7 @@ func (x *CheckHealthyRequest) String() string {
 func (*CheckHealthyRequest) ProtoMessage() {}
 
 func (x *CheckHealthyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[14]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -870,7 +932,7 @@ func (x *CheckHealthyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckHealthyRequest.ProtoReflect.Descriptor instead.
 func (*CheckHealthyRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{14}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CheckHealthyRequest) GetService() string {
@@ -895,7 +957,7 @@ type HealthDetails struct {
 
 func (x *HealthDetails) Reset() {
 	*x = HealthDetails{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[15]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -907,7 +969,7 @@ func (x *HealthDetails) String() string {
 func (*HealthDetails) ProtoMessage() {}
 
 func (x *HealthDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[15]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -920,7 +982,7 @@ func (x *HealthDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthDetails.ProtoReflect.Descriptor instead.
 func (*HealthDetails) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{15}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *HealthDetails) GetStatus() string {
@@ -961,7 +1023,7 @@ type CheckHealthyResponse struct {
 
 func (x *CheckHealthyResponse) Reset() {
 	*x = CheckHealthyResponse{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[16]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -973,7 +1035,7 @@ func (x *CheckHealthyResponse) String() string {
 func (*CheckHealthyResponse) ProtoMessage() {}
 
 func (x *CheckHealthyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[16]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -986,7 +1048,7 @@ func (x *CheckHealthyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckHealthyResponse.ProtoReflect.Descriptor instead.
 func (*CheckHealthyResponse) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{16}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CheckHealthyResponse) GetStatus() string {
@@ -1029,7 +1091,7 @@ type StreamLatestBlocksRequest struct {
 
 func (x *StreamLatestBlocksRequest) Reset() {
 	*x = StreamLatestBlocksRequest{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[17]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1041,7 +1103,7 @@ func (x *StreamLatestBlocksRequest) String() string {
 func (*StreamLatestBlocksRequest) ProtoMessage() {}
 
 func (x *StreamLatestBlocksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[17]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1054,7 +1116,7 @@ func (x *StreamLatestBlocksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamLatestBlocksRequest.ProtoReflect.Descriptor instead.
 func (*StreamLatestBlocksRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{17}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *StreamLatestBlocksRequest) GetFromHeight() int64 {
@@ -1075,7 +1137,7 @@ type StreamLatestTransactionsRequest struct {
 
 func (x *StreamLatestTransactionsRequest) Reset() {
 	*x = StreamLatestTransactionsRequest{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[18]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1087,7 +1149,7 @@ func (x *StreamLatestTransactionsRequest) String() string {
 func (*StreamLatestTransactionsRequest) ProtoMessage() {}
 
 func (x *StreamLatestTransactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[18]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1100,7 +1162,7 @@ func (x *StreamLatestTransactionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamLatestTransactionsRequest.ProtoReflect.Descriptor instead.
 func (*StreamLatestTransactionsRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{18}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *StreamLatestTransactionsRequest) GetTypes() []string {
@@ -1123,7 +1185,7 @@ type StreamAccountUpdatesRequest struct {
 
 func (x *StreamAccountUpdatesRequest) Reset() {
 	*x = StreamAccountUpdatesRequest{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[19]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1135,7 +1197,7 @@ func (x *StreamAccountUpdatesRequest) String() string {
 func (*StreamAccountUpdatesRequest) ProtoMessage() {}
 
 func (x *StreamAccountUpdatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[19]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1148,7 +1210,7 @@ func (x *StreamAccountUpdatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamAccountUpdatesRequest.ProtoReflect.Descriptor instead.
 func (*StreamAccountUpdatesRequest) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{19}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *StreamAccountUpdatesRequest) GetAddress() string {
@@ -1180,7 +1242,7 @@ type BlockUpdate struct {
 
 func (x *BlockUpdate) Reset() {
 	*x = BlockUpdate{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[20]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1192,7 +1254,7 @@ func (x *BlockUpdate) String() string {
 func (*BlockUpdate) ProtoMessage() {}
 
 func (x *BlockUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[20]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1205,7 +1267,7 @@ func (x *BlockUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockUpdate.ProtoReflect.Descriptor instead.
 func (*BlockUpdate) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{20}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *BlockUpdate) GetBlock() *BlockDTO {
@@ -1243,7 +1305,7 @@ type TransactionUpdate struct {
 
 func (x *TransactionUpdate) Reset() {
 	*x = TransactionUpdate{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[21]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1255,7 +1317,7 @@ func (x *TransactionUpdate) String() string {
 func (*TransactionUpdate) ProtoMessage() {}
 
 func (x *TransactionUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[21]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1268,7 +1330,7 @@ func (x *TransactionUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionUpdate.ProtoReflect.Descriptor instead.
 func (*TransactionUpdate) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{21}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *TransactionUpdate) GetTransaction() *TransactionDTO {
@@ -1307,7 +1369,7 @@ type AccountUpdateData struct {
 
 func (x *AccountUpdateData) Reset() {
 	*x = AccountUpdateData{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[22]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1319,7 +1381,7 @@ func (x *AccountUpdateData) String() string {
 func (*AccountUpdateData) ProtoMessage() {}
 
 func (x *AccountUpdateData) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[22]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1332,7 +1394,7 @@ func (x *AccountUpdateData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountUpdateData.ProtoReflect.Descriptor instead.
 func (*AccountUpdateData) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{22}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *AccountUpdateData) GetTransaction() *TransactionDTO {
@@ -1372,7 +1434,7 @@ type AccountUpdate struct {
 
 func (x *AccountUpdate) Reset() {
 	*x = AccountUpdate{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[23]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1384,7 +1446,7 @@ func (x *AccountUpdate) String() string {
 func (*AccountUpdate) ProtoMessage() {}
 
 func (x *AccountUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[23]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1397,7 +1459,7 @@ func (x *AccountUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountUpdate.ProtoReflect.Descriptor instead.
 func (*AccountUpdate) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{23}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AccountUpdate) GetAddress() string {
@@ -1437,7 +1499,7 @@ type LatestBlockHeightResponse struct {
 
 func (x *LatestBlockHeightResponse) Reset() {
 	*x = LatestBlockHeightResponse{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[24]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1449,7 +1511,7 @@ func (x *LatestBlockHeightResponse) String() string {
 func (*LatestBlockHeightResponse) ProtoMessage() {}
 
 func (x *LatestBlockHeightResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[24]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1462,7 +1524,7 @@ func (x *LatestBlockHeightResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LatestBlockHeightResponse.ProtoReflect.Descriptor instead.
 func (*LatestBlockHeightResponse) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{24}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *LatestBlockHeightResponse) GetHeight() int64 {
@@ -1495,7 +1557,7 @@ type BlockGasUtilizationResponse struct {
 
 func (x *BlockGasUtilizationResponse) Reset() {
 	*x = BlockGasUtilizationResponse{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[25]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1507,7 +1569,7 @@ func (x *BlockGasUtilizationResponse) String() string {
 func (*BlockGasUtilizationResponse) ProtoMessage() {}
 
 func (x *BlockGasUtilizationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[25]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1520,7 +1582,7 @@ func (x *BlockGasUtilizationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockGasUtilizationResponse.ProtoReflect.Descriptor instead.
 func (*BlockGasUtilizationResponse) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{25}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *BlockGasUtilizationResponse) GetGasUtilization() float64 {
@@ -1600,7 +1662,7 @@ type TransactionStatsResponse struct {
 
 func (x *TransactionStatsResponse) Reset() {
 	*x = TransactionStatsResponse{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[26]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1612,7 +1674,7 @@ func (x *TransactionStatsResponse) String() string {
 func (*TransactionStatsResponse) ProtoMessage() {}
 
 func (x *TransactionStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[26]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1625,7 +1687,7 @@ func (x *TransactionStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionStatsResponse.ProtoReflect.Descriptor instead.
 func (*TransactionStatsResponse) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{26}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *TransactionStatsResponse) GetTotalCount() int64 {
@@ -1723,7 +1785,7 @@ type AccountDTO struct {
 
 func (x *AccountDTO) Reset() {
 	*x = AccountDTO{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[27]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1735,7 +1797,7 @@ func (x *AccountDTO) String() string {
 func (*AccountDTO) ProtoMessage() {}
 
 func (x *AccountDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[27]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1748,7 +1810,7 @@ func (x *AccountDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountDTO.ProtoReflect.Descriptor instead.
 func (*AccountDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{27}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AccountDTO) GetAddress() string {
@@ -1783,7 +1845,7 @@ type AccountBalanceDTO struct {
 
 func (x *AccountBalanceDTO) Reset() {
 	*x = AccountBalanceDTO{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[28]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1795,7 +1857,7 @@ func (x *AccountBalanceDTO) String() string {
 func (*AccountBalanceDTO) ProtoMessage() {}
 
 func (x *AccountBalanceDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[28]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1808,7 +1870,7 @@ func (x *AccountBalanceDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountBalanceDTO.ProtoReflect.Descriptor instead.
 func (*AccountBalanceDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{28}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *AccountBalanceDTO) GetAddress() string {
@@ -1851,7 +1913,7 @@ type BlockDTO struct {
 
 func (x *BlockDTO) Reset() {
 	*x = BlockDTO{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[29]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1863,7 +1925,7 @@ func (x *BlockDTO) String() string {
 func (*BlockDTO) ProtoMessage() {}
 
 func (x *BlockDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[29]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1876,7 +1938,7 @@ func (x *BlockDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockDTO.ProtoReflect.Descriptor instead.
 func (*BlockDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{29}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *BlockDTO) GetHeight() uint64 {
@@ -1991,7 +2053,7 @@ type TransactionDTO struct {
 
 func (x *TransactionDTO) Reset() {
 	*x = TransactionDTO{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[30]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2003,7 +2065,7 @@ func (x *TransactionDTO) String() string {
 func (*TransactionDTO) ProtoMessage() {}
 
 func (x *TransactionDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[30]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2016,7 +2078,7 @@ func (x *TransactionDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionDTO.ProtoReflect.Descriptor instead.
 func (*TransactionDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{30}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *TransactionDTO) GetId() string {
@@ -2222,7 +2284,7 @@ type EVMTransactionDTO struct {
 
 func (x *EVMTransactionDTO) Reset() {
 	*x = EVMTransactionDTO{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[31]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2234,7 +2296,7 @@ func (x *EVMTransactionDTO) String() string {
 func (*EVMTransactionDTO) ProtoMessage() {}
 
 func (x *EVMTransactionDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[31]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2247,7 +2309,7 @@ func (x *EVMTransactionDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EVMTransactionDTO.ProtoReflect.Descriptor instead.
 func (*EVMTransactionDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{31}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *EVMTransactionDTO) GetHash() string {
@@ -2399,7 +2461,7 @@ type EVMLogDTO struct {
 
 func (x *EVMLogDTO) Reset() {
 	*x = EVMLogDTO{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[32]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2411,7 +2473,7 @@ func (x *EVMLogDTO) String() string {
 func (*EVMLogDTO) ProtoMessage() {}
 
 func (x *EVMLogDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[32]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2424,7 +2486,7 @@ func (x *EVMLogDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EVMLogDTO.ProtoReflect.Descriptor instead.
 func (*EVMLogDTO) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{32}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *EVMLogDTO) GetAddress() string {
@@ -2513,7 +2575,7 @@ type TokenPriceAndMarketCapResponse struct {
 
 func (x *TokenPriceAndMarketCapResponse) Reset() {
 	*x = TokenPriceAndMarketCapResponse{}
-	mi := &file_explorer_v1_explorer_proto_msgTypes[33]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2525,7 +2587,7 @@ func (x *TokenPriceAndMarketCapResponse) String() string {
 func (*TokenPriceAndMarketCapResponse) ProtoMessage() {}
 
 func (x *TokenPriceAndMarketCapResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_explorer_v1_explorer_proto_msgTypes[33]
+	mi := &file_explorer_v1_explorer_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2538,7 +2600,7 @@ func (x *TokenPriceAndMarketCapResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenPriceAndMarketCapResponse.ProtoReflect.Descriptor instead.
 func (*TokenPriceAndMarketCapResponse) Descriptor() ([]byte, []int) {
-	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{33}
+	return file_explorer_v1_explorer_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *TokenPriceAndMarketCapResponse) GetTokenSymbol() string {
@@ -2649,7 +2711,13 @@ const file_explorer_v1_explorer_proto_rawDesc = "" +
 	"\x1fGetFailedTransactions24hRequest\x12B\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\".api.explorer.v1.PaginationRequestR\n" +
-	"pagination\".\n" +
+	"pagination\"\xdb\x01\n" +
+	"\x1eFailedTransactions1000Response\x12J\n" +
+	"\ftransactions\x18\x01 \x03(\v2&.api.explorer.v1.FailedTransactionInfoR\ftransactions\x12?\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x1f.api.explorer.v1.PaginationInfoR\n" +
+	"pagination\x12,\n" +
+	"\x11success_rate_1000\x18\x03 \x01(\x01R\x11success_rate_1000\".\n" +
 	"\x18GetEVMTransactionRequest\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\"d\n" +
 	"\x19GetEVMTransactionsRequest\x12\x12\n" +
@@ -2857,7 +2925,7 @@ const file_explorer_v1_explorer_proto_rawDesc = "" +
 	"\rsupply_source\x18\n" +
 	" \x01(\tR\rsupply_source\x128\n" +
 	"\x17total_supply_from_chain\x18\v \x01(\tR\x17total_supply_from_chain\x12L\n" +
-	"!total_supply_from_chain_formatted\x18\f \x01(\tR!total_supply_from_chain_formatted2\xf9\x12\n" +
+	"!total_supply_from_chain_formatted\x18\f \x01(\tR!total_supply_from_chain_formatted2\xef\x13\n" +
 	"\bExplorer\x12k\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/block/latest\x12u\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/block/by-height\x12k\n" +
@@ -2869,7 +2937,8 @@ const file_explorer_v1_explorer_proto_rawDesc = "" +
 	"\x12GetAccountBalances\x12*.api.explorer.v1.GetAccountBalancesRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/account/balances\x12h\n" +
 	"\x13GetTransactionStats\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/transaction/stats\x12o\n" +
 	"\x16GetBlockGasUtilization\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/api/v1/block/gas-utilization\x12\x8c\x01\n" +
-	"\x18GetFailedTransactions24h\x120.api.explorer.v1.GetFailedTransactions24hRequest\x1a\x16.api.explorer.v1.Reply\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/transaction/failed-24h\x12~\n" +
+	"\x18GetFailedTransactions24h\x120.api.explorer.v1.GetFailedTransactions24hRequest\x1a\x16.api.explorer.v1.Reply\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/transaction/failed-24h\x12t\n" +
+	"\x19GetFailedTransactions1000\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/transaction/failed-1000\x12~\n" +
 	"\x11GetEVMTransaction\x12).api.explorer.v1.GetEVMTransactionRequest\x1a\x16.api.explorer.v1.Reply\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/evm/transaction/{hash}\x12z\n" +
 	"\x12GetEVMTransactions\x12*.api.explorer.v1.GetEVMTransactionsRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/evm/transactions\x12\x9a\x01\n" +
 	"\x19GetEVMAccountTransactions\x121.api.explorer.v1.GetEVMAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"2\x82\xd3\xe4\x93\x02,\x12*/api/v1/evm/account/{address}/transactions\x12s\n" +
@@ -2892,7 +2961,7 @@ func file_explorer_v1_explorer_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_explorer_proto_rawDescData
 }
 
-var file_explorer_v1_explorer_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_explorer_v1_explorer_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_explorer_v1_explorer_proto_goTypes = []any{
 	(*GetBlockByHeightRequest)(nil),          // 0: api.explorer.v1.GetBlockByHeightRequest
 	(*GetTransactionByHashRequest)(nil),      // 1: api.explorer.v1.GetTransactionByHashRequest
@@ -2901,102 +2970,107 @@ var file_explorer_v1_explorer_proto_goTypes = []any{
 	(*GetAccountBalancesRequest)(nil),        // 4: api.explorer.v1.GetAccountBalancesRequest
 	(*GetTokenPriceAndMarketCapRequest)(nil), // 5: api.explorer.v1.GetTokenPriceAndMarketCapRequest
 	(*GetFailedTransactions24HRequest)(nil),  // 6: api.explorer.v1.GetFailedTransactions24hRequest
-	(*GetEVMTransactionRequest)(nil),         // 7: api.explorer.v1.GetEVMTransactionRequest
-	(*GetEVMTransactionsRequest)(nil),        // 8: api.explorer.v1.GetEVMTransactionsRequest
-	(*GetEVMAccountTransactionsRequest)(nil), // 9: api.explorer.v1.GetEVMAccountTransactionsRequest
-	(*GasFeeCoin)(nil),                       // 10: api.explorer.v1.GasFeeCoin
-	(*GasFee)(nil),                           // 11: api.explorer.v1.GasFee
-	(*FailedTransactionInfo)(nil),            // 12: api.explorer.v1.FailedTransactionInfo
-	(*FailedTransactions24HResponse)(nil),    // 13: api.explorer.v1.FailedTransactions24hResponse
-	(*CheckHealthyRequest)(nil),              // 14: api.explorer.v1.CheckHealthyRequest
-	(*HealthDetails)(nil),                    // 15: api.explorer.v1.HealthDetails
-	(*CheckHealthyResponse)(nil),             // 16: api.explorer.v1.CheckHealthyResponse
-	(*StreamLatestBlocksRequest)(nil),        // 17: api.explorer.v1.StreamLatestBlocksRequest
-	(*StreamLatestTransactionsRequest)(nil),  // 18: api.explorer.v1.StreamLatestTransactionsRequest
-	(*StreamAccountUpdatesRequest)(nil),      // 19: api.explorer.v1.StreamAccountUpdatesRequest
-	(*BlockUpdate)(nil),                      // 20: api.explorer.v1.BlockUpdate
-	(*TransactionUpdate)(nil),                // 21: api.explorer.v1.TransactionUpdate
-	(*AccountUpdateData)(nil),                // 22: api.explorer.v1.AccountUpdateData
-	(*AccountUpdate)(nil),                    // 23: api.explorer.v1.AccountUpdate
-	(*LatestBlockHeightResponse)(nil),        // 24: api.explorer.v1.LatestBlockHeightResponse
-	(*BlockGasUtilizationResponse)(nil),      // 25: api.explorer.v1.BlockGasUtilizationResponse
-	(*TransactionStatsResponse)(nil),         // 26: api.explorer.v1.TransactionStatsResponse
-	(*AccountDTO)(nil),                       // 27: api.explorer.v1.AccountDTO
-	(*AccountBalanceDTO)(nil),                // 28: api.explorer.v1.AccountBalanceDTO
-	(*BlockDTO)(nil),                         // 29: api.explorer.v1.BlockDTO
-	(*TransactionDTO)(nil),                   // 30: api.explorer.v1.TransactionDTO
-	(*EVMTransactionDTO)(nil),                // 31: api.explorer.v1.EVMTransactionDTO
-	(*EVMLogDTO)(nil),                        // 32: api.explorer.v1.EVMLogDTO
-	(*TokenPriceAndMarketCapResponse)(nil),   // 33: api.explorer.v1.TokenPriceAndMarketCapResponse
-	nil,                                      // 34: api.explorer.v1.CheckHealthyResponse.DetailsEntry
-	nil,                                      // 35: api.explorer.v1.AccountUpdateData.MetadataEntry
-	(*PaginationRequest)(nil),                // 36: api.explorer.v1.PaginationRequest
-	(*PaginationInfo)(nil),                   // 37: api.explorer.v1.PaginationInfo
-	(*structpb.Struct)(nil),                  // 38: google.protobuf.Struct
-	(*emptypb.Empty)(nil),                    // 39: google.protobuf.Empty
-	(*Reply)(nil),                            // 40: api.explorer.v1.Reply
+	(*FailedTransactions1000Response)(nil),   // 7: api.explorer.v1.FailedTransactions1000Response
+	(*GetEVMTransactionRequest)(nil),         // 8: api.explorer.v1.GetEVMTransactionRequest
+	(*GetEVMTransactionsRequest)(nil),        // 9: api.explorer.v1.GetEVMTransactionsRequest
+	(*GetEVMAccountTransactionsRequest)(nil), // 10: api.explorer.v1.GetEVMAccountTransactionsRequest
+	(*GasFeeCoin)(nil),                       // 11: api.explorer.v1.GasFeeCoin
+	(*GasFee)(nil),                           // 12: api.explorer.v1.GasFee
+	(*FailedTransactionInfo)(nil),            // 13: api.explorer.v1.FailedTransactionInfo
+	(*FailedTransactions24HResponse)(nil),    // 14: api.explorer.v1.FailedTransactions24hResponse
+	(*CheckHealthyRequest)(nil),              // 15: api.explorer.v1.CheckHealthyRequest
+	(*HealthDetails)(nil),                    // 16: api.explorer.v1.HealthDetails
+	(*CheckHealthyResponse)(nil),             // 17: api.explorer.v1.CheckHealthyResponse
+	(*StreamLatestBlocksRequest)(nil),        // 18: api.explorer.v1.StreamLatestBlocksRequest
+	(*StreamLatestTransactionsRequest)(nil),  // 19: api.explorer.v1.StreamLatestTransactionsRequest
+	(*StreamAccountUpdatesRequest)(nil),      // 20: api.explorer.v1.StreamAccountUpdatesRequest
+	(*BlockUpdate)(nil),                      // 21: api.explorer.v1.BlockUpdate
+	(*TransactionUpdate)(nil),                // 22: api.explorer.v1.TransactionUpdate
+	(*AccountUpdateData)(nil),                // 23: api.explorer.v1.AccountUpdateData
+	(*AccountUpdate)(nil),                    // 24: api.explorer.v1.AccountUpdate
+	(*LatestBlockHeightResponse)(nil),        // 25: api.explorer.v1.LatestBlockHeightResponse
+	(*BlockGasUtilizationResponse)(nil),      // 26: api.explorer.v1.BlockGasUtilizationResponse
+	(*TransactionStatsResponse)(nil),         // 27: api.explorer.v1.TransactionStatsResponse
+	(*AccountDTO)(nil),                       // 28: api.explorer.v1.AccountDTO
+	(*AccountBalanceDTO)(nil),                // 29: api.explorer.v1.AccountBalanceDTO
+	(*BlockDTO)(nil),                         // 30: api.explorer.v1.BlockDTO
+	(*TransactionDTO)(nil),                   // 31: api.explorer.v1.TransactionDTO
+	(*EVMTransactionDTO)(nil),                // 32: api.explorer.v1.EVMTransactionDTO
+	(*EVMLogDTO)(nil),                        // 33: api.explorer.v1.EVMLogDTO
+	(*TokenPriceAndMarketCapResponse)(nil),   // 34: api.explorer.v1.TokenPriceAndMarketCapResponse
+	nil,                                      // 35: api.explorer.v1.CheckHealthyResponse.DetailsEntry
+	nil,                                      // 36: api.explorer.v1.AccountUpdateData.MetadataEntry
+	(*PaginationRequest)(nil),                // 37: api.explorer.v1.PaginationRequest
+	(*PaginationInfo)(nil),                   // 38: api.explorer.v1.PaginationInfo
+	(*structpb.Struct)(nil),                  // 39: google.protobuf.Struct
+	(*emptypb.Empty)(nil),                    // 40: google.protobuf.Empty
+	(*Reply)(nil),                            // 41: api.explorer.v1.Reply
 }
 var file_explorer_v1_explorer_proto_depIdxs = []int32{
-	36, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
-	36, // 1: api.explorer.v1.GetFailedTransactions24hRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
-	10, // 2: api.explorer.v1.GasFee.amount:type_name -> api.explorer.v1.GasFeeCoin
-	11, // 3: api.explorer.v1.FailedTransactionInfo.gas_fee:type_name -> api.explorer.v1.GasFee
-	12, // 4: api.explorer.v1.FailedTransactions24hResponse.transactions:type_name -> api.explorer.v1.FailedTransactionInfo
-	37, // 5: api.explorer.v1.FailedTransactions24hResponse.pagination:type_name -> api.explorer.v1.PaginationInfo
-	34, // 6: api.explorer.v1.CheckHealthyResponse.details:type_name -> api.explorer.v1.CheckHealthyResponse.DetailsEntry
-	29, // 7: api.explorer.v1.BlockUpdate.block:type_name -> api.explorer.v1.BlockDTO
-	30, // 8: api.explorer.v1.TransactionUpdate.transaction:type_name -> api.explorer.v1.TransactionDTO
-	30, // 9: api.explorer.v1.AccountUpdateData.transaction:type_name -> api.explorer.v1.TransactionDTO
-	28, // 10: api.explorer.v1.AccountUpdateData.balances:type_name -> api.explorer.v1.AccountBalanceDTO
-	35, // 11: api.explorer.v1.AccountUpdateData.metadata:type_name -> api.explorer.v1.AccountUpdateData.MetadataEntry
-	22, // 12: api.explorer.v1.AccountUpdate.data:type_name -> api.explorer.v1.AccountUpdateData
-	38, // 13: api.explorer.v1.BlockDTO.txs:type_name -> google.protobuf.Struct
-	31, // 14: api.explorer.v1.TransactionDTO.evm_transaction:type_name -> api.explorer.v1.EVMTransactionDTO
-	32, // 15: api.explorer.v1.EVMTransactionDTO.logs:type_name -> api.explorer.v1.EVMLogDTO
-	15, // 16: api.explorer.v1.CheckHealthyResponse.DetailsEntry.value:type_name -> api.explorer.v1.HealthDetails
-	36, // 17: api.explorer.v1.Explorer.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
-	0,  // 18: api.explorer.v1.Explorer.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
-	39, // 19: api.explorer.v1.Explorer.GetLatestBlockHeight:input_type -> google.protobuf.Empty
-	36, // 20: api.explorer.v1.Explorer.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
-	1,  // 21: api.explorer.v1.Explorer.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
-	2,  // 22: api.explorer.v1.Explorer.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
-	3,  // 23: api.explorer.v1.Explorer.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
-	4,  // 24: api.explorer.v1.Explorer.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
-	39, // 25: api.explorer.v1.Explorer.GetTransactionStats:input_type -> google.protobuf.Empty
-	39, // 26: api.explorer.v1.Explorer.GetBlockGasUtilization:input_type -> google.protobuf.Empty
-	6,  // 27: api.explorer.v1.Explorer.GetFailedTransactions24h:input_type -> api.explorer.v1.GetFailedTransactions24hRequest
-	7,  // 28: api.explorer.v1.Explorer.GetEVMTransaction:input_type -> api.explorer.v1.GetEVMTransactionRequest
-	8,  // 29: api.explorer.v1.Explorer.GetEVMTransactions:input_type -> api.explorer.v1.GetEVMTransactionsRequest
-	9,  // 30: api.explorer.v1.Explorer.GetEVMAccountTransactions:input_type -> api.explorer.v1.GetEVMAccountTransactionsRequest
-	14, // 31: api.explorer.v1.Explorer.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
-	17, // 32: api.explorer.v1.Explorer.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
-	18, // 33: api.explorer.v1.Explorer.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
-	19, // 34: api.explorer.v1.Explorer.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
-	5,  // 35: api.explorer.v1.Explorer.GetTokenPriceAndMarketCap:input_type -> api.explorer.v1.GetTokenPriceAndMarketCapRequest
-	40, // 36: api.explorer.v1.Explorer.GetLatestBlocks:output_type -> api.explorer.v1.Reply
-	40, // 37: api.explorer.v1.Explorer.GetBlockByHeight:output_type -> api.explorer.v1.Reply
-	40, // 38: api.explorer.v1.Explorer.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
-	40, // 39: api.explorer.v1.Explorer.GetLatestTransactions:output_type -> api.explorer.v1.Reply
-	40, // 40: api.explorer.v1.Explorer.GetTransactionByHash:output_type -> api.explorer.v1.Reply
-	40, // 41: api.explorer.v1.Explorer.GetAccountInfo:output_type -> api.explorer.v1.Reply
-	40, // 42: api.explorer.v1.Explorer.GetAccountTransactions:output_type -> api.explorer.v1.Reply
-	40, // 43: api.explorer.v1.Explorer.GetAccountBalances:output_type -> api.explorer.v1.Reply
-	40, // 44: api.explorer.v1.Explorer.GetTransactionStats:output_type -> api.explorer.v1.Reply
-	40, // 45: api.explorer.v1.Explorer.GetBlockGasUtilization:output_type -> api.explorer.v1.Reply
-	40, // 46: api.explorer.v1.Explorer.GetFailedTransactions24h:output_type -> api.explorer.v1.Reply
-	40, // 47: api.explorer.v1.Explorer.GetEVMTransaction:output_type -> api.explorer.v1.Reply
-	40, // 48: api.explorer.v1.Explorer.GetEVMTransactions:output_type -> api.explorer.v1.Reply
-	40, // 49: api.explorer.v1.Explorer.GetEVMAccountTransactions:output_type -> api.explorer.v1.Reply
-	16, // 50: api.explorer.v1.Explorer.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
-	20, // 51: api.explorer.v1.Explorer.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
-	21, // 52: api.explorer.v1.Explorer.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
-	23, // 53: api.explorer.v1.Explorer.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
-	40, // 54: api.explorer.v1.Explorer.GetTokenPriceAndMarketCap:output_type -> api.explorer.v1.Reply
-	36, // [36:55] is the sub-list for method output_type
-	17, // [17:36] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	37, // 0: api.explorer.v1.GetAccountTransactionsRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
+	37, // 1: api.explorer.v1.GetFailedTransactions24hRequest.pagination:type_name -> api.explorer.v1.PaginationRequest
+	13, // 2: api.explorer.v1.FailedTransactions1000Response.transactions:type_name -> api.explorer.v1.FailedTransactionInfo
+	38, // 3: api.explorer.v1.FailedTransactions1000Response.pagination:type_name -> api.explorer.v1.PaginationInfo
+	11, // 4: api.explorer.v1.GasFee.amount:type_name -> api.explorer.v1.GasFeeCoin
+	12, // 5: api.explorer.v1.FailedTransactionInfo.gas_fee:type_name -> api.explorer.v1.GasFee
+	13, // 6: api.explorer.v1.FailedTransactions24hResponse.transactions:type_name -> api.explorer.v1.FailedTransactionInfo
+	38, // 7: api.explorer.v1.FailedTransactions24hResponse.pagination:type_name -> api.explorer.v1.PaginationInfo
+	35, // 8: api.explorer.v1.CheckHealthyResponse.details:type_name -> api.explorer.v1.CheckHealthyResponse.DetailsEntry
+	30, // 9: api.explorer.v1.BlockUpdate.block:type_name -> api.explorer.v1.BlockDTO
+	31, // 10: api.explorer.v1.TransactionUpdate.transaction:type_name -> api.explorer.v1.TransactionDTO
+	31, // 11: api.explorer.v1.AccountUpdateData.transaction:type_name -> api.explorer.v1.TransactionDTO
+	29, // 12: api.explorer.v1.AccountUpdateData.balances:type_name -> api.explorer.v1.AccountBalanceDTO
+	36, // 13: api.explorer.v1.AccountUpdateData.metadata:type_name -> api.explorer.v1.AccountUpdateData.MetadataEntry
+	23, // 14: api.explorer.v1.AccountUpdate.data:type_name -> api.explorer.v1.AccountUpdateData
+	39, // 15: api.explorer.v1.BlockDTO.txs:type_name -> google.protobuf.Struct
+	32, // 16: api.explorer.v1.TransactionDTO.evm_transaction:type_name -> api.explorer.v1.EVMTransactionDTO
+	33, // 17: api.explorer.v1.EVMTransactionDTO.logs:type_name -> api.explorer.v1.EVMLogDTO
+	16, // 18: api.explorer.v1.CheckHealthyResponse.DetailsEntry.value:type_name -> api.explorer.v1.HealthDetails
+	37, // 19: api.explorer.v1.Explorer.GetLatestBlocks:input_type -> api.explorer.v1.PaginationRequest
+	0,  // 20: api.explorer.v1.Explorer.GetBlockByHeight:input_type -> api.explorer.v1.GetBlockByHeightRequest
+	40, // 21: api.explorer.v1.Explorer.GetLatestBlockHeight:input_type -> google.protobuf.Empty
+	37, // 22: api.explorer.v1.Explorer.GetLatestTransactions:input_type -> api.explorer.v1.PaginationRequest
+	1,  // 23: api.explorer.v1.Explorer.GetTransactionByHash:input_type -> api.explorer.v1.GetTransactionByHashRequest
+	2,  // 24: api.explorer.v1.Explorer.GetAccountInfo:input_type -> api.explorer.v1.GetAccountInfoRequest
+	3,  // 25: api.explorer.v1.Explorer.GetAccountTransactions:input_type -> api.explorer.v1.GetAccountTransactionsRequest
+	4,  // 26: api.explorer.v1.Explorer.GetAccountBalances:input_type -> api.explorer.v1.GetAccountBalancesRequest
+	40, // 27: api.explorer.v1.Explorer.GetTransactionStats:input_type -> google.protobuf.Empty
+	40, // 28: api.explorer.v1.Explorer.GetBlockGasUtilization:input_type -> google.protobuf.Empty
+	6,  // 29: api.explorer.v1.Explorer.GetFailedTransactions24h:input_type -> api.explorer.v1.GetFailedTransactions24hRequest
+	40, // 30: api.explorer.v1.Explorer.GetFailedTransactions1000:input_type -> google.protobuf.Empty
+	8,  // 31: api.explorer.v1.Explorer.GetEVMTransaction:input_type -> api.explorer.v1.GetEVMTransactionRequest
+	9,  // 32: api.explorer.v1.Explorer.GetEVMTransactions:input_type -> api.explorer.v1.GetEVMTransactionsRequest
+	10, // 33: api.explorer.v1.Explorer.GetEVMAccountTransactions:input_type -> api.explorer.v1.GetEVMAccountTransactionsRequest
+	15, // 34: api.explorer.v1.Explorer.CheckHealthy:input_type -> api.explorer.v1.CheckHealthyRequest
+	18, // 35: api.explorer.v1.Explorer.StreamLatestBlocks:input_type -> api.explorer.v1.StreamLatestBlocksRequest
+	19, // 36: api.explorer.v1.Explorer.StreamLatestTransactions:input_type -> api.explorer.v1.StreamLatestTransactionsRequest
+	20, // 37: api.explorer.v1.Explorer.StreamAccountUpdates:input_type -> api.explorer.v1.StreamAccountUpdatesRequest
+	5,  // 38: api.explorer.v1.Explorer.GetTokenPriceAndMarketCap:input_type -> api.explorer.v1.GetTokenPriceAndMarketCapRequest
+	41, // 39: api.explorer.v1.Explorer.GetLatestBlocks:output_type -> api.explorer.v1.Reply
+	41, // 40: api.explorer.v1.Explorer.GetBlockByHeight:output_type -> api.explorer.v1.Reply
+	41, // 41: api.explorer.v1.Explorer.GetLatestBlockHeight:output_type -> api.explorer.v1.Reply
+	41, // 42: api.explorer.v1.Explorer.GetLatestTransactions:output_type -> api.explorer.v1.Reply
+	41, // 43: api.explorer.v1.Explorer.GetTransactionByHash:output_type -> api.explorer.v1.Reply
+	41, // 44: api.explorer.v1.Explorer.GetAccountInfo:output_type -> api.explorer.v1.Reply
+	41, // 45: api.explorer.v1.Explorer.GetAccountTransactions:output_type -> api.explorer.v1.Reply
+	41, // 46: api.explorer.v1.Explorer.GetAccountBalances:output_type -> api.explorer.v1.Reply
+	41, // 47: api.explorer.v1.Explorer.GetTransactionStats:output_type -> api.explorer.v1.Reply
+	41, // 48: api.explorer.v1.Explorer.GetBlockGasUtilization:output_type -> api.explorer.v1.Reply
+	41, // 49: api.explorer.v1.Explorer.GetFailedTransactions24h:output_type -> api.explorer.v1.Reply
+	41, // 50: api.explorer.v1.Explorer.GetFailedTransactions1000:output_type -> api.explorer.v1.Reply
+	41, // 51: api.explorer.v1.Explorer.GetEVMTransaction:output_type -> api.explorer.v1.Reply
+	41, // 52: api.explorer.v1.Explorer.GetEVMTransactions:output_type -> api.explorer.v1.Reply
+	41, // 53: api.explorer.v1.Explorer.GetEVMAccountTransactions:output_type -> api.explorer.v1.Reply
+	17, // 54: api.explorer.v1.Explorer.CheckHealthy:output_type -> api.explorer.v1.CheckHealthyResponse
+	21, // 55: api.explorer.v1.Explorer.StreamLatestBlocks:output_type -> api.explorer.v1.BlockUpdate
+	22, // 56: api.explorer.v1.Explorer.StreamLatestTransactions:output_type -> api.explorer.v1.TransactionUpdate
+	24, // 57: api.explorer.v1.Explorer.StreamAccountUpdates:output_type -> api.explorer.v1.AccountUpdate
+	41, // 58: api.explorer.v1.Explorer.GetTokenPriceAndMarketCap:output_type -> api.explorer.v1.Reply
+	39, // [39:59] is the sub-list for method output_type
+	19, // [19:39] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_explorer_v1_explorer_proto_init() }
@@ -3011,7 +3085,7 @@ func file_explorer_v1_explorer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_explorer_proto_rawDesc), len(file_explorer_v1_explorer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   36,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

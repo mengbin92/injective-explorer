@@ -31,6 +31,7 @@ const (
 	Explorer_GetTransactionStats_FullMethodName       = "/api.explorer.v1.Explorer/GetTransactionStats"
 	Explorer_GetBlockGasUtilization_FullMethodName    = "/api.explorer.v1.Explorer/GetBlockGasUtilization"
 	Explorer_GetFailedTransactions24H_FullMethodName  = "/api.explorer.v1.Explorer/GetFailedTransactions24h"
+	Explorer_GetFailedTransactions1000_FullMethodName = "/api.explorer.v1.Explorer/GetFailedTransactions1000"
 	Explorer_GetEVMTransaction_FullMethodName         = "/api.explorer.v1.Explorer/GetEVMTransaction"
 	Explorer_GetEVMTransactions_FullMethodName        = "/api.explorer.v1.Explorer/GetEVMTransactions"
 	Explorer_GetEVMAccountTransactions_FullMethodName = "/api.explorer.v1.Explorer/GetEVMAccountTransactions"
@@ -58,6 +59,8 @@ type ExplorerClient interface {
 	GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
 	// Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error)
+	// Get failure statistics for the latest 1000 transactions
+	GetFailedTransactions1000(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
 	// EVM 交易相关 API
 	// Get EVM transaction by hash
 	GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...grpc.CallOption) (*Reply, error)
@@ -197,6 +200,16 @@ func (c *explorerClient) GetFailedTransactions24H(ctx context.Context, in *GetFa
 	return out, nil
 }
 
+func (c *explorerClient) GetFailedTransactions1000(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, Explorer_GetFailedTransactions1000_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *explorerClient) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
@@ -321,6 +334,8 @@ type ExplorerServer interface {
 	GetBlockGasUtilization(context.Context, *emptypb.Empty) (*Reply, error)
 	// Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error)
+	// Get failure statistics for the latest 1000 transactions
+	GetFailedTransactions1000(context.Context, *emptypb.Empty) (*Reply, error)
 	// EVM 交易相关 API
 	// Get EVM transaction by hash
 	GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error)
@@ -382,6 +397,9 @@ func (UnimplementedExplorerServer) GetBlockGasUtilization(context.Context, *empt
 }
 func (UnimplementedExplorerServer) GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFailedTransactions24H not implemented")
+}
+func (UnimplementedExplorerServer) GetFailedTransactions1000(context.Context, *emptypb.Empty) (*Reply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFailedTransactions1000 not implemented")
 }
 func (UnimplementedExplorerServer) GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetEVMTransaction not implemented")
@@ -626,6 +644,24 @@ func _Explorer_GetFailedTransactions24H_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Explorer_GetFailedTransactions1000_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExplorerServer).GetFailedTransactions1000(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Explorer_GetFailedTransactions1000_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExplorerServer).GetFailedTransactions1000(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Explorer_GetEVMTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetEVMTransactionRequest)
 	if err := dec(in); err != nil {
@@ -799,6 +835,10 @@ var Explorer_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFailedTransactions24h",
 			Handler:    _Explorer_GetFailedTransactions24H_Handler,
+		},
+		{
+			MethodName: "GetFailedTransactions1000",
+			Handler:    _Explorer_GetFailedTransactions1000_Handler,
 		},
 		{
 			MethodName: "GetEVMTransaction",

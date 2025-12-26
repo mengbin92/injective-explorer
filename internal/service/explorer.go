@@ -3530,6 +3530,132 @@ func (s *ExplorerService) GetFailedTransactions24H(ctx context.Context, req *pb.
 	return s.marshalAndReply(response, "marshal failed transactions error")
 }
 
+// GetFailedTransactions1000 retrieves failure statistics for the latest 1000 transactions.
+//
+// This endpoint analyzes the latest 1000 transactions from the blockchain and returns
+// failed transactions along with statistics including success rate, gas usage, etc.
+// Similar to GetFailedTransactions24h but for the latest 1000 transactions instead of 24h timeframe.
+//
+// Performance optimizations:
+//  1. Uses parallel database queries via errgroup to minimize response time
+//  2. Only selects necessary fields to avoid loading large TEXT fields
+//  3. Uses index on (block_unix_timestamp, tx_number) for optimal query performance
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request (no parameters needed)
+//
+// Returns:
+//   - *pb.Reply: Response containing failed transactions and statistics for latest 1000 transactions
+//   - error: Error if the operation fails
+func (s *ExplorerService) GetFailedTransactions1000(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+
+	global.Logger.Infof("get latest 1000 transactions failure statistics")
+
+	// Create independent context for database queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Use errgroup to parallelize database queries
+	g, gCtx := errgroup.WithContext(queryCtx)
+
+	var transactions []models.Transaction
+	const latest1000Limit = 1000
+
+	// Query: Get latest 1000 transactions
+	g.Go(func() error {
+		var err error
+		transactions, err = queryLatest1000Transactions(gCtx, latest1000Limit)
+		return err
+	})
+
+	// Wait for query to complete
+	if err := g.Wait(); err != nil {
+		global.Logger.Errorf("failed to fetch latest 1000 transactions: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch latest 1000 transactions: %v", err)
+	}
+
+	// Filter failed transactions (code != 0)
+	var failedTxs []models.Transaction
+	for _, tx := range transactions {
+		if tx.Code != 0 {
+			failedTxs = append(failedTxs, tx)
+		}
+	}
+
+	// Convert failed transactions to FailedTransactionInfo
+	failedTxInfos := convertToFailedTransactionInfos(failedTxs)
+
+	// Calculate success rate
+	// totalCount is the actual number of transactions retrieved (may be less than 1000 if database has fewer transactions)
+	totalCount := int64(len(transactions))
+	global.Logger.Debugf("queryLatest1000Transactions: retrieved %d transactions (requested limit: %d)", totalCount, latest1000Limit)
+	var successRate float64
+	if totalCount > 0 {
+		successCount := totalCount - int64(len(failedTxs))
+		successRate = float64(successCount) / float64(totalCount) * 100
+	} else {
+		successRate = 100.0 // If no transactions, consider 100% success rate
+	}
+
+	// Build pagination info (for consistency with FailedTransactions24h)
+	// PageSize is fixed to 1000 as we query the latest 1000 transactions
+	const pageSize = 1000
+	paginationInfo := &pb.PaginationInfo{
+		Page:       1,
+		PageSize:   pageSize,
+		Total:      totalCount, // Actual number of transactions retrieved (may be less than 1000)
+		TotalPages: 1,
+		HasPrev:    false,
+		HasNext:    false,
+	}
+
+	// Build response
+	response := &pb.FailedTransactions1000Response{
+		Transactions:     failedTxInfos,
+		Pagination:       paginationInfo,
+		SuccessRate_1000: successRate,
+	}
+
+	global.Logger.Infof("retrieved %d failed transactions out of %d latest transactions, success_rate=%.2f%%", len(failedTxs), len(transactions), successRate)
+
+	return s.marshalAndReply(response, "marshal latest 1000 transactions error")
+}
+
+// queryLatest1000Transactions queries the latest 1000 transactions from the database.
+// Optimized to only select necessary fields to avoid loading large TEXT fields (data, messages, logs, etc.)
+// which significantly improves query performance for large datasets.
+//
+// Performance optimization notes:
+//   - Only selects fields needed for statistics and FailedTransactionInfo response
+//   - Avoids loading large TEXT fields (data, messages, logs, info) that are not needed
+//   - Uses composite index (block_unix_timestamp, tx_number) for optimal query performance
+//
+// Parameters:
+//   - ctx: Context for the query
+//   - limit: Maximum number of transactions to retrieve (default: 1000)
+//
+// Returns:
+//   - []models.Transaction: List of transactions
+//   - error: Error if the query fails
+func queryLatest1000Transactions(ctx context.Context, limit int) ([]models.Transaction, error) {
+	var transactions []models.Transaction
+
+	// Select only necessary fields to avoid loading large TEXT fields
+	// This significantly reduces data transfer and improves query performance
+	err := db.Get().WithContext(ctx).Model(&models.Transaction{}).
+		Select("hash, block_number, block_unix_timestamp, code, codespace, error_log, signer, gas_used, gas_wanted, gas_fee, tx_type, tx_number").
+		Order("block_unix_timestamp DESC, tx_number DESC").
+		Limit(limit).
+		Find(&transactions).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query latest 1000 transactions: %w", err)
+	}
+
+	return transactions, nil
+}
+
 // getTransactionStatsFromCache retrieves transaction statistics from Redis cache.
 // Returns nil if not found in cache (cache miss).
 // Supports both Hash format (for incremental updates) and JSON format (for backward compatibility).

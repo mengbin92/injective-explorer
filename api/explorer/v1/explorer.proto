@@ -78,6 +78,13 @@ service Explorer {
     };
   }
 
+  // Get failure statistics for the latest 1000 transactions
+  rpc GetFailedTransactions1000(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/transaction/failed-1000"
+    };
+  }
+
   // EVM 交易相关 API
   // Get EVM transaction by hash
   rpc GetEVMTransaction(GetEVMTransactionRequest) returns (Reply) {
@@ -174,6 +181,17 @@ message GetTokenPriceAndMarketCapRequest {
 // GetFailedTransactions24hRequest requests failed transactions in the last 24
 // hours
 message GetFailedTransactions24hRequest { PaginationRequest pagination = 1; }
+
+// FailedTransactions1000Response contains failed transactions in the latest
+// 1000 transactions
+message FailedTransactions1000Response {
+  repeated FailedTransactionInfo transactions =
+      1;                         // List of failed transactions
+  PaginationInfo pagination = 2; // Pagination information
+  double success_rate_1000 = 3 [
+    json_name = "success_rate_1000"
+  ]; // Overall success rate in the latest 1000 transactions (percentage, 0-100)
+}
 
 // EVM 交易相关请求和响应
 message GetEVMTransactionRequest {

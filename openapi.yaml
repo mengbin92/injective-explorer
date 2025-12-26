@@ -693,6 +693,19 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/transaction/failed-1000:
+        get:
+            tags:
+                - Explorer
+            description: Get failure statistics for the latest 1000 transactions
+            operationId: Explorer_GetFailedTransactions1000
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/transaction/failed-24h:
         get:
             tags:
