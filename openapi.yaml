@@ -6,6 +6,88 @@ info:
     title: ""
     version: 0.0.1
 paths:
+    /api/v1/evm/account/{address}/transactions:
+        get:
+            tags:
+                - Demo
+            description: Get EVM account transactions
+            operationId: Demo_GetEVMAccountTransactions
+            parameters:
+                - name: address
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: cursor
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/evm/transaction/{hash}:
+        get:
+            tags:
+                - Demo
+            description: |-
+                EVM 交易相关 API
+                 Get EVM transaction by hash
+            operationId: Demo_GetEVMTransaction
+            parameters:
+                - name: hash
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/evm/transactions:
+        get:
+            tags:
+                - Demo
+            description: Get EVM transactions list
+            operationId: Demo_GetEVMTransactions
+            parameters:
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: cursor
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /demo/account/balances:
         get:
             tags:
@@ -754,6 +836,72 @@ components:
                     items:
                         type: string
             description: Request messages
+        api.explorer.v1.EVMLogDTO:
+            type: object
+            properties:
+                address:
+                    type: string
+                topics:
+                    type: array
+                    items:
+                        type: string
+                data:
+                    type: string
+                block_number:
+                    type: string
+                tx_hash:
+                    type: string
+                tx_index:
+                    type: integer
+                    format: uint32
+                log_index:
+                    type: integer
+                    format: uint32
+            description: EVMLogDTO represents an EVM event log
+        api.explorer.v1.EVMTransactionDTO:
+            type: object
+            properties:
+                hash:
+                    type: string
+                block_number:
+                    type: string
+                block_timestamp:
+                    type: string
+                from:
+                    type: string
+                to:
+                    type: string
+                value:
+                    type: string
+                nonce:
+                    type: string
+                gas_price:
+                    type: string
+                gas_limit:
+                    type: string
+                gas_used:
+                    type: string
+                input_data:
+                    type: string
+                contract_address:
+                    type: string
+                method_id:
+                    type: string
+                method_name:
+                    type: string
+                status:
+                    type: string
+                logs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.explorer.v1.EVMLogDTO'
+                transaction_fee:
+                    type: string
+                is_contract_call:
+                    type: boolean
+                is_contract_create:
+                    type: boolean
+            description: EVMTransactionDTO represents an EVM transaction in Etherscan-like format
         api.explorer.v1.HealthDetails:
             type: object
             properties:
@@ -841,6 +989,10 @@ components:
                 value:
                     type: string
                     description: tx, or recipient in other tx types)
+                evm_transaction:
+                    allOf:
+                        - $ref: '#/components/schemas/api.explorer.v1.EVMTransactionDTO'
+                    description: ethereum tx, or amount in other tx types)
         api.explorer.v1.TransactionUpdate:
             type: object
             properties:

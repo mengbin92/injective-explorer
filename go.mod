@@ -14,6 +14,7 @@ require (
 	github.com/bytedance/sonic v1.14.2
 	github.com/cometbft/cometbft v1.0.1
 	github.com/cosmos/cosmos-sdk v0.50.12
+	github.com/ethereum/go-ethereum v1.15.7
 	github.com/fatih/color v1.18.0
 	github.com/go-kratos/kratos/v2 v2.8.0
 	github.com/gorilla/handlers v1.5.2
@@ -139,7 +140,6 @@ require (
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/emicklei/dot v1.6.2 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.0 // indirect
-	github.com/ethereum/go-ethereum v1.15.7 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

@@ -91,6 +91,21 @@ message Chain {
   string fee_denom = 9;
   string name = 10;
   string official_tokens_list_url = 11;
+  EVM evm = 12; // EVM RPC configuration
+
+  message EVM {
+    bool enabled = 1;                    // Whether EVM support is enabled
+    string rpc_endpoint = 2;              // EVM JSON-RPC endpoint
+    string ws_endpoint = 3;               // EVM WebSocket endpoint
+    int64 chain_id = 4;                   // EVM chain ID (1776 for mainnet, 1439 for testnet)
+    google.protobuf.Duration timeout = 5; // RPC timeout
+    Retry retry = 6;                      // Retry configuration
+
+    message Retry {
+      int32 max_attempts = 1;            // Maximum retry attempts
+      google.protobuf.Duration initial_delay = 2; // Initial retry delay
+    }
+  }
 }
 
 message Sync {

@@ -26,6 +26,9 @@ const OperationDemoGetAccountInfo = "/api.explorer.v1.Demo/GetAccountInfo"
 const OperationDemoGetAccountTransactions = "/api.explorer.v1.Demo/GetAccountTransactions"
 const OperationDemoGetBlockByHeight = "/api.explorer.v1.Demo/GetBlockByHeight"
 const OperationDemoGetBlockGasUtilization = "/api.explorer.v1.Demo/GetBlockGasUtilization"
+const OperationDemoGetEVMAccountTransactions = "/api.explorer.v1.Demo/GetEVMAccountTransactions"
+const OperationDemoGetEVMTransaction = "/api.explorer.v1.Demo/GetEVMTransaction"
+const OperationDemoGetEVMTransactions = "/api.explorer.v1.Demo/GetEVMTransactions"
 const OperationDemoGetFailedTransactions24h = "/api.explorer.v1.Demo/GetFailedTransactions24h"
 const OperationDemoGetLatestBlockHeight = "/api.explorer.v1.Demo/GetLatestBlockHeight"
 const OperationDemoGetLatestBlocks = "/api.explorer.v1.Demo/GetLatestBlocks"
@@ -43,6 +46,13 @@ type DemoHTTPServer interface {
 	GetBlockByHeight(context.Context, *GetBlockByHeightRequest) (*Reply, error)
 	// GetBlockGasUtilization Get block gas utilization for the latest 10 blocks
 	GetBlockGasUtilization(context.Context, *emptypb.Empty) (*Reply, error)
+	// GetEVMAccountTransactions Get EVM account transactions
+	GetEVMAccountTransactions(context.Context, *GetEVMAccountTransactionsRequest) (*Reply, error)
+	// GetEVMTransaction EVM 交易相关 API
+	// Get EVM transaction by hash
+	GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error)
+	// GetEVMTransactions Get EVM transactions list
+	GetEVMTransactions(context.Context, *GetEVMTransactionsRequest) (*Reply, error)
 	// GetFailedTransactions24H Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error)
 	GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error)
@@ -68,6 +78,9 @@ func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
 	r.GET("/demo/transaction/stats", _Demo_GetTransactionStats0_HTTP_Handler(srv))
 	r.GET("/demo/block/gas-utilization", _Demo_GetBlockGasUtilization0_HTTP_Handler(srv))
 	r.GET("/demo/transaction/failed-24h", _Demo_GetFailedTransactions24H0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/transaction/{hash}", _Demo_GetEVMTransaction0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/transactions", _Demo_GetEVMTransactions0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/account/{address}/transactions", _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv))
 	r.GET("/demo/health", _Demo_CheckHealthy0_HTTP_Handler(srv))
 	r.GET("/demo/token/price-marketcap", _Demo_GetTokenPriceAndMarketCap0_HTTP_Handler(srv))
 }
@@ -281,6 +294,69 @@ func _Demo_GetFailedTransactions24H0_HTTP_Handler(srv DemoHTTPServer) func(ctx h
 	}
 }
 
+func _Demo_GetEVMTransaction0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetEVMTransactionRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetEVMTransaction)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetEVMTransaction(ctx, req.(*GetEVMTransactionRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _Demo_GetEVMTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetEVMTransactionsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetEVMTransactions)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetEVMTransactions(ctx, req.(*GetEVMTransactionsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetEVMAccountTransactionsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationDemoGetEVMAccountTransactions)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetEVMAccountTransactions(ctx, req.(*GetEVMAccountTransactionsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Reply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _Demo_CheckHealthy0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CheckHealthyRequest
@@ -328,6 +404,13 @@ type DemoHTTPClient interface {
 	GetBlockByHeight(ctx context.Context, req *GetBlockByHeightRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	// GetBlockGasUtilization Get block gas utilization for the latest 10 blocks
 	GetBlockGasUtilization(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
+	// GetEVMAccountTransactions Get EVM account transactions
+	GetEVMAccountTransactions(ctx context.Context, req *GetEVMAccountTransactionsRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	// GetEVMTransaction EVM 交易相关 API
+	// Get EVM transaction by hash
+	GetEVMTransaction(ctx context.Context, req *GetEVMTransactionRequest, opts ...http.CallOption) (rsp *Reply, err error)
+	// GetEVMTransactions Get EVM transactions list
+	GetEVMTransactions(ctx context.Context, req *GetEVMTransactionsRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	// GetFailedTransactions24H Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(ctx context.Context, req *GetFailedTransactions24HRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
@@ -420,6 +503,49 @@ func (c *DemoHTTPClientImpl) GetBlockGasUtilization(ctx context.Context, in *emp
 	pattern := "/demo/block/gas-utilization"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationDemoGetBlockGasUtilization))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetEVMAccountTransactions Get EVM account transactions
+func (c *DemoHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/api/v1/evm/account/{address}/transactions"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetEVMAccountTransactions))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetEVMTransaction EVM 交易相关 API
+// Get EVM transaction by hash
+func (c *DemoHTTPClientImpl) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/api/v1/evm/transaction/{hash}"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetEVMTransaction))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetEVMTransactions Get EVM transactions list
+func (c *DemoHTTPClientImpl) GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
+	pattern := "/api/v1/evm/transactions"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationDemoGetEVMTransactions))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

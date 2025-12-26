@@ -78,6 +78,29 @@ service Demo {
     };
   }
 
+  // EVM 交易相关 API
+  // Get EVM transaction by hash
+  rpc GetEVMTransaction(GetEVMTransactionRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/evm/transaction/{hash}"
+    };
+  }
+
+  // Get EVM transactions list
+  rpc GetEVMTransactions(GetEVMTransactionsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/evm/transactions"
+    };
+  }
+
+  // Get EVM account transactions
+  rpc GetEVMAccountTransactions(GetEVMAccountTransactionsRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/evm/account/{address}/transactions"
+    };
+  }
+
   // Health check endpoint for gRPC-Web
   rpc CheckHealthy(CheckHealthyRequest) returns (CheckHealthyResponse) {
     option (google.api.http) = {
@@ -143,6 +166,24 @@ message GetTokenPriceAndMarketCapRequest {
 // GetFailedTransactions24hRequest requests failed transactions in the last 24
 // hours
 message GetFailedTransactions24hRequest { PaginationRequest pagination = 1; }
+
+// EVM 交易相关请求和响应
+message GetEVMTransactionRequest {
+  string hash = 1; // Transaction hash
+}
+
+message GetEVMTransactionsRequest {
+  int32 page = 1;      // Page number (default: 1)
+  int32 page_size = 2; // Page size (default: 20, max: 100)
+  string cursor = 3;   // Cursor for cursor-based pagination
+}
+
+message GetEVMAccountTransactionsRequest {
+  string address = 1;  // Account address (supports 0x and inj1 format)
+  int32 page = 2;      // Page number (default: 1)
+  int32 page_size = 3; // Page size (default: 20, max: 100)
+  string cursor = 4;   // Cursor for cursor-based pagination
+}
 
 // GasFeeCoin represents a single coin in the gas fee
 message GasFeeCoin {
@@ -380,6 +421,54 @@ message TransactionDTO {
                      // tx, or recipient in other tx types)
   string value = 24; // Transaction value (corresponds to 'value' field in
                      // ethereum tx, or amount in other tx types)
+  EVMTransactionDTO evm_transaction = 25 [
+    json_name = "evm_transaction"
+  ]; // EVM transaction details (only present for EVM transactions)
+}
+
+// EVMTransactionDTO represents an EVM transaction in Etherscan-like format
+message EVMTransactionDTO {
+  string hash = 1;                                        // Transaction hash
+  uint64 block_number = 2 [ json_name = "block_number" ]; // Block number
+  string block_timestamp = 3
+      [ json_name = "block_timestamp" ]; // Block timestamp
+  string from = 4;                       // Sender address
+  string to = 5;    // Recipient address (empty for contract creation)
+  string value = 6; // Transaction value in wei
+  uint64 nonce = 7; // Transaction nonce
+  string gas_price = 8 [ json_name = "gas_price" ];    // Gas price in wei
+  uint64 gas_limit = 9 [ json_name = "gas_limit" ];    // Gas limit
+  uint64 gas_used = 10 [ json_name = "gas_used" ];     // Gas used
+  string input_data = 11 [ json_name = "input_data" ]; // Input data (hex)
+  string contract_address = 12
+      [ json_name =
+            "contract_address" ]; // Contract address (for contract creation)
+  string method_id = 13
+      [ json_name = "method_id" ]; // Method ID (first 4 bytes)
+  string method_name = 14
+      [ json_name =
+            "method_name" ];    // Method name (resolved via 4byte.directory)
+  string status = 15;           // Execution status: "success" or "fail"
+  repeated EVMLogDTO logs = 16; // Event logs
+  string transaction_fee = 17
+      [ json_name =
+            "transaction_fee" ]; // Transaction fee (gas_used * gas_price)
+  bool is_contract_call = 18
+      [ json_name = "is_contract_call" ]; // Whether this is a contract call
+  bool is_contract_create = 19
+      [ json_name =
+            "is_contract_create" ]; // Whether this is a contract creation
+}
+
+// EVMLogDTO represents an EVM event log
+message EVMLogDTO {
+  string address = 1;         // Contract address that emitted the log
+  repeated string topics = 2; // Log topics (indexed parameters)
+  string data = 3;            // Log data (non-indexed parameters, hex)
+  uint64 block_number = 4 [ json_name = "block_number" ]; // Block number
+  string tx_hash = 5 [ json_name = "tx_hash" ];           // Transaction hash
+  uint32 tx_index = 6 [ json_name = "tx_index" ]; // Transaction index in block
+  uint32 log_index = 7 [ json_name = "log_index" ]; // Log index in transaction
 }
 
 // TokenPriceAndMarketCapResponse contains token price and market cap

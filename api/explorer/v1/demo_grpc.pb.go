@@ -31,6 +31,9 @@ const (
 	Demo_GetTransactionStats_FullMethodName       = "/api.explorer.v1.Demo/GetTransactionStats"
 	Demo_GetBlockGasUtilization_FullMethodName    = "/api.explorer.v1.Demo/GetBlockGasUtilization"
 	Demo_GetFailedTransactions24H_FullMethodName  = "/api.explorer.v1.Demo/GetFailedTransactions24h"
+	Demo_GetEVMTransaction_FullMethodName         = "/api.explorer.v1.Demo/GetEVMTransaction"
+	Demo_GetEVMTransactions_FullMethodName        = "/api.explorer.v1.Demo/GetEVMTransactions"
+	Demo_GetEVMAccountTransactions_FullMethodName = "/api.explorer.v1.Demo/GetEVMAccountTransactions"
 	Demo_CheckHealthy_FullMethodName              = "/api.explorer.v1.Demo/CheckHealthy"
 	Demo_StreamLatestBlocks_FullMethodName        = "/api.explorer.v1.Demo/StreamLatestBlocks"
 	Demo_StreamLatestTransactions_FullMethodName  = "/api.explorer.v1.Demo/StreamLatestTransactions"
@@ -55,6 +58,13 @@ type DemoClient interface {
 	GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
 	// Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error)
+	// EVM 交易相关 API
+	// Get EVM transaction by hash
+	GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...grpc.CallOption) (*Reply, error)
+	// Get EVM transactions list
+	GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
+	// Get EVM account transactions
+	GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -187,6 +197,36 @@ func (c *demoClient) GetFailedTransactions24H(ctx context.Context, in *GetFailed
 	return out, nil
 }
 
+func (c *demoClient) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...grpc.CallOption) (*Reply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, Demo_GetEVMTransaction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *demoClient) GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, Demo_GetEVMTransactions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *demoClient) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, Demo_GetEVMAccountTransactions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *demoClient) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckHealthyResponse)
@@ -281,6 +321,13 @@ type DemoServer interface {
 	GetBlockGasUtilization(context.Context, *emptypb.Empty) (*Reply, error)
 	// Get failed transactions in the last 24 hours with failure reasons
 	GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error)
+	// EVM 交易相关 API
+	// Get EVM transaction by hash
+	GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error)
+	// Get EVM transactions list
+	GetEVMTransactions(context.Context, *GetEVMTransactionsRequest) (*Reply, error)
+	// Get EVM account transactions
+	GetEVMAccountTransactions(context.Context, *GetEVMAccountTransactionsRequest) (*Reply, error)
 	// Health check endpoint for gRPC-Web
 	CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error)
 	// Streaming RPCs for real-time updates
@@ -335,6 +382,15 @@ func (UnimplementedDemoServer) GetBlockGasUtilization(context.Context, *emptypb.
 }
 func (UnimplementedDemoServer) GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFailedTransactions24H not implemented")
+}
+func (UnimplementedDemoServer) GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEVMTransaction not implemented")
+}
+func (UnimplementedDemoServer) GetEVMTransactions(context.Context, *GetEVMTransactionsRequest) (*Reply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEVMTransactions not implemented")
+}
+func (UnimplementedDemoServer) GetEVMAccountTransactions(context.Context, *GetEVMAccountTransactionsRequest) (*Reply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEVMAccountTransactions not implemented")
 }
 func (UnimplementedDemoServer) CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CheckHealthy not implemented")
@@ -570,6 +626,60 @@ func _Demo_GetFailedTransactions24H_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Demo_GetEVMTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEVMTransactionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServer).GetEVMTransaction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Demo_GetEVMTransaction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServer).GetEVMTransaction(ctx, req.(*GetEVMTransactionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Demo_GetEVMTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEVMTransactionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServer).GetEVMTransactions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Demo_GetEVMTransactions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServer).GetEVMTransactions(ctx, req.(*GetEVMTransactionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Demo_GetEVMAccountTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEVMAccountTransactionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServer).GetEVMAccountTransactions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Demo_GetEVMAccountTransactions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServer).GetEVMAccountTransactions(ctx, req.(*GetEVMAccountTransactionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Demo_CheckHealthy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CheckHealthyRequest)
 	if err := dec(in); err != nil {
@@ -689,6 +799,18 @@ var Demo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFailedTransactions24h",
 			Handler:    _Demo_GetFailedTransactions24H_Handler,
+		},
+		{
+			MethodName: "GetEVMTransaction",
+			Handler:    _Demo_GetEVMTransaction_Handler,
+		},
+		{
+			MethodName: "GetEVMTransactions",
+			Handler:    _Demo_GetEVMTransactions_Handler,
+		},
+		{
+			MethodName: "GetEVMAccountTransactions",
+			Handler:    _Demo_GetEVMAccountTransactions_Handler,
 		},
 		{
 			MethodName: "CheckHealthy",

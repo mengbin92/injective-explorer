@@ -379,6 +379,7 @@ type Chain struct {
 	FeeDenom                string                 `protobuf:"bytes,9,opt,name=fee_denom,json=feeDenom,proto3" json:"fee_denom,omitempty"`
 	Name                    string                 `protobuf:"bytes,10,opt,name=name,proto3" json:"name,omitempty"`
 	OfficialTokensListUrl   string                 `protobuf:"bytes,11,opt,name=official_tokens_list_url,json=officialTokensListUrl,proto3" json:"official_tokens_list_url,omitempty"`
+	Evm                     *Chain_EVM             `protobuf:"bytes,12,opt,name=evm,proto3" json:"evm,omitempty"` // EVM RPC configuration
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -488,6 +489,13 @@ func (x *Chain) GetOfficialTokensListUrl() string {
 		return x.OfficialTokensListUrl
 	}
 	return ""
+}
+
+func (x *Chain) GetEvm() *Chain_EVM {
+	if x != nil {
+		return x.Evm
+	}
+	return nil
 }
 
 type Sync struct {
@@ -1211,6 +1219,142 @@ func (x *Data_ObjectStorage) GetEnabled() bool {
 	return false
 }
 
+type Chain_EVM struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`                           // Whether EVM support is enabled
+	RpcEndpoint   string                 `protobuf:"bytes,2,opt,name=rpc_endpoint,json=rpcEndpoint,proto3" json:"rpc_endpoint,omitempty"` // EVM JSON-RPC endpoint
+	WsEndpoint    string                 `protobuf:"bytes,3,opt,name=ws_endpoint,json=wsEndpoint,proto3" json:"ws_endpoint,omitempty"`    // EVM WebSocket endpoint
+	ChainId       int64                  `protobuf:"varint,4,opt,name=chain_id,json=chainId,proto3" json:"chain_id,omitempty"`            // EVM chain ID (1776 for mainnet, 1439 for testnet)
+	Timeout       *durationpb.Duration   `protobuf:"bytes,5,opt,name=timeout,proto3" json:"timeout,omitempty"`                            // RPC timeout
+	Retry         *Chain_EVM_Retry       `protobuf:"bytes,6,opt,name=retry,proto3" json:"retry,omitempty"`                                // Retry configuration
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Chain_EVM) Reset() {
+	*x = Chain_EVM{}
+	mi := &file_conf_conf_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Chain_EVM) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Chain_EVM) ProtoMessage() {}
+
+func (x *Chain_EVM) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Chain_EVM.ProtoReflect.Descriptor instead.
+func (*Chain_EVM) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *Chain_EVM) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Chain_EVM) GetRpcEndpoint() string {
+	if x != nil {
+		return x.RpcEndpoint
+	}
+	return ""
+}
+
+func (x *Chain_EVM) GetWsEndpoint() string {
+	if x != nil {
+		return x.WsEndpoint
+	}
+	return ""
+}
+
+func (x *Chain_EVM) GetChainId() int64 {
+	if x != nil {
+		return x.ChainId
+	}
+	return 0
+}
+
+func (x *Chain_EVM) GetTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.Timeout
+	}
+	return nil
+}
+
+func (x *Chain_EVM) GetRetry() *Chain_EVM_Retry {
+	if x != nil {
+		return x.Retry
+	}
+	return nil
+}
+
+type Chain_EVM_Retry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MaxAttempts   int32                  `protobuf:"varint,1,opt,name=max_attempts,json=maxAttempts,proto3" json:"max_attempts,omitempty"`   // Maximum retry attempts
+	InitialDelay  *durationpb.Duration   `protobuf:"bytes,2,opt,name=initial_delay,json=initialDelay,proto3" json:"initial_delay,omitempty"` // Initial retry delay
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Chain_EVM_Retry) Reset() {
+	*x = Chain_EVM_Retry{}
+	mi := &file_conf_conf_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Chain_EVM_Retry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Chain_EVM_Retry) ProtoMessage() {}
+
+func (x *Chain_EVM_Retry) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Chain_EVM_Retry.ProtoReflect.Descriptor instead.
+func (*Chain_EVM_Retry) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{5, 0, 0}
+}
+
+func (x *Chain_EVM_Retry) GetMaxAttempts() int32 {
+	if x != nil {
+		return x.MaxAttempts
+	}
+	return 0
+}
+
+func (x *Chain_EVM_Retry) GetInitialDelay() *durationpb.Duration {
+	if x != nil {
+		return x.InitialDelay
+	}
+	return nil
+}
+
 type Sync_Redis struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	QueueKey      string                 `protobuf:"bytes,1,opt,name=queue_key,json=queueKey,proto3" json:"queue_key,omitempty"` // Redis queue key name
@@ -1220,7 +1364,7 @@ type Sync_Redis struct {
 
 func (x *Sync_Redis) Reset() {
 	*x = Sync_Redis{}
-	mi := &file_conf_conf_proto_msgTypes[15]
+	mi := &file_conf_conf_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1232,7 +1376,7 @@ func (x *Sync_Redis) String() string {
 func (*Sync_Redis) ProtoMessage() {}
 
 func (x *Sync_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[15]
+	mi := &file_conf_conf_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1269,7 +1413,7 @@ type Sync_Intervals struct {
 
 func (x *Sync_Intervals) Reset() {
 	*x = Sync_Intervals{}
-	mi := &file_conf_conf_proto_msgTypes[16]
+	mi := &file_conf_conf_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1281,7 +1425,7 @@ func (x *Sync_Intervals) String() string {
 func (*Sync_Intervals) ProtoMessage() {}
 
 func (x *Sync_Intervals) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[16]
+	mi := &file_conf_conf_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1348,7 +1492,7 @@ type Sync_Timeouts struct {
 
 func (x *Sync_Timeouts) Reset() {
 	*x = Sync_Timeouts{}
-	mi := &file_conf_conf_proto_msgTypes[17]
+	mi := &file_conf_conf_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1360,7 +1504,7 @@ func (x *Sync_Timeouts) String() string {
 func (*Sync_Timeouts) ProtoMessage() {}
 
 func (x *Sync_Timeouts) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[17]
+	mi := &file_conf_conf_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1394,7 +1538,7 @@ type Sync_Concurrency struct {
 
 func (x *Sync_Concurrency) Reset() {
 	*x = Sync_Concurrency{}
-	mi := &file_conf_conf_proto_msgTypes[18]
+	mi := &file_conf_conf_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1406,7 +1550,7 @@ func (x *Sync_Concurrency) String() string {
 func (*Sync_Concurrency) ProtoMessage() {}
 
 func (x *Sync_Concurrency) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[18]
+	mi := &file_conf_conf_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1456,7 +1600,7 @@ type Sync_BatchSize struct {
 
 func (x *Sync_BatchSize) Reset() {
 	*x = Sync_BatchSize{}
-	mi := &file_conf_conf_proto_msgTypes[19]
+	mi := &file_conf_conf_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1468,7 +1612,7 @@ func (x *Sync_BatchSize) String() string {
 func (*Sync_BatchSize) ProtoMessage() {}
 
 func (x *Sync_BatchSize) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[19]
+	mi := &file_conf_conf_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1529,7 +1673,7 @@ type Sync_Retry struct {
 
 func (x *Sync_Retry) Reset() {
 	*x = Sync_Retry{}
-	mi := &file_conf_conf_proto_msgTypes[20]
+	mi := &file_conf_conf_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1541,7 +1685,7 @@ func (x *Sync_Retry) String() string {
 func (*Sync_Retry) ProtoMessage() {}
 
 func (x *Sync_Retry) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[20]
+	mi := &file_conf_conf_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1580,7 +1724,7 @@ type Sync_Blocks struct {
 
 func (x *Sync_Blocks) Reset() {
 	*x = Sync_Blocks{}
-	mi := &file_conf_conf_proto_msgTypes[21]
+	mi := &file_conf_conf_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1592,7 +1736,7 @@ func (x *Sync_Blocks) String() string {
 func (*Sync_Blocks) ProtoMessage() {}
 
 func (x *Sync_Blocks) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[21]
+	mi := &file_conf_conf_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1677,7 +1821,7 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\bchain_id\x18\x03 \x01(\tR\achainId\"3\n" +
 	"\x03Log\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x05R\x05level\x12\x16\n" +
-	"\x06format\x18\x02 \x01(\tR\x06format\"\xc3\x03\n" +
+	"\x06format\x18\x02 \x01(\tR\x06format\"\xc1\x06\n" +
 	"\x05Chain\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12!\n" +
 	"\flcd_endpoint\x18\x02 \x01(\tR\vlcdEndpoint\x12\x1f\n" +
@@ -1691,7 +1835,19 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\tfee_denom\x18\t \x01(\tR\bfeeDenom\x12\x12\n" +
 	"\x04name\x18\n" +
 	" \x01(\tR\x04name\x127\n" +
-	"\x18official_tokens_list_url\x18\v \x01(\tR\x15officialTokensListUrl\"\xa3\v\n" +
+	"\x18official_tokens_list_url\x18\v \x01(\tR\x15officialTokensListUrl\x12'\n" +
+	"\x03evm\x18\f \x01(\v2\x15.kratos.api.Chain.EVMR\x03evm\x1a\xd2\x02\n" +
+	"\x03EVM\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12!\n" +
+	"\frpc_endpoint\x18\x02 \x01(\tR\vrpcEndpoint\x12\x1f\n" +
+	"\vws_endpoint\x18\x03 \x01(\tR\n" +
+	"wsEndpoint\x12\x19\n" +
+	"\bchain_id\x18\x04 \x01(\x03R\achainId\x123\n" +
+	"\atimeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x121\n" +
+	"\x05retry\x18\x06 \x01(\v2\x1b.kratos.api.Chain.EVM.RetryR\x05retry\x1aj\n" +
+	"\x05Retry\x12!\n" +
+	"\fmax_attempts\x18\x01 \x01(\x05R\vmaxAttempts\x12>\n" +
+	"\rinitial_delay\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\finitialDelay\"\xa3\v\n" +
 	"\x04Sync\x12,\n" +
 	"\x05redis\x18\x01 \x01(\v2\x16.kratos.api.Sync.RedisR\x05redis\x128\n" +
 	"\tintervals\x18\x02 \x01(\v2\x1a.kratos.api.Sync.IntervalsR\tintervals\x125\n" +
@@ -1769,7 +1925,7 @@ func file_conf_conf_proto_rawDescGZIP() []byte {
 	return file_conf_conf_proto_rawDescData
 }
 
-var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_conf_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: kratos.api.Bootstrap
 	(*Server)(nil),              // 1: kratos.api.Server
@@ -1786,15 +1942,17 @@ var file_conf_conf_proto_goTypes = []any{
 	(*Data_Database)(nil),       // 12: kratos.api.Data.Database
 	(*Data_Redis)(nil),          // 13: kratos.api.Data.Redis
 	(*Data_ObjectStorage)(nil),  // 14: kratos.api.Data.ObjectStorage
-	(*Sync_Redis)(nil),          // 15: kratos.api.Sync.Redis
-	(*Sync_Intervals)(nil),      // 16: kratos.api.Sync.Intervals
-	(*Sync_Timeouts)(nil),       // 17: kratos.api.Sync.Timeouts
-	(*Sync_Concurrency)(nil),    // 18: kratos.api.Sync.Concurrency
-	(*Sync_BatchSize)(nil),      // 19: kratos.api.Sync.BatchSize
-	(*Sync_Retry)(nil),          // 20: kratos.api.Sync.Retry
-	(*Sync_Blocks)(nil),         // 21: kratos.api.Sync.Blocks
-	nil,                         // 22: kratos.api.TokenPrice.TokensEntry
-	(*durationpb.Duration)(nil), // 23: google.protobuf.Duration
+	(*Chain_EVM)(nil),           // 15: kratos.api.Chain.EVM
+	(*Chain_EVM_Retry)(nil),     // 16: kratos.api.Chain.EVM.Retry
+	(*Sync_Redis)(nil),          // 17: kratos.api.Sync.Redis
+	(*Sync_Intervals)(nil),      // 18: kratos.api.Sync.Intervals
+	(*Sync_Timeouts)(nil),       // 19: kratos.api.Sync.Timeouts
+	(*Sync_Concurrency)(nil),    // 20: kratos.api.Sync.Concurrency
+	(*Sync_BatchSize)(nil),      // 21: kratos.api.Sync.BatchSize
+	(*Sync_Retry)(nil),          // 22: kratos.api.Sync.Retry
+	(*Sync_Blocks)(nil),         // 23: kratos.api.Sync.Blocks
+	nil,                         // 24: kratos.api.TokenPrice.TokensEntry
+	(*durationpb.Duration)(nil), // 25: google.protobuf.Duration
 }
 var file_conf_conf_proto_depIdxs = []int32{
 	1,  // 0: kratos.api.Bootstrap.server:type_name -> kratos.api.Server
@@ -1810,36 +1968,40 @@ var file_conf_conf_proto_depIdxs = []int32{
 	12, // 10: kratos.api.Data.database:type_name -> kratos.api.Data.Database
 	13, // 11: kratos.api.Data.redis:type_name -> kratos.api.Data.Redis
 	14, // 12: kratos.api.Data.object_storage:type_name -> kratos.api.Data.ObjectStorage
-	15, // 13: kratos.api.Sync.redis:type_name -> kratos.api.Sync.Redis
-	16, // 14: kratos.api.Sync.intervals:type_name -> kratos.api.Sync.Intervals
-	17, // 15: kratos.api.Sync.timeouts:type_name -> kratos.api.Sync.Timeouts
-	18, // 16: kratos.api.Sync.concurrency:type_name -> kratos.api.Sync.Concurrency
-	19, // 17: kratos.api.Sync.batch_size:type_name -> kratos.api.Sync.BatchSize
-	20, // 18: kratos.api.Sync.retry:type_name -> kratos.api.Sync.Retry
-	21, // 19: kratos.api.Sync.blocks:type_name -> kratos.api.Sync.Blocks
-	23, // 20: kratos.api.Archive.interval:type_name -> google.protobuf.Duration
-	9,  // 21: kratos.api.TokenPrice.default_token:type_name -> kratos.api.TokenConfig
-	22, // 22: kratos.api.TokenPrice.tokens:type_name -> kratos.api.TokenPrice.TokensEntry
-	23, // 23: kratos.api.TokenPrice.price_cache_ttl:type_name -> google.protobuf.Duration
-	23, // 24: kratos.api.TokenPrice.supply_cache_ttl:type_name -> google.protobuf.Duration
-	23, // 25: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	23, // 26: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	23, // 27: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
-	23, // 28: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
-	23, // 29: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
-	23, // 30: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
-	23, // 31: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
-	23, // 32: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
-	23, // 33: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
-	23, // 34: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
-	23, // 35: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
-	23, // 36: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
-	9,  // 37: kratos.api.TokenPrice.TokensEntry.value:type_name -> kratos.api.TokenConfig
-	38, // [38:38] is the sub-list for method output_type
-	38, // [38:38] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	15, // 13: kratos.api.Chain.evm:type_name -> kratos.api.Chain.EVM
+	17, // 14: kratos.api.Sync.redis:type_name -> kratos.api.Sync.Redis
+	18, // 15: kratos.api.Sync.intervals:type_name -> kratos.api.Sync.Intervals
+	19, // 16: kratos.api.Sync.timeouts:type_name -> kratos.api.Sync.Timeouts
+	20, // 17: kratos.api.Sync.concurrency:type_name -> kratos.api.Sync.Concurrency
+	21, // 18: kratos.api.Sync.batch_size:type_name -> kratos.api.Sync.BatchSize
+	22, // 19: kratos.api.Sync.retry:type_name -> kratos.api.Sync.Retry
+	23, // 20: kratos.api.Sync.blocks:type_name -> kratos.api.Sync.Blocks
+	25, // 21: kratos.api.Archive.interval:type_name -> google.protobuf.Duration
+	9,  // 22: kratos.api.TokenPrice.default_token:type_name -> kratos.api.TokenConfig
+	24, // 23: kratos.api.TokenPrice.tokens:type_name -> kratos.api.TokenPrice.TokensEntry
+	25, // 24: kratos.api.TokenPrice.price_cache_ttl:type_name -> google.protobuf.Duration
+	25, // 25: kratos.api.TokenPrice.supply_cache_ttl:type_name -> google.protobuf.Duration
+	25, // 26: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	25, // 27: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	25, // 28: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
+	25, // 29: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
+	25, // 30: kratos.api.Chain.EVM.timeout:type_name -> google.protobuf.Duration
+	16, // 31: kratos.api.Chain.EVM.retry:type_name -> kratos.api.Chain.EVM.Retry
+	25, // 32: kratos.api.Chain.EVM.Retry.initial_delay:type_name -> google.protobuf.Duration
+	25, // 33: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
+	25, // 34: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
+	25, // 35: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
+	25, // 36: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
+	25, // 37: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
+	25, // 38: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
+	25, // 39: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
+	25, // 40: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
+	9,  // 41: kratos.api.TokenPrice.TokensEntry.value:type_name -> kratos.api.TokenConfig
+	42, // [42:42] is the sub-list for method output_type
+	42, // [42:42] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
@@ -1853,7 +2015,7 @@ func file_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_conf_proto_rawDesc), len(file_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

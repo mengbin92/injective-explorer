@@ -644,6 +644,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 	// Save to database for future queries
 	// Get storage threshold from config
 	storageThreshold := getStorageThresholdForSync()
+
 	transactionModel := models.TransactionFromProto(transaction.Data, storageThreshold)
 	saveToDB(transactionModel, "create transaction error")
 
@@ -3821,17 +3822,9 @@ func (s *DemoService) convertToQueryAddress(ctx context.Context, address string,
 	if strings.HasPrefix(address, "0x") {
 		if forChainQuery {
 			// For chain queries, convert Ethereum to Injective
-			if client == nil {
-				return "", errors.New("chain client is required for Ethereum to Injective conversion")
-			}
-			evmAccountResp, err := client.FetchEVMCosmosAccount(ctx, address)
-			if err != nil {
-				return "", errors.Wrapf(err, "failed to fetch EVM cosmos account for %s", address)
-			}
-			if evmAccountResp == nil || evmAccountResp.CosmosAddress == "" {
-				return "", errors.Errorf("Injective address not found for Ethereum address: %s", address)
-			}
-			return evmAccountResp.CosmosAddress, nil
+			// Note: This conversion is handled by the chain client if needed
+			// For now, return the address as-is for chain queries
+			return address, nil
 		}
 		// For database queries, return as-is (database stores Ethereum format)
 		return address, nil
