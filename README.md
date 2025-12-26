@@ -946,11 +946,12 @@ Returns account information.
 GET /demo/account/transactions?address={address}&pagination.page=1&pagination.page_size=20
 ```
 
-**Query Parameters**:
-- `address` (string, required): Account address
+Parameters:
+- `address` (string): Account address
 - `pagination.page` (int32, optional): Page number (default: 1, min: 1)
 - `pagination.page_size` (int32, optional): Page size (default: 20, min: 1, max: 100)
 - `pagination.cursor` (string, optional): Cursor for cursor-based pagination (takes priority over page)
+- `tx_types` (string[], optional): Filter by message types from transaction messages. Can be specified multiple times as repeated query parameters (e.g., `tx_types=MsgSend&tx_types=MsgDeposit`). Supports both full type URL (e.g., `/cosmos.bank.v1beta1.MsgSend`) and short type name (e.g., `MsgSend`). Short type names match message types that end with `.{type}` (e.g., `MsgSend` matches `/cosmos.bank.v1beta1.MsgSend`). If empty, returns all transactions regardless of message types. A transaction matches if ANY of its messages matches ANY of the specified types.
 
 Returns transactions associated with the account with pagination support. The service uses a database-first strategy for improved performance.
 

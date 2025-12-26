@@ -157,9 +157,17 @@ func (x *GetAccountInfoRequest) GetAddress() string {
 }
 
 type GetAccountTransactionsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Pagination    *PaginationRequest     `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Address    string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	Pagination *PaginationRequest     `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	// Optional: filter by message types from transaction messages (e.g.,
+	// ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit",
+	// "MsgWithdraw"]) Supports both full type URL (e.g.,
+	// "/cosmos.bank.v1beta1.MsgSend") and short type name (e.g., "MsgSend") If
+	// empty, returns all transactions regardless of message types Note: A
+	// transaction matches if ANY of its messages matches ANY of the specified
+	// types
+	TxTypes       []string `protobuf:"bytes,3,rep,name=tx_types,proto3" json:"tx_types,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -204,6 +212,13 @@ func (x *GetAccountTransactionsRequest) GetAddress() string {
 func (x *GetAccountTransactionsRequest) GetPagination() *PaginationRequest {
 	if x != nil {
 		return x.Pagination
+	}
+	return nil
+}
+
+func (x *GetAccountTransactionsRequest) GetTxTypes() []string {
+	if x != nil {
+		return x.TxTypes
 	}
 	return nil
 }
@@ -2620,12 +2635,13 @@ const file_explorer_v1_demo_proto_rawDesc = "" +
 	"\x1bGetTransactionByHashRequest\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\"1\n" +
 	"\x15GetAccountInfoRequest\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\"}\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\"\x99\x01\n" +
 	"\x1dGetAccountTransactionsRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12B\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\".api.explorer.v1.PaginationRequestR\n" +
-	"pagination\"5\n" +
+	"pagination\x12\x1a\n" +
+	"\btx_types\x18\x03 \x03(\tR\btx_types\"5\n" +
 	"\x19GetAccountBalancesRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\"F\n" +
 	" GetTokenPriceAndMarketCapRequest\x12\"\n" +

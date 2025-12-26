@@ -152,6 +152,14 @@ message GetAccountInfoRequest { string address = 1; }
 message GetAccountTransactionsRequest {
   string address = 1;
   PaginationRequest pagination = 2;
+  // Optional: filter by message types from transaction messages (e.g.,
+  // ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit",
+  // "MsgWithdraw"]) Supports both full type URL (e.g.,
+  // "/cosmos.bank.v1beta1.MsgSend") and short type name (e.g., "MsgSend") If
+  // empty, returns all transactions regardless of message types Note: A
+  // transaction matches if ANY of its messages matches ANY of the specified
+  // types
+  repeated string tx_types = 3 [ json_name = "tx_types" ];
 }
 
 message GetAccountBalancesRequest { string address = 1; }

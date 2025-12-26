@@ -70,6 +70,20 @@ paths:
                      对于交易：使用交易号(tx_number)或区块高度+交易号的组合
                   schema:
                     type: string
+                - name: tx_types
+                  in: query
+                  description: |-
+                    Optional: filter by message types from transaction messages (e.g.,
+                     ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit",
+                     "MsgWithdraw"]) Supports both full type URL (e.g.,
+                     "/cosmos.bank.v1beta1.MsgSend") and short type name (e.g., "MsgSend") If
+                     empty, returns all transactions regardless of message types Note: A
+                     transaction matches if ANY of its messages matches ANY of the specified
+                     types
+                  schema:
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: OK

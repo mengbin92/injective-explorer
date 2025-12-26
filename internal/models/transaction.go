@@ -4,6 +4,7 @@ package models
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"log"
 	"time"
 	"unicode/utf8"
@@ -11,6 +12,7 @@ import (
 	"injective-explorer/provider/storage"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
@@ -25,38 +27,39 @@ type Transaction struct {
 
 	Id string `json:"id" gorm:"column:tx_data_id"` // Id is the transaction data ID
 
-	BlockNumber        uint64   `json:"block_number" gorm:"column:block_number;index:idx_block_tx"`                                              // BlockNumber is the block number containing this transaction (indexed for pagination)
-	BlockTimestamp     string   `json:"block_timestamp" gorm:"column:block_timestamp"`                                                           // BlockTimestamp is the timestamp of the block containing this transaction
-	Hash               string   `json:"hash" gorm:"column:hash;index"`                                                                           // Hash is the transaction hash (indexed for faster lookups)
-	Code               uint32   `json:"code" gorm:"column:code;index:idx_timestamp_code"`                                                        // Code is the transaction execution code (0 = success, non-zero = error), indexed with block_unix_timestamp for failed transactions query optimization
-	Data               string   `json:"data" gorm:"column:data"`                                                                                 // Data contains the transaction data (stored as string, originally []byte)
-	Info               string   `json:"info" gorm:"column:info"`                                                                                 // Info contains additional transaction information
-	GasWanted          int64    `json:"gas_wanted" gorm:"column:gas_wanted"`                                                                     // GasWanted is the maximum gas requested for the transaction
-	GasUsed            int64    `json:"gas_used" gorm:"column:gas_used"`                                                                         // GasUsed is the actual gas used by the transaction
-	GasFee             string   `json:"gas_fee" gorm:"column:gas_fee"`                                                                           // GasFee is the gas fee paid for the transaction
-	Codespace          string   `json:"codespace" gorm:"column:codespace"`                                                                       // Codespace is the error codespace if the transaction failed
-	Events             []string `json:"events" gorm:"column:events;serializer:json"`                                                             // Events is a list of events emitted by the transaction (stored as JSON)
-	TxType             string   `json:"tx_type" gorm:"column:tx_type"`                                                                           // TxType is the type of the transaction
-	Messages           string   `json:"messages" gorm:"column:messages"`                                                                         // Messages contains the transaction messages (stored as string, originally []byte)
-	Signatures         []string `json:"signatures" gorm:"column:signatures;serializer:json"`                                                     // Signatures is a list of transaction signatures (stored as JSON)
-	Memo               string   `json:"memo" gorm:"column:memo"`                                                                                 // Memo is the memo field of the transaction
-	TxNumber           uint64   `json:"tx_number" gorm:"column:tx_number;index:idx_tx_number;index:idx_block_tx"`                                // TxNumber is the transaction number (indexed for pagination)
-	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp;index:idx_timestamp_tx;index:idx_timestamp_code"` // BlockUnixTimestamp is the Unix timestamp of the block containing this transaction (indexed for sorting), indexed with code for failed transactions query optimization
-	ErrorLog           string   `json:"error_log" gorm:"column:error_log"`                                                                       // ErrorLog contains error information if the transaction failed
-	Logs               string   `json:"logs" gorm:"column:logs"`                                                                                 // Logs contains execution logs (stored as string, originally []byte)
-	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                                                       // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
-	Signer             string   `json:"signer" gorm:"type:varchar(128);column:signer;index:idx_signer;index:idx_signer_timestamp"`               // Signer is the transaction initiator address (first signer, indexed for account transaction queries)
-	To                 string   `json:"to" gorm:"type:varchar(128);column:to"`                                                                   // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
-	Value              string   `json:"value" gorm:"type:varchar(128);column:value"`                                                             // Value is the transaction value for ethereum transactions (corresponds to 'value' field in ethereum tx)
-	Archived           bool     `json:"archived" gorm:"column:archived;default:0;index"`                                                         // Archived indicates whether this transaction has been archived
-	DataStorageKey     string   `json:"data_storage_key" gorm:"column:data_storage_key"`                                                         // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
-	MessagesStorageKey string   `json:"messages_storage_key" gorm:"column:messages_storage_key"`                                                 // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
-	LogsStorageKey         string     `json:"logs_storage_key" gorm:"column:logs_storage_key"`                                                         // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)
-	EVMHash                string     `json:"evm_hash" gorm:"type:varchar(128);column:evm_hash;index:idx_evm_hash"`                                    // EVMHash is the EVM transaction hash (indexed for EVM transaction queries)
-	EVMDetailsStorageKey   string     `json:"evm_details_storage_key" gorm:"column:evm_details_storage_key"`                                          // EVMDetailsStorageKey is the object storage key for EVM transaction details (no index: only used in migration with IS NULL checks)
-	EVMDetailsSynced        bool       `json:"evm_details_synced" gorm:"column:evm_details_synced;default:0;index:idx_evm_details_synced"`             // EVMDetailsSynced indicates whether EVM transaction details have been synced
-	EVMDetailsSyncError     string     `json:"evm_details_sync_error" gorm:"type:text;column:evm_details_sync_error"`                                   // EVMDetailsSyncError contains error information if EVM details sync failed
-	EVMDetailsSyncAt        *time.Time `json:"evm_details_sync_at" gorm:"column:evm_details_sync_at"`                                                 // EVMDetailsSyncAt is the timestamp when EVM details were synced
+	BlockNumber          uint64     `json:"block_number" gorm:"column:block_number;index:idx_block_tx"`                                              // BlockNumber is the block number containing this transaction (indexed for pagination)
+	BlockTimestamp       string     `json:"block_timestamp" gorm:"column:block_timestamp"`                                                           // BlockTimestamp is the timestamp of the block containing this transaction
+	Hash                 string     `json:"hash" gorm:"column:hash;index"`                                                                           // Hash is the transaction hash (indexed for faster lookups)
+	Code                 uint32     `json:"code" gorm:"column:code;index:idx_timestamp_code"`                                                        // Code is the transaction execution code (0 = success, non-zero = error), indexed with block_unix_timestamp for failed transactions query optimization
+	Data                 string     `json:"data" gorm:"column:data"`                                                                                 // Data contains the transaction data (stored as string, originally []byte)
+	Info                 string     `json:"info" gorm:"column:info"`                                                                                 // Info contains additional transaction information
+	GasWanted            int64      `json:"gas_wanted" gorm:"column:gas_wanted"`                                                                     // GasWanted is the maximum gas requested for the transaction
+	GasUsed              int64      `json:"gas_used" gorm:"column:gas_used"`                                                                         // GasUsed is the actual gas used by the transaction
+	GasFee               string     `json:"gas_fee" gorm:"column:gas_fee"`                                                                           // GasFee is the gas fee paid for the transaction
+	Codespace            string     `json:"codespace" gorm:"column:codespace"`                                                                       // Codespace is the error codespace if the transaction failed
+	Events               []string   `json:"events" gorm:"column:events;serializer:json"`                                                             // Events is a list of events emitted by the transaction (stored as JSON)
+	TxType               string     `json:"tx_type" gorm:"column:tx_type"`                                                                           // TxType is the type of the transaction
+	MessageTypes         []string   `json:"message_types" gorm:"column:message_types;serializer:json"`                                               // MessageTypes is a list of message type URLs extracted from Messages (e.g., ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit"]), stored as JSON array for efficient filtering
+	Messages             string     `json:"messages" gorm:"column:messages"`                                                                         // Messages contains the transaction messages (stored as string, originally []byte)
+	Signatures           []string   `json:"signatures" gorm:"column:signatures;serializer:json"`                                                     // Signatures is a list of transaction signatures (stored as JSON)
+	Memo                 string     `json:"memo" gorm:"column:memo"`                                                                                 // Memo is the memo field of the transaction
+	TxNumber             uint64     `json:"tx_number" gorm:"column:tx_number;index:idx_tx_number;index:idx_block_tx"`                                // TxNumber is the transaction number (indexed for pagination)
+	BlockUnixTimestamp   uint64     `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp;index:idx_timestamp_tx;index:idx_timestamp_code"` // BlockUnixTimestamp is the Unix timestamp of the block containing this transaction (indexed for sorting), indexed with code for failed transactions query optimization
+	ErrorLog             string     `json:"error_log" gorm:"column:error_log"`                                                                       // ErrorLog contains error information if the transaction failed
+	Logs                 string     `json:"logs" gorm:"column:logs"`                                                                                 // Logs contains execution logs (stored as string, originally []byte)
+	ClaimIds             []int64    `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                                                       // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
+	Signer               string     `json:"signer" gorm:"type:varchar(128);column:signer;index:idx_signer;index:idx_signer_timestamp"`               // Signer is the transaction initiator address (first signer, indexed for account transaction queries)
+	To                   string     `json:"to" gorm:"type:varchar(128);column:to"`                                                                   // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
+	Value                string     `json:"value" gorm:"type:varchar(128);column:value"`                                                             // Value is the transaction value for ethereum transactions (corresponds to 'value' field in ethereum tx)
+	Archived             bool       `json:"archived" gorm:"column:archived;default:0;index"`                                                         // Archived indicates whether this transaction has been archived
+	DataStorageKey       string     `json:"data_storage_key" gorm:"column:data_storage_key"`                                                         // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
+	MessagesStorageKey   string     `json:"messages_storage_key" gorm:"column:messages_storage_key"`                                                 // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
+	LogsStorageKey       string     `json:"logs_storage_key" gorm:"column:logs_storage_key"`                                                         // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)
+	EVMHash              string     `json:"evm_hash" gorm:"type:varchar(128);column:evm_hash;index:idx_evm_hash"`                                    // EVMHash is the EVM transaction hash (indexed for EVM transaction queries)
+	EVMDetailsStorageKey string     `json:"evm_details_storage_key" gorm:"column:evm_details_storage_key"`                                           // EVMDetailsStorageKey is the object storage key for EVM transaction details (no index: only used in migration with IS NULL checks)
+	EVMDetailsSynced     bool       `json:"evm_details_synced" gorm:"column:evm_details_synced;default:0;index:idx_evm_details_synced"`              // EVMDetailsSynced indicates whether EVM transaction details have been synced
+	EVMDetailsSyncError  string     `json:"evm_details_sync_error" gorm:"type:text;column:evm_details_sync_error"`                                   // EVMDetailsSyncError contains error information if EVM details sync failed
+	EVMDetailsSyncAt     *time.Time `json:"evm_details_sync_at" gorm:"column:evm_details_sync_at"`                                                   // EVMDetailsSyncAt is the timestamp when EVM details were synced
 }
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.
@@ -166,6 +169,14 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	// This uses a unified extractor that prefers events/logs and falls back to messages
 	to, value := extractToAndValueFromProto(detail.Messages, detail.Events, detail.Logs, detail.Signatures, detail.GasFee)
 
+	// Extract message types from Messages for efficient filtering
+	// Extract before compressing Messages to avoid decompression overhead
+	messageTypes := extractMessageTypesFromBytes(detail.Messages)
+	if len(messageTypes) == 0 && len(detail.Messages) > 0 {
+		// Log warning if Messages exist but no types extracted (for debugging)
+		log.Printf("WARN: failed to extract message types for transaction %s, messages length: %d", detail.Hash, len(detail.Messages))
+	}
+
 	// Compress binary data directly, then encode to base64 for safe storage
 	// This approach provides better compression ratio than compressing base64-encoded strings
 	// The CompressData function handles:
@@ -214,6 +225,7 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	tx.Codespace = detail.Codespace
 	tx.Events = events
 	tx.TxType = detail.TxType
+	tx.MessageTypes = messageTypes
 	tx.Messages = messagesStr
 	tx.Signatures = signatures
 	tx.Memo = detail.Memo
@@ -558,4 +570,159 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 		Logs:               logsBytes,
 		ClaimIds:           tx.ClaimIds,
 	}
+}
+
+// ExtractMessageTypes extracts all message types (TypeUrl) from a Transaction's Messages field.
+// It decompresses and parses the Messages field to extract TypeUrl from each message.
+//
+// Parameters:
+//   - tx: The Transaction model
+//
+// Returns:
+//   - []string: List of message type URLs (e.g., ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit"])
+//     Returns empty slice if Messages field is empty or parsing fails
+func ExtractMessageTypes(tx *Transaction) []string {
+	if tx == nil {
+		return nil
+	}
+
+	// Get messages bytes (similar to TransactionToProto)
+	var messagesBytes []byte
+	storageClient := storage.Get()
+	ctx := context.Background()
+
+	if tx.MessagesStorageKey != "" {
+		if storageMessages, err := storageClient.GetObject(ctx, tx.MessagesStorageKey); err == nil {
+			var decompressErr error
+			messagesBytes, decompressErr = DecompressDataFromBytes(storageMessages)
+			if decompressErr != nil {
+				messagesBytes = storageMessages
+			}
+		} else {
+			messagesBytes, _ = DecompressData(tx.Messages)
+			if len(messagesBytes) == 0 {
+				messagesBytes = decodeBinaryData(tx.Messages)
+			}
+		}
+	} else {
+		var err error
+		messagesBytes, err = DecompressData(tx.Messages)
+		if err != nil {
+			messagesBytes = decodeBinaryData(tx.Messages)
+		}
+	}
+
+	if len(messagesBytes) == 0 {
+		return nil
+	}
+
+	// Use the same extraction logic as extractMessageTypesFromBytes
+	// which handles TxRaw, TxBody, and JSON formats
+	return extractMessageTypesFromBytes(messagesBytes)
+}
+
+// extractMessageTypesFromBytes extracts message types from Messages bytes.
+// Supports multiple formats:
+// 1. Protobuf-encoded TxRaw (contains BodyBytes which is TxBody)
+// 2. Protobuf-encoded TxBody directly
+// 3. JSON format (array of message objects with "type" field)
+// This is used during transaction creation to populate the MessageTypes field.
+//
+// Parameters:
+//   - messagesBytes: Protobuf-encoded TxRaw/TxBody messages bytes or JSON array
+//
+// Returns:
+//   - []string: List of message type URLs, empty slice if parsing fails
+func extractMessageTypesFromBytes(messagesBytes []byte) []string {
+	if len(messagesBytes) == 0 {
+		return nil
+	}
+
+	// Try parsing as TxRaw first (most common format from explorer API)
+	// TxRaw contains BodyBytes which is the protobuf-encoded TxBody
+	var txRaw cosmostxpb.TxRaw
+	if err := txRaw.Unmarshal(messagesBytes); err == nil && len(txRaw.BodyBytes) > 0 {
+		// Successfully parsed as TxRaw, now parse BodyBytes as TxBody
+		var txBody cosmostxpb.TxBody
+		if err := txBody.Unmarshal(txRaw.BodyBytes); err == nil {
+			if len(txBody.Messages) == 0 {
+				return nil
+			}
+
+			messageTypes := make([]string, 0, len(txBody.Messages))
+			for _, msgAny := range txBody.Messages {
+				if msgAny != nil && msgAny.TypeUrl != "" {
+					messageTypes = append(messageTypes, msgAny.TypeUrl)
+				}
+			}
+
+			// Log if no message types were extracted (for debugging)
+			if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
+				log.Printf("WARN: extracted 0 message types from %d messages in TxRaw->TxBody, all messages have empty TypeUrl", len(txBody.Messages))
+			}
+
+			return messageTypes
+		}
+	}
+
+	// Try parsing as TxBody directly (fallback)
+	txBody := &cosmostxpb.TxBody{}
+	if err := txBody.Unmarshal(messagesBytes); err == nil {
+		// Successfully parsed as TxBody directly
+		if len(txBody.Messages) == 0 {
+			return nil
+		}
+
+		messageTypes := make([]string, 0, len(txBody.Messages))
+		for _, msgAny := range txBody.Messages {
+			if msgAny != nil && msgAny.TypeUrl != "" {
+				messageTypes = append(messageTypes, msgAny.TypeUrl)
+			}
+		}
+
+		// Log if no message types were extracted (for debugging)
+		if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
+			log.Printf("WARN: extracted 0 message types from %d protobuf messages, all messages have empty TypeUrl", len(txBody.Messages))
+		}
+
+		return messageTypes
+	}
+
+	// Protobuf parsing failed, try JSON format
+	// Check if it looks like JSON (starts with '[' or '{')
+	if len(messagesBytes) > 0 && (messagesBytes[0] == '[' || messagesBytes[0] == '{') {
+		var jsonMessages []map[string]interface{}
+		if err := json.Unmarshal(messagesBytes, &jsonMessages); err == nil {
+			// Successfully parsed as JSON array
+			messageTypes := make([]string, 0, len(jsonMessages))
+			for _, msg := range jsonMessages {
+				if msgType, ok := msg["type"].(string); ok && msgType != "" {
+					messageTypes = append(messageTypes, msgType)
+				}
+			}
+			if len(messageTypes) > 0 {
+				return messageTypes
+			}
+		} else {
+			// Try parsing as single JSON object instead of array
+			var singleMsg map[string]interface{}
+			if err := json.Unmarshal(messagesBytes, &singleMsg); err == nil {
+				if msgType, ok := singleMsg["type"].(string); ok && msgType != "" {
+					return []string{msgType}
+				}
+			}
+		}
+	}
+
+	// Both protobuf and JSON parsing failed
+	log.Printf("WARN: failed to extract message types: protobuf unmarshal error, messages length: %d, first bytes: %v", len(messagesBytes), getFirstBytes(messagesBytes, 10))
+	return nil
+}
+
+// getFirstBytes returns the first n bytes of a byte slice for debugging
+func getFirstBytes(data []byte, n int) []byte {
+	if len(data) < n {
+		return data
+	}
+	return data[:n]
 }

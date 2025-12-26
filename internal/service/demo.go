@@ -22,6 +22,7 @@ import (
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -782,7 +783,9 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
 	}
 
-	global.Logger.Debugf("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v", address, page, pageSize, useCursor)
+	// Check if transaction type filtering is requested
+	hasTxTypeFilter := len(req.TxTypes) > 0
+	global.Logger.Debugf("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v, tx_types=%v", address, page, pageSize, useCursor, req.TxTypes)
 
 	// Create independent context for database query to avoid HTTP timeout issues
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -794,8 +797,9 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
 	}
 
-	// First, try to query from Redis cache (only for first page without cursor)
-	if !useCursor && page == MinPage {
+	// First, try to query from Redis cache (only for first page without cursor and without tx type filter)
+	// Skip cache if tx type filter is specified, as cache key doesn't include tx types
+	if !useCursor && page == MinPage && !hasTxTypeFilter {
 		cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
 		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
 		if err == nil && len(cachedTxs) > 0 {
@@ -818,6 +822,35 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	// Use composite index idx_signer_timestamp for optimal performance
 	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
 		Where("signer = ?", dbQueryAddress)
+
+	// Add message type filter if specified
+	// Filter by message_types JSON array field using database-native JSON functions
+	if hasTxTypeFilter {
+		dbType := db.Get().Dialector.Name()
+		conditions := make([]string, 0, len(req.TxTypes))
+		args := make([]interface{}, 0, len(req.TxTypes)*2)
+
+		for _, msgType := range req.TxTypes {
+			if dbType == "mysql" {
+				// MySQL: JSON_CONTAINS checks if the array contains the value
+				// Also support short type name matching using JSON_SEARCH
+				conditions = append(conditions, "(JSON_CONTAINS(message_types, ?) OR JSON_SEARCH(message_types, 'one', ?) IS NOT NULL)")
+				args = append(args, fmt.Sprintf(`"%s"`, msgType), fmt.Sprintf(`%%"%s"%%`, msgType))
+			} else if dbType == "postgres" {
+				// PostgreSQL: Use JSONB containment operator @>
+				conditions = append(conditions, "(message_types @> ?::jsonb OR message_types::text LIKE ?)")
+				args = append(args, fmt.Sprintf(`["%s"]`, msgType), fmt.Sprintf(`%%"%s"%%`, msgType))
+			} else {
+				// Fallback for SQLite and others: Use LIKE pattern matching
+				conditions = append(conditions, "message_types LIKE ?")
+				args = append(args, fmt.Sprintf(`%%"%s"%%`, msgType))
+			}
+		}
+
+		if len(conditions) > 0 {
+			baseQuery = baseQuery.Where("("+strings.Join(conditions, " OR ")+")", args...)
+		}
+	}
 
 	// Optimize COUNT query: use shorter timeout and skip if it takes too long
 	// For better performance, we'll get count in parallel with data query or skip it
@@ -866,8 +899,11 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 	if err == nil && len(dbTxs) > 0 {
 		global.Logger.Debugf("account transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
 
-		// Cache the results for first page to improve subsequent queries
-		if !useCursor && page == MinPage {
+		// Message type filtering is now done at database level for better performance
+		// No need for in-memory filtering when MessageTypes field is populated
+
+		// Cache the results for first page to improve subsequent queries (only if no message type filter)
+		if !useCursor && page == MinPage && !hasTxTypeFilter {
 			cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
 			cacheAccountTransactions(dbCtx, cacheKey, dbTxs)
 		}
@@ -919,10 +955,51 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 		// Get storage threshold from config
 		storageThreshold := getStorageThresholdForSync()
 		for _, transaction := range transactions.Data {
+			// Filter by message types if specified
+			if hasTxTypeFilter {
+				// Extract message types from transaction
+				messageTypes := make([]string, 0)
+				if len(transaction.Messages) > 0 {
+					txBody := &cosmostxpb.TxBody{}
+					if err := txBody.Unmarshal(transaction.Messages); err == nil {
+						for _, msgAny := range txBody.Messages {
+							if msgAny != nil && msgAny.TypeUrl != "" {
+								messageTypes = append(messageTypes, msgAny.TypeUrl)
+							}
+						}
+					}
+				}
+
+				// Check if any message type matches the requested types
+				matches := false
+				for _, msgType := range messageTypes {
+					for _, requestedType := range req.TxTypes {
+						// Support both full type URL (e.g., "/cosmos.bank.v1beta1.MsgSend")
+						// and short type name (e.g., "MsgSend")
+						if msgType == requestedType || strings.HasSuffix(msgType, "."+requestedType) {
+							matches = true
+							break
+						}
+					}
+					if matches {
+						break
+					}
+				}
+				if !matches {
+					continue // Skip transactions that don't match the filter
+				}
+			}
+
 			dbTx := models.TransactionFromProto(transaction, storageThreshold)
 			saveToDB(dbTx, "create transaction error")
 			dbTxs = append(dbTxs, *dbTx)
 		}
+
+		// If no transactions match the filter, return not found
+		if len(dbTxs) == 0 {
+			return s.errorReply(http.StatusNotFound, "no transactions found matching the specified message types", errors.New("no transactions found matching the specified message types")), errors.New("no transactions found matching the specified message types")
+		}
+
 		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 		txDTOs := models.ToTransactionDTOs(dbTxs)
 		transactionsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
