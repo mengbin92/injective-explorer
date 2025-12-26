@@ -11,62 +11,62 @@ option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.explorer.v1";
 
-service Demo {
+service Explorer {
   rpc GetLatestBlocks(PaginationRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/block/latest"
+      get : "/api/v1/block/latest"
     };
   }
   rpc GetBlockByHeight(GetBlockByHeightRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/block/by-height"
+      get : "/api/v1/block/by-height"
     };
   }
   rpc GetLatestBlockHeight(google.protobuf.Empty) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/block/latest-height"
+      get : "/api/v1/block/latest-height"
     };
   }
 
   rpc GetLatestTransactions(PaginationRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/transaction/latest"
+      get : "/api/v1/transaction/latest"
     };
   }
   rpc GetTransactionByHash(GetTransactionByHashRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/transaction/by-hash"
+      get : "/api/v1/transaction/by-hash"
     };
   }
 
   rpc GetAccountInfo(GetAccountInfoRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/account/info"
+      get : "/api/v1/account/info"
     };
   }
 
   rpc GetAccountTransactions(GetAccountTransactionsRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/account/transactions"
+      get : "/api/v1/account/transactions"
     };
   }
 
   rpc GetAccountBalances(GetAccountBalancesRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/account/balances"
+      get : "/api/v1/account/balances"
     };
   }
 
   rpc GetTransactionStats(google.protobuf.Empty) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/transaction/stats"
+      get : "/api/v1/transaction/stats"
     };
   }
 
   // Get block gas utilization for the latest 10 blocks
   rpc GetBlockGasUtilization(google.protobuf.Empty) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/block/gas-utilization"
+      get : "/api/v1/block/gas-utilization"
     };
   }
 
@@ -74,7 +74,7 @@ service Demo {
   rpc GetFailedTransactions24h(GetFailedTransactions24hRequest)
       returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/transaction/failed-24h"
+      get : "/api/v1/transaction/failed-24h"
     };
   }
 
@@ -82,14 +82,14 @@ service Demo {
   // Get EVM transaction by hash
   rpc GetEVMTransaction(GetEVMTransactionRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/evm/transaction/{hash}"
+      get : "/api/v1/evm/transaction/{hash}"
     };
   }
 
   // Get EVM transactions list
   rpc GetEVMTransactions(GetEVMTransactionsRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/evm/transactions"
+      get : "/api/v1/evm/transactions"
     };
   }
 
@@ -97,14 +97,14 @@ service Demo {
   rpc GetEVMAccountTransactions(GetEVMAccountTransactionsRequest)
       returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/evm/account/{address}/transactions"
+      get : "/api/v1/evm/account/{address}/transactions"
     };
   }
 
   // Health check endpoint for gRPC-Web
   rpc CheckHealthy(CheckHealthyRequest) returns (CheckHealthyResponse) {
     option (google.api.http) = {
-      get : "/demo/health"
+      get : "/api/v1/health"
     };
   }
 
@@ -113,7 +113,7 @@ service Demo {
   rpc StreamLatestBlocks(StreamLatestBlocksRequest)
       returns (stream BlockUpdate) {
     option (google.api.http) = {
-      get : "/demo/stream/blocks"
+      get : "/api/v1/stream/blocks"
     };
   }
 
@@ -121,7 +121,7 @@ service Demo {
   rpc StreamLatestTransactions(StreamLatestTransactionsRequest)
       returns (stream TransactionUpdate) {
     option (google.api.http) = {
-      get : "/demo/stream/transactions"
+      get : "/api/v1/stream/transactions"
     };
   }
 
@@ -129,7 +129,7 @@ service Demo {
   rpc StreamAccountUpdates(StreamAccountUpdatesRequest)
       returns (stream AccountUpdate) {
     option (google.api.http) = {
-      get : "/demo/stream/account"
+      get : "/api/v1/stream/account"
     };
   }
 
@@ -138,7 +138,7 @@ service Demo {
   rpc GetTokenPriceAndMarketCap(GetTokenPriceAndMarketCapRequest)
       returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/token/price-marketcap"
+      get : "/api/v1/token/price-marketcap"
     };
   }
 }

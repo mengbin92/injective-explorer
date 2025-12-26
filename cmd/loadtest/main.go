@@ -163,19 +163,19 @@ type EndpointConfig struct {
 var endpoints = []EndpointConfig{
 	{
 		Name:   "健康检查",
-		Path:   "/demo/health",
+		Path:   "/api/v1/health",
 		Method: "GET",
 		Params: map[string]string{},
 	},
 	{
 		Name:   "最新区块高度",
-		Path:   "/demo/block/latest-height",
+		Path:   "/api/v1/block/latest-height",
 		Method: "GET",
 		Params: map[string]string{},
 	},
 	{
 		Name:   "最新区块列表",
-		Path:   "/demo/block/latest",
+		Path:   "/api/v1/block/latest",
 		Method: "GET",
 		Params: map[string]string{
 			"pagination.page":      "1",
@@ -184,7 +184,7 @@ var endpoints = []EndpointConfig{
 	},
 	{
 		Name:   "按高度获取区块",
-		Path:   "/demo/block/by-height",
+		Path:   "/api/v1/block/by-height",
 		Method: "GET",
 		Params: map[string]string{
 			"height": "1",
@@ -192,7 +192,7 @@ var endpoints = []EndpointConfig{
 	},
 	{
 		Name:   "最新交易列表",
-		Path:   "/demo/transaction/latest",
+		Path:   "/api/v1/transaction/latest",
 		Method: "GET",
 		Params: map[string]string{
 			"pagination.page":      "1",
@@ -201,13 +201,13 @@ var endpoints = []EndpointConfig{
 	},
 	{
 		Name:   "交易统计",
-		Path:   "/demo/transaction/stats",
+		Path:   "/api/v1/transaction/stats",
 		Method: "GET",
 		Params: map[string]string{},
 	},
 	{
 		Name:   "24小时失败交易",
-		Path:   "/demo/transaction/failed-24h",
+		Path:   "/api/v1/transaction/failed-24h",
 		Method: "GET",
 		Params: map[string]string{
 			"pagination.page":      "1",
@@ -216,7 +216,7 @@ var endpoints = []EndpointConfig{
 	},
 	{
 		Name:   "账户信息",
-		Path:   "/demo/account/info",
+		Path:   "/api/v1/account/info",
 		Method: "GET",
 		Params: map[string]string{
 			"address": testAddresses[0],
@@ -224,7 +224,7 @@ var endpoints = []EndpointConfig{
 	},
 	{
 		Name:   "账户余额",
-		Path:   "/demo/account/balances",
+		Path:   "/api/v1/account/balances",
 		Method: "GET",
 		Params: map[string]string{
 			"address": testAddresses[0],
@@ -232,7 +232,7 @@ var endpoints = []EndpointConfig{
 	},
 	{
 		Name:   "账户交易",
-		Path:   "/demo/account/transactions",
+		Path:   "/api/v1/account/transactions",
 		Method: "GET",
 		Params: map[string]string{
 			"address":              testAddresses[0],
@@ -381,9 +381,9 @@ func selectRandomEndpoint(endpoints []EndpointConfig, rng *rand.Rand) EndpointCo
 // randomizeAddressIfNeeded 如果需要，随机化地址参数
 func randomizeAddressIfNeeded(ep EndpointConfig, rng *rand.Rand) EndpointConfig {
 	addressEndpoints := map[string]bool{
-		"/demo/account/info":         true,
-		"/demo/account/balances":     true,
-		"/demo/account/transactions": true,
+		"/api/v1/account/info":         true,
+		"/api/v1/account/balances":     true,
+		"/api/v1/account/transactions": true,
 	}
 
 	if !addressEndpoints[ep.Path] {

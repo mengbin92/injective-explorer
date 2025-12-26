@@ -47,7 +47,7 @@ injective-explorer/
 │   └── service/      # Service implementations
 │       ├── clients.go           # Shared blockchain client initialization
 │       ├── constants.go         # Service-level constants
-│       ├── demo.go              # API service implementation
+│       ├── explorer.go           # API service implementation
 │       ├── sync.go              # Block synchronization service
 │       ├── archive.go           # Transaction archiving service
 │       └── storage_migration.go # Data migration to object storage service
@@ -342,7 +342,7 @@ The service supports three network modes:
 #### Get Latest Blocks
 
 ```http
-GET demo/block/latest?page=1&page_size=1
+GET /api/v1/block/latest?page=1&page_size=1
 ```
 
 **Query Parameters**:
@@ -410,7 +410,7 @@ Returns the latest blocks from the blockchain with pagination support. The servi
 
 #### Get Block by Height
 ```http
-GET /demo/block/by-height?height={height}
+GET /api/v1/block/by-height?height={height}
 ```
 
 Parameters:
@@ -621,7 +621,7 @@ Returns block information for the specified height.
 
 #### Get Latest Block Height
 ```http
-GET /demo/block/latest-height
+GET /api/v1/block/latest-height
 ```
 
 Returns the height of the latest block.
@@ -644,7 +644,7 @@ Returns the height of the latest block.
 
 #### Get Latest Transactions
 ```http
-GET /demo/transaction/latest?page=1&page_size=5
+GET /api/v1/transaction/latest?page=1&page_size=5
 ```
 
 **Query Parameters**:
@@ -717,7 +717,7 @@ Returns the latest transactions from the blockchain with pagination support. The
 
 #### Get Transaction by Hash
 ```http
-GET /demo/transaction/by-hash?hash={hash}
+GET /api/v1/transaction/by-hash?hash={hash}
 ```
 
 Parameters:
@@ -755,7 +755,7 @@ Returns transaction details for the specified hash.
 
 #### Get Transaction Statistics
 ```http
-GET /demo/transaction/stats
+GET /api/v1/transaction/stats
 ```
 
 Returns comprehensive transaction statistics including volume, active addresses, gas metrics, block time, and utilization rates.
@@ -807,7 +807,7 @@ Returns comprehensive transaction statistics including volume, active addresses,
 
 #### Get Failed Transactions (24h)
 ```http
-GET /demo/transaction/failed-24h?pagination.page=1&pagination.page_size=20
+GET /api/v1/transaction/failed-24h?pagination.page=1&pagination.page_size=20
 ```
 
 Returns a paginated list of failed transactions (code != 0) that occurred in the last 24 hours, including their failure reasons.
@@ -919,7 +919,7 @@ Returns a paginated list of failed transactions (code != 0) that occurred in the
 
 #### Get Account Info
 ```http
-GET /demo/account/info?address={address}
+GET /api/v1/account/info?address={address}
 ```
 
 Parameters:
@@ -943,7 +943,7 @@ Returns account information.
 
 #### Get Account Transactions
 ```http
-GET /demo/account/transactions?address={address}&pagination.page=1&pagination.page_size=20
+GET /api/v1/account/transactions?address={address}&pagination.page=1&pagination.page_size=20
 ```
 
 Parameters:
@@ -1058,7 +1058,7 @@ Returns transactions associated with the account with pagination support. The se
 
 #### Get Account Balances
 ```http
-GET /demo/account/balances?address={address}
+GET /api/v1/account/balances?address={address}
 ```
 
 Parameters:
@@ -1139,7 +1139,7 @@ Returns account balances.
 
 #### Check Service Health
 ```http
-GET /demo/health?service={service_name}
+GET /api/v1/health?service={service_name}
 ```
 
 **Query Parameters**:
@@ -1183,7 +1183,7 @@ The service provides real-time streaming APIs for blocks, transactions, and acco
 
 #### Stream Latest Blocks
 ```http
-GET /demo/stream/blocks?from_height={height}
+GET /api/v1/stream/blocks?from_height={height}
 ```
 
 **Query Parameters**:
@@ -1214,7 +1214,7 @@ Each message in the stream:
 
 #### Stream Latest Transactions
 ```http
-GET /demo/stream/transactions?types={type1,type2}
+GET /api/v1/stream/transactions?types={type1,type2}
 ```
 
 **Query Parameters**:
@@ -1242,7 +1242,7 @@ Each message in the stream:
 
 #### Stream Account Updates
 ```http
-GET /demo/stream/account?address={address}&from_timestamp={timestamp}
+GET /api/v1/stream/account?address={address}&from_timestamp={timestamp}
 ```
 
 **Query Parameters**:
@@ -1315,7 +1315,7 @@ The `data` field contains a JSON string that, when parsed, typically has this st
 
 The service provides gRPC APIs on the configured gRPC port (default: 9000). You can use any gRPC client to connect to the service.
 
-Service definition: `api/explorer/v1/demo.proto`
+Service definition: `api/explorer/v1/explorer.proto`
 
 ### gRPC-Web Support
 
@@ -1339,7 +1339,7 @@ See `envoy/envoy.yaml` for Envoy configuration. The Envoy proxy is automatically
 **Usage Example** (JavaScript):
 ```javascript
 // Using gRPC-Web client library, connect to Envoy proxy
-const client = new DemoClient('http://localhost:9001');
+const client = new ExplorerClient('http://localhost:9001');
 const response = await client.checkHealthy({ service: 'injective-explorer' });
 ```
 
@@ -1378,7 +1378,7 @@ The service supports two pagination strategies:
 
 The service uses Protocol Buffer messages for all API responses, providing:
 
-- **Type Safety**: Strongly-typed data structures defined in `api/explorer/v1/demo.proto`
+- **Type Safety**: Strongly-typed data structures defined in `api/explorer/v1/explorer.proto`
 - **Consistency**: Same message types used across gRPC, HTTP/REST, and gRPC-Web APIs
 - **Performance**: Efficient binary serialization for gRPC, with automatic JSON conversion for HTTP
 - **Documentation**: Proto definitions serve as API documentation and contract

@@ -88,10 +88,10 @@ docker-compose ps
 
 ```bash
 # 检查健康状态
-curl http://localhost:8000/demo/health
+curl http://localhost:8000/api/v1/health
 
 # 查看最新区块
-curl http://localhost:8000/demo/block/latest?page=1&page_size=5
+curl http://localhost:8000/api/v1/block/latest?page=1&page_size=5
 ```
 
 ## 环境准备
@@ -550,7 +550,7 @@ server {
     }
 
     # gRPC-Web
-    location /api.explorer.v1.Demo/ {
+    location /api.explorer.v1.Explorer/ {
         grpc_pass grpc://explorer_grpc_web;
         grpc_set_header Host $host;
         grpc_set_header X-Real-IP $remote_addr;
@@ -665,7 +665,7 @@ sync:
 
 ```bash
 # HTTP 健康检查
-curl http://localhost:8000/demo/health
+curl http://localhost:8000/api/v1/health
 
 # 检查数据库连接
 mysql -u root -p -e "SELECT 1"
@@ -899,7 +899,7 @@ go tool pprof http://localhost:8000/debug/pprof/profile
 
 8. **验证**
    ```bash
-   curl http://localhost:8000/demo/health
+   curl http://localhost:8000/api/v1/health
    ```
 
 ## 附录

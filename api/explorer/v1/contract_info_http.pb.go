@@ -56,15 +56,15 @@ type ContractInfoServiceHTTPServer interface {
 
 func RegisterContractInfoServiceHTTPServer(s *http.Server, srv ContractInfoServiceHTTPServer) {
 	r := s.Route("/")
-	r.POST("/demo/contract/info", _ContractInfoService_CreateContractInfo0_HTTP_Handler(srv))
-	r.GET("/demo/contract/info/by-address", _ContractInfoService_GetContractInfoByAddress0_HTTP_Handler(srv))
-	r.GET("/demo/contract/info/by-symbol", _ContractInfoService_GetContractsBySymbol0_HTTP_Handler(srv))
-	r.GET("/demo/contract/info/list", _ContractInfoService_ListContractInfos0_HTTP_Handler(srv))
-	r.PUT("/demo/contract/info", _ContractInfoService_UpdateContractInfo0_HTTP_Handler(srv))
-	r.DELETE("/demo/contract/info", _ContractInfoService_DeleteContractInfo0_HTTP_Handler(srv))
-	r.POST("/demo/contract/info/tag", _ContractInfoService_AddContractTag0_HTTP_Handler(srv))
-	r.DELETE("/demo/contract/info/tag", _ContractInfoService_RemoveContractTag0_HTTP_Handler(srv))
-	r.GET("/demo/contract/info/tags", _ContractInfoService_GetContractTags0_HTTP_Handler(srv))
+	r.POST("/api/v1/contract/info", _ContractInfoService_CreateContractInfo0_HTTP_Handler(srv))
+	r.GET("/api/v1/contract/info/by-address", _ContractInfoService_GetContractInfoByAddress0_HTTP_Handler(srv))
+	r.GET("/api/v1/contract/info/by-symbol", _ContractInfoService_GetContractsBySymbol0_HTTP_Handler(srv))
+	r.GET("/api/v1/contract/info/list", _ContractInfoService_ListContractInfos0_HTTP_Handler(srv))
+	r.PUT("/api/v1/contract/info", _ContractInfoService_UpdateContractInfo0_HTTP_Handler(srv))
+	r.DELETE("/api/v1/contract/info", _ContractInfoService_DeleteContractInfo0_HTTP_Handler(srv))
+	r.POST("/api/v1/contract/info/tag", _ContractInfoService_AddContractTag0_HTTP_Handler(srv))
+	r.DELETE("/api/v1/contract/info/tag", _ContractInfoService_RemoveContractTag0_HTTP_Handler(srv))
+	r.GET("/api/v1/contract/info/tags", _ContractInfoService_GetContractTags0_HTTP_Handler(srv))
 }
 
 func _ContractInfoService_CreateContractInfo0_HTTP_Handler(srv ContractInfoServiceHTTPServer) func(ctx http.Context) error {
@@ -282,7 +282,7 @@ func NewContractInfoServiceHTTPClient(client *http.Client) ContractInfoServiceHT
 // AddContractTag AddContractTag adds a tag to a contract.
 func (c *ContractInfoServiceHTTPClientImpl) AddContractTag(ctx context.Context, in *AddContractTagRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/contract/info/tag"
+	pattern := "/api/v1/contract/info/tag"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationContractInfoServiceAddContractTag))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -296,7 +296,7 @@ func (c *ContractInfoServiceHTTPClientImpl) AddContractTag(ctx context.Context, 
 // CreateContractInfo CreateContractInfo creates a new contract information.
 func (c *ContractInfoServiceHTTPClientImpl) CreateContractInfo(ctx context.Context, in *CreateContractInfoRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/contract/info"
+	pattern := "/api/v1/contract/info"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationContractInfoServiceCreateContractInfo))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -310,7 +310,7 @@ func (c *ContractInfoServiceHTTPClientImpl) CreateContractInfo(ctx context.Conte
 // DeleteContractInfo DeleteContractInfo deletes contract information (soft delete).
 func (c *ContractInfoServiceHTTPClientImpl) DeleteContractInfo(ctx context.Context, in *DeleteContractInfoRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
 	var out emptypb.Empty
-	pattern := "/demo/contract/info"
+	pattern := "/api/v1/contract/info"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationContractInfoServiceDeleteContractInfo))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -324,7 +324,7 @@ func (c *ContractInfoServiceHTTPClientImpl) DeleteContractInfo(ctx context.Conte
 // GetContractInfoByAddress GetContractInfoByAddress retrieves contract information by address.
 func (c *ContractInfoServiceHTTPClientImpl) GetContractInfoByAddress(ctx context.Context, in *GetContractInfoByAddressRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/contract/info/by-address"
+	pattern := "/api/v1/contract/info/by-address"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationContractInfoServiceGetContractInfoByAddress))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -338,7 +338,7 @@ func (c *ContractInfoServiceHTTPClientImpl) GetContractInfoByAddress(ctx context
 // GetContractTags GetContractTags retrieves all tags for a contract.
 func (c *ContractInfoServiceHTTPClientImpl) GetContractTags(ctx context.Context, in *GetContractTagsRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/contract/info/tags"
+	pattern := "/api/v1/contract/info/tags"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationContractInfoServiceGetContractTags))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -354,7 +354,7 @@ func (c *ContractInfoServiceHTTPClientImpl) GetContractTags(ctx context.Context,
 // extended for other contract types.
 func (c *ContractInfoServiceHTTPClientImpl) GetContractsBySymbol(ctx context.Context, in *GetContractsBySymbolRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/contract/info/by-symbol"
+	pattern := "/api/v1/contract/info/by-symbol"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationContractInfoServiceGetContractsBySymbol))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -369,7 +369,7 @@ func (c *ContractInfoServiceHTTPClientImpl) GetContractsBySymbol(ctx context.Con
 // conditions.
 func (c *ContractInfoServiceHTTPClientImpl) ListContractInfos(ctx context.Context, in *ListContractInfosRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/contract/info/list"
+	pattern := "/api/v1/contract/info/list"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationContractInfoServiceListContractInfos))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -383,7 +383,7 @@ func (c *ContractInfoServiceHTTPClientImpl) ListContractInfos(ctx context.Contex
 // RemoveContractTag RemoveContractTag removes a tag from a contract.
 func (c *ContractInfoServiceHTTPClientImpl) RemoveContractTag(ctx context.Context, in *RemoveContractTagRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
 	var out emptypb.Empty
-	pattern := "/demo/contract/info/tag"
+	pattern := "/api/v1/contract/info/tag"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationContractInfoServiceRemoveContractTag))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -397,7 +397,7 @@ func (c *ContractInfoServiceHTTPClientImpl) RemoveContractTag(ctx context.Contex
 // UpdateContractInfo UpdateContractInfo updates contract information.
 func (c *ContractInfoServiceHTTPClientImpl) UpdateContractInfo(ctx context.Context, in *UpdateContractInfoRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/contract/info"
+	pattern := "/api/v1/contract/info"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationContractInfoServiceUpdateContractInfo))
 	opts = append(opts, http.PathTemplate(pattern))

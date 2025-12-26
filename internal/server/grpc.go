@@ -13,7 +13,7 @@ import (
 
 // NewGRPCServer creates and configures a new gRPC server instance.
 // It sets up middleware, network configuration, address, and timeout from the provided configuration.
-// The server registers the demo service implementation.
+// The server registers the explorer service implementation.
 //
 // Parameters:
 //   - c: Server configuration containing gRPC settings
@@ -38,8 +38,8 @@ func NewGRPCServer(c *conf.Server, logger log.Logger) *grpc.Server {
 	}
 	srv := grpc.NewServer(opts...)
 
-	demoService := service.NewDemoService()
-	v1.RegisterDemoServer(srv, demoService)
+	explorerService := service.NewExplorerService()
+	v1.RegisterExplorerServer(srv, explorerService)
 
 	contractInfoService := service.NewContractInfoService()
 	v1.RegisterContractInfoServiceServer(srv, contractInfoService)

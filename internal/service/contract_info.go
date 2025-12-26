@@ -865,7 +865,7 @@ func (s *ContractInfoService) clearContractCache(ctx context.Context, chainID, c
 	}
 }
 
-// Response helpers (consistent with demo service)
+// Response helpers (consistent with explorer service)
 
 // errorReply creates a standardized error reply with sanitized error messages.
 func (s *ContractInfoService) errorReply(code int, message string, err error) *pb.Reply {

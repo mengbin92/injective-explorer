@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v6.33.2
-// source: explorer/v1/demo.proto
+// source: explorer/v1/explorer.proto
 
 package v1
 
@@ -20,31 +20,31 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Demo_GetLatestBlocks_FullMethodName           = "/api.explorer.v1.Demo/GetLatestBlocks"
-	Demo_GetBlockByHeight_FullMethodName          = "/api.explorer.v1.Demo/GetBlockByHeight"
-	Demo_GetLatestBlockHeight_FullMethodName      = "/api.explorer.v1.Demo/GetLatestBlockHeight"
-	Demo_GetLatestTransactions_FullMethodName     = "/api.explorer.v1.Demo/GetLatestTransactions"
-	Demo_GetTransactionByHash_FullMethodName      = "/api.explorer.v1.Demo/GetTransactionByHash"
-	Demo_GetAccountInfo_FullMethodName            = "/api.explorer.v1.Demo/GetAccountInfo"
-	Demo_GetAccountTransactions_FullMethodName    = "/api.explorer.v1.Demo/GetAccountTransactions"
-	Demo_GetAccountBalances_FullMethodName        = "/api.explorer.v1.Demo/GetAccountBalances"
-	Demo_GetTransactionStats_FullMethodName       = "/api.explorer.v1.Demo/GetTransactionStats"
-	Demo_GetBlockGasUtilization_FullMethodName    = "/api.explorer.v1.Demo/GetBlockGasUtilization"
-	Demo_GetFailedTransactions24H_FullMethodName  = "/api.explorer.v1.Demo/GetFailedTransactions24h"
-	Demo_GetEVMTransaction_FullMethodName         = "/api.explorer.v1.Demo/GetEVMTransaction"
-	Demo_GetEVMTransactions_FullMethodName        = "/api.explorer.v1.Demo/GetEVMTransactions"
-	Demo_GetEVMAccountTransactions_FullMethodName = "/api.explorer.v1.Demo/GetEVMAccountTransactions"
-	Demo_CheckHealthy_FullMethodName              = "/api.explorer.v1.Demo/CheckHealthy"
-	Demo_StreamLatestBlocks_FullMethodName        = "/api.explorer.v1.Demo/StreamLatestBlocks"
-	Demo_StreamLatestTransactions_FullMethodName  = "/api.explorer.v1.Demo/StreamLatestTransactions"
-	Demo_StreamAccountUpdates_FullMethodName      = "/api.explorer.v1.Demo/StreamAccountUpdates"
-	Demo_GetTokenPriceAndMarketCap_FullMethodName = "/api.explorer.v1.Demo/GetTokenPriceAndMarketCap"
+	Explorer_GetLatestBlocks_FullMethodName           = "/api.explorer.v1.Explorer/GetLatestBlocks"
+	Explorer_GetBlockByHeight_FullMethodName          = "/api.explorer.v1.Explorer/GetBlockByHeight"
+	Explorer_GetLatestBlockHeight_FullMethodName      = "/api.explorer.v1.Explorer/GetLatestBlockHeight"
+	Explorer_GetLatestTransactions_FullMethodName     = "/api.explorer.v1.Explorer/GetLatestTransactions"
+	Explorer_GetTransactionByHash_FullMethodName      = "/api.explorer.v1.Explorer/GetTransactionByHash"
+	Explorer_GetAccountInfo_FullMethodName            = "/api.explorer.v1.Explorer/GetAccountInfo"
+	Explorer_GetAccountTransactions_FullMethodName    = "/api.explorer.v1.Explorer/GetAccountTransactions"
+	Explorer_GetAccountBalances_FullMethodName        = "/api.explorer.v1.Explorer/GetAccountBalances"
+	Explorer_GetTransactionStats_FullMethodName       = "/api.explorer.v1.Explorer/GetTransactionStats"
+	Explorer_GetBlockGasUtilization_FullMethodName    = "/api.explorer.v1.Explorer/GetBlockGasUtilization"
+	Explorer_GetFailedTransactions24H_FullMethodName  = "/api.explorer.v1.Explorer/GetFailedTransactions24h"
+	Explorer_GetEVMTransaction_FullMethodName         = "/api.explorer.v1.Explorer/GetEVMTransaction"
+	Explorer_GetEVMTransactions_FullMethodName        = "/api.explorer.v1.Explorer/GetEVMTransactions"
+	Explorer_GetEVMAccountTransactions_FullMethodName = "/api.explorer.v1.Explorer/GetEVMAccountTransactions"
+	Explorer_CheckHealthy_FullMethodName              = "/api.explorer.v1.Explorer/CheckHealthy"
+	Explorer_StreamLatestBlocks_FullMethodName        = "/api.explorer.v1.Explorer/StreamLatestBlocks"
+	Explorer_StreamLatestTransactions_FullMethodName  = "/api.explorer.v1.Explorer/StreamLatestTransactions"
+	Explorer_StreamAccountUpdates_FullMethodName      = "/api.explorer.v1.Explorer/StreamAccountUpdates"
+	Explorer_GetTokenPriceAndMarketCap_FullMethodName = "/api.explorer.v1.Explorer/GetTokenPriceAndMarketCap"
 )
 
-// DemoClient is the client API for Demo service.
+// ExplorerClient is the client API for Explorer service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type DemoClient interface {
+type ExplorerClient interface {
 	GetLatestBlocks(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetBlockByHeight(ctx context.Context, in *GetBlockByHeightRequest, opts ...grpc.CallOption) (*Reply, error)
 	GetLatestBlockHeight(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error)
@@ -79,167 +79,167 @@ type DemoClient interface {
 	GetTokenPriceAndMarketCap(ctx context.Context, in *GetTokenPriceAndMarketCapRequest, opts ...grpc.CallOption) (*Reply, error)
 }
 
-type demoClient struct {
+type explorerClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewDemoClient(cc grpc.ClientConnInterface) DemoClient {
-	return &demoClient{cc}
+func NewExplorerClient(cc grpc.ClientConnInterface) ExplorerClient {
+	return &explorerClient{cc}
 }
 
-func (c *demoClient) GetLatestBlocks(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetLatestBlocks(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetLatestBlocks_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetLatestBlocks_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetBlockByHeight(ctx context.Context, in *GetBlockByHeightRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetBlockByHeight(ctx context.Context, in *GetBlockByHeightRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetBlockByHeight_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetBlockByHeight_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetLatestBlockHeight(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetLatestBlockHeight(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetLatestBlockHeight_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetLatestBlockHeight_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetLatestTransactions(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetLatestTransactions(ctx context.Context, in *PaginationRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetLatestTransactions_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetLatestTransactions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetTransactionByHash(ctx context.Context, in *GetTransactionByHashRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetTransactionByHash(ctx context.Context, in *GetTransactionByHashRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetTransactionByHash_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetTransactionByHash_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetAccountInfo(ctx context.Context, in *GetAccountInfoRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetAccountInfo(ctx context.Context, in *GetAccountInfoRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetAccountInfo_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetAccountInfo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetAccountTransactions_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetAccountTransactions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetAccountBalances_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetAccountBalances_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetTransactionStats_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetTransactionStats_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetBlockGasUtilization_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetBlockGasUtilization_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetFailedTransactions24H_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetFailedTransactions24H_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetEVMTransaction_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetEVMTransaction_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetEVMTransactions_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetEVMTransactions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetEVMAccountTransactions_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetEVMAccountTransactions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error) {
+func (c *explorerClient) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...grpc.CallOption) (*CheckHealthyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckHealthyResponse)
-	err := c.cc.Invoke(ctx, Demo_CheckHealthy_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_CheckHealthy_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *demoClient) StreamLatestBlocks(ctx context.Context, in *StreamLatestBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BlockUpdate], error) {
+func (c *explorerClient) StreamLatestBlocks(ctx context.Context, in *StreamLatestBlocksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BlockUpdate], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Demo_ServiceDesc.Streams[0], Demo_StreamLatestBlocks_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Explorer_ServiceDesc.Streams[0], Explorer_StreamLatestBlocks_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -254,11 +254,11 @@ func (c *demoClient) StreamLatestBlocks(ctx context.Context, in *StreamLatestBlo
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Demo_StreamLatestBlocksClient = grpc.ServerStreamingClient[BlockUpdate]
+type Explorer_StreamLatestBlocksClient = grpc.ServerStreamingClient[BlockUpdate]
 
-func (c *demoClient) StreamLatestTransactions(ctx context.Context, in *StreamLatestTransactionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TransactionUpdate], error) {
+func (c *explorerClient) StreamLatestTransactions(ctx context.Context, in *StreamLatestTransactionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TransactionUpdate], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Demo_ServiceDesc.Streams[1], Demo_StreamLatestTransactions_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Explorer_ServiceDesc.Streams[1], Explorer_StreamLatestTransactions_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -273,11 +273,11 @@ func (c *demoClient) StreamLatestTransactions(ctx context.Context, in *StreamLat
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Demo_StreamLatestTransactionsClient = grpc.ServerStreamingClient[TransactionUpdate]
+type Explorer_StreamLatestTransactionsClient = grpc.ServerStreamingClient[TransactionUpdate]
 
-func (c *demoClient) StreamAccountUpdates(ctx context.Context, in *StreamAccountUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AccountUpdate], error) {
+func (c *explorerClient) StreamAccountUpdates(ctx context.Context, in *StreamAccountUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AccountUpdate], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Demo_ServiceDesc.Streams[2], Demo_StreamAccountUpdates_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Explorer_ServiceDesc.Streams[2], Explorer_StreamAccountUpdates_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -292,22 +292,22 @@ func (c *demoClient) StreamAccountUpdates(ctx context.Context, in *StreamAccount
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Demo_StreamAccountUpdatesClient = grpc.ServerStreamingClient[AccountUpdate]
+type Explorer_StreamAccountUpdatesClient = grpc.ServerStreamingClient[AccountUpdate]
 
-func (c *demoClient) GetTokenPriceAndMarketCap(ctx context.Context, in *GetTokenPriceAndMarketCapRequest, opts ...grpc.CallOption) (*Reply, error) {
+func (c *explorerClient) GetTokenPriceAndMarketCap(ctx context.Context, in *GetTokenPriceAndMarketCapRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, Demo_GetTokenPriceAndMarketCap_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Explorer_GetTokenPriceAndMarketCap_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// DemoServer is the server API for Demo service.
-// All implementations must embed UnimplementedDemoServer
+// ExplorerServer is the server API for Explorer service.
+// All implementations must embed UnimplementedExplorerServer
 // for forward compatibility.
-type DemoServer interface {
+type ExplorerServer interface {
 	GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error)
 	GetBlockByHeight(context.Context, *GetBlockByHeightRequest) (*Reply, error)
 	GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error)
@@ -340,503 +340,503 @@ type DemoServer interface {
 	// Get token price and market cap (supports multiple tokens)
 	// If token symbol is not specified, uses the default token from configuration
 	GetTokenPriceAndMarketCap(context.Context, *GetTokenPriceAndMarketCapRequest) (*Reply, error)
-	mustEmbedUnimplementedDemoServer()
+	mustEmbedUnimplementedExplorerServer()
 }
 
-// UnimplementedDemoServer must be embedded to have
+// UnimplementedExplorerServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedDemoServer struct{}
+type UnimplementedExplorerServer struct{}
 
-func (UnimplementedDemoServer) GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetLatestBlocks(context.Context, *PaginationRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLatestBlocks not implemented")
 }
-func (UnimplementedDemoServer) GetBlockByHeight(context.Context, *GetBlockByHeightRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetBlockByHeight(context.Context, *GetBlockByHeightRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBlockByHeight not implemented")
 }
-func (UnimplementedDemoServer) GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error) {
+func (UnimplementedExplorerServer) GetLatestBlockHeight(context.Context, *emptypb.Empty) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLatestBlockHeight not implemented")
 }
-func (UnimplementedDemoServer) GetLatestTransactions(context.Context, *PaginationRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetLatestTransactions(context.Context, *PaginationRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLatestTransactions not implemented")
 }
-func (UnimplementedDemoServer) GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetTransactionByHash(context.Context, *GetTransactionByHashRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTransactionByHash not implemented")
 }
-func (UnimplementedDemoServer) GetAccountInfo(context.Context, *GetAccountInfoRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetAccountInfo(context.Context, *GetAccountInfoRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountInfo not implemented")
 }
-func (UnimplementedDemoServer) GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetAccountTransactions(context.Context, *GetAccountTransactionsRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountTransactions not implemented")
 }
-func (UnimplementedDemoServer) GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountBalances not implemented")
 }
-func (UnimplementedDemoServer) GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error) {
+func (UnimplementedExplorerServer) GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTransactionStats not implemented")
 }
-func (UnimplementedDemoServer) GetBlockGasUtilization(context.Context, *emptypb.Empty) (*Reply, error) {
+func (UnimplementedExplorerServer) GetBlockGasUtilization(context.Context, *emptypb.Empty) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBlockGasUtilization not implemented")
 }
-func (UnimplementedDemoServer) GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetFailedTransactions24H(context.Context, *GetFailedTransactions24HRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFailedTransactions24H not implemented")
 }
-func (UnimplementedDemoServer) GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetEVMTransaction(context.Context, *GetEVMTransactionRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetEVMTransaction not implemented")
 }
-func (UnimplementedDemoServer) GetEVMTransactions(context.Context, *GetEVMTransactionsRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetEVMTransactions(context.Context, *GetEVMTransactionsRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetEVMTransactions not implemented")
 }
-func (UnimplementedDemoServer) GetEVMAccountTransactions(context.Context, *GetEVMAccountTransactionsRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetEVMAccountTransactions(context.Context, *GetEVMAccountTransactionsRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetEVMAccountTransactions not implemented")
 }
-func (UnimplementedDemoServer) CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error) {
+func (UnimplementedExplorerServer) CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CheckHealthy not implemented")
 }
-func (UnimplementedDemoServer) StreamLatestBlocks(*StreamLatestBlocksRequest, grpc.ServerStreamingServer[BlockUpdate]) error {
+func (UnimplementedExplorerServer) StreamLatestBlocks(*StreamLatestBlocksRequest, grpc.ServerStreamingServer[BlockUpdate]) error {
 	return status.Error(codes.Unimplemented, "method StreamLatestBlocks not implemented")
 }
-func (UnimplementedDemoServer) StreamLatestTransactions(*StreamLatestTransactionsRequest, grpc.ServerStreamingServer[TransactionUpdate]) error {
+func (UnimplementedExplorerServer) StreamLatestTransactions(*StreamLatestTransactionsRequest, grpc.ServerStreamingServer[TransactionUpdate]) error {
 	return status.Error(codes.Unimplemented, "method StreamLatestTransactions not implemented")
 }
-func (UnimplementedDemoServer) StreamAccountUpdates(*StreamAccountUpdatesRequest, grpc.ServerStreamingServer[AccountUpdate]) error {
+func (UnimplementedExplorerServer) StreamAccountUpdates(*StreamAccountUpdatesRequest, grpc.ServerStreamingServer[AccountUpdate]) error {
 	return status.Error(codes.Unimplemented, "method StreamAccountUpdates not implemented")
 }
-func (UnimplementedDemoServer) GetTokenPriceAndMarketCap(context.Context, *GetTokenPriceAndMarketCapRequest) (*Reply, error) {
+func (UnimplementedExplorerServer) GetTokenPriceAndMarketCap(context.Context, *GetTokenPriceAndMarketCapRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTokenPriceAndMarketCap not implemented")
 }
-func (UnimplementedDemoServer) mustEmbedUnimplementedDemoServer() {}
-func (UnimplementedDemoServer) testEmbeddedByValue()              {}
+func (UnimplementedExplorerServer) mustEmbedUnimplementedExplorerServer() {}
+func (UnimplementedExplorerServer) testEmbeddedByValue()                  {}
 
-// UnsafeDemoServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to DemoServer will
+// UnsafeExplorerServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ExplorerServer will
 // result in compilation errors.
-type UnsafeDemoServer interface {
-	mustEmbedUnimplementedDemoServer()
+type UnsafeExplorerServer interface {
+	mustEmbedUnimplementedExplorerServer()
 }
 
-func RegisterDemoServer(s grpc.ServiceRegistrar, srv DemoServer) {
-	// If the following call panics, it indicates UnimplementedDemoServer was
+func RegisterExplorerServer(s grpc.ServiceRegistrar, srv ExplorerServer) {
+	// If the following call panics, it indicates UnimplementedExplorerServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&Demo_ServiceDesc, srv)
+	s.RegisterService(&Explorer_ServiceDesc, srv)
 }
 
-func _Demo_GetLatestBlocks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetLatestBlocks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PaginationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetLatestBlocks(ctx, in)
+		return srv.(ExplorerServer).GetLatestBlocks(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetLatestBlocks_FullMethodName,
+		FullMethod: Explorer_GetLatestBlocks_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetLatestBlocks(ctx, req.(*PaginationRequest))
+		return srv.(ExplorerServer).GetLatestBlocks(ctx, req.(*PaginationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetBlockByHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetBlockByHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetBlockByHeightRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetBlockByHeight(ctx, in)
+		return srv.(ExplorerServer).GetBlockByHeight(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetBlockByHeight_FullMethodName,
+		FullMethod: Explorer_GetBlockByHeight_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetBlockByHeight(ctx, req.(*GetBlockByHeightRequest))
+		return srv.(ExplorerServer).GetBlockByHeight(ctx, req.(*GetBlockByHeightRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetLatestBlockHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetLatestBlockHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetLatestBlockHeight(ctx, in)
+		return srv.(ExplorerServer).GetLatestBlockHeight(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetLatestBlockHeight_FullMethodName,
+		FullMethod: Explorer_GetLatestBlockHeight_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetLatestBlockHeight(ctx, req.(*emptypb.Empty))
+		return srv.(ExplorerServer).GetLatestBlockHeight(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetLatestTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetLatestTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PaginationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetLatestTransactions(ctx, in)
+		return srv.(ExplorerServer).GetLatestTransactions(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetLatestTransactions_FullMethodName,
+		FullMethod: Explorer_GetLatestTransactions_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetLatestTransactions(ctx, req.(*PaginationRequest))
+		return srv.(ExplorerServer).GetLatestTransactions(ctx, req.(*PaginationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetTransactionByHash_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetTransactionByHash_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetTransactionByHashRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetTransactionByHash(ctx, in)
+		return srv.(ExplorerServer).GetTransactionByHash(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetTransactionByHash_FullMethodName,
+		FullMethod: Explorer_GetTransactionByHash_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetTransactionByHash(ctx, req.(*GetTransactionByHashRequest))
+		return srv.(ExplorerServer).GetTransactionByHash(ctx, req.(*GetTransactionByHashRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetAccountInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetAccountInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAccountInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetAccountInfo(ctx, in)
+		return srv.(ExplorerServer).GetAccountInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetAccountInfo_FullMethodName,
+		FullMethod: Explorer_GetAccountInfo_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetAccountInfo(ctx, req.(*GetAccountInfoRequest))
+		return srv.(ExplorerServer).GetAccountInfo(ctx, req.(*GetAccountInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetAccountTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetAccountTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAccountTransactionsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetAccountTransactions(ctx, in)
+		return srv.(ExplorerServer).GetAccountTransactions(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetAccountTransactions_FullMethodName,
+		FullMethod: Explorer_GetAccountTransactions_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetAccountTransactions(ctx, req.(*GetAccountTransactionsRequest))
+		return srv.(ExplorerServer).GetAccountTransactions(ctx, req.(*GetAccountTransactionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetAccountBalances_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetAccountBalances_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAccountBalancesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetAccountBalances(ctx, in)
+		return srv.(ExplorerServer).GetAccountBalances(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetAccountBalances_FullMethodName,
+		FullMethod: Explorer_GetAccountBalances_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetAccountBalances(ctx, req.(*GetAccountBalancesRequest))
+		return srv.(ExplorerServer).GetAccountBalances(ctx, req.(*GetAccountBalancesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetTransactionStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetTransactionStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetTransactionStats(ctx, in)
+		return srv.(ExplorerServer).GetTransactionStats(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetTransactionStats_FullMethodName,
+		FullMethod: Explorer_GetTransactionStats_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetTransactionStats(ctx, req.(*emptypb.Empty))
+		return srv.(ExplorerServer).GetTransactionStats(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetBlockGasUtilization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetBlockGasUtilization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetBlockGasUtilization(ctx, in)
+		return srv.(ExplorerServer).GetBlockGasUtilization(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetBlockGasUtilization_FullMethodName,
+		FullMethod: Explorer_GetBlockGasUtilization_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetBlockGasUtilization(ctx, req.(*emptypb.Empty))
+		return srv.(ExplorerServer).GetBlockGasUtilization(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetFailedTransactions24H_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetFailedTransactions24H_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetFailedTransactions24HRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetFailedTransactions24H(ctx, in)
+		return srv.(ExplorerServer).GetFailedTransactions24H(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetFailedTransactions24H_FullMethodName,
+		FullMethod: Explorer_GetFailedTransactions24H_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetFailedTransactions24H(ctx, req.(*GetFailedTransactions24HRequest))
+		return srv.(ExplorerServer).GetFailedTransactions24H(ctx, req.(*GetFailedTransactions24HRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetEVMTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetEVMTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetEVMTransactionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetEVMTransaction(ctx, in)
+		return srv.(ExplorerServer).GetEVMTransaction(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetEVMTransaction_FullMethodName,
+		FullMethod: Explorer_GetEVMTransaction_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetEVMTransaction(ctx, req.(*GetEVMTransactionRequest))
+		return srv.(ExplorerServer).GetEVMTransaction(ctx, req.(*GetEVMTransactionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetEVMTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetEVMTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetEVMTransactionsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetEVMTransactions(ctx, in)
+		return srv.(ExplorerServer).GetEVMTransactions(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetEVMTransactions_FullMethodName,
+		FullMethod: Explorer_GetEVMTransactions_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetEVMTransactions(ctx, req.(*GetEVMTransactionsRequest))
+		return srv.(ExplorerServer).GetEVMTransactions(ctx, req.(*GetEVMTransactionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_GetEVMAccountTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetEVMAccountTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetEVMAccountTransactionsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetEVMAccountTransactions(ctx, in)
+		return srv.(ExplorerServer).GetEVMAccountTransactions(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetEVMAccountTransactions_FullMethodName,
+		FullMethod: Explorer_GetEVMAccountTransactions_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetEVMAccountTransactions(ctx, req.(*GetEVMAccountTransactionsRequest))
+		return srv.(ExplorerServer).GetEVMAccountTransactions(ctx, req.(*GetEVMAccountTransactionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_CheckHealthy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_CheckHealthy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CheckHealthyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).CheckHealthy(ctx, in)
+		return srv.(ExplorerServer).CheckHealthy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_CheckHealthy_FullMethodName,
+		FullMethod: Explorer_CheckHealthy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).CheckHealthy(ctx, req.(*CheckHealthyRequest))
+		return srv.(ExplorerServer).CheckHealthy(ctx, req.(*CheckHealthyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Demo_StreamLatestBlocks_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _Explorer_StreamLatestBlocks_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(StreamLatestBlocksRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(DemoServer).StreamLatestBlocks(m, &grpc.GenericServerStream[StreamLatestBlocksRequest, BlockUpdate]{ServerStream: stream})
+	return srv.(ExplorerServer).StreamLatestBlocks(m, &grpc.GenericServerStream[StreamLatestBlocksRequest, BlockUpdate]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Demo_StreamLatestBlocksServer = grpc.ServerStreamingServer[BlockUpdate]
+type Explorer_StreamLatestBlocksServer = grpc.ServerStreamingServer[BlockUpdate]
 
-func _Demo_StreamLatestTransactions_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _Explorer_StreamLatestTransactions_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(StreamLatestTransactionsRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(DemoServer).StreamLatestTransactions(m, &grpc.GenericServerStream[StreamLatestTransactionsRequest, TransactionUpdate]{ServerStream: stream})
+	return srv.(ExplorerServer).StreamLatestTransactions(m, &grpc.GenericServerStream[StreamLatestTransactionsRequest, TransactionUpdate]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Demo_StreamLatestTransactionsServer = grpc.ServerStreamingServer[TransactionUpdate]
+type Explorer_StreamLatestTransactionsServer = grpc.ServerStreamingServer[TransactionUpdate]
 
-func _Demo_StreamAccountUpdates_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _Explorer_StreamAccountUpdates_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(StreamAccountUpdatesRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(DemoServer).StreamAccountUpdates(m, &grpc.GenericServerStream[StreamAccountUpdatesRequest, AccountUpdate]{ServerStream: stream})
+	return srv.(ExplorerServer).StreamAccountUpdates(m, &grpc.GenericServerStream[StreamAccountUpdatesRequest, AccountUpdate]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Demo_StreamAccountUpdatesServer = grpc.ServerStreamingServer[AccountUpdate]
+type Explorer_StreamAccountUpdatesServer = grpc.ServerStreamingServer[AccountUpdate]
 
-func _Demo_GetTokenPriceAndMarketCap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Explorer_GetTokenPriceAndMarketCap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetTokenPriceAndMarketCapRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DemoServer).GetTokenPriceAndMarketCap(ctx, in)
+		return srv.(ExplorerServer).GetTokenPriceAndMarketCap(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Demo_GetTokenPriceAndMarketCap_FullMethodName,
+		FullMethod: Explorer_GetTokenPriceAndMarketCap_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DemoServer).GetTokenPriceAndMarketCap(ctx, req.(*GetTokenPriceAndMarketCapRequest))
+		return srv.(ExplorerServer).GetTokenPriceAndMarketCap(ctx, req.(*GetTokenPriceAndMarketCapRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// Demo_ServiceDesc is the grpc.ServiceDesc for Demo service.
+// Explorer_ServiceDesc is the grpc.ServiceDesc for Explorer service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Demo_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.explorer.v1.Demo",
-	HandlerType: (*DemoServer)(nil),
+var Explorer_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.explorer.v1.Explorer",
+	HandlerType: (*ExplorerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "GetLatestBlocks",
-			Handler:    _Demo_GetLatestBlocks_Handler,
+			Handler:    _Explorer_GetLatestBlocks_Handler,
 		},
 		{
 			MethodName: "GetBlockByHeight",
-			Handler:    _Demo_GetBlockByHeight_Handler,
+			Handler:    _Explorer_GetBlockByHeight_Handler,
 		},
 		{
 			MethodName: "GetLatestBlockHeight",
-			Handler:    _Demo_GetLatestBlockHeight_Handler,
+			Handler:    _Explorer_GetLatestBlockHeight_Handler,
 		},
 		{
 			MethodName: "GetLatestTransactions",
-			Handler:    _Demo_GetLatestTransactions_Handler,
+			Handler:    _Explorer_GetLatestTransactions_Handler,
 		},
 		{
 			MethodName: "GetTransactionByHash",
-			Handler:    _Demo_GetTransactionByHash_Handler,
+			Handler:    _Explorer_GetTransactionByHash_Handler,
 		},
 		{
 			MethodName: "GetAccountInfo",
-			Handler:    _Demo_GetAccountInfo_Handler,
+			Handler:    _Explorer_GetAccountInfo_Handler,
 		},
 		{
 			MethodName: "GetAccountTransactions",
-			Handler:    _Demo_GetAccountTransactions_Handler,
+			Handler:    _Explorer_GetAccountTransactions_Handler,
 		},
 		{
 			MethodName: "GetAccountBalances",
-			Handler:    _Demo_GetAccountBalances_Handler,
+			Handler:    _Explorer_GetAccountBalances_Handler,
 		},
 		{
 			MethodName: "GetTransactionStats",
-			Handler:    _Demo_GetTransactionStats_Handler,
+			Handler:    _Explorer_GetTransactionStats_Handler,
 		},
 		{
 			MethodName: "GetBlockGasUtilization",
-			Handler:    _Demo_GetBlockGasUtilization_Handler,
+			Handler:    _Explorer_GetBlockGasUtilization_Handler,
 		},
 		{
 			MethodName: "GetFailedTransactions24h",
-			Handler:    _Demo_GetFailedTransactions24H_Handler,
+			Handler:    _Explorer_GetFailedTransactions24H_Handler,
 		},
 		{
 			MethodName: "GetEVMTransaction",
-			Handler:    _Demo_GetEVMTransaction_Handler,
+			Handler:    _Explorer_GetEVMTransaction_Handler,
 		},
 		{
 			MethodName: "GetEVMTransactions",
-			Handler:    _Demo_GetEVMTransactions_Handler,
+			Handler:    _Explorer_GetEVMTransactions_Handler,
 		},
 		{
 			MethodName: "GetEVMAccountTransactions",
-			Handler:    _Demo_GetEVMAccountTransactions_Handler,
+			Handler:    _Explorer_GetEVMAccountTransactions_Handler,
 		},
 		{
 			MethodName: "CheckHealthy",
-			Handler:    _Demo_CheckHealthy_Handler,
+			Handler:    _Explorer_CheckHealthy_Handler,
 		},
 		{
 			MethodName: "GetTokenPriceAndMarketCap",
-			Handler:    _Demo_GetTokenPriceAndMarketCap_Handler,
+			Handler:    _Explorer_GetTokenPriceAndMarketCap_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "StreamLatestBlocks",
-			Handler:       _Demo_StreamLatestBlocks_Handler,
+			Handler:       _Explorer_StreamLatestBlocks_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "StreamLatestTransactions",
-			Handler:       _Demo_StreamLatestTransactions_Handler,
+			Handler:       _Explorer_StreamLatestTransactions_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "StreamAccountUpdates",
-			Handler:       _Demo_StreamAccountUpdates_Handler,
+			Handler:       _Explorer_StreamAccountUpdates_Handler,
 			ServerStreams: true,
 		},
 	},
-	Metadata: "explorer/v1/demo.proto",
+	Metadata: "explorer/v1/explorer.proto",
 }

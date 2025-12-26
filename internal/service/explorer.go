@@ -36,13 +36,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// DemoService implements the explorer API service.
+// ExplorerService implements the explorer API service.
 // It provides methods to query blockchain data including blocks, transactions, and account information.
 //
 // The service maintains client connections for better performance,
 // creating them lazily when needed and reusing them across requests.
-type DemoService struct {
-	pb.UnimplementedDemoServer
+type ExplorerService struct {
+	pb.UnimplementedExplorerServer
 	statsUpdateOnce sync.Once // Ensure stats update goroutine starts only once
 }
 
@@ -50,12 +50,12 @@ var (
 	statsUpdateOnceGlobal sync.Once // Global once for stats update goroutine
 )
 
-// NewDemoService creates a new instance of DemoService.
+// NewExplorerService creates a new instance of ExplorerService.
 //
 // Returns:
-//   - *DemoService: A new service instance
-func NewDemoService() *DemoService {
-	return &DemoService{}
+//   - *ExplorerService: A new service instance
+func NewExplorerService() *ExplorerService {
+	return &ExplorerService{}
 }
 
 // getStorageThresholdForSync returns the storage threshold for uploading to object storage during sync.
@@ -77,7 +77,7 @@ func getStorageThresholdForSync() int {
 // Returns:
 //   - *pb.Reply: Response containing the latest blocks data with pagination info
 //   - error: Error if the operation fails
-func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -229,7 +229,7 @@ func (s *DemoService) GetLatestBlocks(ctx context.Context, req *pb.PaginationReq
 // Returns:
 //   - *pb.Reply: Response containing the block data
 //   - error: Error if the operation fails or validation fails
-func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHeightRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHeightRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -315,7 +315,7 @@ func (s *DemoService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHe
 // Returns:
 //   - *pb.Reply: Response containing the latest block height
 //   - error: Error if the operation fails
-func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+func (s *ExplorerService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	global.Logger.Debugf("get latest block height")
 
 	client := GetSharedTmClient()
@@ -339,7 +339,7 @@ func (s *DemoService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Emp
 // Returns:
 //   - *pb.Reply: Response containing gas utilization statistics
 //   - error: Error if the operation fails
-func (s *DemoService) GetBlockGasUtilization(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	// Try to get from cache first
 	redisClient := cache.GetRedisClient()
 	if redisClient != nil {
@@ -406,7 +406,7 @@ func (s *DemoService) GetBlockGasUtilization(ctx context.Context, req *emptypb.E
 // Returns:
 //   - *pb.Reply: Response containing the latest transactions data with pagination info
 //   - error: Error if the operation fails
-func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -554,7 +554,7 @@ func (s *DemoService) GetLatestTransactions(ctx context.Context, req *pb.Paginat
 // Returns:
 //   - *pb.Reply: Response containing the transaction data
 //   - error: Error if the operation fails or validation fails
-func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTransactionByHashRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetTransactionByHashRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -667,7 +667,7 @@ func (s *DemoService) GetTransactionByHash(ctx context.Context, req *pb.GetTrans
 // Returns:
 //   - *pb.Reply: Response containing the account information
 //   - error: Error if the operation fails or validation fails
-func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfoRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfoRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -762,7 +762,7 @@ func (s *DemoService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfo
 // Returns:
 //   - *pb.Reply: Response containing the account transactions with pagination info
 //   - error: Error if the operation fails or validation fails
-func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAccountTransactionsRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.GetAccountTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -1017,7 +1017,7 @@ func (s *DemoService) GetAccountTransactions(ctx context.Context, req *pb.GetAcc
 // Returns:
 //   - *pb.Reply: Response containing the account balances
 //   - error: Error if the operation fails or validation fails
-func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccountBalancesRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAccountBalancesRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -1122,7 +1122,7 @@ func (s *DemoService) GetAccountBalances(ctx context.Context, req *pb.GetAccount
 //
 // Returns:
 //   - *pb.Reply: A reply with sanitized error information
-func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply {
+func (s *ExplorerService) errorReply(code int, message string, err error) *pb.Reply {
 	// Sanitize error message to prevent sensitive information leakage
 	sanitizedErr := utils.SanitizeError(err, MaxErrorLength)
 	return &pb.Reply{
@@ -1142,7 +1142,7 @@ func (s *DemoService) errorReply(code int, message string, err error) *pb.Reply 
 // Returns:
 //   - *pb.CheckHealthyResponse: Health status information
 //   - error: Error if the health check fails critically
-func (s *DemoService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequest) (*pb.CheckHealthyResponse, error) {
+func (s *ExplorerService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequest) (*pb.CheckHealthyResponse, error) {
 	global.Logger.Debugf("health check requested: service=%s", req.GetService())
 
 	// Default service name
@@ -1248,7 +1248,7 @@ func (s *DemoService) CheckHealthy(ctx context.Context, req *pb.CheckHealthyRequ
 // Returns:
 //   - *structpb.Struct: The converted struct
 //   - error: Error if conversion fails
-func (s *DemoService) toStruct(v interface{}) (*structpb.Struct, error) {
+func (s *ExplorerService) toStruct(v interface{}) (*structpb.Struct, error) {
 	// Marshal to JSON first
 	jsonBytes, err := sonic.Marshal(v)
 	if err != nil {
@@ -1274,7 +1274,7 @@ func (s *DemoService) toStruct(v interface{}) (*structpb.Struct, error) {
 // Returns:
 //   - *structpb.Struct: The converted struct
 //   - error: Error if conversion fails
-func (s *DemoService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
+func (s *ExplorerService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
 	// Use default options or custom options
 	if options == nil {
 		options = &protojson.MarshalOptions{
@@ -1625,7 +1625,7 @@ func saveToDB(model interface{}, errorMsg string) {
 // Returns:
 //   - *pb.Reply: Success reply with data as Struct, or error reply if marshaling fails
 //   - error: Error if marshaling fails
-func (s *DemoService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
+func (s *ExplorerService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
 	var structData *structpb.Struct
 	var err error
 
@@ -1650,7 +1650,7 @@ func (s *DemoService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply
 
 // StreamLatestBlocks streams the latest blocks as they are added to the chain.
 // This method subscribes to block events from the event bus and streams them to the client.
-func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stream pb.Demo_StreamLatestBlocksServer) error {
+func (s *ExplorerService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stream pb.Explorer_StreamLatestBlocksServer) error {
 	// Handle nil request: log and continue (GetFromHeight() returns 0 for nil, meaning all blocks)
 	if req == nil {
 		global.Logger.Infof("stream latest blocks: received nil request, using default")
@@ -1828,7 +1828,7 @@ func (s *DemoService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stre
 
 // StreamLatestTransactions streams the latest transactions as they are added to the chain.
 // This method subscribes to transaction events from the event bus and streams them to the client.
-func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsRequest, stream pb.Demo_StreamLatestTransactionsServer) error {
+func (s *ExplorerService) StreamLatestTransactions(req *pb.StreamLatestTransactionsRequest, stream pb.Explorer_StreamLatestTransactionsServer) error {
 	// Handle nil request: create default request for compatibility with empty messages
 	if req == nil {
 		req = &pb.StreamLatestTransactionsRequest{
@@ -2019,7 +2019,7 @@ func (s *DemoService) StreamLatestTransactions(req *pb.StreamLatestTransactionsR
 
 // StreamAccountUpdates streams account updates (balance changes, new transactions, etc.) for a specific account.
 // This method subscribes to account events from the event bus and streams them to the client.
-func (s *DemoService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, stream pb.Demo_StreamAccountUpdatesServer) error {
+func (s *ExplorerService) StreamAccountUpdates(req *pb.StreamAccountUpdatesRequest, stream pb.Explorer_StreamAccountUpdatesServer) error {
 	// Input validation
 	if req == nil {
 		return status.Errorf(codes.InvalidArgument, "request cannot be nil")
@@ -2998,7 +2998,7 @@ func calculateGasUtilizationFromTxs(txs []GasUtilTxInfo) float64 {
 // Returns:
 //   - *pb.Reply: Response containing transaction statistics
 //   - error: Error if the operation fails
-func (s *DemoService) GetTransactionStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+func (s *ExplorerService) GetTransactionStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	global.Logger.Info("getting transaction statistics")
 
 	// Start background goroutine to periodically update complex metrics (only once)
@@ -3427,7 +3427,7 @@ func convertToFailedTransactionInfos(txs []models.Transaction) []*pb.FailedTrans
 // Returns:
 //   - *pb.Reply: Response containing failed transactions with pagination info
 //   - error: Error if the operation fails
-func (s *DemoService) GetFailedTransactions24H(ctx context.Context, req *pb.GetFailedTransactions24HRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetFailedTransactions24H(ctx context.Context, req *pb.GetFailedTransactions24HRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -3896,7 +3896,7 @@ func calculateGasUtilization(txs []models.Transaction) float64 {
 // Returns:
 //   - string: The converted address
 //   - error: Error if conversion fails
-func (s *DemoService) convertToQueryAddress(ctx context.Context, address string, client chainclient.ChainClientV2, forChainQuery bool) (string, error) {
+func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address string, client chainclient.ChainClientV2, forChainQuery bool) (string, error) {
 	// If already Ethereum format
 	if strings.HasPrefix(address, "0x") {
 		if forChainQuery {
@@ -4017,7 +4017,7 @@ func updateComplexMetricsInCache() {
 // Returns:
 //   - *pb.Reply: Response containing price, supply, and market cap information
 //   - error: Error if the operation fails
-func (s *DemoService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb.GetTokenPriceAndMarketCapRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb.GetTokenPriceAndMarketCapRequest) (*pb.Reply, error) {
 	tokenSymbol := ""
 	if req != nil {
 		tokenSymbol = req.TokenSymbol
@@ -4102,7 +4102,7 @@ func (s *DemoService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb.Get
 // Returns:
 //   - *pb.Reply: Response containing the EVM transaction details
 //   - error: Error if the operation fails or validation fails
-func (s *DemoService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMTransactionRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMTransactionRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -4172,7 +4172,7 @@ func (s *DemoService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMTrans
 // Returns:
 //   - *pb.Reply: Response containing the list of EVM transactions with pagination info
 //   - error: Error if the operation fails
-func (s *DemoService) GetEVMTransactions(ctx context.Context, req *pb.GetEVMTransactionsRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVMTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
@@ -4294,7 +4294,7 @@ func (s *DemoService) GetEVMTransactions(ctx context.Context, req *pb.GetEVMTran
 // Returns:
 //   - *pb.Reply: Response containing the list of EVM transactions for the account with pagination info
 //   - error: Error if the operation fails or validation fails
-func (s *DemoService) GetEVMAccountTransactions(ctx context.Context, req *pb.GetEVMAccountTransactionsRequest) (*pb.Reply, error) {
+func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb.GetEVMAccountTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")

@@ -31,7 +31,7 @@ var (
 
 // NewHTTPServer creates and configures a new HTTP server instance.
 // It sets up middleware, network configuration, address, and timeout from the provided configuration.
-// The server registers the demo service HTTP handler.
+// The server registers the explorer service HTTP handler.
 //
 // Parameters:
 //   - c: Server configuration containing HTTP settings
@@ -90,9 +90,9 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 		// The actual connection pool is managed by Go's net/http package
 	}
 
-	// Register demo service
-	demoService := service.NewDemoService()
-	v1.RegisterDemoHTTPServer(srv, demoService)
+	// Register explorer service
+	explorerService := service.NewExplorerService()
+	v1.RegisterExplorerHTTPServer(srv, explorerService)
 
 	// Register contract info service
 	contractInfoService := service.NewContractInfoService()

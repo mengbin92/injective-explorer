@@ -1068,17 +1068,17 @@ const file_explorer_v1_contract_info_proto_rawDesc = "" +
 	"created_by\x12\x1e\n" +
 	"\n" +
 	"created_at\x18\t \x01(\tR\n" +
-	"created_at2\xf4\b\n" +
-	"\x13ContractInfoService\x12x\n" +
-	"\x12CreateContractInfo\x12*.api.explorer.v1.CreateContractInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/demo/contract/info\x12\x8c\x01\n" +
-	"\x18GetContractInfoByAddress\x120.api.explorer.v1.GetContractInfoByAddressRequest\x1a\x16.api.explorer.v1.Reply\"&\x82\xd3\xe4\x93\x02 \x12\x1e/demo/contract/info/by-address\x12\x83\x01\n" +
-	"\x14GetContractsBySymbol\x12,.api.explorer.v1.GetContractsBySymbolRequest\x1a\x16.api.explorer.v1.Reply\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/demo/contract/info/by-symbol\x12x\n" +
-	"\x11ListContractInfos\x12).api.explorer.v1.ListContractInfosRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/demo/contract/info/list\x12x\n" +
-	"\x12UpdateContractInfo\x12*.api.explorer.v1.UpdateContractInfoRequest\x1a\x16.api.explorer.v1.Reply\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\x1a\x13/demo/contract/info\x12u\n" +
-	"\x12DeleteContractInfo\x12*.api.explorer.v1.DeleteContractInfoRequest\x1a\x16.google.protobuf.Empty\"\x1b\x82\xd3\xe4\x93\x02\x15*\x13/demo/contract/info\x12t\n" +
-	"\x0eAddContractTag\x12&.api.explorer.v1.AddContractTagRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/demo/contract/info/tag\x12w\n" +
-	"\x11RemoveContractTag\x12).api.explorer.v1.RemoveContractTagRequest\x1a\x16.google.protobuf.Empty\"\x1f\x82\xd3\xe4\x93\x02\x19*\x17/demo/contract/info/tag\x12t\n" +
-	"\x0fGetContractTags\x12'.api.explorer.v1.GetContractTagsRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/demo/contract/info/tagsB5\n" +
+	"created_at2\x86\t\n" +
+	"\x13ContractInfoService\x12z\n" +
+	"\x12CreateContractInfo\x12*.api.explorer.v1.CreateContractInfoRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/api/v1/contract/info\x12\x8e\x01\n" +
+	"\x18GetContractInfoByAddress\x120.api.explorer.v1.GetContractInfoByAddressRequest\x1a\x16.api.explorer.v1.Reply\"(\x82\xd3\xe4\x93\x02\"\x12 /api/v1/contract/info/by-address\x12\x85\x01\n" +
+	"\x14GetContractsBySymbol\x12,.api.explorer.v1.GetContractsBySymbolRequest\x1a\x16.api.explorer.v1.Reply\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/contract/info/by-symbol\x12z\n" +
+	"\x11ListContractInfos\x12).api.explorer.v1.ListContractInfosRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/contract/info/list\x12z\n" +
+	"\x12UpdateContractInfo\x12*.api.explorer.v1.UpdateContractInfoRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a:\x01*\x1a\x15/api/v1/contract/info\x12w\n" +
+	"\x12DeleteContractInfo\x12*.api.explorer.v1.DeleteContractInfoRequest\x1a\x16.google.protobuf.Empty\"\x1d\x82\xd3\xe4\x93\x02\x17*\x15/api/v1/contract/info\x12v\n" +
+	"\x0eAddContractTag\x12&.api.explorer.v1.AddContractTagRequest\x1a\x16.api.explorer.v1.Reply\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/v1/contract/info/tag\x12y\n" +
+	"\x11RemoveContractTag\x12).api.explorer.v1.RemoveContractTagRequest\x1a\x16.google.protobuf.Empty\"!\x82\xd3\xe4\x93\x02\x1b*\x19/api/v1/contract/info/tag\x12v\n" +
+	"\x0fGetContractTags\x12'.api.explorer.v1.GetContractTagsRequest\x1a\x16.api.explorer.v1.Reply\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/contract/info/tagsB5\n" +
 	"\x0fapi.explorer.v1P\x01Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (

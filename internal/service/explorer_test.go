@@ -1,4 +1,4 @@
-// Package service provides unit tests for the demo service.
+// Package service provides unit tests for the explorer service.
 package service
 
 import (
@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// mockBlockStream implements pb.Demo_StreamLatestBlocksServer for testing
+// mockBlockStream implements pb.Explorer_StreamLatestBlocksServer for testing
 type mockBlockStream struct {
 	grpc.ServerStream
 	ctx     context.Context
@@ -56,7 +56,7 @@ func (m *mockBlockStream) SendHeader(metadata.MD) error {
 func (m *mockBlockStream) SetTrailer(metadata.MD) {
 }
 
-// mockAccountStream implements pb.Demo_StreamAccountUpdatesServer for testing
+// mockAccountStream implements pb.Explorer_StreamAccountUpdatesServer for testing
 type mockAccountStream struct {
 	grpc.ServerStream
 	ctx     context.Context
@@ -101,7 +101,7 @@ func TestCheckHealthy(t *testing.T) {
 	// In a real integration test, you would set up the full application context
 	t.Skip("Requires full application setup with database and logger initialization")
 
-	service := NewDemoService()
+	service := NewExplorerService()
 	ctx := context.Background()
 
 	t.Run("successful health check", func(t *testing.T) {
@@ -130,7 +130,7 @@ func TestCheckHealthy(t *testing.T) {
 
 // TestStreamLatestBlocks_InputValidation tests input validation for StreamLatestBlocks
 func TestStreamLatestBlocks_InputValidation(t *testing.T) {
-	service := NewDemoService()
+	service := NewExplorerService()
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
@@ -152,7 +152,7 @@ func TestStreamLatestBlocks_InputValidation(t *testing.T) {
 
 // TestStreamAccountUpdates_InputValidation tests input validation for StreamAccountUpdates
 func TestStreamAccountUpdates_InputValidation(t *testing.T) {
-	service := NewDemoService()
+	service := NewExplorerService()
 
 	// Test empty address
 	req := &pb.StreamAccountUpdatesRequest{
@@ -201,7 +201,7 @@ func TestStreamAccountUpdates_InputValidation(t *testing.T) {
 
 // TestErrorHandling tests that errors are properly handled with gRPC status codes
 func TestErrorHandling(t *testing.T) {
-	service := NewDemoService()
+	service := NewExplorerService()
 
 	// Test that invalid address returns InvalidArgument
 	req := &pb.StreamAccountUpdatesRequest{

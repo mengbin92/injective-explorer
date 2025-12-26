@@ -6,11 +6,11 @@ info:
     title: ""
     version: 0.0.1
 paths:
-    /demo/account/balances:
+    /api/v1/account/balances:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetAccountBalances
+                - Explorer
+            operationId: Explorer_GetAccountBalances
             parameters:
                 - name: address
                   in: query
@@ -23,11 +23,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/account/info:
+    /api/v1/account/info:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetAccountInfo
+                - Explorer
+            operationId: Explorer_GetAccountInfo
             parameters:
                 - name: address
                   in: query
@@ -40,11 +40,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/account/transactions:
+    /api/v1/account/transactions:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetAccountTransactions
+                - Explorer
+            operationId: Explorer_GetAccountTransactions
             parameters:
                 - name: address
                   in: query
@@ -91,11 +91,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/block/by-height:
+    /api/v1/block/by-height:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetBlockByHeight
+                - Explorer
+            operationId: Explorer_GetBlockByHeight
             parameters:
                 - name: height
                   in: query
@@ -108,12 +108,12 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/block/gas-utilization:
+    /api/v1/block/gas-utilization:
         get:
             tags:
-                - Demo
+                - Explorer
             description: Get block gas utilization for the latest 10 blocks
-            operationId: Demo_GetBlockGasUtilization
+            operationId: Explorer_GetBlockGasUtilization
             responses:
                 "200":
                     description: OK
@@ -121,11 +121,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/block/latest:
+    /api/v1/block/latest:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetLatestBlocks
+                - Explorer
+            operationId: Explorer_GetLatestBlocks
             parameters:
                 - name: page
                   in: query
@@ -154,11 +154,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/block/latest-height:
+    /api/v1/block/latest-height:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetLatestBlockHeight
+                - Explorer
+            operationId: Explorer_GetLatestBlockHeight
             responses:
                 "200":
                     description: OK
@@ -166,7 +166,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/contract/info:
+    /api/v1/contract/info:
         put:
             tags:
                 - ContractInfoService
@@ -221,7 +221,7 @@ paths:
                 "200":
                     description: OK
                     content: {}
-    /demo/contract/info/by-address:
+    /api/v1/contract/info/by-address:
         get:
             tags:
                 - ContractInfoService
@@ -243,7 +243,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/contract/info/by-symbol:
+    /api/v1/contract/info/by-symbol:
         get:
             tags:
                 - ContractInfoService
@@ -292,7 +292,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/contract/info/list:
+    /api/v1/contract/info/list:
         get:
             tags:
                 - ContractInfoService
@@ -348,7 +348,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/contract/info/tag:
+    /api/v1/contract/info/tag:
         post:
             tags:
                 - ContractInfoService
@@ -389,7 +389,7 @@ paths:
                 "200":
                     description: OK
                     content: {}
-    /demo/contract/info/tags:
+    /api/v1/contract/info/tags:
         get:
             tags:
                 - ContractInfoService
@@ -411,12 +411,12 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/evm/account/{address}/transactions:
+    /api/v1/evm/account/{address}/transactions:
         get:
             tags:
-                - Demo
+                - Explorer
             description: Get EVM account transactions
-            operationId: Demo_GetEVMAccountTransactions
+            operationId: Explorer_GetEVMAccountTransactions
             parameters:
                 - name: address
                   in: path
@@ -444,14 +444,14 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/evm/transaction/{hash}:
+    /api/v1/evm/transaction/{hash}:
         get:
             tags:
-                - Demo
+                - Explorer
             description: |-
                 EVM 交易相关 API
                  Get EVM transaction by hash
-            operationId: Demo_GetEVMTransaction
+            operationId: Explorer_GetEVMTransaction
             parameters:
                 - name: hash
                   in: path
@@ -465,12 +465,12 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/evm/transactions:
+    /api/v1/evm/transactions:
         get:
             tags:
-                - Demo
+                - Explorer
             description: Get EVM transactions list
-            operationId: Demo_GetEVMTransactions
+            operationId: Explorer_GetEVMTransactions
             parameters:
                 - name: page
                   in: query
@@ -493,12 +493,12 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/health:
+    /api/v1/health:
         get:
             tags:
-                - Demo
+                - Explorer
             description: Health check endpoint for gRPC-Web
-            operationId: Demo_CheckHealthy
+            operationId: Explorer_CheckHealthy
             parameters:
                 - name: service
                   in: query
@@ -512,12 +512,12 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.CheckHealthyResponse'
-    /demo/stream/account:
+    /api/v1/stream/account:
         get:
             tags:
-                - Demo
+                - Explorer
             description: Stream account updates (balance changes, new transactions, etc.)
-            operationId: Demo_StreamAccountUpdates
+            operationId: Explorer_StreamAccountUpdates
             parameters:
                 - name: address
                   in: query
@@ -538,14 +538,14 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.AccountUpdate'
-    /demo/stream/blocks:
+    /api/v1/stream/blocks:
         get:
             tags:
-                - Demo
+                - Explorer
             description: |-
                 Streaming RPCs for real-time updates
                  Stream latest blocks as they are added to the chain
-            operationId: Demo_StreamLatestBlocks
+            operationId: Explorer_StreamLatestBlocks
             parameters:
                 - name: fromHeight
                   in: query
@@ -561,12 +561,12 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.BlockUpdate'
-    /demo/stream/transactions:
+    /api/v1/stream/transactions:
         get:
             tags:
-                - Demo
+                - Explorer
             description: Stream latest transactions as they are added to the chain
-            operationId: Demo_StreamLatestTransactions
+            operationId: Explorer_StreamLatestTransactions
             parameters:
                 - name: types
                   in: query
@@ -584,14 +584,14 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.TransactionUpdate'
-    /demo/token/price-marketcap:
+    /api/v1/token/price-marketcap:
         get:
             tags:
-                - Demo
+                - Explorer
             description: |-
                 Get token price and market cap (supports multiple tokens)
                  If token symbol is not specified, uses the default token from configuration
-            operationId: Demo_GetTokenPriceAndMarketCap
+            operationId: Explorer_GetTokenPriceAndMarketCap
             parameters:
                 - name: token_symbol
                   in: query
@@ -607,11 +607,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/transaction/by-hash:
+    /api/v1/transaction/by-hash:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetTransactionByHash
+                - Explorer
+            operationId: Explorer_GetTransactionByHash
             parameters:
                 - name: hash
                   in: query
@@ -624,12 +624,12 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/transaction/failed-24h:
+    /api/v1/transaction/failed-24h:
         get:
             tags:
-                - Demo
+                - Explorer
             description: Get failed transactions in the last 24 hours with failure reasons
-            operationId: Demo_GetFailedTransactions24H
+            operationId: Explorer_GetFailedTransactions24H
             parameters:
                 - name: pagination.page
                   in: query
@@ -658,11 +658,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/transaction/latest:
+    /api/v1/transaction/latest:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetLatestTransactions
+                - Explorer
+            operationId: Explorer_GetLatestTransactions
             parameters:
                 - name: page
                   in: query
@@ -691,11 +691,11 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /demo/transaction/stats:
+    /api/v1/transaction/stats:
         get:
             tags:
-                - Demo
-            operationId: Demo_GetTransactionStats
+                - Explorer
+            operationId: Explorer_GetTransactionStats
             responses:
                 "200":
                     description: OK
@@ -1047,4 +1047,4 @@ tags:
         ContractInfoService provides contract information query and management
          services. This service supports various contract types (token contracts, NFT
          contracts, etc.), with token contracts being the primary use case currently.
-    - name: Demo
+    - name: Explorer

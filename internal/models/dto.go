@@ -2,7 +2,7 @@
 // DTOs exclude internal database fields like gorm.Model to prevent exposing
 // sensitive database information to clients.
 //
-// Note: DTO types are now defined in proto files (api/explorer/v1/demo.proto)
+// Note: DTO types are now defined in proto files (api/explorer/v1/explorer.proto)
 // and generated as Go types. This file provides conversion functions from
 // database models to proto DTO messages.
 package models

@@ -17,7 +17,7 @@ service ContractInfoService {
   // CreateContractInfo creates a new contract information.
   rpc CreateContractInfo(CreateContractInfoRequest) returns (Reply) {
     option (google.api.http) = {
-      post : "/demo/contract/info"
+      post : "/api/v1/contract/info"
       body : "*"
     };
   }
@@ -26,7 +26,7 @@ service ContractInfoService {
   rpc GetContractInfoByAddress(GetContractInfoByAddressRequest)
       returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/contract/info/by-address"
+      get : "/api/v1/contract/info/by-address"
     };
   }
 
@@ -35,7 +35,7 @@ service ContractInfoService {
   // extended for other contract types.
   rpc GetContractsBySymbol(GetContractsBySymbolRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/contract/info/by-symbol"
+      get : "/api/v1/contract/info/by-symbol"
     };
   }
 
@@ -43,14 +43,14 @@ service ContractInfoService {
   // conditions.
   rpc ListContractInfos(ListContractInfosRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/contract/info/list"
+      get : "/api/v1/contract/info/list"
     };
   }
 
   // UpdateContractInfo updates contract information.
   rpc UpdateContractInfo(UpdateContractInfoRequest) returns (Reply) {
     option (google.api.http) = {
-      put : "/demo/contract/info"
+      put : "/api/v1/contract/info"
       body : "*"
     };
   }
@@ -59,14 +59,14 @@ service ContractInfoService {
   rpc DeleteContractInfo(DeleteContractInfoRequest)
       returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      delete : "/demo/contract/info"
+      delete : "/api/v1/contract/info"
     };
   }
 
   // AddContractTag adds a tag to a contract.
   rpc AddContractTag(AddContractTagRequest) returns (Reply) {
     option (google.api.http) = {
-      post : "/demo/contract/info/tag"
+      post : "/api/v1/contract/info/tag"
       body : "*"
     };
   }
@@ -75,14 +75,14 @@ service ContractInfoService {
   rpc RemoveContractTag(RemoveContractTagRequest)
       returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      delete : "/demo/contract/info/tag"
+      delete : "/api/v1/contract/info/tag"
     };
   }
 
   // GetContractTags retrieves all tags for a contract.
   rpc GetContractTags(GetContractTagsRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/demo/contract/info/tags"
+      get : "/api/v1/contract/info/tags"
     };
   }
 }

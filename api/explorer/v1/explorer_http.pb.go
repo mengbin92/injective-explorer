@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-http v2.9.2
 // - protoc             v6.33.2
-// source: explorer/v1/demo.proto
+// source: explorer/v1/explorer.proto
 
 package v1
 
@@ -20,24 +20,24 @@ var _ = binding.EncodeURL
 
 const _ = http.SupportPackageIsVersion1
 
-const OperationDemoCheckHealthy = "/api.explorer.v1.Demo/CheckHealthy"
-const OperationDemoGetAccountBalances = "/api.explorer.v1.Demo/GetAccountBalances"
-const OperationDemoGetAccountInfo = "/api.explorer.v1.Demo/GetAccountInfo"
-const OperationDemoGetAccountTransactions = "/api.explorer.v1.Demo/GetAccountTransactions"
-const OperationDemoGetBlockByHeight = "/api.explorer.v1.Demo/GetBlockByHeight"
-const OperationDemoGetBlockGasUtilization = "/api.explorer.v1.Demo/GetBlockGasUtilization"
-const OperationDemoGetEVMAccountTransactions = "/api.explorer.v1.Demo/GetEVMAccountTransactions"
-const OperationDemoGetEVMTransaction = "/api.explorer.v1.Demo/GetEVMTransaction"
-const OperationDemoGetEVMTransactions = "/api.explorer.v1.Demo/GetEVMTransactions"
-const OperationDemoGetFailedTransactions24h = "/api.explorer.v1.Demo/GetFailedTransactions24h"
-const OperationDemoGetLatestBlockHeight = "/api.explorer.v1.Demo/GetLatestBlockHeight"
-const OperationDemoGetLatestBlocks = "/api.explorer.v1.Demo/GetLatestBlocks"
-const OperationDemoGetLatestTransactions = "/api.explorer.v1.Demo/GetLatestTransactions"
-const OperationDemoGetTokenPriceAndMarketCap = "/api.explorer.v1.Demo/GetTokenPriceAndMarketCap"
-const OperationDemoGetTransactionByHash = "/api.explorer.v1.Demo/GetTransactionByHash"
-const OperationDemoGetTransactionStats = "/api.explorer.v1.Demo/GetTransactionStats"
+const OperationExplorerCheckHealthy = "/api.explorer.v1.Explorer/CheckHealthy"
+const OperationExplorerGetAccountBalances = "/api.explorer.v1.Explorer/GetAccountBalances"
+const OperationExplorerGetAccountInfo = "/api.explorer.v1.Explorer/GetAccountInfo"
+const OperationExplorerGetAccountTransactions = "/api.explorer.v1.Explorer/GetAccountTransactions"
+const OperationExplorerGetBlockByHeight = "/api.explorer.v1.Explorer/GetBlockByHeight"
+const OperationExplorerGetBlockGasUtilization = "/api.explorer.v1.Explorer/GetBlockGasUtilization"
+const OperationExplorerGetEVMAccountTransactions = "/api.explorer.v1.Explorer/GetEVMAccountTransactions"
+const OperationExplorerGetEVMTransaction = "/api.explorer.v1.Explorer/GetEVMTransaction"
+const OperationExplorerGetEVMTransactions = "/api.explorer.v1.Explorer/GetEVMTransactions"
+const OperationExplorerGetFailedTransactions24h = "/api.explorer.v1.Explorer/GetFailedTransactions24h"
+const OperationExplorerGetLatestBlockHeight = "/api.explorer.v1.Explorer/GetLatestBlockHeight"
+const OperationExplorerGetLatestBlocks = "/api.explorer.v1.Explorer/GetLatestBlocks"
+const OperationExplorerGetLatestTransactions = "/api.explorer.v1.Explorer/GetLatestTransactions"
+const OperationExplorerGetTokenPriceAndMarketCap = "/api.explorer.v1.Explorer/GetTokenPriceAndMarketCap"
+const OperationExplorerGetTransactionByHash = "/api.explorer.v1.Explorer/GetTransactionByHash"
+const OperationExplorerGetTransactionStats = "/api.explorer.v1.Explorer/GetTransactionStats"
 
-type DemoHTTPServer interface {
+type ExplorerHTTPServer interface {
 	// CheckHealthy Health check endpoint for gRPC-Web
 	CheckHealthy(context.Context, *CheckHealthyRequest) (*CheckHealthyResponse, error)
 	GetAccountBalances(context.Context, *GetAccountBalancesRequest) (*Reply, error)
@@ -65,33 +65,33 @@ type DemoHTTPServer interface {
 	GetTransactionStats(context.Context, *emptypb.Empty) (*Reply, error)
 }
 
-func RegisterDemoHTTPServer(s *http.Server, srv DemoHTTPServer) {
+func RegisterExplorerHTTPServer(s *http.Server, srv ExplorerHTTPServer) {
 	r := s.Route("/")
-	r.GET("/demo/block/latest", _Demo_GetLatestBlocks0_HTTP_Handler(srv))
-	r.GET("/demo/block/by-height", _Demo_GetBlockByHeight0_HTTP_Handler(srv))
-	r.GET("/demo/block/latest-height", _Demo_GetLatestBlockHeight0_HTTP_Handler(srv))
-	r.GET("/demo/transaction/latest", _Demo_GetLatestTransactions0_HTTP_Handler(srv))
-	r.GET("/demo/transaction/by-hash", _Demo_GetTransactionByHash0_HTTP_Handler(srv))
-	r.GET("/demo/account/info", _Demo_GetAccountInfo0_HTTP_Handler(srv))
-	r.GET("/demo/account/transactions", _Demo_GetAccountTransactions0_HTTP_Handler(srv))
-	r.GET("/demo/account/balances", _Demo_GetAccountBalances0_HTTP_Handler(srv))
-	r.GET("/demo/transaction/stats", _Demo_GetTransactionStats0_HTTP_Handler(srv))
-	r.GET("/demo/block/gas-utilization", _Demo_GetBlockGasUtilization0_HTTP_Handler(srv))
-	r.GET("/demo/transaction/failed-24h", _Demo_GetFailedTransactions24H0_HTTP_Handler(srv))
-	r.GET("/demo/evm/transaction/{hash}", _Demo_GetEVMTransaction0_HTTP_Handler(srv))
-	r.GET("/demo/evm/transactions", _Demo_GetEVMTransactions0_HTTP_Handler(srv))
-	r.GET("/demo/evm/account/{address}/transactions", _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv))
-	r.GET("/demo/health", _Demo_CheckHealthy0_HTTP_Handler(srv))
-	r.GET("/demo/token/price-marketcap", _Demo_GetTokenPriceAndMarketCap0_HTTP_Handler(srv))
+	r.GET("/api/v1/block/latest", _Explorer_GetLatestBlocks0_HTTP_Handler(srv))
+	r.GET("/api/v1/block/by-height", _Explorer_GetBlockByHeight0_HTTP_Handler(srv))
+	r.GET("/api/v1/block/latest-height", _Explorer_GetLatestBlockHeight0_HTTP_Handler(srv))
+	r.GET("/api/v1/transaction/latest", _Explorer_GetLatestTransactions0_HTTP_Handler(srv))
+	r.GET("/api/v1/transaction/by-hash", _Explorer_GetTransactionByHash0_HTTP_Handler(srv))
+	r.GET("/api/v1/account/info", _Explorer_GetAccountInfo0_HTTP_Handler(srv))
+	r.GET("/api/v1/account/transactions", _Explorer_GetAccountTransactions0_HTTP_Handler(srv))
+	r.GET("/api/v1/account/balances", _Explorer_GetAccountBalances0_HTTP_Handler(srv))
+	r.GET("/api/v1/transaction/stats", _Explorer_GetTransactionStats0_HTTP_Handler(srv))
+	r.GET("/api/v1/block/gas-utilization", _Explorer_GetBlockGasUtilization0_HTTP_Handler(srv))
+	r.GET("/api/v1/transaction/failed-24h", _Explorer_GetFailedTransactions24H0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/transaction/{hash}", _Explorer_GetEVMTransaction0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/transactions", _Explorer_GetEVMTransactions0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/account/{address}/transactions", _Explorer_GetEVMAccountTransactions0_HTTP_Handler(srv))
+	r.GET("/api/v1/health", _Explorer_CheckHealthy0_HTTP_Handler(srv))
+	r.GET("/api/v1/token/price-marketcap", _Explorer_GetTokenPriceAndMarketCap0_HTTP_Handler(srv))
 }
 
-func _Demo_GetLatestBlocks0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetLatestBlocks0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in PaginationRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetLatestBlocks)
+		http.SetOperation(ctx, OperationExplorerGetLatestBlocks)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetLatestBlocks(ctx, req.(*PaginationRequest))
 		})
@@ -104,13 +104,13 @@ func _Demo_GetLatestBlocks0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Conte
 	}
 }
 
-func _Demo_GetBlockByHeight0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetBlockByHeight0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetBlockByHeightRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetBlockByHeight)
+		http.SetOperation(ctx, OperationExplorerGetBlockByHeight)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetBlockByHeight(ctx, req.(*GetBlockByHeightRequest))
 		})
@@ -123,13 +123,13 @@ func _Demo_GetBlockByHeight0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Cont
 	}
 }
 
-func _Demo_GetLatestBlockHeight0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetLatestBlockHeight0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in emptypb.Empty
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetLatestBlockHeight)
+		http.SetOperation(ctx, OperationExplorerGetLatestBlockHeight)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetLatestBlockHeight(ctx, req.(*emptypb.Empty))
 		})
@@ -142,13 +142,13 @@ func _Demo_GetLatestBlockHeight0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.
 	}
 }
 
-func _Demo_GetLatestTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetLatestTransactions0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in PaginationRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetLatestTransactions)
+		http.SetOperation(ctx, OperationExplorerGetLatestTransactions)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetLatestTransactions(ctx, req.(*PaginationRequest))
 		})
@@ -161,13 +161,13 @@ func _Demo_GetLatestTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http
 	}
 }
 
-func _Demo_GetTransactionByHash0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetTransactionByHash0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetTransactionByHashRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetTransactionByHash)
+		http.SetOperation(ctx, OperationExplorerGetTransactionByHash)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetTransactionByHash(ctx, req.(*GetTransactionByHashRequest))
 		})
@@ -180,13 +180,13 @@ func _Demo_GetTransactionByHash0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.
 	}
 }
 
-func _Demo_GetAccountInfo0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetAccountInfo0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetAccountInfoRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetAccountInfo)
+		http.SetOperation(ctx, OperationExplorerGetAccountInfo)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetAccountInfo(ctx, req.(*GetAccountInfoRequest))
 		})
@@ -199,13 +199,13 @@ func _Demo_GetAccountInfo0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Contex
 	}
 }
 
-func _Demo_GetAccountTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetAccountTransactions0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetAccountTransactionsRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetAccountTransactions)
+		http.SetOperation(ctx, OperationExplorerGetAccountTransactions)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetAccountTransactions(ctx, req.(*GetAccountTransactionsRequest))
 		})
@@ -218,13 +218,13 @@ func _Demo_GetAccountTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx htt
 	}
 }
 
-func _Demo_GetAccountBalances0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetAccountBalances0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetAccountBalancesRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetAccountBalances)
+		http.SetOperation(ctx, OperationExplorerGetAccountBalances)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetAccountBalances(ctx, req.(*GetAccountBalancesRequest))
 		})
@@ -237,13 +237,13 @@ func _Demo_GetAccountBalances0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Co
 	}
 }
 
-func _Demo_GetTransactionStats0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetTransactionStats0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in emptypb.Empty
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetTransactionStats)
+		http.SetOperation(ctx, OperationExplorerGetTransactionStats)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetTransactionStats(ctx, req.(*emptypb.Empty))
 		})
@@ -256,13 +256,13 @@ func _Demo_GetTransactionStats0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.C
 	}
 }
 
-func _Demo_GetBlockGasUtilization0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetBlockGasUtilization0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in emptypb.Empty
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetBlockGasUtilization)
+		http.SetOperation(ctx, OperationExplorerGetBlockGasUtilization)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetBlockGasUtilization(ctx, req.(*emptypb.Empty))
 		})
@@ -275,13 +275,13 @@ func _Demo_GetBlockGasUtilization0_HTTP_Handler(srv DemoHTTPServer) func(ctx htt
 	}
 }
 
-func _Demo_GetFailedTransactions24H0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetFailedTransactions24H0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetFailedTransactions24HRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetFailedTransactions24h)
+		http.SetOperation(ctx, OperationExplorerGetFailedTransactions24h)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetFailedTransactions24H(ctx, req.(*GetFailedTransactions24HRequest))
 		})
@@ -294,7 +294,7 @@ func _Demo_GetFailedTransactions24H0_HTTP_Handler(srv DemoHTTPServer) func(ctx h
 	}
 }
 
-func _Demo_GetEVMTransaction0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetEVMTransaction0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetEVMTransactionRequest
 		if err := ctx.BindQuery(&in); err != nil {
@@ -303,7 +303,7 @@ func _Demo_GetEVMTransaction0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Con
 		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetEVMTransaction)
+		http.SetOperation(ctx, OperationExplorerGetEVMTransaction)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetEVMTransaction(ctx, req.(*GetEVMTransactionRequest))
 		})
@@ -316,13 +316,13 @@ func _Demo_GetEVMTransaction0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Con
 	}
 }
 
-func _Demo_GetEVMTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetEVMTransactions0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetEVMTransactionsRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetEVMTransactions)
+		http.SetOperation(ctx, OperationExplorerGetEVMTransactions)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetEVMTransactions(ctx, req.(*GetEVMTransactionsRequest))
 		})
@@ -335,7 +335,7 @@ func _Demo_GetEVMTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Co
 	}
 }
 
-func _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetEVMAccountTransactions0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetEVMAccountTransactionsRequest
 		if err := ctx.BindQuery(&in); err != nil {
@@ -344,7 +344,7 @@ func _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx 
 		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetEVMAccountTransactions)
+		http.SetOperation(ctx, OperationExplorerGetEVMAccountTransactions)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetEVMAccountTransactions(ctx, req.(*GetEVMAccountTransactionsRequest))
 		})
@@ -357,13 +357,13 @@ func _Demo_GetEVMAccountTransactions0_HTTP_Handler(srv DemoHTTPServer) func(ctx 
 	}
 }
 
-func _Demo_CheckHealthy0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_CheckHealthy0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CheckHealthyRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoCheckHealthy)
+		http.SetOperation(ctx, OperationExplorerCheckHealthy)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.CheckHealthy(ctx, req.(*CheckHealthyRequest))
 		})
@@ -376,13 +376,13 @@ func _Demo_CheckHealthy0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context)
 	}
 }
 
-func _Demo_GetTokenPriceAndMarketCap0_HTTP_Handler(srv DemoHTTPServer) func(ctx http.Context) error {
+func _Explorer_GetTokenPriceAndMarketCap0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetTokenPriceAndMarketCapRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationDemoGetTokenPriceAndMarketCap)
+		http.SetOperation(ctx, OperationExplorerGetTokenPriceAndMarketCap)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetTokenPriceAndMarketCap(ctx, req.(*GetTokenPriceAndMarketCapRequest))
 		})
@@ -395,7 +395,7 @@ func _Demo_GetTokenPriceAndMarketCap0_HTTP_Handler(srv DemoHTTPServer) func(ctx 
 	}
 }
 
-type DemoHTTPClient interface {
+type ExplorerHTTPClient interface {
 	// CheckHealthy Health check endpoint for gRPC-Web
 	CheckHealthy(ctx context.Context, req *CheckHealthyRequest, opts ...http.CallOption) (rsp *CheckHealthyResponse, err error)
 	GetAccountBalances(ctx context.Context, req *GetAccountBalancesRequest, opts ...http.CallOption) (rsp *Reply, err error)
@@ -423,20 +423,20 @@ type DemoHTTPClient interface {
 	GetTransactionStats(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *Reply, err error)
 }
 
-type DemoHTTPClientImpl struct {
+type ExplorerHTTPClientImpl struct {
 	cc *http.Client
 }
 
-func NewDemoHTTPClient(client *http.Client) DemoHTTPClient {
-	return &DemoHTTPClientImpl{client}
+func NewExplorerHTTPClient(client *http.Client) ExplorerHTTPClient {
+	return &ExplorerHTTPClientImpl{client}
 }
 
 // CheckHealthy Health check endpoint for gRPC-Web
-func (c *DemoHTTPClientImpl) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...http.CallOption) (*CheckHealthyResponse, error) {
+func (c *ExplorerHTTPClientImpl) CheckHealthy(ctx context.Context, in *CheckHealthyRequest, opts ...http.CallOption) (*CheckHealthyResponse, error) {
 	var out CheckHealthyResponse
-	pattern := "/demo/health"
+	pattern := "/api/v1/health"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoCheckHealthy))
+	opts = append(opts, http.Operation(OperationExplorerCheckHealthy))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -445,11 +445,11 @@ func (c *DemoHTTPClientImpl) CheckHealthy(ctx context.Context, in *CheckHealthyR
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetAccountBalances(ctx context.Context, in *GetAccountBalancesRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/account/balances"
+	pattern := "/api/v1/account/balances"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetAccountBalances))
+	opts = append(opts, http.Operation(OperationExplorerGetAccountBalances))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -458,11 +458,11 @@ func (c *DemoHTTPClientImpl) GetAccountBalances(ctx context.Context, in *GetAcco
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetAccountInfo(ctx context.Context, in *GetAccountInfoRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetAccountInfo(ctx context.Context, in *GetAccountInfoRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/account/info"
+	pattern := "/api/v1/account/info"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetAccountInfo))
+	opts = append(opts, http.Operation(OperationExplorerGetAccountInfo))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -471,11 +471,11 @@ func (c *DemoHTTPClientImpl) GetAccountInfo(ctx context.Context, in *GetAccountI
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetAccountTransactions(ctx context.Context, in *GetAccountTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/account/transactions"
+	pattern := "/api/v1/account/transactions"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetAccountTransactions))
+	opts = append(opts, http.Operation(OperationExplorerGetAccountTransactions))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -484,11 +484,11 @@ func (c *DemoHTTPClientImpl) GetAccountTransactions(ctx context.Context, in *Get
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetBlockByHeight(ctx context.Context, in *GetBlockByHeightRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetBlockByHeight(ctx context.Context, in *GetBlockByHeightRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/block/by-height"
+	pattern := "/api/v1/block/by-height"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetBlockByHeight))
+	opts = append(opts, http.Operation(OperationExplorerGetBlockByHeight))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -498,11 +498,11 @@ func (c *DemoHTTPClientImpl) GetBlockByHeight(ctx context.Context, in *GetBlockB
 }
 
 // GetBlockGasUtilization Get block gas utilization for the latest 10 blocks
-func (c *DemoHTTPClientImpl) GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetBlockGasUtilization(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/block/gas-utilization"
+	pattern := "/api/v1/block/gas-utilization"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetBlockGasUtilization))
+	opts = append(opts, http.Operation(OperationExplorerGetBlockGasUtilization))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -512,11 +512,11 @@ func (c *DemoHTTPClientImpl) GetBlockGasUtilization(ctx context.Context, in *emp
 }
 
 // GetEVMAccountTransactions Get EVM account transactions
-func (c *DemoHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/evm/account/{address}/transactions"
+	pattern := "/api/v1/evm/account/{address}/transactions"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetEVMAccountTransactions))
+	opts = append(opts, http.Operation(OperationExplorerGetEVMAccountTransactions))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -527,11 +527,11 @@ func (c *DemoHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, in *
 
 // GetEVMTransaction EVM 交易相关 API
 // Get EVM transaction by hash
-func (c *DemoHTTPClientImpl) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/evm/transaction/{hash}"
+	pattern := "/api/v1/evm/transaction/{hash}"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetEVMTransaction))
+	opts = append(opts, http.Operation(OperationExplorerGetEVMTransaction))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -541,11 +541,11 @@ func (c *DemoHTTPClientImpl) GetEVMTransaction(ctx context.Context, in *GetEVMTr
 }
 
 // GetEVMTransactions Get EVM transactions list
-func (c *DemoHTTPClientImpl) GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetEVMTransactions(ctx context.Context, in *GetEVMTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/evm/transactions"
+	pattern := "/api/v1/evm/transactions"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetEVMTransactions))
+	opts = append(opts, http.Operation(OperationExplorerGetEVMTransactions))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -555,11 +555,11 @@ func (c *DemoHTTPClientImpl) GetEVMTransactions(ctx context.Context, in *GetEVMT
 }
 
 // GetFailedTransactions24H Get failed transactions in the last 24 hours with failure reasons
-func (c *DemoHTTPClientImpl) GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetFailedTransactions24H(ctx context.Context, in *GetFailedTransactions24HRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/transaction/failed-24h"
+	pattern := "/api/v1/transaction/failed-24h"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetFailedTransactions24h))
+	opts = append(opts, http.Operation(OperationExplorerGetFailedTransactions24h))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -568,11 +568,11 @@ func (c *DemoHTTPClientImpl) GetFailedTransactions24H(ctx context.Context, in *G
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetLatestBlockHeight(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetLatestBlockHeight(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/block/latest-height"
+	pattern := "/api/v1/block/latest-height"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetLatestBlockHeight))
+	opts = append(opts, http.Operation(OperationExplorerGetLatestBlockHeight))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -581,11 +581,11 @@ func (c *DemoHTTPClientImpl) GetLatestBlockHeight(ctx context.Context, in *empty
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetLatestBlocks(ctx context.Context, in *PaginationRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetLatestBlocks(ctx context.Context, in *PaginationRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/block/latest"
+	pattern := "/api/v1/block/latest"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetLatestBlocks))
+	opts = append(opts, http.Operation(OperationExplorerGetLatestBlocks))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -594,11 +594,11 @@ func (c *DemoHTTPClientImpl) GetLatestBlocks(ctx context.Context, in *Pagination
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetLatestTransactions(ctx context.Context, in *PaginationRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetLatestTransactions(ctx context.Context, in *PaginationRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/transaction/latest"
+	pattern := "/api/v1/transaction/latest"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetLatestTransactions))
+	opts = append(opts, http.Operation(OperationExplorerGetLatestTransactions))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -609,11 +609,11 @@ func (c *DemoHTTPClientImpl) GetLatestTransactions(ctx context.Context, in *Pagi
 
 // GetTokenPriceAndMarketCap Get token price and market cap (supports multiple tokens)
 // If token symbol is not specified, uses the default token from configuration
-func (c *DemoHTTPClientImpl) GetTokenPriceAndMarketCap(ctx context.Context, in *GetTokenPriceAndMarketCapRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetTokenPriceAndMarketCap(ctx context.Context, in *GetTokenPriceAndMarketCapRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/token/price-marketcap"
+	pattern := "/api/v1/token/price-marketcap"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetTokenPriceAndMarketCap))
+	opts = append(opts, http.Operation(OperationExplorerGetTokenPriceAndMarketCap))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -622,11 +622,11 @@ func (c *DemoHTTPClientImpl) GetTokenPriceAndMarketCap(ctx context.Context, in *
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetTransactionByHash(ctx context.Context, in *GetTransactionByHashRequest, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetTransactionByHash(ctx context.Context, in *GetTransactionByHashRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/transaction/by-hash"
+	pattern := "/api/v1/transaction/by-hash"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetTransactionByHash))
+	opts = append(opts, http.Operation(OperationExplorerGetTransactionByHash))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
@@ -635,11 +635,11 @@ func (c *DemoHTTPClientImpl) GetTransactionByHash(ctx context.Context, in *GetTr
 	return &out, nil
 }
 
-func (c *DemoHTTPClientImpl) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
+func (c *ExplorerHTTPClientImpl) GetTransactionStats(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/demo/transaction/stats"
+	pattern := "/api/v1/transaction/stats"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationDemoGetTransactionStats))
+	opts = append(opts, http.Operation(OperationExplorerGetTransactionStats))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
