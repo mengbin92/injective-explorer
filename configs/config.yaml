@@ -30,6 +30,10 @@ data:
     region: ${OBJECT_STORAGE_REGION:us-east-1}
     use_ssl: false
     path_prefix: ${OBJECT_STORAGE_PATH_PREFIX:transactions/}
+    # 对象存储操作超时（默认: 10s）
+    timeout: 10s
+    # 读取超时（默认: 5s）
+    read_timeout: 5s
 
 log:
   # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
@@ -56,9 +60,17 @@ chain:
     ws_endpoint: wss://sentry.evm-ws.injective.network
     chain_id: 1776
     timeout: 10s
+    # API 查询超时（默认: 15s，比 RPC timeout 长以适应详情查询）
+    api_timeout: 15s
     retry:
       max_attempts: 3
       initial_delay: 2s
+    # EVM details 缓存配置
+    cache:
+      # Redis 缓存 TTL（默认: 24h）
+      ttl: 24h
+      # 是否启用缓存（默认: true）
+      enabled: true
 
 sync:
   # Redis 队列配置

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -291,13 +290,13 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 }
 
 // generateAPIToken generates a new API token.
-// Format: inj_ + 32 random characters (Base64 URL encoded).
+// Format: byh_ + 64 hex characters (hex encoded).
 // The token is hashed using SHA256 for storage, and a preview is generated for display.
 //
 // Returns:
-//   - token: The full token string (inj_xxx...)
+//   - token: The full token string (byh_xxx...)
 //   - tokenHash: The SHA256 hash of the token (for storage)
-//   - tokenPreview: The token preview (inj_xxx...xxx)
+//   - tokenPreview: The token preview (byh_xxx...xxx)
 //   - err: Error if generation fails
 func generateAPIToken() (token, tokenHash, tokenPreview string, err error) {
 	// Generate 32 random bytes
@@ -306,9 +305,9 @@ func generateAPIToken() (token, tokenHash, tokenPreview string, err error) {
 		return "", "", "", err
 	}
 
-	// Base64 URL encoding
-	encoded := base64.URLEncoding.EncodeToString(randomBytes)
-	token = "inj_" + encoded
+	// Hex encoding (64 characters for 32 bytes)
+	encoded := hex.EncodeToString(randomBytes)
+	token = "byh_" + encoded
 
 	// Calculate SHA256 hash
 	hash := sha256.Sum256([]byte(token))

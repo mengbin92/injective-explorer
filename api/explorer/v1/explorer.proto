@@ -89,7 +89,7 @@ service Explorer {
   // Get EVM transaction by hash
   rpc GetEVMTransaction(GetEVMTransactionRequest) returns (Reply) {
     option (google.api.http) = {
-      get : "/api/v1/evm/transaction/{hash}"
+      get : "/api/v1/evm/transaction"
     };
   }
 
@@ -104,7 +104,7 @@ service Explorer {
   rpc GetEVMAccountTransactions(GetEVMAccountTransactionsRequest)
       returns (Reply) {
     option (google.api.http) = {
-      get : "/api/v1/evm/account/{address}/transactions"
+      get : "/api/v1/evm/account/transactions"
     };
   }
 

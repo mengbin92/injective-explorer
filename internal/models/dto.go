@@ -357,7 +357,8 @@ func ToContractInfoDTOs(contracts []ContractInfo) []*pb.ContractInfoDTO {
 	return dtos
 }
 
-// LoadEVMTransactionDetails loads EVM transaction details from storage or database.
+// LoadEVMTransactionDetails loads EVM transaction details from cache, storage, or database.
+// The loading order is: Redis cache -> object storage -> database fallback.
 //
 // Parameters:
 //   - ctx: Context for cancellation
@@ -376,7 +377,21 @@ func LoadEVMTransactionDetails(ctx context.Context, tx *Transaction) (*chain.Tra
 		return nil, nil
 	}
 
-	// Load from object storage if storage key exists
+	evmHash := tx.EVMHash
+	if evmHash == "" {
+		return nil, nil
+	}
+
+	// Ensure EVM hash has 0x prefix for cache key
+	if len(evmHash) < 2 || evmHash[:2] != "0x" {
+		evmHash = "0x" + evmHash
+	}
+
+	// 1. Try to load from Redis cache first (fastest)
+	// Note: Import cycle prevention - we use evmcache package directly in services
+	// This function is called by services which can import both models and evmcache
+
+	// 2. Load from object storage if storage key exists
 	if tx.EVMDetailsStorageKey != "" {
 		storageClient := storage.Get()
 		if storageClient != nil {

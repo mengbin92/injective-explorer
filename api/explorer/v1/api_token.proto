@@ -26,14 +26,14 @@ service APITokenService {
   // DeleteToken deletes a token
   rpc DeleteToken(DeleteTokenRequest) returns (DeleteTokenResponse) {
     option (google.api.http) = {
-      delete : "/api/v1/tokens/{token_id}"
+      delete : "/api/v1/tokens"
     };
   }
 
   // GetTokenUsage gets token usage statistics
   rpc GetTokenUsage(GetTokenUsageRequest) returns (GetTokenUsageResponse) {
     option (google.api.http) = {
-      get : "/api/v1/tokens/{token_id}/usage"
+      get : "/api/v1/tokens/usage"
     };
   }
 

@@ -430,7 +430,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.GetDashboardStatsResponse'
-    /api/v1/evm/account/{address}/transactions:
+    /api/v1/evm/account/transactions:
         get:
             tags:
                 - Explorer
@@ -438,8 +438,7 @@ paths:
             operationId: Explorer_GetEVMAccountTransactions
             parameters:
                 - name: address
-                  in: path
-                  required: true
+                  in: query
                   schema:
                     type: string
                 - name: page
@@ -463,7 +462,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/evm/transaction/{hash}:
+    /api/v1/evm/transaction:
         get:
             tags:
                 - Explorer
@@ -473,8 +472,7 @@ paths:
             operationId: Explorer_GetEVMTransaction
             parameters:
                 - name: hash
-                  in: path
-                  required: true
+                  in: query
                   schema:
                     type: string
             responses:
@@ -670,7 +668,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.CreateTokenResponse'
-    /api/v1/tokens/{token_id}:
         delete:
             tags:
                 - APITokenService
@@ -678,8 +675,7 @@ paths:
             operationId: APITokenService_DeleteToken
             parameters:
                 - name: token_id
-                  in: path
-                  required: true
+                  in: query
                   schema:
                     type: string
             responses:
@@ -689,7 +685,7 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.DeleteTokenResponse'
-    /api/v1/tokens/{token_id}/usage:
+    /api/v1/tokens/usage:
         get:
             tags:
                 - APITokenService
@@ -697,8 +693,7 @@ paths:
             operationId: APITokenService_GetTokenUsage
             parameters:
                 - name: token_id
-                  in: path
-                  required: true
+                  in: query
                   schema:
                     type: string
             responses:
@@ -830,6 +825,24 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.ListWebhooksResponse'
+        put:
+            tags:
+                - WebhookService
+            description: UpdateWebhook updates webhook configuration
+            operationId: WebhookService_UpdateWebhook
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdateWebhookRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.UpdateWebhookResponse'
         post:
             tags:
                 - WebhookService
@@ -848,31 +861,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.CreateWebhookResponse'
-    /api/v1/webhooks/{webhook_id}:
-        put:
-            tags:
-                - WebhookService
-            description: UpdateWebhook updates webhook configuration
-            operationId: WebhookService_UpdateWebhook
-            parameters:
-                - name: webhook_id
-                  in: path
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UpdateWebhookRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.UpdateWebhookResponse'
         delete:
             tags:
                 - WebhookService
@@ -880,8 +868,7 @@ paths:
             operationId: WebhookService_DeleteWebhook
             parameters:
                 - name: webhook_id
-                  in: path
-                  required: true
+                  in: query
                   schema:
                     type: string
             responses:

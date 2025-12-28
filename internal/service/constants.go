@@ -83,6 +83,7 @@ const (
 	CacheKeyFailedTransactions24H = "cache:failed:transactions:24h" // Failed transactions 24h count cache key
 	CacheKeyBlockMaxGas           = "cache:block:max:gas"           // Block max gas cache key
 	CacheKeyBlockGasUtilization   = "cache:block:gas:utilization"   // Block gas utilization cache key
+	CacheKeyEVMDetailsPrefix      = "evm:details:"                  // Cache key prefix for EVM transaction details
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 5 * time.Minute                 // Single block cache expiration time (5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
@@ -90,6 +91,7 @@ const (
 	CacheFailedTransactions24HTTL = 2 * time.Minute                 // Failed transactions 24h count cache expiration time (2 minutes)
 	CacheBlockMaxGasTTL           = 10 * time.Minute                // Block max gas cache expiration time (10 minutes)
 	CacheBlockGasUtilizationTTL   = 1 * time.Minute                 // Block gas utilization cache expiration time (1 minute)
+	CacheEVMDetailsTTL            = 24 * time.Hour                  // Cache TTL: 24 hours (EVM details are relatively static)
 )
 
 // Default sync configuration values (used when config is not provided)
@@ -116,11 +118,11 @@ const (
 	defaultEarliestBlockHeight        = uint64(1)              // Earliest block height
 	defaultEVMDetailsQueueKey         = "evm:details:queue"    // Redis key name for EVM details queue
 	defaultEVMDetailsWorkerCount      = 3                      // Number of EVM details sync workers
-	defaultEVMDetailsBatchSize       = 10                     // EVM details batch size
-	defaultEVMDetailsRetryDelay      = 5 * time.Second        // EVM details retry delay
+	defaultEVMDetailsBatchSize        = 10                     // EVM details batch size
+	defaultEVMDetailsRetryDelay       = 5 * time.Second        // EVM details retry delay
 	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
-	defaultEVMDetailsProcessInterval = 2 * time.Second        // EVM details process interval
-	defaultEVMDetailsTimeout         = 30 * time.Second        // EVM details timeout
+	defaultEVMDetailsProcessInterval  = 2 * time.Second        // EVM details process interval
+	defaultEVMDetailsTimeout          = 30 * time.Second       // EVM details timeout
 )
 
 // SyncConfig holds the sync service configuration with default values.

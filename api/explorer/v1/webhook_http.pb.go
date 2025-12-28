@@ -39,8 +39,8 @@ func RegisterWebhookServiceHTTPServer(s *http.Server, srv WebhookServiceHTTPServ
 	r := s.Route("/")
 	r.POST("/api/v1/webhooks", _WebhookService_CreateWebhook0_HTTP_Handler(srv))
 	r.GET("/api/v1/webhooks", _WebhookService_ListWebhooks0_HTTP_Handler(srv))
-	r.PUT("/api/v1/webhooks/{webhook_id}", _WebhookService_UpdateWebhook0_HTTP_Handler(srv))
-	r.DELETE("/api/v1/webhooks/{webhook_id}", _WebhookService_DeleteWebhook0_HTTP_Handler(srv))
+	r.PUT("/api/v1/webhooks", _WebhookService_UpdateWebhook0_HTTP_Handler(srv))
+	r.DELETE("/api/v1/webhooks", _WebhookService_DeleteWebhook0_HTTP_Handler(srv))
 }
 
 func _WebhookService_CreateWebhook0_HTTP_Handler(srv WebhookServiceHTTPServer) func(ctx http.Context) error {
@@ -93,9 +93,6 @@ func _WebhookService_UpdateWebhook0_HTTP_Handler(srv WebhookServiceHTTPServer) f
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
 		http.SetOperation(ctx, OperationWebhookServiceUpdateWebhook)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.UpdateWebhook(ctx, req.(*UpdateWebhookRequest))
@@ -113,9 +110,6 @@ func _WebhookService_DeleteWebhook0_HTTP_Handler(srv WebhookServiceHTTPServer) f
 	return func(ctx http.Context) error {
 		var in DeleteWebhookRequest
 		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationWebhookServiceDeleteWebhook)
@@ -167,7 +161,7 @@ func (c *WebhookServiceHTTPClientImpl) CreateWebhook(ctx context.Context, in *Cr
 // DeleteWebhook DeleteWebhook deletes a webhook
 func (c *WebhookServiceHTTPClientImpl) DeleteWebhook(ctx context.Context, in *DeleteWebhookRequest, opts ...http.CallOption) (*DeleteWebhookResponse, error) {
 	var out DeleteWebhookResponse
-	pattern := "/api/v1/webhooks/{webhook_id}"
+	pattern := "/api/v1/webhooks"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationWebhookServiceDeleteWebhook))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -195,7 +189,7 @@ func (c *WebhookServiceHTTPClientImpl) ListWebhooks(ctx context.Context, in *Lis
 // UpdateWebhook UpdateWebhook updates webhook configuration
 func (c *WebhookServiceHTTPClientImpl) UpdateWebhook(ctx context.Context, in *UpdateWebhookRequest, opts ...http.CallOption) (*UpdateWebhookResponse, error) {
 	var out UpdateWebhookResponse
-	pattern := "/api/v1/webhooks/{webhook_id}"
+	pattern := "/api/v1/webhooks"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationWebhookServiceUpdateWebhook))
 	opts = append(opts, http.PathTemplate(pattern))

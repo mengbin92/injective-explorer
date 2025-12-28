@@ -27,7 +27,7 @@ service WebhookService {
   // UpdateWebhook updates webhook configuration
   rpc UpdateWebhook(UpdateWebhookRequest) returns (UpdateWebhookResponse) {
     option (google.api.http) = {
-      put: "/api/v1/webhooks/{webhook_id}"
+      put: "/api/v1/webhooks"
       body: "*"
     };
   }
@@ -35,7 +35,7 @@ service WebhookService {
   // DeleteWebhook deletes a webhook
   rpc DeleteWebhook(DeleteWebhookRequest) returns (DeleteWebhookResponse) {
     option (google.api.http) = {
-      delete: "/api/v1/webhooks/{webhook_id}"
+      delete: "/api/v1/webhooks"
     };
   }
 }

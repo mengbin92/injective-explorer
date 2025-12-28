@@ -82,9 +82,9 @@ func RegisterExplorerHTTPServer(s *http.Server, srv ExplorerHTTPServer) {
 	r.GET("/api/v1/block/gas-utilization", _Explorer_GetBlockGasUtilization0_HTTP_Handler(srv))
 	r.GET("/api/v1/transaction/failed-24h", _Explorer_GetFailedTransactions24H0_HTTP_Handler(srv))
 	r.GET("/api/v1/transaction/failed-1000", _Explorer_GetFailedTransactions10000_HTTP_Handler(srv))
-	r.GET("/api/v1/evm/transaction/{hash}", _Explorer_GetEVMTransaction0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/transaction", _Explorer_GetEVMTransaction0_HTTP_Handler(srv))
 	r.GET("/api/v1/evm/transactions", _Explorer_GetEVMTransactions0_HTTP_Handler(srv))
-	r.GET("/api/v1/evm/account/{address}/transactions", _Explorer_GetEVMAccountTransactions0_HTTP_Handler(srv))
+	r.GET("/api/v1/evm/account/transactions", _Explorer_GetEVMAccountTransactions0_HTTP_Handler(srv))
 	r.GET("/api/v1/health", _Explorer_CheckHealthy0_HTTP_Handler(srv))
 	r.GET("/api/v1/token/price-marketcap", _Explorer_GetTokenPriceAndMarketCap0_HTTP_Handler(srv))
 }
@@ -323,9 +323,6 @@ func _Explorer_GetEVMTransaction0_HTTP_Handler(srv ExplorerHTTPServer) func(ctx 
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
 		http.SetOperation(ctx, OperationExplorerGetEVMTransaction)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetEVMTransaction(ctx, req.(*GetEVMTransactionRequest))
@@ -362,9 +359,6 @@ func _Explorer_GetEVMAccountTransactions0_HTTP_Handler(srv ExplorerHTTPServer) f
 	return func(ctx http.Context) error {
 		var in GetEVMAccountTransactionsRequest
 		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationExplorerGetEVMAccountTransactions)
@@ -539,7 +533,7 @@ func (c *ExplorerHTTPClientImpl) GetBlockGasUtilization(ctx context.Context, in 
 // GetEVMAccountTransactions Get EVM account transactions
 func (c *ExplorerHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, in *GetEVMAccountTransactionsRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/api/v1/evm/account/{address}/transactions"
+	pattern := "/api/v1/evm/account/transactions"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationExplorerGetEVMAccountTransactions))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -554,7 +548,7 @@ func (c *ExplorerHTTPClientImpl) GetEVMAccountTransactions(ctx context.Context, 
 // Get EVM transaction by hash
 func (c *ExplorerHTTPClientImpl) GetEVMTransaction(ctx context.Context, in *GetEVMTransactionRequest, opts ...http.CallOption) (*Reply, error) {
 	var out Reply
-	pattern := "/api/v1/evm/transaction/{hash}"
+	pattern := "/api/v1/evm/transaction"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationExplorerGetEVMTransaction))
 	opts = append(opts, http.PathTemplate(pattern))

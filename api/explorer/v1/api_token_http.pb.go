@@ -45,8 +45,8 @@ func RegisterAPITokenServiceHTTPServer(s *http.Server, srv APITokenServiceHTTPSe
 	r := s.Route("/")
 	r.POST("/api/v1/tokens", _APITokenService_CreateToken0_HTTP_Handler(srv))
 	r.GET("/api/v1/tokens", _APITokenService_ListTokens0_HTTP_Handler(srv))
-	r.DELETE("/api/v1/tokens/{token_id}", _APITokenService_DeleteToken0_HTTP_Handler(srv))
-	r.GET("/api/v1/tokens/{token_id}/usage", _APITokenService_GetTokenUsage0_HTTP_Handler(srv))
+	r.DELETE("/api/v1/tokens", _APITokenService_DeleteToken0_HTTP_Handler(srv))
+	r.GET("/api/v1/tokens/usage", _APITokenService_GetTokenUsage0_HTTP_Handler(srv))
 	r.GET("/api/v1/dashboard/stats", _APITokenService_GetDashboardStats0_HTTP_Handler(srv))
 	r.GET("/api/v1/export/logs", _APITokenService_ExportUsageLogs0_HTTP_Handler(srv))
 }
@@ -98,9 +98,6 @@ func _APITokenService_DeleteToken0_HTTP_Handler(srv APITokenServiceHTTPServer) f
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
 		http.SetOperation(ctx, OperationAPITokenServiceDeleteToken)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.DeleteToken(ctx, req.(*DeleteTokenRequest))
@@ -118,9 +115,6 @@ func _APITokenService_GetTokenUsage0_HTTP_Handler(srv APITokenServiceHTTPServer)
 	return func(ctx http.Context) error {
 		var in GetTokenUsageRequest
 		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationAPITokenServiceGetTokenUsage)
@@ -214,7 +208,7 @@ func (c *APITokenServiceHTTPClientImpl) CreateToken(ctx context.Context, in *Cre
 // DeleteToken DeleteToken deletes a token
 func (c *APITokenServiceHTTPClientImpl) DeleteToken(ctx context.Context, in *DeleteTokenRequest, opts ...http.CallOption) (*DeleteTokenResponse, error) {
 	var out DeleteTokenResponse
-	pattern := "/api/v1/tokens/{token_id}"
+	pattern := "/api/v1/tokens"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationAPITokenServiceDeleteToken))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -256,7 +250,7 @@ func (c *APITokenServiceHTTPClientImpl) GetDashboardStats(ctx context.Context, i
 // GetTokenUsage GetTokenUsage gets token usage statistics
 func (c *APITokenServiceHTTPClientImpl) GetTokenUsage(ctx context.Context, in *GetTokenUsageRequest, opts ...http.CallOption) (*GetTokenUsageResponse, error) {
 	var out GetTokenUsageResponse
-	pattern := "/api/v1/tokens/{token_id}/usage"
+	pattern := "/api/v1/tokens/usage"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationAPITokenServiceGetTokenUsage))
 	opts = append(opts, http.PathTemplate(pattern))

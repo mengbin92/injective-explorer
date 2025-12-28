@@ -565,12 +565,12 @@ const file_explorer_v1_webhook_proto_rawDesc = "" +
 	"webhook_id\x18\x01 \x01(\x03R\n" +
 	"webhook_id\"1\n" +
 	"\x15DeleteWebhookResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2\x97\x04\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage2\xfb\x03\n" +
 	"\x0eWebhookService\x12{\n" +
 	"\rCreateWebhook\x12%.api.explorer.v1.CreateWebhookRequest\x1a&.api.explorer.v1.CreateWebhookResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/api/v1/webhooks\x12u\n" +
-	"\fListWebhooks\x12$.api.explorer.v1.ListWebhooksRequest\x1a%.api.explorer.v1.ListWebhooksResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/webhooks\x12\x88\x01\n" +
-	"\rUpdateWebhook\x12%.api.explorer.v1.UpdateWebhookRequest\x1a&.api.explorer.v1.UpdateWebhookResponse\"(\x82\xd3\xe4\x93\x02\":\x01*\x1a\x1d/api/v1/webhooks/{webhook_id}\x12\x85\x01\n" +
-	"\rDeleteWebhook\x12%.api.explorer.v1.DeleteWebhookRequest\x1a&.api.explorer.v1.DeleteWebhookResponse\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/api/v1/webhooks/{webhook_id}B\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
+	"\fListWebhooks\x12$.api.explorer.v1.ListWebhooksRequest\x1a%.api.explorer.v1.ListWebhooksResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/webhooks\x12{\n" +
+	"\rUpdateWebhook\x12%.api.explorer.v1.UpdateWebhookRequest\x1a&.api.explorer.v1.UpdateWebhookResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\x1a\x10/api/v1/webhooks\x12x\n" +
+	"\rDeleteWebhook\x12%.api.explorer.v1.DeleteWebhookRequest\x1a&.api.explorer.v1.DeleteWebhookResponse\"\x18\x82\xd3\xe4\x93\x02\x12*\x10/api/v1/webhooksB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (
 	file_explorer_v1_webhook_proto_rawDescOnce sync.Once

@@ -1837,10 +1837,10 @@ func (x *Sync_Blocks) GetEarliestHeight() uint64 {
 
 type APIManagement_RateLimit struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
-	IpPerMinute         int32                  `protobuf:"varint,1,opt,name=ip_per_minute,json=ipPerMinute,proto3" json:"ip_per_minute,omitempty"`                         // IP每分钟限制
-	IpPerHour           int32                  `protobuf:"varint,2,opt,name=ip_per_hour,json=ipPerHour,proto3" json:"ip_per_hour,omitempty"`                               // IP每小时限制
-	TokenPerSecond      int32                  `protobuf:"varint,3,opt,name=token_per_second,json=tokenPerSecond,proto3" json:"token_per_second,omitempty"`                // Token每秒限制
-	DefaultMonthlyLimit int32                  `protobuf:"varint,4,opt,name=default_monthly_limit,json=defaultMonthlyLimit,proto3" json:"default_monthly_limit,omitempty"` // 默认月度限额
+	IpPerMinute         int32                  `protobuf:"varint,1,opt,name=ip_per_minute,json=ipPerMinute,proto3" json:"ip_per_minute,omitempty"`                         // IP rate limit per minute
+	IpPerHour           int32                  `protobuf:"varint,2,opt,name=ip_per_hour,json=ipPerHour,proto3" json:"ip_per_hour,omitempty"`                               // IP rate limit per hour
+	TokenPerSecond      int32                  `protobuf:"varint,3,opt,name=token_per_second,json=tokenPerSecond,proto3" json:"token_per_second,omitempty"`                // Token rate limit per second
+	DefaultMonthlyLimit int32                  `protobuf:"varint,4,opt,name=default_monthly_limit,json=defaultMonthlyLimit,proto3" json:"default_monthly_limit,omitempty"` // Default monthly limit
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1905,8 +1905,8 @@ func (x *APIManagement_RateLimit) GetDefaultMonthlyLimit() int32 {
 
 type APIManagement_UsageStats struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	AsyncDelaySeconds int32                  `protobuf:"varint,1,opt,name=async_delay_seconds,json=asyncDelaySeconds,proto3" json:"async_delay_seconds,omitempty"` // 异步统计延迟（1-5秒）
-	ArchiveDays       int32                  `protobuf:"varint,2,opt,name=archive_days,json=archiveDays,proto3" json:"archive_days,omitempty"`                     // 归档天数（90天）
+	AsyncDelaySeconds int32                  `protobuf:"varint,1,opt,name=async_delay_seconds,json=asyncDelaySeconds,proto3" json:"async_delay_seconds,omitempty"` // Async statistics delay (1-5 seconds)
+	ArchiveDays       int32                  `protobuf:"varint,2,opt,name=archive_days,json=archiveDays,proto3" json:"archive_days,omitempty"`                     // Archive retention period in days (default: 90)
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1957,7 +1957,7 @@ func (x *APIManagement_UsageStats) GetArchiveDays() int32 {
 
 type APIManagement_IPLocation struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GeoipDbPath   string                 `protobuf:"bytes,1,opt,name=geoip_db_path,json=geoipDbPath,proto3" json:"geoip_db_path,omitempty"` // GeoIP2数据库路径
+	GeoipDbPath   string                 `protobuf:"bytes,1,opt,name=geoip_db_path,json=geoipDbPath,proto3" json:"geoip_db_path,omitempty"` // GeoIP2 database file path
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

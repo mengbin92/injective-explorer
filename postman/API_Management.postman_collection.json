@@ -149,7 +149,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}/usage",
+							"raw": "{{base_url}}/api/v1/tokens/usage?token_id={{token_id}}",
 							"host": [
 								"{{base_url}}"
 							],
@@ -157,7 +157,6 @@
 								"api",
 								"v1",
 								"tokens",
-								"{{token_id}}",
 								"usage"
 							]
 						},
@@ -195,15 +194,21 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}",
+							"raw": "{{base_url}}/api/v1/tokens?token_id={{token_id}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"tokens",
-								"{{token_id}}"
+								"tokens"
+							],
+							"query": [
+								{
+									"key": "token_id",
+									"value": "{{token_id}}",
+									"description": "Token ID to delete"
+								}
 							]
 						},
 						"description": "Delete an API token. Only tokens owned by the authenticated user can be deleted."
@@ -601,4 +606,3 @@
 		}
 	]
 }
-

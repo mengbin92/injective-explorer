@@ -244,6 +244,7 @@ func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash str
 }
 
 // saveEVMDetails saves EVM transaction details to database or object storage.
+// It also updates the EVM from/to addresses for optimized account queries.
 //
 // Parameters:
 //   - ctx: Context for cancellation
@@ -273,12 +274,14 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 		}
 	}
 
-	// Update database
+	// Update database with EVM details and addresses for optimized account queries
 	now := time.Now()
 	updates := map[string]interface{}{
-		"evm_details_synced":    true,
-		"evm_details_sync_at":    &now,
-		"evm_details_sync_error": "",
+		"evm_details_synced":     true,
+		"evm_details_sync_at":     &now,
+		"evm_details_sync_error":  "",
+		"evm_from_address":        details.From,
+		"evm_to_address":          details.To,
 	}
 
 	if storageKey != "" {

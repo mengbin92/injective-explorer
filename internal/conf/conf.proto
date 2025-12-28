@@ -207,23 +207,23 @@ message APIManagement {
   UsageStats usage_stats = 2;
   IPLocation ip_location = 3;
   ArchiveUsage archive_usage = 4;
-  
+
   message RateLimit {
-    int32 ip_per_minute = 1;        // IP每分钟限制
-    int32 ip_per_hour = 2;           // IP每小时限制
-    int32 token_per_second = 3;     // Token每秒限制
-    int32 default_monthly_limit = 4; // 默认月度限额
+    int32 ip_per_minute = 1;        // IP rate limit per minute
+    int32 ip_per_hour = 2;           // IP rate limit per hour
+    int32 token_per_second = 3;     // Token rate limit per second
+    int32 default_monthly_limit = 4; // Default monthly limit
   }
-  
+
   message UsageStats {
-    int32 async_delay_seconds = 1;   // 异步统计延迟（1-5秒）
-    int32 archive_days = 2;          // 归档天数（90天）
+    int32 async_delay_seconds = 1;   // Async statistics delay (1-5 seconds)
+    int32 archive_days = 2;          // Archive retention period in days (default: 90)
   }
-  
+
   message IPLocation {
-    string geoip_db_path = 1;        // GeoIP2数据库路径
+    string geoip_db_path = 1;        // GeoIP2 database file path
   }
-  
+
   message ArchiveUsage {
     bool enabled = 1;
     google.protobuf.Duration interval = 2;

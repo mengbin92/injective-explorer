@@ -858,13 +858,13 @@ const file_explorer_v1_api_token_proto_rawDesc = "" +
 	"\x16ExportUsageLogsRequest\"W\n" +
 	"\x17ExportUsageLogsResponse\x12\"\n" +
 	"\fdownload_url\x18\x01 \x01(\tR\fdownload_url\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\x8e\x06\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xf7\x05\n" +
 	"\x0fAPITokenService\x12s\n" +
 	"\vCreateToken\x12#.api.explorer.v1.CreateTokenRequest\x1a$.api.explorer.v1.CreateTokenResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v1/tokens\x12m\n" +
 	"\n" +
-	"ListTokens\x12\".api.explorer.v1.ListTokensRequest\x1a#.api.explorer.v1.ListTokensResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/tokens\x12{\n" +
-	"\vDeleteToken\x12#.api.explorer.v1.DeleteTokenRequest\x1a$.api.explorer.v1.DeleteTokenResponse\"!\x82\xd3\xe4\x93\x02\x1b*\x19/api/v1/tokens/{token_id}\x12\x87\x01\n" +
-	"\rGetTokenUsage\x12%.api.explorer.v1.GetTokenUsageRequest\x1a&.api.explorer.v1.GetTokenUsageResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/tokens/{token_id}/usage\x12\x8b\x01\n" +
+	"ListTokens\x12\".api.explorer.v1.ListTokensRequest\x1a#.api.explorer.v1.ListTokensResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/tokens\x12p\n" +
+	"\vDeleteToken\x12#.api.explorer.v1.DeleteTokenRequest\x1a$.api.explorer.v1.DeleteTokenResponse\"\x16\x82\xd3\xe4\x93\x02\x10*\x0e/api/v1/tokens\x12|\n" +
+	"\rGetTokenUsage\x12%.api.explorer.v1.GetTokenUsageRequest\x1a&.api.explorer.v1.GetTokenUsageResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/tokens/usage\x12\x8b\x01\n" +
 	"\x11GetDashboardStats\x12).api.explorer.v1.GetDashboardStatsRequest\x1a*.api.explorer.v1.GetDashboardStatsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/dashboard/stats\x12\x81\x01\n" +
 	"\x0fExportUsageLogs\x12'.api.explorer.v1.ExportUsageLogsRequest\x1a(.api.explorer.v1.ExportUsageLogsResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/api/v1/export/logsB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 

@@ -2925,7 +2925,7 @@ const file_explorer_v1_explorer_proto_rawDesc = "" +
 	"\rsupply_source\x18\n" +
 	" \x01(\tR\rsupply_source\x128\n" +
 	"\x17total_supply_from_chain\x18\v \x01(\tR\x17total_supply_from_chain\x12L\n" +
-	"!total_supply_from_chain_formatted\x18\f \x01(\tR!total_supply_from_chain_formatted2\xef\x13\n" +
+	"!total_supply_from_chain_formatted\x18\f \x01(\tR!total_supply_from_chain_formatted2\xde\x13\n" +
 	"\bExplorer\x12k\n" +
 	"\x0fGetLatestBlocks\x12\".api.explorer.v1.PaginationRequest\x1a\x16.api.explorer.v1.Reply\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/block/latest\x12u\n" +
 	"\x10GetBlockByHeight\x12(.api.explorer.v1.GetBlockByHeightRequest\x1a\x16.api.explorer.v1.Reply\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/block/by-height\x12k\n" +
@@ -2938,10 +2938,10 @@ const file_explorer_v1_explorer_proto_rawDesc = "" +
 	"\x13GetTransactionStats\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/transaction/stats\x12o\n" +
 	"\x16GetBlockGasUtilization\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/api/v1/block/gas-utilization\x12\x8c\x01\n" +
 	"\x18GetFailedTransactions24h\x120.api.explorer.v1.GetFailedTransactions24hRequest\x1a\x16.api.explorer.v1.Reply\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/transaction/failed-24h\x12t\n" +
-	"\x19GetFailedTransactions1000\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/transaction/failed-1000\x12~\n" +
-	"\x11GetEVMTransaction\x12).api.explorer.v1.GetEVMTransactionRequest\x1a\x16.api.explorer.v1.Reply\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/evm/transaction/{hash}\x12z\n" +
-	"\x12GetEVMTransactions\x12*.api.explorer.v1.GetEVMTransactionsRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/evm/transactions\x12\x9a\x01\n" +
-	"\x19GetEVMAccountTransactions\x121.api.explorer.v1.GetEVMAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"2\x82\xd3\xe4\x93\x02,\x12*/api/v1/evm/account/{address}/transactions\x12s\n" +
+	"\x19GetFailedTransactions1000\x12\x16.google.protobuf.Empty\x1a\x16.api.explorer.v1.Reply\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/transaction/failed-1000\x12w\n" +
+	"\x11GetEVMTransaction\x12).api.explorer.v1.GetEVMTransactionRequest\x1a\x16.api.explorer.v1.Reply\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/evm/transaction\x12z\n" +
+	"\x12GetEVMTransactions\x12*.api.explorer.v1.GetEVMTransactionsRequest\x1a\x16.api.explorer.v1.Reply\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/evm/transactions\x12\x90\x01\n" +
+	"\x19GetEVMAccountTransactions\x121.api.explorer.v1.GetEVMAccountTransactionsRequest\x1a\x16.api.explorer.v1.Reply\"(\x82\xd3\xe4\x93\x02\"\x12 /api/v1/evm/account/transactions\x12s\n" +
 	"\fCheckHealthy\x12$.api.explorer.v1.CheckHealthyRequest\x1a%.api.explorer.v1.CheckHealthyResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/health\x12\x7f\n" +
 	"\x12StreamLatestBlocks\x12*.api.explorer.v1.StreamLatestBlocksRequest\x1a\x1c.api.explorer.v1.BlockUpdate\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/api/v1/stream/blocks0\x01\x12\x97\x01\n" +
 	"\x18StreamLatestTransactions\x120.api.explorer.v1.StreamLatestTransactionsRequest\x1a\".api.explorer.v1.TransactionUpdate\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/api/v1/stream/transactions0\x01\x12\x86\x01\n" +

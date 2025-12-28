@@ -91,13 +91,14 @@ This collection focuses on API token management and basic API access testing.
 
 ### 5. EVM APIs
 - **Get EVM Transaction**: Get EVM transaction by hash
-  - Method: `GET /api/v1/evm/transaction/{hash}`
+  - Method: `GET /api/v1/evm/transaction`
+  - Query params: `hash`
 - **Get EVM Transactions**: Get EVM transactions list
   - Method: `GET /api/v1/evm/transactions`
   - Query params: `page`, `pageSize`, `cursor`
 - **Get EVM Account Transactions**: Get EVM account transactions
-  - Method: `GET /api/v1/evm/account/{address}/transactions`
-  - Query params: `page`, `pageSize`, `cursor`
+  - Method: `GET /api/v1/evm/account/transactions`
+  - Query params: `address`, `page`, `pageSize`, `cursor`
   - Supports both `0x` and `inj1` address formats
 
 ### 6. Token Price APIs
@@ -149,11 +150,13 @@ Endpoints for managing API tokens. These require `X-User-ID` header.
   - Headers: `X-User-ID`
 
 - **Get Token Usage**: Get usage statistics for a token
-  - Method: `GET /api/v1/tokens/{token_id}/usage`
+  - Method: `GET /api/v1/tokens/usage`
+  - Query params: `token_id`
   - Headers: `X-User-ID`
 
 - **Delete Token**: Delete a token
-  - Method: `DELETE /api/v1/tokens/{token_id}`
+  - Method: `DELETE /api/v1/tokens`
+  - Query params: `token_id`
   - Headers: `X-User-ID`
 
 ### 9. Streaming APIs
@@ -298,7 +301,7 @@ Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Get EVM Transaction
 ```http
-GET http://localhost:8000/api/v1/evm/transaction/0x1234...
+GET http://localhost:8000/api/v1/evm/transaction?hash=0x1234...
 Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 

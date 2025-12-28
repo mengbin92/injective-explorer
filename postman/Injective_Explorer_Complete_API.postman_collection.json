@@ -105,17 +105,17 @@
 								{
 									"key": "page",
 									"value": "1",
-									"description": "页码，从1开始，默认1"
+									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
 								},
 								{
 									"key": "page_size",
 									"value": "20",
-									"description": "每页大小，默认20，最大100"
+									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
 								},
 								{
 									"key": "cursor",
 									"value": "",
-									"description": "游标（基于游标的分页，优先级高于 page）",
+									"description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
 									"disabled": true
 								}
 							]
@@ -318,17 +318,17 @@
 								{
 									"key": "page",
 									"value": "1",
-									"description": "页码，从1开始，默认1"
+									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
 								},
 								{
 									"key": "page_size",
 									"value": "20",
-									"description": "每页大小，默认20，最大100"
+									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
 								},
 								{
 									"key": "cursor",
 									"value": "",
-									"description": "游标（基于游标的分页，优先级高于 page）",
+									"description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
 									"disabled": true
 								}
 							]
@@ -474,17 +474,17 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "页码，从1开始，默认1"
+									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "每页大小，默认20，最大100"
+									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
 								},
 								{
 									"key": "pagination.cursor",
 									"value": "",
-									"description": "游标（基于游标的分页，优先级高于 page）",
+									"description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
 									"disabled": true
 								}
 							]
@@ -633,12 +633,12 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "页码，从1开始，默认1"
+									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "每页大小，默认20，最大100"
+									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
 								},
 								{
 									"key": "tx_types",
@@ -741,7 +741,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/evm/transaction/{{evm_tx_hash}}",
+							"raw": "{{base_url}}/api/v1/evm/transaction?hash={{evm_tx_hash}}",
 							"host": [
 								"{{base_url}}"
 							],
@@ -749,8 +749,14 @@
 								"api",
 								"v1",
 								"evm",
-								"transaction",
-								"{{evm_tx_hash}}"
+								"transaction"
+							],
+							"query": [
+								{
+									"key": "hash",
+									"value": "{{evm_tx_hash}}",
+									"description": "Transaction hash"
+								}
 							]
 						},
 						"description": "Get EVM transaction by hash"
@@ -781,7 +787,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/evm/transactions?page=1&pageSize=20",
+							"raw": "{{base_url}}/api/v1/evm/transactions?page=1&page_size=20",
 							"host": [
 								"{{base_url}}"
 							],
@@ -798,7 +804,7 @@
 									"description": "Page number (default: 1)"
 								},
 								{
-									"key": "pageSize",
+									"key": "page_size",
 									"value": "20",
 									"description": "Page size (default: 20, max: 100)"
 								},
@@ -838,7 +844,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/evm/account/{{account_address}}/transactions?page=1&pageSize=20",
+							"raw": "{{base_url}}/api/v1/evm/account/transactions?address={{account_address}}&page=1&page_size=20",
 							"host": [
 								"{{base_url}}"
 							],
@@ -847,17 +853,21 @@
 								"v1",
 								"evm",
 								"account",
-								"{{account_address}}",
 								"transactions"
 							],
 							"query": [
+								{
+									"key": "address",
+									"value": "{{account_address}}",
+									"description": "Account address (supports 0x and inj1 format)"
+								},
 								{
 									"key": "page",
 									"value": "1",
 									"description": "Page number (default: 1)"
 								},
 								{
-									"key": "pageSize",
+									"key": "page_size",
 									"value": "20",
 									"description": "Page size (default: 20, max: 100)"
 								},
@@ -1013,7 +1023,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/contract/info/by-address?contractAddress={{contract_address}}&chainId={{chain_id}}",
+							"raw": "{{base_url}}/api/v1/contract/info/by-address?contract_address={{contract_address}}&chain_id={{chain_id}}",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1026,12 +1036,12 @@
 							],
 							"query": [
 								{
-									"key": "contractAddress",
+									"key": "contract_address",
 									"value": "{{contract_address}}",
 									"description": "Contract address (required)"
 								},
 								{
-									"key": "chainId",
+									"key": "chain_id",
 									"value": "{{chain_id}}",
 									"description": "Chain ID (optional)"
 								}
@@ -1065,7 +1075,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/contract/info/by-symbol?symbol={{token_symbol}}&chainId={{chain_id}}&pagination.page=1&pagination.page_size=20",
+							"raw": "{{base_url}}/api/v1/contract/info/by-symbol?symbol={{token_symbol}}&chain_id={{chain_id}}&pagination.page=1&pagination.page_size=20",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1083,12 +1093,12 @@
 									"description": "Symbol (required, e.g., token symbol for token contracts)"
 								},
 								{
-									"key": "chainId",
+									"key": "chain_id",
 									"value": "{{chain_id}}",
 									"description": "Chain ID (optional, for filtering)"
 								},
 								{
-									"key": "contractType",
+									"key": "contract_type",
 									"value": "",
 									"description": "Contract type (optional, for filtering)",
 									"disabled": true
@@ -1096,12 +1106,12 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "页码，从1开始，默认1"
+									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "每页大小，默认20，最大100"
+									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
 								}
 							]
 						},
@@ -1133,7 +1143,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/contract/info/list?chainId={{chain_id}}&pagination.page=1&pagination.page_size=20",
+							"raw": "{{base_url}}/api/v1/contract/info/list?chain_id={{chain_id}}&pagination.page=1&pagination.page_size=20",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1178,12 +1188,12 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "页码，从1开始，默认1"
+									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "每页大小，默认20，最大100"
+									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
 								}
 							]
 						},
@@ -1267,7 +1277,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/contract/info?contractAddress={{contract_address}}&chainId={{chain_id}}",
+							"raw": "{{base_url}}/api/v1/contract/info?contract_address={{contract_address}}&chain_id={{chain_id}}",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1279,12 +1289,12 @@
 							],
 							"query": [
 								{
-									"key": "contractAddress",
+									"key": "contract_address",
 									"value": "{{contract_address}}",
 									"description": "Contract address (required)"
 								},
 								{
-									"key": "chainId",
+									"key": "chain_id",
 									"value": "{{chain_id}}",
 									"description": "Chain ID (required)"
 								}
@@ -1371,7 +1381,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/contract/info/tag?contractAddress={{contract_address}}&chainId={{chain_id}}&tagType=category",
+							"raw": "{{base_url}}/api/v1/contract/info/tag?contract_address={{contract_address}}&chain_id={{chain_id}}&tag_type=category",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1384,17 +1394,17 @@
 							],
 							"query": [
 								{
-									"key": "contractAddress",
+									"key": "contract_address",
 									"value": "{{contract_address}}",
 									"description": "Contract address (required)"
 								},
 								{
-									"key": "chainId",
+									"key": "chain_id",
 									"value": "{{chain_id}}",
 									"description": "Chain ID (required)"
 								},
 								{
-									"key": "tagType",
+									"key": "tag_type",
 									"value": "category",
 									"description": "Tag type (required)"
 								}
@@ -1428,7 +1438,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/contract/info/tags?contractAddress={{contract_address}}&chainId={{chain_id}}",
+							"raw": "{{base_url}}/api/v1/contract/info/tags?contract_address={{contract_address}}&chain_id={{chain_id}}",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1441,12 +1451,12 @@
 							],
 							"query": [
 								{
-									"key": "contractAddress",
+									"key": "contract_address",
 									"value": "{{contract_address}}",
 									"description": "Contract address (required)"
 								},
 								{
-									"key": "chainId",
+									"key": "chain_id",
 									"value": "{{chain_id}}",
 									"description": "Chain ID (required)"
 								}
@@ -1601,7 +1611,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}/usage",
+							"raw": "{{base_url}}/api/v1/tokens/usage?token_id={{token_id}}",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1609,7 +1619,6 @@
 								"api",
 								"v1",
 								"tokens",
-								"{{token_id}}",
 								"usage"
 							]
 						},
@@ -1647,15 +1656,21 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}",
+							"raw": "{{base_url}}/api/v1/tokens?token_id={{token_id}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"tokens",
-								"{{token_id}}"
+								"tokens"
+							],
+							"query": [
+								{
+									"key": "token_id",
+									"value": "{{token_id}}",
+									"description": "Token ID to delete"
+								}
 							]
 						},
 						"description": "Delete an API token. Only tokens owned by the authenticated user can be deleted."
@@ -1679,7 +1694,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/stream/blocks?fromHeight=0",
+							"raw": "{{base_url}}/api/v1/stream/blocks?from_height=0",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1691,7 +1706,7 @@
 							],
 							"query": [
 								{
-									"key": "fromHeight",
+									"key": "from_height",
 									"value": "0",
 									"description": "Optional: start streaming from a specific block height. If 0, streams from the latest blocks"
 								}
@@ -1746,7 +1761,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/stream/account?address={{account_address}}&fromTimestamp=0",
+							"raw": "{{base_url}}/api/v1/stream/account?address={{account_address}}&from_timestamp=0",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1763,7 +1778,7 @@
 									"description": "Required: account address to monitor"
 								},
 								{
-									"key": "fromTimestamp",
+									"key": "from_timestamp",
 									"value": "0",
 									"description": "Optional: start streaming from a specific timestamp. If 0, streams from recent transactions"
 								}

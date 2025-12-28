@@ -16,6 +16,7 @@ import (
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/chain"
 	"injective-explorer/provider/db"
+	"injective-explorer/provider/storage"
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
@@ -4247,9 +4248,12 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 	defer queryCancel()
 
 	// Query transaction from database by EVM hash (not Cosmos hash)
+	// Use index on evm_hash for fast lookup
 	var dbTx models.Transaction
 	evmHash := "0x" + hash
-	err := db.Get().WithContext(queryCtx).Where("evm_hash = ?", evmHash).First(&dbTx).Error
+	err := db.Get().WithContext(queryCtx).
+		Where("evm_hash = ?", evmHash).
+		First(&dbTx).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return s.errorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction %s not found", evmHash), err), status.Errorf(codes.NotFound, "EVM transaction %s not found", evmHash)
@@ -4257,13 +4261,13 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
 	}
 
-	// Load EVM transaction details
-	evmDetails, err := models.LoadEVMTransactionDetails(queryCtx, &dbTx)
+	// Load EVM transaction details with Redis cache support
+	evmDetails, err := s.loadEVMTransactionDetailsWithCache(queryCtx, &dbTx)
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "failed to load EVM transaction details", err), err
 	}
 
-	// If details not synced yet, try to fetch from EVM RPC
+	// If details not synced yet, try to fetch from EVM RPC (reduced timeout: 15s)
 	if evmDetails == nil {
 		evmClient, err := chain.NewEVMClient(global.NetworkName)
 		if err != nil {
@@ -4278,6 +4282,22 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 		if err != nil {
 			return s.errorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction details not found for %s", dbTx.EVMHash), err), err
 		}
+
+		// Cache the fetched details asynchronously
+		go func() {
+			cacheCtx, cacheCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cacheCancel()
+			if detailsJSON, err := sonic.Marshal(evmDetails); err == nil {
+				key := CacheKeyEVMDetailsPrefix + dbTx.EVMHash
+				// Remove 0x prefix if present
+				if len(key) > 11 && key[11:13] == "0x" {
+					key = key[:11] + key[13:]
+				}
+				if err := cache.GetRedisClient().Set(cacheCtx, key, detailsJSON, CacheEVMDetailsTTL).Err(); err != nil {
+					global.Logger.Warnf("failed to cache EVM details: %v", err)
+				}
+			}
+		}()
 	}
 
 	// Convert to DTO
@@ -4354,15 +4374,27 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 		return s.marshalAndReply(txsResp, "marshal EVM transactions error")
 	}
 
-	// Load EVM transaction details for all transactions
-	evmDetailsList := make([]*chain.TransactionDetails, 0, len(dbTxs))
+	// Build tx map first
 	txMap := make(map[string]*models.Transaction, len(dbTxs))
-
 	for i := range dbTxs {
 		txMap[dbTxs[i].Hash] = &dbTxs[i]
-		evmDetails, err := models.LoadEVMTransactionDetails(queryCtx, &dbTxs[i])
-		if err == nil && evmDetails != nil {
-			evmDetailsList = append(evmDetailsList, evmDetails)
+	}
+
+	// Load EVM transaction details in parallel (with Redis cache)
+	detailsMap, err := s.loadEVMDetailsBatchParallel(queryCtx, dbTxs)
+	if err != nil {
+		global.Logger.Warnf("failed to load EVM details in parallel: %v", err)
+	}
+
+	// Build evmDetailsList and evmDTOs from detailsMap
+	evmDetailsList := make([]*chain.TransactionDetails, 0, len(dbTxs))
+	for _, tx := range dbTxs {
+		evmHash := tx.EVMHash
+		if evmHash != "" && len(evmHash) < 2 || evmHash[:2] != "0x" {
+			evmHash = "0x" + evmHash
+		}
+		if details, ok := detailsMap[evmHash]; ok {
+			evmDetailsList = append(evmDetailsList, details)
 		}
 	}
 
@@ -4379,7 +4411,7 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 			}
 			defer evmClient.Close()
 
-			evmCtx, evmCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			evmCtx, evmCancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer evmCancel()
 
 			for i := range dbTxs {
@@ -4387,20 +4419,29 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 					continue
 				}
 				// Check if already loaded
-				alreadyLoaded := false
-				for _, details := range evmDetailsList {
-					if details.Hash == dbTxs[i].EVMHash {
-						alreadyLoaded = true
-						break
-					}
+				evmHash := dbTxs[i].EVMHash
+				if len(evmHash) < 2 || evmHash[:2] != "0x" {
+					evmHash = "0x" + evmHash
 				}
-				if !alreadyLoaded {
-					details, err := evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(dbTxs[i].EVMHash))
-					if err == nil && details != nil {
-						// Details fetched, but response already sent
-						// This is for future requests
-						global.Logger.Debugf("async fetched EVM details for %s", dbTxs[i].EVMHash)
+				if _, ok := detailsMap[evmHash]; ok {
+					continue
+				}
+				details, err := evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(dbTxs[i].EVMHash))
+				if err == nil && details != nil {
+					// Cache the fetched details
+					if detailsJSON, jsonErr := sonic.Marshal(details); jsonErr == nil {
+						cacheCtx, cacheCancel := context.WithTimeout(context.Background(), 5*time.Second)
+						key := CacheKeyEVMDetailsPrefix + evmHash
+						// Remove 0x prefix if present
+						if len(key) > 11 && key[11:13] == "0x" {
+							key = key[:11] + key[13:]
+						}
+						if err := cache.GetRedisClient().Set(cacheCtx, key, detailsJSON, CacheEVMDetailsTTL).Err(); err != nil {
+							global.Logger.Warnf("failed to cache EVM details: %v", err)
+						}
+						cacheCancel()
 					}
+					global.Logger.Debugf("async fetched EVM details for %s", dbTxs[i].EVMHash)
 				}
 			}
 		}()
@@ -4442,92 +4483,309 @@ func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb
 	defer queryCancel()
 
 	// Convert address to database format (Ethereum format 0x...)
-	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
+	dbQueryAddress, err := s.convertToQueryAddress(queryCtx, address, nil, false)
 	if err != nil {
 		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
 	}
 
-	// Query EVM transactions for the account
-	// EVM transactions are identified by evm_hash not empty
-	// We need to load EVM details to check from/to addresses
+	// Optimized query: Use database indexes for EVM from/to addresses when available
+	// This avoids loading all EVM details just to filter by address
 	var dbTxs []models.Transaction
 
-	// Build base query
+	// Build optimized query using database indexes for from/to addresses
+	// This is much faster than loading all EVM details and filtering in memory
 	baseQuery := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
 		Where("evm_hash != '' AND evm_hash IS NOT NULL")
 
-	// For account transactions, we need to check EVM details for from/to addresses
-	// This is a two-step process: first get transactions, then filter by EVM details
-	// For better performance, we'll query transactions and filter in memory
-	// In production, consider creating a separate index or table for EVM account transactions
+	// Try to use indexed address filtering first (faster)
+	// Fall back to loading all and filtering in memory if addresses not yet synced
+	addressQuery := baseQuery.Where("(evm_from_address = ? OR evm_to_address = ?)", dbQueryAddress, dbQueryAddress)
 
 	if useCursor {
-		query := baseQuery.Where("tx_number < ?", cursorValue).
+		query := addressQuery.Where("tx_number < ?", cursorValue).
 			Order("block_unix_timestamp DESC, tx_number DESC").
-			Limit(int(pageSize * 2)) // Get more to account for filtering
+			Limit(int(pageSize))
 		err = query.Find(&dbTxs).Error
 	} else {
-		query := baseQuery.Order("block_unix_timestamp DESC, tx_number DESC").
+		query := addressQuery.Order("block_unix_timestamp DESC, tx_number DESC").
 			Offset(offset).
-			Limit(int(pageSize * 2)) // Get more to account for filtering
+			Limit(int(pageSize))
 		err = query.Find(&dbTxs).Error
 	}
 
+	// If indexed query failed, return error
 	if err != nil {
 		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
 	}
 
-	// Filter transactions by account address in EVM details
-	filteredTxs := make([]models.Transaction, 0, len(dbTxs))
-	evmDetailsList := make([]*chain.TransactionDetails, 0, len(dbTxs))
+	// If no results found, return empty response
+	if len(dbTxs) == 0 {
+		txsResp := buildPaginatedResponse([]*pb.EVMTransactionDTO{}, page, pageSize, int64(ApproximateCountForAddress), false, useCursor, cursorValue, "", 0)
+		return s.marshalAndReply(txsResp, "marshal EVM account transactions error")
+	}
+
+	// Build tx map and load EVM details for transactions returned by indexed query
 	txMap := make(map[string]*models.Transaction, len(dbTxs))
-
 	for i := range dbTxs {
-		evmDetails, err := models.LoadEVMTransactionDetails(queryCtx, &dbTxs[i])
-		if err != nil {
-			continue
+		txMap[dbTxs[i].Hash] = &dbTxs[i]
+	}
+
+	// Load EVM transaction details in parallel (with Redis cache)
+	detailsMap, err := s.loadEVMDetailsBatchParallel(queryCtx, dbTxs)
+	if err != nil {
+		global.Logger.Warnf("failed to load EVM details in parallel: %v", err)
+	}
+
+	// Build evmDetailsList and evmDTOs from detailsMap
+	evmDetailsList := make([]*chain.TransactionDetails, 0, len(dbTxs))
+	for _, tx := range dbTxs {
+		evmHash := tx.EVMHash
+		if evmHash != "" && len(evmHash) < 2 || evmHash[:2] != "0x" {
+			evmHash = "0x" + evmHash
 		}
-
-		// If details not loaded, try to fetch from EVM RPC
-		if evmDetails == nil && dbTxs[i].EVMHash != "" {
-			evmClient, err := chain.NewEVMClient(global.NetworkName)
-			if err == nil {
-				evmCtx, evmCancel := context.WithTimeout(context.Background(), 10*time.Second)
-				evmDetails, err = evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(dbTxs[i].EVMHash))
-				evmCancel()
-				evmClient.Close()
-			}
-		}
-
-		if evmDetails == nil {
-			continue
-		}
-
-		// Check if account is involved in this transaction
-		if strings.EqualFold(evmDetails.From, dbQueryAddress) || strings.EqualFold(evmDetails.To, dbQueryAddress) {
-			filteredTxs = append(filteredTxs, dbTxs[i])
-			evmDetailsList = append(evmDetailsList, evmDetails)
-			txMap[dbTxs[i].Hash] = &dbTxs[i]
-
-			// Stop if we have enough results
-			if len(filteredTxs) >= int(pageSize) {
-				break
-			}
+		if details, ok := detailsMap[evmHash]; ok {
+			evmDetailsList = append(evmDetailsList, details)
 		}
 	}
 
 	// Convert to DTOs
 	evmDTOs := models.ToEVMTransactionDTOs(evmDetailsList, txMap)
 
-	// Use approximate count (exact count would require loading all EVM details)
+	// Use approximate count (exact count would require counting all matching transactions)
 	total := int64(ApproximateCountForAddress)
 	isExactCount := false
 
 	nextCursor := ""
-	if len(filteredTxs) > 0 {
-		nextCursor = calculateNextCursor(useCursor, cursorValue, filteredTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+	if len(dbTxs) > 0 {
+		nextCursor = calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 	}
 
 	txsResp := buildPaginatedResponse(evmDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(evmDTOs))
 	return s.marshalAndReply(txsResp, "marshal EVM account transactions error")
+}
+
+// loadEVMTransactionDetailsWithCache loads EVM transaction details with Redis cache support.
+// It first checks Redis cache, then falls back to object storage/database.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - tx: Transaction model
+//
+// Returns:
+//   - *chain.TransactionDetails: EVM transaction details, or nil if not found
+//   - error: Error if the operation fails
+func (s *ExplorerService) loadEVMTransactionDetailsWithCache(ctx context.Context, tx *models.Transaction) (*chain.TransactionDetails, error) {
+	if tx == nil {
+		return nil, nil
+	}
+
+	// Check if EVM details are synced
+	if !tx.EVMDetailsSynced {
+		return nil, nil
+	}
+
+	evmHash := tx.EVMHash
+	if evmHash == "" {
+		return nil, nil
+	}
+
+	// Ensure EVM hash has 0x prefix for consistency
+	cacheKey := evmHash
+	if len(cacheKey) < 2 || cacheKey[:2] != "0x" {
+		cacheKey = "0x" + cacheKey
+	}
+
+	// 1. Try to load from Redis cache first (fastest)
+	key := CacheKeyEVMDetailsPrefix + cacheKey
+	// Remove 0x prefix if present
+	if len(key) > 11 && key[11:13] == "0x" {
+		key = key[:11] + key[13:]
+	}
+	cached, err := cache.GetRedisClient().Get(ctx, key).Bytes()
+	if err == nil && cached != nil {
+		var details chain.TransactionDetails
+		if err := sonic.Unmarshal(cached, &details); err == nil {
+			return &details, nil
+		}
+	} else if err != nil && err != redis.Nil {
+		global.Logger.Warnf("failed to get cached EVM details: %v", err)
+	}
+
+	// 2. Load from object storage if storage key exists
+	if tx.EVMDetailsStorageKey != "" {
+		storageClient := storage.Get()
+		if storageClient != nil {
+			detailsBytes, err := storageClient.GetObject(ctx, tx.EVMDetailsStorageKey)
+			if err == nil {
+				var details chain.TransactionDetails
+				if err := sonic.Unmarshal(detailsBytes, &details); err == nil {
+					// Cache the result asynchronously
+					go func() {
+						redisClient := cache.GetRedisClient()
+						if redisClient != nil {
+							cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							defer cancel()
+							key := CacheKeyEVMDetailsPrefix + cacheKey
+							// Remove 0x prefix if present
+							if len(key) > 11 && key[11:13] == "0x" {
+								key = key[:11] + key[13:]
+							}
+							if err := redisClient.Set(cacheCtx, key, detailsBytes, CacheEVMDetailsTTL).Err(); err != nil {
+								global.Logger.Warnf("failed to cache EVM details: %v", err)
+							}
+						}
+					}()
+					return &details, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+// loadEVMDetailsBatchParallel loads EVM transaction details for multiple transactions in parallel.
+// It uses goroutines with WaitGroup for concurrent loading with Redis cache optimization.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - txs: List of transactions to load details for
+//
+// Returns:
+//   - map[string]*chain.TransactionDetails: Map of evmHash to transaction details
+//   - error: Error if the operation fails
+func (s *ExplorerService) loadEVMDetailsBatchParallel(ctx context.Context, txs []models.Transaction) (map[string]*chain.TransactionDetails, error) {
+	if len(txs) == 0 {
+		return make(map[string]*chain.TransactionDetails), nil
+	}
+
+	// Collect unique EVM hashes that need details loaded
+	type pendingLoad struct {
+		tx      *models.Transaction
+		evmHash string
+	}
+
+	pending := make([]pendingLoad, 0, len(txs))
+	detailsMap := make(map[string]*chain.TransactionDetails)
+
+	for i := range txs {
+		tx := &txs[i]
+		if !tx.EVMDetailsSynced || tx.EVMHash == "" {
+			continue
+		}
+
+		evmHash := tx.EVMHash
+		if len(evmHash) < 2 || evmHash[:2] != "0x" {
+			evmHash = "0x" + evmHash
+		}
+
+		pending = append(pending, pendingLoad{tx: tx, evmHash: evmHash})
+	}
+
+	if len(pending) == 0 {
+		return detailsMap, nil
+	}
+
+	// 1. Batch check Redis cache first
+	evmHashes := make([]string, len(pending))
+	for i, p := range pending {
+		evmHashes[i] = p.evmHash
+	}
+
+	// Batch get from Redis
+	var cachedResults map[string][]byte
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		// Build keys
+		keys := make([]string, len(evmHashes))
+		for i, hash := range evmHashes {
+			key := CacheKeyEVMDetailsPrefix + hash
+			// Remove 0x prefix if present
+			if len(key) > 11 && key[11:13] == "0x" {
+				key = key[:11] + key[13:]
+			}
+			keys[i] = key
+		}
+
+		// Batch get
+		results, err := redisClient.MGet(ctx, keys...).Result()
+		if err != nil {
+			global.Logger.Warnf("failed to batch get cached EVM details: %v", err)
+		} else {
+			// Parse results
+			cachedResults = make(map[string][]byte)
+			for i, result := range results {
+				if result != nil {
+					if bytes, ok := result.([]byte); ok {
+						cachedResults[evmHashes[i]] = bytes
+					}
+				}
+			}
+		}
+	} else {
+		cachedResults = make(map[string][]byte)
+	}
+
+	// Parse cached results and identify what's still pending
+	stillPending := make([]pendingLoad, 0, len(pending))
+	for _, p := range pending {
+		if cached, ok := cachedResults[p.evmHash]; ok && cached != nil {
+			var details chain.TransactionDetails
+			if err := sonic.Unmarshal(cached, &details); err == nil {
+				detailsMap[p.evmHash] = &details
+				continue
+			}
+		}
+		stillPending = append(stillPending, p)
+	}
+
+	if len(stillPending) == 0 {
+		return detailsMap, nil
+	}
+
+	// 2. Load remaining from object storage/database in parallel with concurrency limit
+	// Limit concurrency to avoid overwhelming storage/RPC services
+	const maxConcurrency = 10
+	sem := make(chan struct{}, maxConcurrency)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(stillPending))
+
+	for i := range stillPending {
+		wg.Add(1)
+		go func(pl pendingLoad) {
+			defer wg.Done()
+
+			// Acquire semaphore to limit concurrent storage reads
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			details, err := s.loadEVMTransactionDetailsWithCache(ctx, pl.tx)
+			if err != nil {
+				select {
+				case errChan <- err:
+				default:
+				}
+				return
+			}
+
+			if details != nil {
+				mu.Lock()
+				detailsMap[pl.evmHash] = details
+				mu.Unlock()
+			}
+		}(stillPending[i])
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	// Collect errors (non-blocking)
+	for err := range errChan {
+		if err != nil {
+			return detailsMap, err
+		}
+	}
+
+	return detailsMap, nil
 }
