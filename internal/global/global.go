@@ -118,6 +118,7 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		&models.APIRequestLog{},
 		&models.UserUsageStats{},
 		&models.UsageDailyStats{},
+		&models.Webhook{},
 	)
 	if err != nil {
 		panic(err)

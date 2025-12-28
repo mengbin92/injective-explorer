@@ -31,7 +31,8 @@ type Bootstrap struct {
 	Chain         *Chain                 `protobuf:"bytes,5,opt,name=chain,proto3" json:"chain,omitempty"`
 	Sync          *Sync                  `protobuf:"bytes,6,opt,name=sync,proto3" json:"sync,omitempty"`
 	Archive       *Archive               `protobuf:"bytes,7,opt,name=archive,proto3" json:"archive,omitempty"`
-	TokenPrice    *TokenPrice            `protobuf:"bytes,8,opt,name=token_price,json=tokenPrice,proto3" json:"token_price,omitempty"` // Token price service configuration
+	TokenPrice    *TokenPrice            `protobuf:"bytes,8,opt,name=token_price,json=tokenPrice,proto3" json:"token_price,omitempty"`          // Token price service configuration
+	ApiManagement *APIManagement         `protobuf:"bytes,9,opt,name=api_management,json=apiManagement,proto3" json:"api_management,omitempty"` // API management configuration
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -118,6 +119,13 @@ func (x *Bootstrap) GetArchive() *Archive {
 func (x *Bootstrap) GetTokenPrice() *TokenPrice {
 	if x != nil {
 		return x.TokenPrice
+	}
+	return nil
+}
+
+func (x *Bootstrap) GetApiManagement() *APIManagement {
+	if x != nil {
+		return x.ApiManagement
 	}
 	return nil
 }
@@ -855,6 +863,74 @@ func (x *TokenConfig) GetDisplayName() string {
 	return ""
 }
 
+type APIManagement struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	RateLimit     *APIManagement_RateLimit    `protobuf:"bytes,1,opt,name=rate_limit,json=rateLimit,proto3" json:"rate_limit,omitempty"`
+	UsageStats    *APIManagement_UsageStats   `protobuf:"bytes,2,opt,name=usage_stats,json=usageStats,proto3" json:"usage_stats,omitempty"`
+	IpLocation    *APIManagement_IPLocation   `protobuf:"bytes,3,opt,name=ip_location,json=ipLocation,proto3" json:"ip_location,omitempty"`
+	ArchiveUsage  *APIManagement_ArchiveUsage `protobuf:"bytes,4,opt,name=archive_usage,json=archiveUsage,proto3" json:"archive_usage,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *APIManagement) Reset() {
+	*x = APIManagement{}
+	mi := &file_conf_conf_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APIManagement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APIManagement) ProtoMessage() {}
+
+func (x *APIManagement) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APIManagement.ProtoReflect.Descriptor instead.
+func (*APIManagement) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *APIManagement) GetRateLimit() *APIManagement_RateLimit {
+	if x != nil {
+		return x.RateLimit
+	}
+	return nil
+}
+
+func (x *APIManagement) GetUsageStats() *APIManagement_UsageStats {
+	if x != nil {
+		return x.UsageStats
+	}
+	return nil
+}
+
+func (x *APIManagement) GetIpLocation() *APIManagement_IPLocation {
+	if x != nil {
+		return x.IpLocation
+	}
+	return nil
+}
+
+func (x *APIManagement) GetArchiveUsage() *APIManagement_ArchiveUsage {
+	if x != nil {
+		return x.ArchiveUsage
+	}
+	return nil
+}
+
 type Server_HTTP struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Network       string                 `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
@@ -866,7 +942,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_conf_conf_proto_msgTypes[10]
+	mi := &file_conf_conf_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +954,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[10]
+	mi := &file_conf_conf_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -926,7 +1002,7 @@ type Server_GRPC struct {
 
 func (x *Server_GRPC) Reset() {
 	*x = Server_GRPC{}
-	mi := &file_conf_conf_proto_msgTypes[11]
+	mi := &file_conf_conf_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -938,7 +1014,7 @@ func (x *Server_GRPC) String() string {
 func (*Server_GRPC) ProtoMessage() {}
 
 func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[11]
+	mi := &file_conf_conf_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -985,7 +1061,7 @@ type Data_Database struct {
 
 func (x *Data_Database) Reset() {
 	*x = Data_Database{}
-	mi := &file_conf_conf_proto_msgTypes[12]
+	mi := &file_conf_conf_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -997,7 +1073,7 @@ func (x *Data_Database) String() string {
 func (*Data_Database) ProtoMessage() {}
 
 func (x *Data_Database) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[12]
+	mi := &file_conf_conf_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1041,7 +1117,7 @@ type Data_Redis struct {
 
 func (x *Data_Redis) Reset() {
 	*x = Data_Redis{}
-	mi := &file_conf_conf_proto_msgTypes[13]
+	mi := &file_conf_conf_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1053,7 +1129,7 @@ func (x *Data_Redis) String() string {
 func (*Data_Redis) ProtoMessage() {}
 
 func (x *Data_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[13]
+	mi := &file_conf_conf_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1128,7 +1204,7 @@ type Data_ObjectStorage struct {
 
 func (x *Data_ObjectStorage) Reset() {
 	*x = Data_ObjectStorage{}
-	mi := &file_conf_conf_proto_msgTypes[14]
+	mi := &file_conf_conf_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1140,7 +1216,7 @@ func (x *Data_ObjectStorage) String() string {
 func (*Data_ObjectStorage) ProtoMessage() {}
 
 func (x *Data_ObjectStorage) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[14]
+	mi := &file_conf_conf_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1233,7 +1309,7 @@ type Chain_EVM struct {
 
 func (x *Chain_EVM) Reset() {
 	*x = Chain_EVM{}
-	mi := &file_conf_conf_proto_msgTypes[15]
+	mi := &file_conf_conf_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1245,7 +1321,7 @@ func (x *Chain_EVM) String() string {
 func (*Chain_EVM) ProtoMessage() {}
 
 func (x *Chain_EVM) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[15]
+	mi := &file_conf_conf_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1313,7 +1389,7 @@ type Chain_EVM_Retry struct {
 
 func (x *Chain_EVM_Retry) Reset() {
 	*x = Chain_EVM_Retry{}
-	mi := &file_conf_conf_proto_msgTypes[16]
+	mi := &file_conf_conf_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1325,7 +1401,7 @@ func (x *Chain_EVM_Retry) String() string {
 func (*Chain_EVM_Retry) ProtoMessage() {}
 
 func (x *Chain_EVM_Retry) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[16]
+	mi := &file_conf_conf_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1364,7 +1440,7 @@ type Sync_Redis struct {
 
 func (x *Sync_Redis) Reset() {
 	*x = Sync_Redis{}
-	mi := &file_conf_conf_proto_msgTypes[17]
+	mi := &file_conf_conf_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1376,7 +1452,7 @@ func (x *Sync_Redis) String() string {
 func (*Sync_Redis) ProtoMessage() {}
 
 func (x *Sync_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[17]
+	mi := &file_conf_conf_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1413,7 +1489,7 @@ type Sync_Intervals struct {
 
 func (x *Sync_Intervals) Reset() {
 	*x = Sync_Intervals{}
-	mi := &file_conf_conf_proto_msgTypes[18]
+	mi := &file_conf_conf_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1425,7 +1501,7 @@ func (x *Sync_Intervals) String() string {
 func (*Sync_Intervals) ProtoMessage() {}
 
 func (x *Sync_Intervals) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[18]
+	mi := &file_conf_conf_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1492,7 +1568,7 @@ type Sync_Timeouts struct {
 
 func (x *Sync_Timeouts) Reset() {
 	*x = Sync_Timeouts{}
-	mi := &file_conf_conf_proto_msgTypes[19]
+	mi := &file_conf_conf_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1504,7 +1580,7 @@ func (x *Sync_Timeouts) String() string {
 func (*Sync_Timeouts) ProtoMessage() {}
 
 func (x *Sync_Timeouts) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[19]
+	mi := &file_conf_conf_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1538,7 +1614,7 @@ type Sync_Concurrency struct {
 
 func (x *Sync_Concurrency) Reset() {
 	*x = Sync_Concurrency{}
-	mi := &file_conf_conf_proto_msgTypes[20]
+	mi := &file_conf_conf_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1550,7 +1626,7 @@ func (x *Sync_Concurrency) String() string {
 func (*Sync_Concurrency) ProtoMessage() {}
 
 func (x *Sync_Concurrency) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[20]
+	mi := &file_conf_conf_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1676,7 @@ type Sync_BatchSize struct {
 
 func (x *Sync_BatchSize) Reset() {
 	*x = Sync_BatchSize{}
-	mi := &file_conf_conf_proto_msgTypes[21]
+	mi := &file_conf_conf_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1612,7 +1688,7 @@ func (x *Sync_BatchSize) String() string {
 func (*Sync_BatchSize) ProtoMessage() {}
 
 func (x *Sync_BatchSize) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[21]
+	mi := &file_conf_conf_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1673,7 +1749,7 @@ type Sync_Retry struct {
 
 func (x *Sync_Retry) Reset() {
 	*x = Sync_Retry{}
-	mi := &file_conf_conf_proto_msgTypes[22]
+	mi := &file_conf_conf_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1685,7 +1761,7 @@ func (x *Sync_Retry) String() string {
 func (*Sync_Retry) ProtoMessage() {}
 
 func (x *Sync_Retry) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[22]
+	mi := &file_conf_conf_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1724,7 +1800,7 @@ type Sync_Blocks struct {
 
 func (x *Sync_Blocks) Reset() {
 	*x = Sync_Blocks{}
-	mi := &file_conf_conf_proto_msgTypes[23]
+	mi := &file_conf_conf_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1736,7 +1812,7 @@ func (x *Sync_Blocks) String() string {
 func (*Sync_Blocks) ProtoMessage() {}
 
 func (x *Sync_Blocks) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_conf_proto_msgTypes[23]
+	mi := &file_conf_conf_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1759,12 +1835,236 @@ func (x *Sync_Blocks) GetEarliestHeight() uint64 {
 	return 0
 }
 
+type APIManagement_RateLimit struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	IpPerMinute         int32                  `protobuf:"varint,1,opt,name=ip_per_minute,json=ipPerMinute,proto3" json:"ip_per_minute,omitempty"`                         // IP每分钟限制
+	IpPerHour           int32                  `protobuf:"varint,2,opt,name=ip_per_hour,json=ipPerHour,proto3" json:"ip_per_hour,omitempty"`                               // IP每小时限制
+	TokenPerSecond      int32                  `protobuf:"varint,3,opt,name=token_per_second,json=tokenPerSecond,proto3" json:"token_per_second,omitempty"`                // Token每秒限制
+	DefaultMonthlyLimit int32                  `protobuf:"varint,4,opt,name=default_monthly_limit,json=defaultMonthlyLimit,proto3" json:"default_monthly_limit,omitempty"` // 默认月度限额
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *APIManagement_RateLimit) Reset() {
+	*x = APIManagement_RateLimit{}
+	mi := &file_conf_conf_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APIManagement_RateLimit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APIManagement_RateLimit) ProtoMessage() {}
+
+func (x *APIManagement_RateLimit) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APIManagement_RateLimit.ProtoReflect.Descriptor instead.
+func (*APIManagement_RateLimit) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{10, 0}
+}
+
+func (x *APIManagement_RateLimit) GetIpPerMinute() int32 {
+	if x != nil {
+		return x.IpPerMinute
+	}
+	return 0
+}
+
+func (x *APIManagement_RateLimit) GetIpPerHour() int32 {
+	if x != nil {
+		return x.IpPerHour
+	}
+	return 0
+}
+
+func (x *APIManagement_RateLimit) GetTokenPerSecond() int32 {
+	if x != nil {
+		return x.TokenPerSecond
+	}
+	return 0
+}
+
+func (x *APIManagement_RateLimit) GetDefaultMonthlyLimit() int32 {
+	if x != nil {
+		return x.DefaultMonthlyLimit
+	}
+	return 0
+}
+
+type APIManagement_UsageStats struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AsyncDelaySeconds int32                  `protobuf:"varint,1,opt,name=async_delay_seconds,json=asyncDelaySeconds,proto3" json:"async_delay_seconds,omitempty"` // 异步统计延迟（1-5秒）
+	ArchiveDays       int32                  `protobuf:"varint,2,opt,name=archive_days,json=archiveDays,proto3" json:"archive_days,omitempty"`                     // 归档天数（90天）
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *APIManagement_UsageStats) Reset() {
+	*x = APIManagement_UsageStats{}
+	mi := &file_conf_conf_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APIManagement_UsageStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APIManagement_UsageStats) ProtoMessage() {}
+
+func (x *APIManagement_UsageStats) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APIManagement_UsageStats.ProtoReflect.Descriptor instead.
+func (*APIManagement_UsageStats) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{10, 1}
+}
+
+func (x *APIManagement_UsageStats) GetAsyncDelaySeconds() int32 {
+	if x != nil {
+		return x.AsyncDelaySeconds
+	}
+	return 0
+}
+
+func (x *APIManagement_UsageStats) GetArchiveDays() int32 {
+	if x != nil {
+		return x.ArchiveDays
+	}
+	return 0
+}
+
+type APIManagement_IPLocation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GeoipDbPath   string                 `protobuf:"bytes,1,opt,name=geoip_db_path,json=geoipDbPath,proto3" json:"geoip_db_path,omitempty"` // GeoIP2数据库路径
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *APIManagement_IPLocation) Reset() {
+	*x = APIManagement_IPLocation{}
+	mi := &file_conf_conf_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APIManagement_IPLocation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APIManagement_IPLocation) ProtoMessage() {}
+
+func (x *APIManagement_IPLocation) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APIManagement_IPLocation.ProtoReflect.Descriptor instead.
+func (*APIManagement_IPLocation) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{10, 2}
+}
+
+func (x *APIManagement_IPLocation) GetGeoipDbPath() string {
+	if x != nil {
+		return x.GeoipDbPath
+	}
+	return ""
+}
+
+type APIManagement_ArchiveUsage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Interval      *durationpb.Duration   `protobuf:"bytes,2,opt,name=interval,proto3" json:"interval,omitempty"`
+	BatchSize     int32                  `protobuf:"varint,3,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *APIManagement_ArchiveUsage) Reset() {
+	*x = APIManagement_ArchiveUsage{}
+	mi := &file_conf_conf_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APIManagement_ArchiveUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APIManagement_ArchiveUsage) ProtoMessage() {}
+
+func (x *APIManagement_ArchiveUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APIManagement_ArchiveUsage.ProtoReflect.Descriptor instead.
+func (*APIManagement_ArchiveUsage) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{10, 3}
+}
+
+func (x *APIManagement_ArchiveUsage) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *APIManagement_ArchiveUsage) GetInterval() *durationpb.Duration {
+	if x != nil {
+		return x.Interval
+	}
+	return nil
+}
+
+func (x *APIManagement_ArchiveUsage) GetBatchSize() int32 {
+	if x != nil {
+		return x.BatchSize
+	}
+	return 0
+}
+
 var File_conf_conf_proto protoreflect.FileDescriptor
 
 const file_conf_conf_proto_rawDesc = "" +
 	"\n" +
 	"\x0fconf/conf.proto\x12\n" +
-	"kratos.api\x1a\x1egoogle/protobuf/duration.proto\"\xdd\x02\n" +
+	"kratos.api\x1a\x1egoogle/protobuf/duration.proto\"\x9f\x03\n" +
 	"\tBootstrap\x12*\n" +
 	"\x06server\x18\x01 \x01(\v2\x12.kratos.api.ServerR\x06server\x12$\n" +
 	"\x04data\x18\x02 \x01(\v2\x10.kratos.api.DataR\x04data\x12$\n" +
@@ -1774,7 +2074,8 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x04sync\x18\x06 \x01(\v2\x10.kratos.api.SyncR\x04sync\x12-\n" +
 	"\aarchive\x18\a \x01(\v2\x13.kratos.api.ArchiveR\aarchive\x127\n" +
 	"\vtoken_price\x18\b \x01(\v2\x16.kratos.api.TokenPriceR\n" +
-	"tokenPrice\"\x80\x03\n" +
+	"tokenPrice\x12@\n" +
+	"\x0eapi_management\x18\t \x01(\v2\x19.kratos.api.APIManagementR\rapiManagement\"\x80\x03\n" +
 	"\x06Server\x12+\n" +
 	"\x04http\x18\x01 \x01(\v2\x17.kratos.api.Server.HTTPR\x04http\x12+\n" +
 	"\x04grpc\x18\x02 \x01(\v2\x17.kratos.api.Server.GRPCR\x04grpc\x12%\n" +
@@ -1911,7 +2212,32 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\bdecimals\x18\x04 \x01(\x05R\bdecimals\x12!\n" +
 	"\fprice_source\x18\x05 \x01(\tR\vpriceSource\x12(\n" +
 	"\x10custom_price_url\x18\x06 \x01(\tR\x0ecustomPriceUrl\x12!\n" +
-	"\fdisplay_name\x18\a \x01(\tR\vdisplayNameB\"Z injective-explorer/internal/conf;confb\x06proto3"
+	"\fdisplay_name\x18\a \x01(\tR\vdisplayName\"\xf1\x05\n" +
+	"\rAPIManagement\x12B\n" +
+	"\n" +
+	"rate_limit\x18\x01 \x01(\v2#.kratos.api.APIManagement.RateLimitR\trateLimit\x12E\n" +
+	"\vusage_stats\x18\x02 \x01(\v2$.kratos.api.APIManagement.UsageStatsR\n" +
+	"usageStats\x12E\n" +
+	"\vip_location\x18\x03 \x01(\v2$.kratos.api.APIManagement.IPLocationR\n" +
+	"ipLocation\x12K\n" +
+	"\rarchive_usage\x18\x04 \x01(\v2&.kratos.api.APIManagement.ArchiveUsageR\farchiveUsage\x1a\xad\x01\n" +
+	"\tRateLimit\x12\"\n" +
+	"\rip_per_minute\x18\x01 \x01(\x05R\vipPerMinute\x12\x1e\n" +
+	"\vip_per_hour\x18\x02 \x01(\x05R\tipPerHour\x12(\n" +
+	"\x10token_per_second\x18\x03 \x01(\x05R\x0etokenPerSecond\x122\n" +
+	"\x15default_monthly_limit\x18\x04 \x01(\x05R\x13defaultMonthlyLimit\x1a_\n" +
+	"\n" +
+	"UsageStats\x12.\n" +
+	"\x13async_delay_seconds\x18\x01 \x01(\x05R\x11asyncDelaySeconds\x12!\n" +
+	"\farchive_days\x18\x02 \x01(\x05R\varchiveDays\x1a0\n" +
+	"\n" +
+	"IPLocation\x12\"\n" +
+	"\rgeoip_db_path\x18\x01 \x01(\tR\vgeoipDbPath\x1a~\n" +
+	"\fArchiveUsage\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x125\n" +
+	"\binterval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\binterval\x12\x1d\n" +
+	"\n" +
+	"batch_size\x18\x03 \x01(\x05R\tbatchSizeB\"Z injective-explorer/internal/conf;confb\x06proto3"
 
 var (
 	file_conf_conf_proto_rawDescOnce sync.Once
@@ -1925,34 +2251,39 @@ func file_conf_conf_proto_rawDescGZIP() []byte {
 	return file_conf_conf_proto_rawDescData
 }
 
-var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_conf_conf_proto_goTypes = []any{
-	(*Bootstrap)(nil),           // 0: kratos.api.Bootstrap
-	(*Server)(nil),              // 1: kratos.api.Server
-	(*Data)(nil),                // 2: kratos.api.Data
-	(*Node)(nil),                // 3: kratos.api.Node
-	(*Log)(nil),                 // 4: kratos.api.Log
-	(*Chain)(nil),               // 5: kratos.api.Chain
-	(*Sync)(nil),                // 6: kratos.api.Sync
-	(*Archive)(nil),             // 7: kratos.api.Archive
-	(*TokenPrice)(nil),          // 8: kratos.api.TokenPrice
-	(*TokenConfig)(nil),         // 9: kratos.api.TokenConfig
-	(*Server_HTTP)(nil),         // 10: kratos.api.Server.HTTP
-	(*Server_GRPC)(nil),         // 11: kratos.api.Server.GRPC
-	(*Data_Database)(nil),       // 12: kratos.api.Data.Database
-	(*Data_Redis)(nil),          // 13: kratos.api.Data.Redis
-	(*Data_ObjectStorage)(nil),  // 14: kratos.api.Data.ObjectStorage
-	(*Chain_EVM)(nil),           // 15: kratos.api.Chain.EVM
-	(*Chain_EVM_Retry)(nil),     // 16: kratos.api.Chain.EVM.Retry
-	(*Sync_Redis)(nil),          // 17: kratos.api.Sync.Redis
-	(*Sync_Intervals)(nil),      // 18: kratos.api.Sync.Intervals
-	(*Sync_Timeouts)(nil),       // 19: kratos.api.Sync.Timeouts
-	(*Sync_Concurrency)(nil),    // 20: kratos.api.Sync.Concurrency
-	(*Sync_BatchSize)(nil),      // 21: kratos.api.Sync.BatchSize
-	(*Sync_Retry)(nil),          // 22: kratos.api.Sync.Retry
-	(*Sync_Blocks)(nil),         // 23: kratos.api.Sync.Blocks
-	nil,                         // 24: kratos.api.TokenPrice.TokensEntry
-	(*durationpb.Duration)(nil), // 25: google.protobuf.Duration
+	(*Bootstrap)(nil),                  // 0: kratos.api.Bootstrap
+	(*Server)(nil),                     // 1: kratos.api.Server
+	(*Data)(nil),                       // 2: kratos.api.Data
+	(*Node)(nil),                       // 3: kratos.api.Node
+	(*Log)(nil),                        // 4: kratos.api.Log
+	(*Chain)(nil),                      // 5: kratos.api.Chain
+	(*Sync)(nil),                       // 6: kratos.api.Sync
+	(*Archive)(nil),                    // 7: kratos.api.Archive
+	(*TokenPrice)(nil),                 // 8: kratos.api.TokenPrice
+	(*TokenConfig)(nil),                // 9: kratos.api.TokenConfig
+	(*APIManagement)(nil),              // 10: kratos.api.APIManagement
+	(*Server_HTTP)(nil),                // 11: kratos.api.Server.HTTP
+	(*Server_GRPC)(nil),                // 12: kratos.api.Server.GRPC
+	(*Data_Database)(nil),              // 13: kratos.api.Data.Database
+	(*Data_Redis)(nil),                 // 14: kratos.api.Data.Redis
+	(*Data_ObjectStorage)(nil),         // 15: kratos.api.Data.ObjectStorage
+	(*Chain_EVM)(nil),                  // 16: kratos.api.Chain.EVM
+	(*Chain_EVM_Retry)(nil),            // 17: kratos.api.Chain.EVM.Retry
+	(*Sync_Redis)(nil),                 // 18: kratos.api.Sync.Redis
+	(*Sync_Intervals)(nil),             // 19: kratos.api.Sync.Intervals
+	(*Sync_Timeouts)(nil),              // 20: kratos.api.Sync.Timeouts
+	(*Sync_Concurrency)(nil),           // 21: kratos.api.Sync.Concurrency
+	(*Sync_BatchSize)(nil),             // 22: kratos.api.Sync.BatchSize
+	(*Sync_Retry)(nil),                 // 23: kratos.api.Sync.Retry
+	(*Sync_Blocks)(nil),                // 24: kratos.api.Sync.Blocks
+	nil,                                // 25: kratos.api.TokenPrice.TokensEntry
+	(*APIManagement_RateLimit)(nil),    // 26: kratos.api.APIManagement.RateLimit
+	(*APIManagement_UsageStats)(nil),   // 27: kratos.api.APIManagement.UsageStats
+	(*APIManagement_IPLocation)(nil),   // 28: kratos.api.APIManagement.IPLocation
+	(*APIManagement_ArchiveUsage)(nil), // 29: kratos.api.APIManagement.ArchiveUsage
+	(*durationpb.Duration)(nil),        // 30: google.protobuf.Duration
 }
 var file_conf_conf_proto_depIdxs = []int32{
 	1,  // 0: kratos.api.Bootstrap.server:type_name -> kratos.api.Server
@@ -1963,45 +2294,51 @@ var file_conf_conf_proto_depIdxs = []int32{
 	6,  // 5: kratos.api.Bootstrap.sync:type_name -> kratos.api.Sync
 	7,  // 6: kratos.api.Bootstrap.archive:type_name -> kratos.api.Archive
 	8,  // 7: kratos.api.Bootstrap.token_price:type_name -> kratos.api.TokenPrice
-	10, // 8: kratos.api.Server.http:type_name -> kratos.api.Server.HTTP
-	11, // 9: kratos.api.Server.grpc:type_name -> kratos.api.Server.GRPC
-	12, // 10: kratos.api.Data.database:type_name -> kratos.api.Data.Database
-	13, // 11: kratos.api.Data.redis:type_name -> kratos.api.Data.Redis
-	14, // 12: kratos.api.Data.object_storage:type_name -> kratos.api.Data.ObjectStorage
-	15, // 13: kratos.api.Chain.evm:type_name -> kratos.api.Chain.EVM
-	17, // 14: kratos.api.Sync.redis:type_name -> kratos.api.Sync.Redis
-	18, // 15: kratos.api.Sync.intervals:type_name -> kratos.api.Sync.Intervals
-	19, // 16: kratos.api.Sync.timeouts:type_name -> kratos.api.Sync.Timeouts
-	20, // 17: kratos.api.Sync.concurrency:type_name -> kratos.api.Sync.Concurrency
-	21, // 18: kratos.api.Sync.batch_size:type_name -> kratos.api.Sync.BatchSize
-	22, // 19: kratos.api.Sync.retry:type_name -> kratos.api.Sync.Retry
-	23, // 20: kratos.api.Sync.blocks:type_name -> kratos.api.Sync.Blocks
-	25, // 21: kratos.api.Archive.interval:type_name -> google.protobuf.Duration
-	9,  // 22: kratos.api.TokenPrice.default_token:type_name -> kratos.api.TokenConfig
-	24, // 23: kratos.api.TokenPrice.tokens:type_name -> kratos.api.TokenPrice.TokensEntry
-	25, // 24: kratos.api.TokenPrice.price_cache_ttl:type_name -> google.protobuf.Duration
-	25, // 25: kratos.api.TokenPrice.supply_cache_ttl:type_name -> google.protobuf.Duration
-	25, // 26: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	25, // 27: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	25, // 28: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
-	25, // 29: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
-	25, // 30: kratos.api.Chain.EVM.timeout:type_name -> google.protobuf.Duration
-	16, // 31: kratos.api.Chain.EVM.retry:type_name -> kratos.api.Chain.EVM.Retry
-	25, // 32: kratos.api.Chain.EVM.Retry.initial_delay:type_name -> google.protobuf.Duration
-	25, // 33: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
-	25, // 34: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
-	25, // 35: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
-	25, // 36: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
-	25, // 37: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
-	25, // 38: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
-	25, // 39: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
-	25, // 40: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
-	9,  // 41: kratos.api.TokenPrice.TokensEntry.value:type_name -> kratos.api.TokenConfig
-	42, // [42:42] is the sub-list for method output_type
-	42, // [42:42] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	10, // 8: kratos.api.Bootstrap.api_management:type_name -> kratos.api.APIManagement
+	11, // 9: kratos.api.Server.http:type_name -> kratos.api.Server.HTTP
+	12, // 10: kratos.api.Server.grpc:type_name -> kratos.api.Server.GRPC
+	13, // 11: kratos.api.Data.database:type_name -> kratos.api.Data.Database
+	14, // 12: kratos.api.Data.redis:type_name -> kratos.api.Data.Redis
+	15, // 13: kratos.api.Data.object_storage:type_name -> kratos.api.Data.ObjectStorage
+	16, // 14: kratos.api.Chain.evm:type_name -> kratos.api.Chain.EVM
+	18, // 15: kratos.api.Sync.redis:type_name -> kratos.api.Sync.Redis
+	19, // 16: kratos.api.Sync.intervals:type_name -> kratos.api.Sync.Intervals
+	20, // 17: kratos.api.Sync.timeouts:type_name -> kratos.api.Sync.Timeouts
+	21, // 18: kratos.api.Sync.concurrency:type_name -> kratos.api.Sync.Concurrency
+	22, // 19: kratos.api.Sync.batch_size:type_name -> kratos.api.Sync.BatchSize
+	23, // 20: kratos.api.Sync.retry:type_name -> kratos.api.Sync.Retry
+	24, // 21: kratos.api.Sync.blocks:type_name -> kratos.api.Sync.Blocks
+	30, // 22: kratos.api.Archive.interval:type_name -> google.protobuf.Duration
+	9,  // 23: kratos.api.TokenPrice.default_token:type_name -> kratos.api.TokenConfig
+	25, // 24: kratos.api.TokenPrice.tokens:type_name -> kratos.api.TokenPrice.TokensEntry
+	30, // 25: kratos.api.TokenPrice.price_cache_ttl:type_name -> google.protobuf.Duration
+	30, // 26: kratos.api.TokenPrice.supply_cache_ttl:type_name -> google.protobuf.Duration
+	26, // 27: kratos.api.APIManagement.rate_limit:type_name -> kratos.api.APIManagement.RateLimit
+	27, // 28: kratos.api.APIManagement.usage_stats:type_name -> kratos.api.APIManagement.UsageStats
+	28, // 29: kratos.api.APIManagement.ip_location:type_name -> kratos.api.APIManagement.IPLocation
+	29, // 30: kratos.api.APIManagement.archive_usage:type_name -> kratos.api.APIManagement.ArchiveUsage
+	30, // 31: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	30, // 32: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	30, // 33: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
+	30, // 34: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
+	30, // 35: kratos.api.Chain.EVM.timeout:type_name -> google.protobuf.Duration
+	17, // 36: kratos.api.Chain.EVM.retry:type_name -> kratos.api.Chain.EVM.Retry
+	30, // 37: kratos.api.Chain.EVM.Retry.initial_delay:type_name -> google.protobuf.Duration
+	30, // 38: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
+	30, // 39: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
+	30, // 40: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
+	30, // 41: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
+	30, // 42: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
+	30, // 43: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
+	30, // 44: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
+	30, // 45: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
+	9,  // 46: kratos.api.TokenPrice.TokensEntry.value:type_name -> kratos.api.TokenConfig
+	30, // 47: kratos.api.APIManagement.ArchiveUsage.interval:type_name -> google.protobuf.Duration
+	48, // [48:48] is the sub-list for method output_type
+	48, // [48:48] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
@@ -2015,7 +2352,7 @@ func file_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_conf_proto_rawDesc), len(file_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

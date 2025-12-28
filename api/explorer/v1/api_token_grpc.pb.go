@@ -19,10 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	APITokenService_CreateToken_FullMethodName   = "/api.explorer.v1.APITokenService/CreateToken"
-	APITokenService_ListTokens_FullMethodName    = "/api.explorer.v1.APITokenService/ListTokens"
-	APITokenService_DeleteToken_FullMethodName   = "/api.explorer.v1.APITokenService/DeleteToken"
-	APITokenService_GetTokenUsage_FullMethodName = "/api.explorer.v1.APITokenService/GetTokenUsage"
+	APITokenService_CreateToken_FullMethodName       = "/api.explorer.v1.APITokenService/CreateToken"
+	APITokenService_ListTokens_FullMethodName        = "/api.explorer.v1.APITokenService/ListTokens"
+	APITokenService_DeleteToken_FullMethodName       = "/api.explorer.v1.APITokenService/DeleteToken"
+	APITokenService_GetTokenUsage_FullMethodName     = "/api.explorer.v1.APITokenService/GetTokenUsage"
+	APITokenService_GetDashboardStats_FullMethodName = "/api.explorer.v1.APITokenService/GetDashboardStats"
+	APITokenService_ExportUsageLogs_FullMethodName   = "/api.explorer.v1.APITokenService/ExportUsageLogs"
 )
 
 // APITokenServiceClient is the client API for APITokenService service.
@@ -39,6 +41,10 @@ type APITokenServiceClient interface {
 	DeleteToken(ctx context.Context, in *DeleteTokenRequest, opts ...grpc.CallOption) (*DeleteTokenResponse, error)
 	// GetTokenUsage gets token usage statistics
 	GetTokenUsage(ctx context.Context, in *GetTokenUsageRequest, opts ...grpc.CallOption) (*GetTokenUsageResponse, error)
+	// GetDashboardStats gets dashboard statistics for a user
+	GetDashboardStats(ctx context.Context, in *GetDashboardStatsRequest, opts ...grpc.CallOption) (*GetDashboardStatsResponse, error)
+	// ExportUsageLogs exports usage logs to Excel format
+	ExportUsageLogs(ctx context.Context, in *ExportUsageLogsRequest, opts ...grpc.CallOption) (*ExportUsageLogsResponse, error)
 }
 
 type aPITokenServiceClient struct {
@@ -89,6 +95,26 @@ func (c *aPITokenServiceClient) GetTokenUsage(ctx context.Context, in *GetTokenU
 	return out, nil
 }
 
+func (c *aPITokenServiceClient) GetDashboardStats(ctx context.Context, in *GetDashboardStatsRequest, opts ...grpc.CallOption) (*GetDashboardStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetDashboardStatsResponse)
+	err := c.cc.Invoke(ctx, APITokenService_GetDashboardStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aPITokenServiceClient) ExportUsageLogs(ctx context.Context, in *ExportUsageLogsRequest, opts ...grpc.CallOption) (*ExportUsageLogsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportUsageLogsResponse)
+	err := c.cc.Invoke(ctx, APITokenService_ExportUsageLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // APITokenServiceServer is the server API for APITokenService service.
 // All implementations must embed UnimplementedAPITokenServiceServer
 // for forward compatibility.
@@ -103,6 +129,10 @@ type APITokenServiceServer interface {
 	DeleteToken(context.Context, *DeleteTokenRequest) (*DeleteTokenResponse, error)
 	// GetTokenUsage gets token usage statistics
 	GetTokenUsage(context.Context, *GetTokenUsageRequest) (*GetTokenUsageResponse, error)
+	// GetDashboardStats gets dashboard statistics for a user
+	GetDashboardStats(context.Context, *GetDashboardStatsRequest) (*GetDashboardStatsResponse, error)
+	// ExportUsageLogs exports usage logs to Excel format
+	ExportUsageLogs(context.Context, *ExportUsageLogsRequest) (*ExportUsageLogsResponse, error)
 	mustEmbedUnimplementedAPITokenServiceServer()
 }
 
@@ -124,6 +154,12 @@ func (UnimplementedAPITokenServiceServer) DeleteToken(context.Context, *DeleteTo
 }
 func (UnimplementedAPITokenServiceServer) GetTokenUsage(context.Context, *GetTokenUsageRequest) (*GetTokenUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTokenUsage not implemented")
+}
+func (UnimplementedAPITokenServiceServer) GetDashboardStats(context.Context, *GetDashboardStatsRequest) (*GetDashboardStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDashboardStats not implemented")
+}
+func (UnimplementedAPITokenServiceServer) ExportUsageLogs(context.Context, *ExportUsageLogsRequest) (*ExportUsageLogsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportUsageLogs not implemented")
 }
 func (UnimplementedAPITokenServiceServer) mustEmbedUnimplementedAPITokenServiceServer() {}
 func (UnimplementedAPITokenServiceServer) testEmbeddedByValue()                         {}
@@ -218,6 +254,42 @@ func _APITokenService_GetTokenUsage_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _APITokenService_GetDashboardStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDashboardStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(APITokenServiceServer).GetDashboardStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: APITokenService_GetDashboardStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(APITokenServiceServer).GetDashboardStats(ctx, req.(*GetDashboardStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _APITokenService_ExportUsageLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportUsageLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(APITokenServiceServer).ExportUsageLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: APITokenService_ExportUsageLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(APITokenServiceServer).ExportUsageLogs(ctx, req.(*ExportUsageLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // APITokenService_ServiceDesc is the grpc.ServiceDesc for APITokenService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -240,6 +312,14 @@ var APITokenService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTokenUsage",
 			Handler:    _APITokenService_GetTokenUsage_Handler,
+		},
+		{
+			MethodName: "GetDashboardStats",
+			Handler:    _APITokenService_GetDashboardStats_Handler,
+		},
+		{
+			MethodName: "ExportUsageLogs",
+			Handler:    _APITokenService_ExportUsageLogs_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

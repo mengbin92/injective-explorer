@@ -18,13 +18,14 @@ import (
 // Parameters:
 //   - rateLimiter: The rate limiter instance
 //   - statsService: The usage stats service instance
+//   - ipLocationService: Optional IP location service for geolocation (can be nil)
 //
 // Returns:
 //   - middleware.Middleware: A middleware function that selectively applies auth, rate limiting, and stats
-func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService *service.UsageStatsService) middleware.Middleware {
+func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService *service.UsageStatsService, ipLocationService *service.IPLocationService) middleware.Middleware {
 	authMiddleware := AuthMiddleware()
 	rateLimitMiddleware := RateLimitMiddleware(rateLimiter)
-	statsMiddleware := StatsMiddleware(statsService)
+	statsMiddleware := StatsMiddleware(statsService, ipLocationService)
 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {

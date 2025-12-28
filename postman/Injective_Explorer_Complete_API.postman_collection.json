@@ -1,0 +1,2037 @@
+{
+	"info": {
+		"_postman_id": "injective-explorer-complete-api",
+		"name": "Injective Explorer - Complete API Collection",
+		"description": "Complete API collection for all HTTP endpoints in Injective Explorer",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "injective-explorer"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Check Health",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has status field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health?service=all",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"health"
+							],
+							"query": [
+								{
+									"key": "service",
+									"value": "all",
+									"description": "Optional: service name to check"
+								}
+							]
+						},
+						"description": "Health check endpoint for gRPC-Web"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Block APIs",
+			"item": [
+				{
+					"name": "Get Latest Blocks",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"description": "API token for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest?page=1&page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "页码，从1开始，默认1"
+								},
+								{
+									"key": "page_size",
+									"value": "20",
+									"description": "每页大小，默认20，最大100"
+								},
+								{
+									"key": "cursor",
+									"value": "",
+									"description": "游标（基于游标的分页，优先级高于 page）",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get latest blocks with pagination"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Block By Height",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/by-height?height={{block_height}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"by-height"
+							],
+							"query": [
+								{
+									"key": "height",
+									"value": "{{block_height}}",
+									"description": "Block height"
+								}
+							]
+						},
+						"description": "Get block information by block height"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Latest Block Height",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has height\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('height');",
+									"        // Save height for later use",
+									"        pm.environment.set('block_height', jsonData.data.height);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Get the latest block height"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Block Gas Utilization",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has gas utilization data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('gas_utilization');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/gas-utilization",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"gas-utilization"
+							]
+						},
+						"description": "Get block gas utilization for the latest 10 blocks"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Transaction APIs",
+			"item": [
+				{
+					"name": "Get Latest Transactions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    if (jsonData.code === 0 && jsonData.data && jsonData.data.transactions) {",
+									"        var tx = jsonData.data.transactions[0];",
+									"        if (tx && tx.hash) {",
+									"            pm.environment.set('tx_hash', tx.hash);",
+									"        }",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/transaction/latest?page=1&page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transaction",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "页码，从1开始，默认1"
+								},
+								{
+									"key": "page_size",
+									"value": "20",
+									"description": "每页大小，默认20，最大100"
+								},
+								{
+									"key": "cursor",
+									"value": "",
+									"description": "游标（基于游标的分页，优先级高于 page）",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get latest transactions with pagination"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Transaction By Hash",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has transaction data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('hash');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/transaction/by-hash?hash={{tx_hash}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transaction",
+								"by-hash"
+							],
+							"query": [
+								{
+									"key": "hash",
+									"value": "{{tx_hash}}",
+									"description": "Transaction hash"
+								}
+							]
+						},
+						"description": "Get transaction details by hash"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Transaction Stats",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has stats data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('total_count');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/transaction/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transaction",
+								"stats"
+							]
+						},
+						"description": "Get transaction volume statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Failed Transactions (24h)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/transaction/failed-24h?pagination.page=1&pagination.page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transaction",
+								"failed-24h"
+							],
+							"query": [
+								{
+									"key": "pagination.page",
+									"value": "1",
+									"description": "页码，从1开始，默认1"
+								},
+								{
+									"key": "pagination.page_size",
+									"value": "20",
+									"description": "每页大小，默认20，最大100"
+								},
+								{
+									"key": "pagination.cursor",
+									"value": "",
+									"description": "游标（基于游标的分页，优先级高于 page）",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get failed transactions in the last 24 hours with failure reasons"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Failed Transactions (Latest 1000)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/transaction/failed-1000",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transaction",
+								"failed-1000"
+							]
+						},
+						"description": "Get failure statistics for the latest 1000 transactions"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Account APIs",
+			"item": [
+				{
+					"name": "Get Account Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has account data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('address');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/account/info?address={{account_address}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"account",
+								"info"
+							],
+							"query": [
+								{
+									"key": "address",
+									"value": "{{account_address}}",
+									"description": "Account address (inj1... or 0x...)"
+								}
+							]
+						},
+						"description": "Get account information"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Account Transactions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/account/transactions?address={{account_address}}&pagination.page=1&pagination.page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"account",
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "address",
+									"value": "{{account_address}}",
+									"description": "Account address"
+								},
+								{
+									"key": "pagination.page",
+									"value": "1",
+									"description": "页码，从1开始，默认1"
+								},
+								{
+									"key": "pagination.page_size",
+									"value": "20",
+									"description": "每页大小，默认20，最大100"
+								},
+								{
+									"key": "tx_types",
+									"value": "",
+									"description": "Optional: filter by message types (e.g., MsgSend, MsgDeposit)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get account transactions with optional type filtering"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Account Balances",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has balances\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('balances');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/account/balances?address={{account_address}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"account",
+								"balances"
+							],
+							"query": [
+								{
+									"key": "address",
+									"value": "{{account_address}}",
+									"description": "Account address"
+								}
+							]
+						},
+						"description": "Get account balances"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "EVM APIs",
+			"item": [
+				{
+					"name": "Get EVM Transaction",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has EVM transaction data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('hash');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/evm/transaction/{{evm_tx_hash}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"evm",
+								"transaction",
+								"{{evm_tx_hash}}"
+							]
+						},
+						"description": "Get EVM transaction by hash"
+					},
+					"response": []
+				},
+				{
+					"name": "Get EVM Transactions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/evm/transactions?page=1&pageSize=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"evm",
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "20",
+									"description": "Page size (default: 20, max: 100)"
+								},
+								{
+									"key": "cursor",
+									"value": "",
+									"description": "Cursor for cursor-based pagination",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get EVM transactions list"
+					},
+					"response": []
+				},
+				{
+					"name": "Get EVM Account Transactions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/evm/account/{{account_address}}/transactions?page=1&pageSize=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"evm",
+								"account",
+								"{{account_address}}",
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "20",
+									"description": "Page size (default: 20, max: 100)"
+								},
+								{
+									"key": "cursor",
+									"value": "",
+									"description": "Cursor for cursor-based pagination",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get EVM account transactions (supports 0x and inj1 format)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Token Price APIs",
+			"item": [
+				{
+					"name": "Get Token Price and Market Cap",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has price data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('price_usd');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/token/price-marketcap?token_symbol={{token_symbol}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"token",
+								"price-marketcap"
+							],
+							"query": [
+								{
+									"key": "token_symbol",
+									"value": "{{token_symbol}}",
+									"description": "Token symbol (e.g., inj, mycoin). If not specified, uses default token from configuration",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get token price and market cap (supports multiple tokens). If token symbol is not specified, uses the default token from configuration."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Contract Info APIs",
+			"item": [
+				{
+					"name": "Create Contract Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"contractAddress\": \"{{contract_address}}\",\n    \"name\": \"Test Contract\",\n    \"tokenName\": \"Test Token\",\n    \"tokenSymbol\": \"TEST\",\n    \"contractType\": \"cosmwasm\",\n    \"chainId\": \"injective-1\",\n    \"verificationStatus\": \"unverified\",\n    \"metadata\": {\n        \"description\": \"Test contract\"\n    },\n    \"tags\": [\"test\", \"demo\"]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info"
+							]
+						},
+						"description": "Create a new contract information"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contract Info By Address",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info/by-address?contractAddress={{contract_address}}&chainId={{chain_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info",
+								"by-address"
+							],
+							"query": [
+								{
+									"key": "contractAddress",
+									"value": "{{contract_address}}",
+									"description": "Contract address (required)"
+								},
+								{
+									"key": "chainId",
+									"value": "{{chain_id}}",
+									"description": "Chain ID (optional)"
+								}
+							]
+						},
+						"description": "Retrieve contract information by address"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contracts By Symbol",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info/by-symbol?symbol={{token_symbol}}&chainId={{chain_id}}&pagination.page=1&pagination.page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info",
+								"by-symbol"
+							],
+							"query": [
+								{
+									"key": "symbol",
+									"value": "{{token_symbol}}",
+									"description": "Symbol (required, e.g., token symbol for token contracts)"
+								},
+								{
+									"key": "chainId",
+									"value": "{{chain_id}}",
+									"description": "Chain ID (optional, for filtering)"
+								},
+								{
+									"key": "contractType",
+									"value": "",
+									"description": "Contract type (optional, for filtering)",
+									"disabled": true
+								},
+								{
+									"key": "pagination.page",
+									"value": "1",
+									"description": "页码，从1开始，默认1"
+								},
+								{
+									"key": "pagination.page_size",
+									"value": "20",
+									"description": "每页大小，默认20，最大100"
+								}
+							]
+						},
+						"description": "Retrieve contracts by symbol (supports one-to-many relationship). Primarily used for token contracts."
+					},
+					"response": []
+				},
+				{
+					"name": "List Contract Infos",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info/list?chainId={{chain_id}}&pagination.page=1&pagination.page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info",
+								"list"
+							],
+							"query": [
+								{
+									"key": "chainId",
+									"value": "{{chain_id}}",
+									"description": "Chain ID (optional)",
+									"disabled": true
+								},
+								{
+									"key": "contractType",
+									"value": "",
+									"description": "Contract type (optional)",
+									"disabled": true
+								},
+								{
+									"key": "verificationStatus",
+									"value": "",
+									"description": "Verification status (optional)",
+									"disabled": true
+								},
+								{
+									"key": "name",
+									"value": "",
+									"description": "Name (optional, fuzzy match)",
+									"disabled": true
+								},
+								{
+									"key": "symbol",
+									"value": "",
+									"description": "Symbol (optional, fuzzy match)",
+									"disabled": true
+								},
+								{
+									"key": "pagination.page",
+									"value": "1",
+									"description": "页码，从1开始，默认1"
+								},
+								{
+									"key": "pagination.page_size",
+									"value": "20",
+									"description": "每页大小，默认20，最大100"
+								}
+							]
+						},
+						"description": "List contract information with various filter conditions"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Contract Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"contractAddress\": \"{{contract_address}}\",\n    \"chainId\": \"{{chain_id}}\",\n    \"name\": \"Updated Contract Name\",\n    \"tokenName\": \"Updated Token Name\",\n    \"tokenSymbol\": \"UPD\",\n    \"verificationStatus\": \"verified\",\n    \"metadata\": {\n        \"description\": \"Updated contract\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info"
+							]
+						},
+						"description": "Update contract information"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Contract Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info?contractAddress={{contract_address}}&chainId={{chain_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info"
+							],
+							"query": [
+								{
+									"key": "contractAddress",
+									"value": "{{contract_address}}",
+									"description": "Contract address (required)"
+								},
+								{
+									"key": "chainId",
+									"value": "{{chain_id}}",
+									"description": "Chain ID (required)"
+								}
+							]
+						},
+						"description": "Delete contract information (soft delete)"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Contract Tag",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"contractAddress\": \"{{contract_address}}\",\n    \"chainId\": \"{{chain_id}}\",\n    \"tagType\": \"category\",\n    \"tagValue\": \"DeFi\",\n    \"tagColor\": \"#FF5733\",\n    \"description\": \"DeFi category tag\",\n    \"createdBy\": \"test_user\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info/tag",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info",
+								"tag"
+							]
+						},
+						"description": "Add a tag to a contract"
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Contract Tag",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info/tag?contractAddress={{contract_address}}&chainId={{chain_id}}&tagType=category",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info",
+								"tag"
+							],
+							"query": [
+								{
+									"key": "contractAddress",
+									"value": "{{contract_address}}",
+									"description": "Contract address (required)"
+								},
+								{
+									"key": "chainId",
+									"value": "{{chain_id}}",
+									"description": "Chain ID (required)"
+								},
+								{
+									"key": "tagType",
+									"value": "category",
+									"description": "Tag type (required)"
+								}
+							]
+						},
+						"description": "Remove a tag from a contract"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contract Tags",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contract/info/tags?contractAddress={{contract_address}}&chainId={{chain_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"contract",
+								"info",
+								"tags"
+							],
+							"query": [
+								{
+									"key": "contractAddress",
+									"value": "{{contract_address}}",
+									"description": "Contract address (required)"
+								},
+								{
+									"key": "chainId",
+									"value": "{{chain_id}}",
+									"description": "Chain ID (required)"
+								}
+							]
+						},
+						"description": "Retrieve all tags for a contract"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API Token Management",
+			"item": [
+				{
+					"name": "Create Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('token');",
+									"    pm.expect(jsonData).to.have.property('token_preview');",
+									"    pm.expect(jsonData).to.have.property('token_id');",
+									"    ",
+									"    // Save token for later use",
+									"    pm.environment.set(\"api_token\", jsonData.token);",
+									"    pm.environment.set(\"token_id\", jsonData.token_id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"My API Token\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens"
+							]
+						},
+						"description": "Create a new API token. The full token is only shown once in the response."
+					},
+					"response": []
+				},
+				{
+					"name": "List Tokens",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tokens array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tokens');",
+									"    pm.expect(jsonData.tokens).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens"
+							]
+						},
+						"description": "List all API tokens for the authenticated user."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Token Usage",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has usage statistics\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('total_calls');",
+									"    pm.expect(jsonData).to.have.property('success_calls');",
+									"    pm.expect(jsonData).to.have.property('failed_calls');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens",
+								"{{token_id}}",
+								"usage"
+							]
+						},
+						"description": "Get usage statistics for a specific token."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has success message\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-User-ID",
+								"value": "{{user_id}}",
+								"description": "User ID from external auth system"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tokens/{{token_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tokens",
+								"{{token_id}}"
+							]
+						},
+						"description": "Delete an API token. Only tokens owned by the authenticated user can be deleted."
+					},
+					"response": []
+				}
+			],
+			"description": "Token management endpoints require X-User-ID header for authentication."
+		},
+		{
+			"name": "Streaming APIs",
+			"item": [
+				{
+					"name": "Stream Latest Blocks",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stream/blocks?fromHeight=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stream",
+								"blocks"
+							],
+							"query": [
+								{
+									"key": "fromHeight",
+									"value": "0",
+									"description": "Optional: start streaming from a specific block height. If 0, streams from the latest blocks"
+								}
+							]
+						},
+						"description": "Stream latest blocks as they are added to the chain. Note: This is a streaming endpoint and may not work properly in Postman. Use a proper streaming client for testing."
+					},
+					"response": []
+				},
+				{
+					"name": "Stream Latest Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stream/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stream",
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "types",
+									"value": "",
+									"description": "Optional: filter by transaction types. If empty, streams all transaction types",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Stream latest transactions as they are added to the chain. Note: This is a streaming endpoint and may not work properly in Postman. Use a proper streaming client for testing."
+					},
+					"response": []
+				},
+				{
+					"name": "Stream Account Updates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stream/account?address={{account_address}}&fromTimestamp=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stream",
+								"account"
+							],
+							"query": [
+								{
+									"key": "address",
+									"value": "{{account_address}}",
+									"description": "Required: account address to monitor"
+								},
+								{
+									"key": "fromTimestamp",
+									"value": "0",
+									"description": "Optional: start streaming from a specific timestamp. If 0, streams from recent transactions"
+								}
+							]
+						},
+						"description": "Stream account updates (balance changes, new transactions, etc.). Note: This is a streaming endpoint and may not work properly in Postman. Use a proper streaming client for testing."
+					},
+					"response": []
+				}
+			],
+			"description": "Streaming RPCs for real-time updates. Note: These endpoints use server-sent events (SSE) or similar streaming protocols and may not work properly in Postman. Use a proper streaming client or browser for testing."
+		},
+		{
+			"name": "Rate Limit & Auth Tests",
+			"item": [
+				{
+					"name": "Test IP Rate Limit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 429) {",
+									"    pm.test(\"Rate limit exceeded\", function () {",
+									"        pm.expect(pm.response.json().message).to.include('rate limit');",
+									"    });",
+									"} else {",
+									"    pm.test(\"Request allowed\", function () {",
+									"        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test IP rate limit (100 requests per minute). Run this request multiple times quickly to trigger rate limit."
+					},
+					"response": []
+				},
+				{
+					"name": "Test Token Rate Limit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 429) {",
+									"    pm.test(\"Token rate limit exceeded\", function () {",
+									"        var jsonData = pm.response.json();",
+									"        pm.expect(jsonData.message || jsonData.error).to.include('rate limit');",
+									"    });",
+									"} else {",
+									"    pm.test(\"Request allowed\", function () {",
+									"        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test token rate limit (5 requests per second). Run this request 6+ times per second to trigger rate limit."
+					},
+					"response": []
+				},
+				{
+					"name": "Test Invalid Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates invalid token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message || jsonData.error).to.include('token');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer invalid_token_12345"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test authentication with invalid token. Should return 401 Unauthorized."
+					},
+					"response": []
+				},
+				{
+					"name": "Test Missing Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error message indicates missing Authorization header\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message || jsonData.error).to.include('Authorization');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/block/latest-height",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"block",
+								"latest-height"
+							]
+						},
+						"description": "Test API access without token. Should return 401 Unauthorized."
+					},
+					"response": []
+				}
+			],
+			"description": "Tests for rate limiting and authentication scenarios."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "test_user_123",
+			"type": "string"
+		},
+		{
+			"key": "api_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "token_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "tx_hash",
+			"value": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"type": "string"
+		},
+		{
+			"key": "evm_tx_hash",
+			"value": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"type": "string"
+		},
+		{
+			"key": "account_address",
+			"value": "inj1...",
+			"type": "string"
+		},
+		{
+			"key": "block_height",
+			"value": "1000000",
+			"type": "string"
+		},
+		{
+			"key": "contract_address",
+			"value": "inj1...",
+			"type": "string"
+		},
+		{
+			"key": "chain_id",
+			"value": "injective-1",
+			"type": "string"
+		},
+		{
+			"key": "token_symbol",
+			"value": "inj",
+			"type": "string"
+		}
+	]
+}

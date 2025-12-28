@@ -345,3 +345,130 @@ func (s *APITokenService) getUserIDFromContext(ctx context.Context) string {
 
 	return ""
 }
+
+// GetDashboardStats gets dashboard statistics for the authenticated user.
+// Returns aggregated usage statistics including daily stats and monthly quota information.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing number of days to query (default: 30)
+//
+// Returns:
+//   - *pb.GetDashboardStatsResponse: Response containing dashboard statistics
+//   - error: Error if the operation fails
+func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDashboardStatsRequest) (*pb.GetDashboardStatsResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	// Get user ID from HTTP header
+	userID := s.getUserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
+	}
+
+	// Default to 30 days if not specified
+	days := int(req.Days)
+	if days <= 0 {
+		days = 30
+	}
+	if days > 365 {
+		days = 365 // Cap at 1 year
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer queryCancel()
+
+	// Calculate date range
+	endDate := time.Now()
+	startDate := endDate.AddDate(0, 0, -days)
+
+	// Query total statistics for the period
+	var totalCalls, successCalls, failedCalls int64
+	err := db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
+		Where("user_id = ? AND created_at >= ? AND created_at < ?", userID, startDate, endDate).
+		Count(&totalCalls).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count total calls: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query statistics")
+	}
+
+	err = db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
+		Where("user_id = ? AND created_at >= ? AND created_at < ? AND status_code >= 200 AND status_code < 300", userID, startDate, endDate).
+		Count(&successCalls).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count success calls: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query statistics")
+	}
+
+	err = db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
+		Where("user_id = ? AND created_at >= ? AND created_at < ? AND status_code >= 400", userID, startDate, endDate).
+		Count(&failedCalls).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count failed calls: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query statistics")
+	}
+
+	// Query monthly quota information from user_usage_stats
+	var userStats models.UserUsageStats
+	err = db.Get().WithContext(queryCtx).
+		Where("user_id = ?", userID).
+		First(&userStats).Error
+	monthlyLimit := uint64(100000) // Default limit
+	monthlyUsed := uint64(0)
+	if err == nil {
+		monthlyLimit = userStats.MonthlyLimit
+		monthlyUsed = userStats.MonthlyUsed
+	} else if err != gorm.ErrRecordNotFound {
+		global.Logger.Errorf("failed to query user stats: %v", err)
+		// Continue with defaults
+	}
+
+	// Query daily statistics from usage_daily_stats table
+	var dailyStatsList []models.UsageDailyStats
+	err = db.Get().WithContext(queryCtx).
+		Where("user_id = ? AND stat_date >= ? AND stat_date < ?", userID, startDate, endDate).
+		Order("stat_date ASC").
+		Find(&dailyStatsList).Error
+	if err != nil {
+		global.Logger.Errorf("failed to query daily stats: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query daily statistics")
+	}
+
+	// Convert to protobuf format
+	dailyStats := make([]*pb.DailyStats, 0, len(dailyStatsList))
+	for _, stat := range dailyStatsList {
+		dailyStats = append(dailyStats, &pb.DailyStats{
+			Date:        stat.StatDate.Format("2006-01-02"),
+			TotalCalls:  int64(stat.TotalCalls),
+			SuccessCalls: int64(stat.SuccessCalls),
+			FailedCalls:  int64(stat.FailedCalls),
+		})
+	}
+
+	return &pb.GetDashboardStatsResponse{
+		TotalCalls:   totalCalls,
+		SuccessCalls: successCalls,
+		FailedCalls:  failedCalls,
+		MonthlyLimit: int64(monthlyLimit),
+		MonthlyUsed:  int64(monthlyUsed),
+		DailyStats:   dailyStats,
+	}, nil
+}
+
+// ExportUsageLogs exports API usage logs to Excel format.
+// Note: This method is reserved for future implementation.
+// File downloads are handled by custom HTTP route handler in server/http.go.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request (empty, uses authenticated user from context)
+//
+// Returns:
+//   - *pb.ExportUsageLogsResponse: Response with success message
+//   - error: Error if export fails
+func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsageLogsRequest) (*pb.ExportUsageLogsResponse, error) {
+	// This endpoint should be handled by a custom HTTP route handler for file download
+	// Protobuf services are better suited for JSON responses
+	return nil, status.Error(codes.Unimplemented, "Export functionality is handled via custom HTTP route at /api/v1/export/logs")
+}

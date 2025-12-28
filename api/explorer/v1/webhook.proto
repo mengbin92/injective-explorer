@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+
+// WebhookService provides webhook management (for paid tokens only).
+// This service is reserved for future implementation.
+service WebhookService {
+  // CreateWebhook creates a webhook configuration
+  rpc CreateWebhook(CreateWebhookRequest) returns (CreateWebhookResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/webhooks"
+      body: "*"
+    };
+  }
+
+  // ListWebhooks lists webhook configurations
+  rpc ListWebhooks(ListWebhooksRequest) returns (ListWebhooksResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/webhooks"
+    };
+  }
+
+  // UpdateWebhook updates webhook configuration
+  rpc UpdateWebhook(UpdateWebhookRequest) returns (UpdateWebhookResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/webhooks/{webhook_id}"
+      body: "*"
+    };
+  }
+
+  // DeleteWebhook deletes a webhook
+  rpc DeleteWebhook(DeleteWebhookRequest) returns (DeleteWebhookResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/webhooks/{webhook_id}"
+    };
+  }
+}
+
+// CreateWebhookRequest creates a webhook
+message CreateWebhookRequest {
+  int64 token_id = 1 [ json_name = "token_id" ];           // Token ID (must be paid plan)
+  string webhook_url = 2 [ json_name = "webhook_url" ];   // Webhook URL
+  repeated string events = 3 [ json_name = "events" ];     // Event types to subscribe
+}
+
+// CreateWebhookResponse returns webhook info
+message CreateWebhookResponse {
+  int64 webhook_id = 1 [ json_name = "webhook_id" ];
+  string message = 2 [ json_name = "message" ];
+}
+
+// ListWebhooksRequest lists webhooks
+message ListWebhooksRequest {
+  // Empty, uses authenticated user from context
+}
+
+// ListWebhooksResponse returns webhook list
+message ListWebhooksResponse {
+  repeated WebhookInfo webhooks = 1 [ json_name = "webhooks" ];
+}
+
+// WebhookInfo represents webhook information
+message WebhookInfo {
+  int64 id = 1 [ json_name = "id" ];
+  int64 token_id = 2 [ json_name = "token_id" ];
+  string webhook_url = 3 [ json_name = "webhook_url" ];
+  repeated string events = 4 [ json_name = "events" ];
+  string status = 5 [ json_name = "status" ];              // active/inactive
+  string last_triggered_at = 6 [ json_name = "last_triggered_at" ]; // Empty if never triggered
+  int32 failure_count = 7 [ json_name = "failure_count" ];
+  string created_at = 8 [ json_name = "created_at" ];
+}
+
+// UpdateWebhookRequest updates a webhook
+message UpdateWebhookRequest {
+  int64 webhook_id = 1 [ json_name = "webhook_id" ];
+  string webhook_url = 2 [ json_name = "webhook_url" ];   // Optional, update if provided
+  repeated string events = 3 [ json_name = "events" ];     // Optional, update if provided
+  string status = 4 [ json_name = "status" ];              // Optional, update if provided
+}
+
+// UpdateWebhookResponse confirms update
+message UpdateWebhookResponse {
+  string message = 1 [ json_name = "message" ];
+}
+
+// DeleteWebhookRequest deletes a webhook
+message DeleteWebhookRequest {
+  int64 webhook_id = 1 [ json_name = "webhook_id" ];
+}
+
+// DeleteWebhookResponse confirms deletion
+message DeleteWebhookResponse {
+  string message = 1 [ json_name = "message" ];
+}
+

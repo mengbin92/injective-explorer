@@ -179,7 +179,7 @@ func main() {
 		log.NewHelper(logger).Infof("Archive scheduler service is disabled (set archive.enabled=true to enable)")
 	}
 
-	app, cleanup, err := wireApp(bc.Server, bc.Data, logger)
+	app, cleanup, err := wireApp(bc.Server, bc.Data, logger, &bc)
 	if err != nil {
 		log.NewHelper(logger).Errorf("Failed to wire application: %v", err)
 		os.Exit(1)

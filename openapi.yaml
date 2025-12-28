@@ -411,6 +411,25 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/dashboard/stats:
+        get:
+            tags:
+                - APITokenService
+            description: GetDashboardStats gets dashboard statistics for a user
+            operationId: APITokenService_GetDashboardStats
+            parameters:
+                - name: days
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.GetDashboardStatsResponse'
     /api/v1/evm/account/{address}/transactions:
         get:
             tags:
@@ -493,6 +512,19 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/export/logs:
+        get:
+            tags:
+                - APITokenService
+            description: ExportUsageLogs exports usage logs to Excel format
+            operationId: APITokenService_ExportUsageLogs
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.ExportUsageLogsResponse'
     /api/v1/health:
         get:
             tags:
@@ -785,6 +817,80 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/webhooks:
+        get:
+            tags:
+                - WebhookService
+            description: ListWebhooks lists webhook configurations
+            operationId: WebhookService_ListWebhooks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.ListWebhooksResponse'
+        post:
+            tags:
+                - WebhookService
+            description: CreateWebhook creates a webhook configuration
+            operationId: WebhookService_CreateWebhook
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.CreateWebhookRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.CreateWebhookResponse'
+    /api/v1/webhooks/{webhook_id}:
+        put:
+            tags:
+                - WebhookService
+            description: UpdateWebhook updates webhook configuration
+            operationId: WebhookService_UpdateWebhook
+            parameters:
+                - name: webhook_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdateWebhookRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.UpdateWebhookResponse'
+        delete:
+            tags:
+                - WebhookService
+            description: DeleteWebhook deletes a webhook
+            operationId: WebhookService_DeleteWebhook
+            parameters:
+                - name: webhook_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.DeleteWebhookResponse'
 components:
     schemas:
         api.explorer.v1.AccountBalanceDTO:
@@ -950,12 +1056,50 @@ components:
                 message:
                     type: string
             description: CreateTokenResponse returns the created token
+        api.explorer.v1.CreateWebhookRequest:
+            type: object
+            properties:
+                token_id:
+                    type: string
+                webhook_url:
+                    type: string
+                events:
+                    type: array
+                    items:
+                        type: string
+            description: CreateWebhookRequest creates a webhook
+        api.explorer.v1.CreateWebhookResponse:
+            type: object
+            properties:
+                webhook_id:
+                    type: string
+                message:
+                    type: string
+            description: CreateWebhookResponse returns webhook info
+        api.explorer.v1.DailyStats:
+            type: object
+            properties:
+                date:
+                    type: string
+                total_calls:
+                    type: string
+                success_calls:
+                    type: string
+                failed_calls:
+                    type: string
+            description: DailyStats represents daily usage statistics
         api.explorer.v1.DeleteTokenResponse:
             type: object
             properties:
                 message:
                     type: string
             description: DeleteTokenResponse confirms deletion
+        api.explorer.v1.DeleteWebhookResponse:
+            type: object
+            properties:
+                message:
+                    type: string
+            description: DeleteWebhookResponse confirms deletion
         api.explorer.v1.EVMLogDTO:
             type: object
             properties:
@@ -1022,6 +1166,32 @@ components:
                 is_contract_create:
                     type: boolean
             description: EVMTransactionDTO represents an EVM transaction in Etherscan-like format
+        api.explorer.v1.ExportUsageLogsResponse:
+            type: object
+            properties:
+                download_url:
+                    type: string
+                message:
+                    type: string
+            description: ExportUsageLogsResponse returns Excel file download URL or direct data
+        api.explorer.v1.GetDashboardStatsResponse:
+            type: object
+            properties:
+                total_calls:
+                    type: string
+                success_calls:
+                    type: string
+                failed_calls:
+                    type: string
+                monthly_limit:
+                    type: string
+                monthly_used:
+                    type: string
+                daily_stats:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.explorer.v1.DailyStats'
+            description: GetDashboardStatsResponse returns dashboard statistics
         api.explorer.v1.GetTokenUsageResponse:
             type: object
             properties:
@@ -1056,6 +1226,14 @@ components:
                     items:
                         $ref: '#/components/schemas/api.explorer.v1.TokenInfo'
             description: ListTokensResponse returns token list
+        api.explorer.v1.ListWebhooksResponse:
+            type: object
+            properties:
+                webhooks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.explorer.v1.WebhookInfo'
+            description: ListWebhooksResponse returns webhook list
         api.explorer.v1.Reply:
             type: object
             properties:
@@ -1185,6 +1363,49 @@ components:
                     type: object
                     additionalProperties:
                         type: string
+        api.explorer.v1.UpdateWebhookRequest:
+            type: object
+            properties:
+                webhook_id:
+                    type: string
+                webhook_url:
+                    type: string
+                events:
+                    type: array
+                    items:
+                        type: string
+                status:
+                    type: string
+            description: UpdateWebhookRequest updates a webhook
+        api.explorer.v1.UpdateWebhookResponse:
+            type: object
+            properties:
+                message:
+                    type: string
+            description: UpdateWebhookResponse confirms update
+        api.explorer.v1.WebhookInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                token_id:
+                    type: string
+                webhook_url:
+                    type: string
+                events:
+                    type: array
+                    items:
+                        type: string
+                status:
+                    type: string
+                last_triggered_at:
+                    type: string
+                failure_count:
+                    type: integer
+                    format: int32
+                created_at:
+                    type: string
+            description: WebhookInfo represents webhook information
 tags:
     - name: APITokenService
       description: APITokenService provides API token management services
@@ -1194,3 +1415,7 @@ tags:
          services. This service supports various contract types (token contracts, NFT
          contracts, etc.), with token contracts being the primary use case currently.
     - name: Explorer
+    - name: WebhookService
+      description: |-
+        WebhookService provides webhook management (for paid tokens only).
+         This service is reserved for future implementation.

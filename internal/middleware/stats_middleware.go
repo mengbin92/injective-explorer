@@ -16,13 +16,15 @@ import (
 
 // StatsMiddleware records API request statistics asynchronously.
 // It measures response time and logs request details to the database.
+// Optionally includes IP geolocation if IPLocationService is provided.
 //
 // Parameters:
 //   - statsService: The usage stats service instance
+//   - ipLocationService: Optional IP location service for geolocation (can be nil)
 //
 // Returns:
 //   - middleware.Middleware: A middleware function that records request statistics
-func StatsMiddleware(statsService *service.UsageStatsService) middleware.Middleware {
+func StatsMiddleware(statsService *service.UsageStatsService, ipLocationService *service.IPLocationService) middleware.Middleware {
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
 			startTime := time.Now()
@@ -47,6 +49,12 @@ func StatsMiddleware(statsService *service.UsageStatsService) middleware.Middlew
 
 					// Get client IP
 					ip := getClientIP(request)
+
+					// Get IP location asynchronously (non-blocking)
+					var ipLocation string
+					if ipLocationService != nil {
+						ipLocation = ipLocationService.GetLocation(context.Background(), ip)
+					}
 
 					// Determine status code based on error
 					statusCode := http.StatusOK
@@ -74,6 +82,7 @@ func StatsMiddleware(statsService *service.UsageStatsService) middleware.Middlew
 						TokenID:      tokenID,
 						UserID:       userID,
 						IPAddress:    ip,
+						IPLocation:   ipLocation,
 						Endpoint:     request.URL.Path,
 						Method:       request.Method,
 						StatusCode:   statusCode,

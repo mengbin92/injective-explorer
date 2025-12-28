@@ -515,6 +515,295 @@ func (x *GetTokenUsageResponse) GetLastUsedAt() string {
 	return ""
 }
 
+// GetDashboardStatsRequest gets dashboard statistics
+type GetDashboardStatsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Days          int32                  `protobuf:"varint,1,opt,name=days,proto3" json:"days,omitempty"` // Number of days to query (default: 30)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDashboardStatsRequest) Reset() {
+	*x = GetDashboardStatsRequest{}
+	mi := &file_explorer_v1_api_token_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDashboardStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDashboardStatsRequest) ProtoMessage() {}
+
+func (x *GetDashboardStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_api_token_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDashboardStatsRequest.ProtoReflect.Descriptor instead.
+func (*GetDashboardStatsRequest) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_api_token_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetDashboardStatsRequest) GetDays() int32 {
+	if x != nil {
+		return x.Days
+	}
+	return 0
+}
+
+// GetDashboardStatsResponse returns dashboard statistics
+type GetDashboardStatsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TotalCalls    int64                  `protobuf:"varint,1,opt,name=total_calls,proto3" json:"total_calls,omitempty"`     // Total calls in period
+	SuccessCalls  int64                  `protobuf:"varint,2,opt,name=success_calls,proto3" json:"success_calls,omitempty"` // Success calls in period
+	FailedCalls   int64                  `protobuf:"varint,3,opt,name=failed_calls,proto3" json:"failed_calls,omitempty"`   // Failed calls in period
+	MonthlyLimit  int64                  `protobuf:"varint,4,opt,name=monthly_limit,proto3" json:"monthly_limit,omitempty"` // Monthly limit
+	MonthlyUsed   int64                  `protobuf:"varint,5,opt,name=monthly_used,proto3" json:"monthly_used,omitempty"`   // Monthly used
+	DailyStats    []*DailyStats          `protobuf:"bytes,6,rep,name=daily_stats,proto3" json:"daily_stats,omitempty"`      // Daily statistics
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDashboardStatsResponse) Reset() {
+	*x = GetDashboardStatsResponse{}
+	mi := &file_explorer_v1_api_token_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDashboardStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDashboardStatsResponse) ProtoMessage() {}
+
+func (x *GetDashboardStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_api_token_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDashboardStatsResponse.ProtoReflect.Descriptor instead.
+func (*GetDashboardStatsResponse) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_api_token_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetDashboardStatsResponse) GetTotalCalls() int64 {
+	if x != nil {
+		return x.TotalCalls
+	}
+	return 0
+}
+
+func (x *GetDashboardStatsResponse) GetSuccessCalls() int64 {
+	if x != nil {
+		return x.SuccessCalls
+	}
+	return 0
+}
+
+func (x *GetDashboardStatsResponse) GetFailedCalls() int64 {
+	if x != nil {
+		return x.FailedCalls
+	}
+	return 0
+}
+
+func (x *GetDashboardStatsResponse) GetMonthlyLimit() int64 {
+	if x != nil {
+		return x.MonthlyLimit
+	}
+	return 0
+}
+
+func (x *GetDashboardStatsResponse) GetMonthlyUsed() int64 {
+	if x != nil {
+		return x.MonthlyUsed
+	}
+	return 0
+}
+
+func (x *GetDashboardStatsResponse) GetDailyStats() []*DailyStats {
+	if x != nil {
+		return x.DailyStats
+	}
+	return nil
+}
+
+// DailyStats represents daily usage statistics
+type DailyStats struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Date          string                 `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"` // Date in YYYY-MM-DD format
+	TotalCalls    int64                  `protobuf:"varint,2,opt,name=total_calls,proto3" json:"total_calls,omitempty"`
+	SuccessCalls  int64                  `protobuf:"varint,3,opt,name=success_calls,proto3" json:"success_calls,omitempty"`
+	FailedCalls   int64                  `protobuf:"varint,4,opt,name=failed_calls,proto3" json:"failed_calls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DailyStats) Reset() {
+	*x = DailyStats{}
+	mi := &file_explorer_v1_api_token_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DailyStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DailyStats) ProtoMessage() {}
+
+func (x *DailyStats) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_api_token_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DailyStats.ProtoReflect.Descriptor instead.
+func (*DailyStats) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_api_token_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *DailyStats) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *DailyStats) GetTotalCalls() int64 {
+	if x != nil {
+		return x.TotalCalls
+	}
+	return 0
+}
+
+func (x *DailyStats) GetSuccessCalls() int64 {
+	if x != nil {
+		return x.SuccessCalls
+	}
+	return 0
+}
+
+func (x *DailyStats) GetFailedCalls() int64 {
+	if x != nil {
+		return x.FailedCalls
+	}
+	return 0
+}
+
+// ExportUsageLogsRequest exports usage logs
+type ExportUsageLogsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportUsageLogsRequest) Reset() {
+	*x = ExportUsageLogsRequest{}
+	mi := &file_explorer_v1_api_token_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportUsageLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportUsageLogsRequest) ProtoMessage() {}
+
+func (x *ExportUsageLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_api_token_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportUsageLogsRequest.ProtoReflect.Descriptor instead.
+func (*ExportUsageLogsRequest) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_api_token_proto_rawDescGZIP(), []int{12}
+}
+
+// ExportUsageLogsResponse returns Excel file download URL or direct data
+type ExportUsageLogsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DownloadUrl   string                 `protobuf:"bytes,1,opt,name=download_url,proto3" json:"download_url,omitempty"` // Download URL (if using file storage)
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`           // Success message
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportUsageLogsResponse) Reset() {
+	*x = ExportUsageLogsResponse{}
+	mi := &file_explorer_v1_api_token_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportUsageLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportUsageLogsResponse) ProtoMessage() {}
+
+func (x *ExportUsageLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_explorer_v1_api_token_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportUsageLogsResponse.ProtoReflect.Descriptor instead.
+func (*ExportUsageLogsResponse) Descriptor() ([]byte, []int) {
+	return file_explorer_v1_api_token_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ExportUsageLogsResponse) GetDownloadUrl() string {
+	if x != nil {
+		return x.DownloadUrl
+	}
+	return ""
+}
+
+func (x *ExportUsageLogsResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_explorer_v1_api_token_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_api_token_proto_rawDesc = "" +
@@ -550,13 +839,34 @@ const file_explorer_v1_api_token_proto_rawDesc = "" +
 	"\vtotal_calls\x18\x01 \x01(\x03R\vtotal_calls\x12$\n" +
 	"\rsuccess_calls\x18\x02 \x01(\x03R\rsuccess_calls\x12\"\n" +
 	"\ffailed_calls\x18\x03 \x01(\x03R\ffailed_calls\x12\"\n" +
-	"\flast_used_at\x18\x04 \x01(\tR\flast_used_at2\xfc\x03\n" +
+	"\flast_used_at\x18\x04 \x01(\tR\flast_used_at\".\n" +
+	"\x18GetDashboardStatsRequest\x12\x12\n" +
+	"\x04days\x18\x01 \x01(\x05R\x04days\"\x90\x02\n" +
+	"\x19GetDashboardStatsResponse\x12 \n" +
+	"\vtotal_calls\x18\x01 \x01(\x03R\vtotal_calls\x12$\n" +
+	"\rsuccess_calls\x18\x02 \x01(\x03R\rsuccess_calls\x12\"\n" +
+	"\ffailed_calls\x18\x03 \x01(\x03R\ffailed_calls\x12$\n" +
+	"\rmonthly_limit\x18\x04 \x01(\x03R\rmonthly_limit\x12\"\n" +
+	"\fmonthly_used\x18\x05 \x01(\x03R\fmonthly_used\x12=\n" +
+	"\vdaily_stats\x18\x06 \x03(\v2\x1b.api.explorer.v1.DailyStatsR\vdaily_stats\"\x8c\x01\n" +
+	"\n" +
+	"DailyStats\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x12 \n" +
+	"\vtotal_calls\x18\x02 \x01(\x03R\vtotal_calls\x12$\n" +
+	"\rsuccess_calls\x18\x03 \x01(\x03R\rsuccess_calls\x12\"\n" +
+	"\ffailed_calls\x18\x04 \x01(\x03R\ffailed_calls\"\x18\n" +
+	"\x16ExportUsageLogsRequest\"W\n" +
+	"\x17ExportUsageLogsResponse\x12\"\n" +
+	"\fdownload_url\x18\x01 \x01(\tR\fdownload_url\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\x8e\x06\n" +
 	"\x0fAPITokenService\x12s\n" +
 	"\vCreateToken\x12#.api.explorer.v1.CreateTokenRequest\x1a$.api.explorer.v1.CreateTokenResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v1/tokens\x12m\n" +
 	"\n" +
 	"ListTokens\x12\".api.explorer.v1.ListTokensRequest\x1a#.api.explorer.v1.ListTokensResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/tokens\x12{\n" +
 	"\vDeleteToken\x12#.api.explorer.v1.DeleteTokenRequest\x1a$.api.explorer.v1.DeleteTokenResponse\"!\x82\xd3\xe4\x93\x02\x1b*\x19/api/v1/tokens/{token_id}\x12\x87\x01\n" +
-	"\rGetTokenUsage\x12%.api.explorer.v1.GetTokenUsageRequest\x1a&.api.explorer.v1.GetTokenUsageResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/tokens/{token_id}/usageB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
+	"\rGetTokenUsage\x12%.api.explorer.v1.GetTokenUsageRequest\x1a&.api.explorer.v1.GetTokenUsageResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/tokens/{token_id}/usage\x12\x8b\x01\n" +
+	"\x11GetDashboardStats\x12).api.explorer.v1.GetDashboardStatsRequest\x1a*.api.explorer.v1.GetDashboardStatsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/dashboard/stats\x12\x81\x01\n" +
+	"\x0fExportUsageLogs\x12'.api.explorer.v1.ExportUsageLogsRequest\x1a(.api.explorer.v1.ExportUsageLogsResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/api/v1/export/logsB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (
 	file_explorer_v1_api_token_proto_rawDescOnce sync.Once
@@ -570,33 +880,43 @@ func file_explorer_v1_api_token_proto_rawDescGZIP() []byte {
 	return file_explorer_v1_api_token_proto_rawDescData
 }
 
-var file_explorer_v1_api_token_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_explorer_v1_api_token_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_explorer_v1_api_token_proto_goTypes = []any{
-	(*CreateTokenRequest)(nil),    // 0: api.explorer.v1.CreateTokenRequest
-	(*CreateTokenResponse)(nil),   // 1: api.explorer.v1.CreateTokenResponse
-	(*ListTokensRequest)(nil),     // 2: api.explorer.v1.ListTokensRequest
-	(*ListTokensResponse)(nil),    // 3: api.explorer.v1.ListTokensResponse
-	(*TokenInfo)(nil),             // 4: api.explorer.v1.TokenInfo
-	(*DeleteTokenRequest)(nil),    // 5: api.explorer.v1.DeleteTokenRequest
-	(*DeleteTokenResponse)(nil),   // 6: api.explorer.v1.DeleteTokenResponse
-	(*GetTokenUsageRequest)(nil),  // 7: api.explorer.v1.GetTokenUsageRequest
-	(*GetTokenUsageResponse)(nil), // 8: api.explorer.v1.GetTokenUsageResponse
+	(*CreateTokenRequest)(nil),        // 0: api.explorer.v1.CreateTokenRequest
+	(*CreateTokenResponse)(nil),       // 1: api.explorer.v1.CreateTokenResponse
+	(*ListTokensRequest)(nil),         // 2: api.explorer.v1.ListTokensRequest
+	(*ListTokensResponse)(nil),        // 3: api.explorer.v1.ListTokensResponse
+	(*TokenInfo)(nil),                 // 4: api.explorer.v1.TokenInfo
+	(*DeleteTokenRequest)(nil),        // 5: api.explorer.v1.DeleteTokenRequest
+	(*DeleteTokenResponse)(nil),       // 6: api.explorer.v1.DeleteTokenResponse
+	(*GetTokenUsageRequest)(nil),      // 7: api.explorer.v1.GetTokenUsageRequest
+	(*GetTokenUsageResponse)(nil),     // 8: api.explorer.v1.GetTokenUsageResponse
+	(*GetDashboardStatsRequest)(nil),  // 9: api.explorer.v1.GetDashboardStatsRequest
+	(*GetDashboardStatsResponse)(nil), // 10: api.explorer.v1.GetDashboardStatsResponse
+	(*DailyStats)(nil),                // 11: api.explorer.v1.DailyStats
+	(*ExportUsageLogsRequest)(nil),    // 12: api.explorer.v1.ExportUsageLogsRequest
+	(*ExportUsageLogsResponse)(nil),   // 13: api.explorer.v1.ExportUsageLogsResponse
 }
 var file_explorer_v1_api_token_proto_depIdxs = []int32{
-	4, // 0: api.explorer.v1.ListTokensResponse.tokens:type_name -> api.explorer.v1.TokenInfo
-	0, // 1: api.explorer.v1.APITokenService.CreateToken:input_type -> api.explorer.v1.CreateTokenRequest
-	2, // 2: api.explorer.v1.APITokenService.ListTokens:input_type -> api.explorer.v1.ListTokensRequest
-	5, // 3: api.explorer.v1.APITokenService.DeleteToken:input_type -> api.explorer.v1.DeleteTokenRequest
-	7, // 4: api.explorer.v1.APITokenService.GetTokenUsage:input_type -> api.explorer.v1.GetTokenUsageRequest
-	1, // 5: api.explorer.v1.APITokenService.CreateToken:output_type -> api.explorer.v1.CreateTokenResponse
-	3, // 6: api.explorer.v1.APITokenService.ListTokens:output_type -> api.explorer.v1.ListTokensResponse
-	6, // 7: api.explorer.v1.APITokenService.DeleteToken:output_type -> api.explorer.v1.DeleteTokenResponse
-	8, // 8: api.explorer.v1.APITokenService.GetTokenUsage:output_type -> api.explorer.v1.GetTokenUsageResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4,  // 0: api.explorer.v1.ListTokensResponse.tokens:type_name -> api.explorer.v1.TokenInfo
+	11, // 1: api.explorer.v1.GetDashboardStatsResponse.daily_stats:type_name -> api.explorer.v1.DailyStats
+	0,  // 2: api.explorer.v1.APITokenService.CreateToken:input_type -> api.explorer.v1.CreateTokenRequest
+	2,  // 3: api.explorer.v1.APITokenService.ListTokens:input_type -> api.explorer.v1.ListTokensRequest
+	5,  // 4: api.explorer.v1.APITokenService.DeleteToken:input_type -> api.explorer.v1.DeleteTokenRequest
+	7,  // 5: api.explorer.v1.APITokenService.GetTokenUsage:input_type -> api.explorer.v1.GetTokenUsageRequest
+	9,  // 6: api.explorer.v1.APITokenService.GetDashboardStats:input_type -> api.explorer.v1.GetDashboardStatsRequest
+	12, // 7: api.explorer.v1.APITokenService.ExportUsageLogs:input_type -> api.explorer.v1.ExportUsageLogsRequest
+	1,  // 8: api.explorer.v1.APITokenService.CreateToken:output_type -> api.explorer.v1.CreateTokenResponse
+	3,  // 9: api.explorer.v1.APITokenService.ListTokens:output_type -> api.explorer.v1.ListTokensResponse
+	6,  // 10: api.explorer.v1.APITokenService.DeleteToken:output_type -> api.explorer.v1.DeleteTokenResponse
+	8,  // 11: api.explorer.v1.APITokenService.GetTokenUsage:output_type -> api.explorer.v1.GetTokenUsageResponse
+	10, // 12: api.explorer.v1.APITokenService.GetDashboardStats:output_type -> api.explorer.v1.GetDashboardStatsResponse
+	13, // 13: api.explorer.v1.APITokenService.ExportUsageLogs:output_type -> api.explorer.v1.ExportUsageLogsResponse
+	8,  // [8:14] is the sub-list for method output_type
+	2,  // [2:8] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_explorer_v1_api_token_proto_init() }
@@ -610,7 +930,7 @@ func file_explorer_v1_api_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_explorer_v1_api_token_proto_rawDesc), len(file_explorer_v1_api_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

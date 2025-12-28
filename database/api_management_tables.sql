@@ -105,3 +105,23 @@ INSERT INTO `api_plans` (`name`, `plan_type`, `monthly_limit`, `rate_limit_per_s
 VALUES ('Free', 'free', 100000, 5, 3, 0, 0.00, 'active')
 ON DUPLICATE KEY UPDATE `name`=`name`;
 
+-- Webhook配置表（预留，暂不实现功能）
+CREATE TABLE IF NOT EXISTS `webhooks` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `token_id` BIGINT UNSIGNED NOT NULL COMMENT 'Token ID（必须是付费套餐）',
+  `webhook_url` VARCHAR(512) NOT NULL COMMENT 'Webhook URL',
+  `secret` VARCHAR(64) NOT NULL COMMENT 'Webhook签名密钥',
+  `events` JSON NOT NULL COMMENT '订阅的事件类型列表',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '状态：active/inactive',
+  `last_triggered_at` TIMESTAMP NULL COMMENT '最后触发时间',
+  `failure_count` INT NOT NULL DEFAULT 0 COMMENT '连续失败次数',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` TIMESTAMP NULL,
+  
+  INDEX `idx_token_id` (`token_id`),
+  INDEX `idx_status` (`status`),
+  INDEX `idx_last_triggered_at` (`last_triggered_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
+COMMENT='Webhook配置表（预留）';
+

@@ -181,3 +181,38 @@ func (r *RateLimiter) IncrementUserUsage(ctx context.Context, userID string) err
 	return nil
 }
 
+// ResetMonthlyQuota resets monthly quota for all users at the start of a new month.
+// This should be called as a scheduled task (e.g., at the start of each month).
+// It clears Redis counters and updates database records.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//
+// Returns:
+//   - error: Error if reset fails
+func (r *RateLimiter) ResetMonthlyQuota(ctx context.Context) error {
+	if r.redis == nil {
+		// If Redis is not available, skip reset (graceful degradation)
+		return nil
+	}
+
+	// Find all monthly usage keys
+	pattern := "usage:user:*:monthly"
+	iter := r.redis.Scan(ctx, 0, pattern, 0).Iterator()
+
+	var keys []string
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	// Delete all monthly usage keys (they will be recreated on next increment)
+	if len(keys) > 0 {
+		return r.redis.Del(ctx, keys...).Err()
+	}
+
+	return nil
+}
+

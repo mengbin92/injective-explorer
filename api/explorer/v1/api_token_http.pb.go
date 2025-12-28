@@ -21,6 +21,8 @@ const _ = http.SupportPackageIsVersion1
 
 const OperationAPITokenServiceCreateToken = "/api.explorer.v1.APITokenService/CreateToken"
 const OperationAPITokenServiceDeleteToken = "/api.explorer.v1.APITokenService/DeleteToken"
+const OperationAPITokenServiceExportUsageLogs = "/api.explorer.v1.APITokenService/ExportUsageLogs"
+const OperationAPITokenServiceGetDashboardStats = "/api.explorer.v1.APITokenService/GetDashboardStats"
 const OperationAPITokenServiceGetTokenUsage = "/api.explorer.v1.APITokenService/GetTokenUsage"
 const OperationAPITokenServiceListTokens = "/api.explorer.v1.APITokenService/ListTokens"
 
@@ -29,6 +31,10 @@ type APITokenServiceHTTPServer interface {
 	CreateToken(context.Context, *CreateTokenRequest) (*CreateTokenResponse, error)
 	// DeleteToken DeleteToken deletes a token
 	DeleteToken(context.Context, *DeleteTokenRequest) (*DeleteTokenResponse, error)
+	// ExportUsageLogs ExportUsageLogs exports usage logs to Excel format
+	ExportUsageLogs(context.Context, *ExportUsageLogsRequest) (*ExportUsageLogsResponse, error)
+	// GetDashboardStats GetDashboardStats gets dashboard statistics for a user
+	GetDashboardStats(context.Context, *GetDashboardStatsRequest) (*GetDashboardStatsResponse, error)
 	// GetTokenUsage GetTokenUsage gets token usage statistics
 	GetTokenUsage(context.Context, *GetTokenUsageRequest) (*GetTokenUsageResponse, error)
 	// ListTokens ListTokens lists all tokens for a user
@@ -41,6 +47,8 @@ func RegisterAPITokenServiceHTTPServer(s *http.Server, srv APITokenServiceHTTPSe
 	r.GET("/api/v1/tokens", _APITokenService_ListTokens0_HTTP_Handler(srv))
 	r.DELETE("/api/v1/tokens/{token_id}", _APITokenService_DeleteToken0_HTTP_Handler(srv))
 	r.GET("/api/v1/tokens/{token_id}/usage", _APITokenService_GetTokenUsage0_HTTP_Handler(srv))
+	r.GET("/api/v1/dashboard/stats", _APITokenService_GetDashboardStats0_HTTP_Handler(srv))
+	r.GET("/api/v1/export/logs", _APITokenService_ExportUsageLogs0_HTTP_Handler(srv))
 }
 
 func _APITokenService_CreateToken0_HTTP_Handler(srv APITokenServiceHTTPServer) func(ctx http.Context) error {
@@ -128,11 +136,53 @@ func _APITokenService_GetTokenUsage0_HTTP_Handler(srv APITokenServiceHTTPServer)
 	}
 }
 
+func _APITokenService_GetDashboardStats0_HTTP_Handler(srv APITokenServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetDashboardStatsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationAPITokenServiceGetDashboardStats)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetDashboardStats(ctx, req.(*GetDashboardStatsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetDashboardStatsResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _APITokenService_ExportUsageLogs0_HTTP_Handler(srv APITokenServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ExportUsageLogsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationAPITokenServiceExportUsageLogs)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ExportUsageLogs(ctx, req.(*ExportUsageLogsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ExportUsageLogsResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
 type APITokenServiceHTTPClient interface {
 	// CreateToken CreateToken creates a new API token
 	CreateToken(ctx context.Context, req *CreateTokenRequest, opts ...http.CallOption) (rsp *CreateTokenResponse, err error)
 	// DeleteToken DeleteToken deletes a token
 	DeleteToken(ctx context.Context, req *DeleteTokenRequest, opts ...http.CallOption) (rsp *DeleteTokenResponse, err error)
+	// ExportUsageLogs ExportUsageLogs exports usage logs to Excel format
+	ExportUsageLogs(ctx context.Context, req *ExportUsageLogsRequest, opts ...http.CallOption) (rsp *ExportUsageLogsResponse, err error)
+	// GetDashboardStats GetDashboardStats gets dashboard statistics for a user
+	GetDashboardStats(ctx context.Context, req *GetDashboardStatsRequest, opts ...http.CallOption) (rsp *GetDashboardStatsResponse, err error)
 	// GetTokenUsage GetTokenUsage gets token usage statistics
 	GetTokenUsage(ctx context.Context, req *GetTokenUsageRequest, opts ...http.CallOption) (rsp *GetTokenUsageResponse, err error)
 	// ListTokens ListTokens lists all tokens for a user
@@ -169,6 +219,34 @@ func (c *APITokenServiceHTTPClientImpl) DeleteToken(ctx context.Context, in *Del
 	opts = append(opts, http.Operation(OperationAPITokenServiceDeleteToken))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExportUsageLogs ExportUsageLogs exports usage logs to Excel format
+func (c *APITokenServiceHTTPClientImpl) ExportUsageLogs(ctx context.Context, in *ExportUsageLogsRequest, opts ...http.CallOption) (*ExportUsageLogsResponse, error) {
+	var out ExportUsageLogsResponse
+	pattern := "/api/v1/export/logs"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationAPITokenServiceExportUsageLogs))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetDashboardStats GetDashboardStats gets dashboard statistics for a user
+func (c *APITokenServiceHTTPClientImpl) GetDashboardStats(ctx context.Context, in *GetDashboardStatsRequest, opts ...http.CallOption) (*GetDashboardStatsResponse, error) {
+	var out GetDashboardStatsResponse
+	pattern := "/api/v1/dashboard/stats"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationAPITokenServiceGetDashboardStats))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -41,23 +42,46 @@ var (
 //
 // Returns:
 //   - *khttp.Server: A configured HTTP server ready to accept connections
-func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
+func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap) *khttp.Server {
 	// Initialize rate limiter
 	rateLimiter := middleware.NewRateLimiter()
 
 	// Initialize usage stats service
 	statsService := service.NewUsageStatsService()
 
+	// Initialize IP location service (optional, can be nil if not configured)
+	var ipLocationService *service.IPLocationService
+	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.IpLocation != nil {
+		dbPath := bootstrap.ApiManagement.IpLocation.GeoipDbPath
+		if dbPath != "" {
+			var err error
+			ipLocationService, err = service.NewIPLocationService(dbPath)
+			if err != nil {
+				log.NewHelper(logger).Warnf("Failed to initialize IP location service: %v", err)
+			} else {
+				log.NewHelper(logger).Info("IP location service initialized")
+			}
+		}
+	}
+
 	// Start log processor in background
 	ctx := context.Background()
 	statsService.StartLogProcessor(ctx)
+
+	// Initialize archive service for API logs
+	archiveService := service.NewArchiveUsageService()
+
+	// Initialize scheduler for background tasks
+	scheduler := service.NewScheduler(statsService, archiveService)
+	scheduler.Start(ctx)
+	log.NewHelper(logger).Info("Background scheduler started")
 
 	// Initialize server options with recovery middleware
 	// Token auth, rate limit, and stats middleware are applied selectively
 	opts := []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
-			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService),
+			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService),
 		),
 	}
 
@@ -117,6 +141,13 @@ func NewHTTPServer(c *conf.Server, logger log.Logger) *khttp.Server {
 	// In production, this should be replaced with proper JWT/session validation
 	apiTokenService := service.NewAPITokenService()
 	v1.RegisterAPITokenServiceHTTPServer(srv, apiTokenService)
+
+	// Register webhook service (reserved for future implementation)
+	webhookService := service.NewWebhookService()
+	v1.RegisterWebhookServiceHTTPServer(srv, webhookService)
+
+	// Register custom HTTP routes for file downloads
+	registerExportRoutes(srv, apiTokenService, logger)
 
 	// Register Swagger routes if enabled
 	if c.EnableSwagger {
@@ -514,6 +545,41 @@ func registerSwaggerRoutes(srv *khttp.Server, logger log.Logger) {
 
 		ctx.Response().Header().Set("Content-Type", "application/json")
 		ctx.Response().Write(jsonData)
+		return nil
+	})
+}
+
+// registerExportRoutes registers custom HTTP routes for file exports.
+// These routes handle file downloads directly without going through protobuf serialization.
+func registerExportRoutes(srv *khttp.Server, apiTokenService *service.APITokenService, logger log.Logger) {
+	r := srv.Route("/")
+
+	// Export usage logs endpoint
+	r.GET("/api/v1/export/logs", func(ctx khttp.Context) error {
+		// Get user ID from header
+		userID := ctx.Request().Header.Get("X-User-ID")
+		if userID == "" {
+			ctx.Response().Header().Set("Content-Type", "application/json")
+			ctx.Response().WriteHeader(http.StatusUnauthorized)
+			ctx.Response().Write([]byte(`{"error":"UNAUTHORIZED","message":"Missing X-User-ID header"}`))
+			return nil
+		}
+
+		// Set response headers for Excel file download
+		response := ctx.Response()
+		response.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		response.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=usage_logs_%s.xlsx", time.Now().Format("20060102_150405")))
+
+		// Create export service and export logs
+		exportService := service.NewExportService()
+		if err := exportService.ExportUsageLogs(ctx.Request().Context(), userID, response); err != nil {
+			log.NewHelper(logger).Errorf("failed to export usage logs: %v", err)
+			response.Header().Set("Content-Type", "application/json")
+			response.WriteHeader(http.StatusInternalServerError)
+			response.Write([]byte(`{"error":"EXPORT_FAILED","message":"Failed to export usage logs"}`))
+			return nil
+		}
+
 		return nil
 	})
 }

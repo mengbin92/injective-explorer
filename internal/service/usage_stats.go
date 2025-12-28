@@ -164,3 +164,61 @@ func (s *UsageStatsService) StartLogProcessor(ctx context.Context) {
 	}()
 }
 
+// UpdateDailyStats updates daily statistics by aggregating data from api_request_logs.
+// This should be called as a scheduled task (e.g., daily at 1 AM).
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - date: The date to aggregate statistics for
+//
+// Returns:
+//   - error: Error if update fails
+func (s *UsageStatsService) UpdateDailyStats(ctx context.Context, date time.Time) error {
+	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	endDate := startDate.Add(24 * time.Hour)
+
+	// Aggregate statistics by user
+	type StatsResult struct {
+		UserID      string
+		TotalCalls  int64
+		SuccessCalls int64
+		FailedCalls  int64
+	}
+
+	var results []StatsResult
+	err := s.db.WithContext(ctx).Model(&models.APIRequestLog{}).
+		Select("user_id, COUNT(*) as total_calls, "+
+			"SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as success_calls, "+
+			"SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as failed_calls").
+		Where("created_at >= ? AND created_at < ?", startDate, endDate).
+		Group("user_id").
+		Scan(&results).Error
+
+	if err != nil {
+		return err
+	}
+
+	// Insert/update daily stats
+	for _, result := range results {
+		dailyStat := models.UsageDailyStats{
+			UserID:      result.UserID,
+			StatDate:    startDate,
+			TotalCalls:  uint64(result.TotalCalls),
+			SuccessCalls: uint64(result.SuccessCalls),
+			FailedCalls:  uint64(result.FailedCalls),
+		}
+
+		// Use FirstOrCreate with Assign to update if exists
+		err := s.db.WithContext(ctx).
+			Where("user_id = ? AND stat_date = ?", result.UserID, startDate).
+			Assign(dailyStat).
+			FirstOrCreate(&dailyStat).Error
+		if err != nil {
+			global.Logger.Errorf("failed to update daily stats for user %s on %s: %v", result.UserID, startDate.Format("2006-01-02"), err)
+			continue
+		}
+	}
+
+	return nil
+}
+
