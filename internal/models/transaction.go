@@ -18,6 +18,8 @@ import (
 )
 
 // Transaction represents a blockchain transaction in the database.
+// The composite index idx_block_enhance on (block_number, hash, signer, "to", value) is created
+// via GORM's AutoMigrate for optimizing the enhanceBlockDTOWithTransactions function.
 // It embeds gorm.Model which provides ID, CreatedAt, UpdatedAt, and DeletedAt fields.
 //
 // The struct is designed to store transaction information from the Injective blockchain explorer,
@@ -62,7 +64,14 @@ type Transaction struct {
 	EVMDetailsSynced     bool       `json:"evm_details_synced" gorm:"column:evm_details_synced;default:0;index:idx_evm_details_synced"`              // EVMDetailsSynced indicates whether EVM transaction details have been synced
 	EVMDetailsSyncError  string     `json:"evm_details_sync_error" gorm:"type:text;column:evm_details_sync_error"`                                   // EVMDetailsSyncError contains error information if EVM details sync failed
 	EVMDetailsSyncAt     *time.Time `json:"evm_details_sync_at" gorm:"column:evm_details_sync_at"`                                                   // EVMDetailsSyncAt is the timestamp when EVM details were synced
+
+	// Composite index for performance optimization
+	// This field is not a real column, just used to define the composite index
+	_ BlockEnhanceIndex `gorm:"-"` // Ignore this field in CRUD operations
 }
+
+// BlockEnhanceIndex is a dummy struct used to define composite index
+type BlockEnhanceIndex struct{}
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.
 // It compresses large fields (>1KB) and optionally uploads large fields to object storage.

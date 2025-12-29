@@ -124,6 +124,14 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		panic(err)
 	}
 
+	// Create performance optimization indexes
+	Logger.Infof("creating performance optimization indexes")
+	err = models.CreateOptimizedIndexes()
+	if err != nil {
+		Logger.Warnf("failed to create some optimization indexes: %v", err)
+		// Don't panic - the application can still work without these indexes
+	}
+
 	err = cache.InitRedis(context.Background(), bc.Data.Redis, logger)
 	if err != nil {
 		panic(err)

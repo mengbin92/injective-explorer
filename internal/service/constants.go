@@ -33,7 +33,7 @@ const (
 	GracefulShutdownTimeout = 30 * time.Second
 
 	// Redis cache constants
-	CacheMaxSize = 100 // Cache the most recent 100 records
+	CacheMaxSize = 1000 // Cache the most recent 1000 records (increased from 100 for better cache hit rate)
 
 	// Stream and cache query constants
 	StreamInitialBlocksCount       = 10               // Number of initial blocks to send from cache in stream
@@ -84,8 +84,9 @@ const (
 	CacheKeyBlockMaxGas           = "cache:block:max:gas"           // Block max gas cache key
 	CacheKeyBlockGasUtilization   = "cache:block:gas:utilization"   // Block gas utilization cache key
 	CacheKeyEVMDetailsPrefix      = "evm:details:"                  // Cache key prefix for EVM transaction details
+	CacheKeyLatestBlockHeight     = "cache:latest:block:height"     // Latest block height cache key
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
-	CacheBlockTTL                 = 5 * time.Minute                 // Single block cache expiration time (5 minutes)
+	CacheBlockTTL                 = 1 * time.Hour                   // Single block cache expiration time (1 hour - increased from 5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
 	CacheTransactionStatsTTL      = 5 * time.Minute                 // Transaction statistics cache expiration time (5 minutes)
 	CacheFailedTransactions24HTTL = 2 * time.Minute                 // Failed transactions 24h count cache expiration time (2 minutes)

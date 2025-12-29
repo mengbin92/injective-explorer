@@ -252,6 +252,17 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	if err == nil && cachedBlock != nil {
 		global.Logger.Debugf("block found in cache: height=%d", req.Height)
 		blockDTO := models.ToBlockDTO(cachedBlock, models.DTOModeWithDetail)
+
+		// For cached blocks, enhance transactions asynchronously if the block is recent
+		if uint64(req.Height) > getLatestBlockHeight()-1000 {
+			// Enhance in background without blocking the response
+			go func() {
+				enhanceCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.Height))
+			}()
+		}
+
 		return s.marshalAndReply(blockDTO, "marshal block error")
 	}
 
@@ -269,7 +280,28 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 		go cacheBlock(context.Background(), &dbBlock)
 
 		blockDTO := models.ToBlockDTO(&dbBlock, models.DTOModeWithDetail)
-		return s.marshalAndReply(blockDTO, "marshal block error")
+
+		// For database blocks, enhance transactions based on age and transaction count
+		// Skip enhancement for blocks with >100 transactions to avoid timeout
+		if uint64(req.Height) > getLatestBlockHeight()-1000 && len(blockDTO.Txs) <= 100 {
+			// Enhance synchronously for recent small blocks
+			enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
+			return s.marshalAndReply(enhancedBlockDTO, "marshal block error")
+		} else {
+			// Return block without enhancement or enhance asynchronously for large/recent blocks
+			if len(blockDTO.Txs) > 100 {
+				global.Logger.Debugf("skipping transaction enhancement for block %d with %d transactions (too many)",
+					req.Height, len(blockDTO.Txs))
+			} else {
+				// Enhance in background for older blocks
+				go func() {
+					enhanceCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer cancel()
+					s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.Height))
+				}()
+			}
+			return s.marshalAndReply(blockDTO, "marshal block error")
+		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
 		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v, query_time=%v", req.Height, err, queryDuration)
@@ -304,7 +336,263 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	cacheBlock(callCtx, blockModel)
 
 	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
-	return s.marshalAndReply(blockDTO, "marshal block error")
+
+	// For chain blocks, enhance transactions based on count
+	// Skip enhancement for blocks with >50 transactions to avoid timeout
+	if len(blockDTO.Txs) <= 50 {
+		// Enhance synchronously for small blocks
+		enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
+		return s.marshalAndReply(enhancedBlockDTO, "marshal block error")
+	} else {
+		// Return block without enhancement for large blocks
+		global.Logger.Debugf("skipping transaction enhancement for chain block %d with %d transactions (too many)",
+			req.Height, len(blockDTO.Txs))
+		return s.marshalAndReply(blockDTO, "marshal block error")
+	}
+}
+
+// enhanceBlockDTOWithTransactions enhances BlockDTO with transaction signer, to, and value information.
+// It queries the database for transactions in the block and merges the information into the Txs field.
+// If transactions are not yet in the database, it fetches them from the chain and saves them to the database.
+// Optimized with batch processing and timeout management for better performance.
+//
+// Parameters:
+//   - ctx: Context for database queries
+//   - blockDTO: The BlockDTO to enhance
+//   - blockHeight: The block height
+//
+// Returns:
+//   - *pb.BlockDTO: Enhanced BlockDTO with transaction signer, to, value information
+func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, blockDTO *pb.BlockDTO, blockHeight uint64) *pb.BlockDTO {
+	if blockDTO == nil || len(blockDTO.Txs) == 0 {
+		return blockDTO
+	}
+
+	// Skip enhancement for very old blocks (> 10000 blocks) to avoid long delays
+	// This is a performance optimization - old blocks are less likely to need enhancement
+	if blockHeight < getLatestBlockHeight()-10000 {
+		global.Logger.Debugf("skipping transaction enhancement for old block %d", blockHeight)
+		return blockDTO
+	}
+
+	// Query transactions from database by block number
+	var dbTxs []models.Transaction
+	err := db.Get().WithContext(ctx).
+		Select("hash, signer, to, value").
+		Where("block_number = ?", blockHeight).
+		Find(&dbTxs).Error
+
+	if err != nil {
+		global.Logger.Warnf("failed to query transactions for block %d: %v", blockHeight, err)
+		// Continue to fetch from chain if database query fails
+	}
+
+	// Create a map of transaction hash to transaction info for quick lookup
+	txMap := make(map[string]*models.Transaction)
+	for i := range dbTxs {
+		// Normalize hash (remove 0x prefix if present for comparison)
+		hash := dbTxs[i].Hash
+		if len(hash) >= 2 && hash[:2] == "0x" {
+			hash = hash[2:]
+		}
+		txMap[hash] = &dbTxs[i]
+	}
+
+	// Collect missing transaction hashes
+	missingHashes := make([]string, 0)
+	hashToTxStruct := make(map[string]*structpb.Struct)
+
+	// First pass: identify missing transactions
+	for _, txStruct := range blockDTO.Txs {
+		if txStruct == nil {
+			continue
+		}
+
+		// Extract hash from txStruct
+		hashValue, ok := txStruct.Fields["hash"]
+		if !ok {
+			continue
+		}
+
+		// Get hash string
+		hashStr := ""
+		if hashValue != nil {
+			if hashValue.GetKind() != nil {
+				switch v := hashValue.GetKind().(type) {
+				case *structpb.Value_StringValue:
+					hashStr = v.StringValue
+				}
+			}
+		}
+
+		if hashStr == "" {
+			continue
+		}
+
+		// Normalize hash (remove 0x prefix if present)
+		normalizedHash := hashStr
+		if len(normalizedHash) >= 2 && normalizedHash[:2] == "0x" {
+			normalizedHash = normalizedHash[2:]
+		}
+
+		// Check if transaction exists in database
+		if _, found := txMap[normalizedHash]; !found {
+			missingHashes = append(missingHashes, normalizedHash)
+			hashToTxStruct[normalizedHash] = txStruct
+		}
+	}
+
+	// Fetch missing transactions from chain and save to database
+	if len(missingHashes) > 0 {
+		// Limit the number of transactions to fetch to avoid excessive delays
+		maxFetchCount := 50 // Maximum 50 transactions to fetch
+		if len(missingHashes) > maxFetchCount {
+			global.Logger.Warnf("limiting transaction fetch from %d to %d for block %d to avoid timeout",
+				len(missingHashes), maxFetchCount, blockHeight)
+			missingHashes = missingHashes[:maxFetchCount]
+		}
+
+		global.Logger.Debugf("fetching %d missing transactions from chain for block %d", len(missingHashes), blockHeight)
+		client, err := GetSharedExplorerClient()
+		if err == nil {
+			// Use shorter timeout for individual transaction fetches (5 seconds instead of 60)
+			// This prevents one slow transaction from blocking the entire block response
+			callCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// Fetch transactions concurrently for better performance
+			storageThreshold := getStorageThresholdForSync()
+			var mu sync.Mutex
+			var wg sync.WaitGroup
+
+			// Increase concurrent requests to 20 for better throughput with shorter timeout
+			semaphore := make(chan struct{}, 20) // Max 20 concurrent requests
+
+			for _, hash := range missingHashes {
+				wg.Add(1)
+				go func(txHash string) {
+					defer wg.Done()
+					semaphore <- struct{}{}        // Acquire semaphore
+					defer func() { <-semaphore }() // Release semaphore
+
+					// Fetch transaction from chain
+					// Sanitize hash to ensure correct format (remove 0x prefix if present)
+					hashToFetch := SanitizeHash(txHash)
+					transaction, err := client.GetTxByTxHash(callCtx, hashToFetch)
+					if err != nil {
+						// Log but don't fail - missing transactions are acceptable
+						global.Logger.Debugf("failed to fetch transaction %s from chain: %v", txHash, err)
+						return
+					}
+
+					if transaction == nil || transaction.Data == nil {
+						global.Logger.Debugf("transaction %s response is nil", txHash)
+						return
+					}
+
+					// Convert to model and save to database
+					txModel := models.TransactionFromProto(transaction.Data, storageThreshold)
+					if txModel == nil {
+						global.Logger.Warnf("failed to convert transaction %s to model", txHash)
+						return
+					}
+
+					// Save to database asynchronously to avoid blocking
+					go func(model *models.Transaction) {
+						saveToDB(model, fmt.Sprintf("create transaction %s error", txHash))
+					}(txModel)
+
+					// Add to txMap for use below
+					mu.Lock()
+					normalizedHash := txModel.Hash
+					if len(normalizedHash) >= 2 && normalizedHash[:2] == "0x" {
+						normalizedHash = normalizedHash[2:]
+					}
+					txMap[normalizedHash] = txModel
+					mu.Unlock()
+				}(hash)
+			}
+
+			wg.Wait()
+		} else {
+			global.Logger.Warnf("failed to create explorer client to fetch missing transactions: %v", err)
+		}
+	}
+
+	// Enhance each transaction in blockDTO.Txs with signer, to, value
+	enhancedTxs := make([]*structpb.Struct, 0, len(blockDTO.Txs))
+	for _, txStruct := range blockDTO.Txs {
+		if txStruct == nil {
+			continue
+		}
+
+		// Extract hash from txStruct
+		hashValue, ok := txStruct.Fields["hash"]
+		if !ok {
+			// If hash not found, keep original transaction
+			enhancedTxs = append(enhancedTxs, txStruct)
+			continue
+		}
+
+		// Get hash string
+		hashStr := ""
+		if hashValue != nil {
+			if hashValue.GetKind() != nil {
+				switch v := hashValue.GetKind().(type) {
+				case *structpb.Value_StringValue:
+					hashStr = v.StringValue
+				}
+			}
+		}
+
+		if hashStr == "" {
+			enhancedTxs = append(enhancedTxs, txStruct)
+			continue
+		}
+
+		// Normalize hash (remove 0x prefix if present)
+		normalizedHash := hashStr
+		if len(normalizedHash) >= 2 && normalizedHash[:2] == "0x" {
+			normalizedHash = normalizedHash[2:]
+		}
+
+		// Look up transaction in database (now includes newly fetched transactions)
+		dbTx, found := txMap[normalizedHash]
+		if !found {
+			// Transaction still not found (fetch failed or doesn't exist), keep original
+			enhancedTxs = append(enhancedTxs, txStruct)
+			continue
+		}
+
+		// Create a copy of the transaction struct and add signer, to, value fields
+		enhancedTx := proto.Clone(txStruct).(*structpb.Struct)
+		if enhancedTx.Fields == nil {
+			enhancedTx.Fields = make(map[string]*structpb.Value)
+		}
+
+		// Add signer field
+		if dbTx.Signer != "" {
+			enhancedTx.Fields["signer"] = structpb.NewStringValue(dbTx.Signer)
+		}
+
+		// Add to field
+		if dbTx.To != "" {
+			enhancedTx.Fields["to"] = structpb.NewStringValue(dbTx.To)
+		}
+
+		// Add value field
+		if dbTx.Value != "" {
+			enhancedTx.Fields["value"] = structpb.NewStringValue(dbTx.Value)
+		}
+
+		enhancedTxs = append(enhancedTxs, enhancedTx)
+	}
+
+	// Create a new BlockDTO with enhanced transactions
+	enhancedBlockDTO := proto.Clone(blockDTO).(*pb.BlockDTO)
+	enhancedBlockDTO.Txs = enhancedTxs
+
+	return enhancedBlockDTO
 }
 
 // GetLatestBlockHeight retrieves the height of the latest block.
@@ -4788,4 +5076,36 @@ func (s *ExplorerService) loadEVMDetailsBatchParallel(ctx context.Context, txs [
 	}
 
 	return detailsMap, nil
+}
+
+// getLatestBlockHeight returns the latest block height from cache or database
+// This is used for determining if a block is too old for transaction enhancement
+func getLatestBlockHeight() uint64 {
+	// Try to get from cache first
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		val, err := redisClient.Get(ctx, CacheKeyLatestBlockHeight).Uint64()
+		if err == nil && val > 0 {
+			return val
+		}
+	}
+
+	// Fallback to database query
+	var latestBlock models.Block
+	err := db.Get().Order("height desc").First(&latestBlock).Error
+	if err == nil && latestBlock.Height > 0 {
+		// Cache for future use
+		if redisClient != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			redisClient.Set(ctx, CacheKeyLatestBlockHeight, latestBlock.Height, 1*time.Minute)
+		}
+		return latestBlock.Height
+	}
+
+	// Ultimate fallback - return a reasonable default
+	return 50000000 // Approximately current Injective mainnet height
 }

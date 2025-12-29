@@ -2633,7 +2633,7 @@ func (s *SyncService) recoverProcessingQueue() error {
 	return nil
 }
 
-// cacheBlock caches a block to Redis, maintaining the latest 100 blocks.
+// cacheBlock caches a block to Redis, maintaining the latest 1000 blocks.
 func cacheBlock(ctx context.Context, block *models.Block) {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
@@ -2659,7 +2659,7 @@ func cacheBlock(ctx context.Context, block *models.Block) {
 	}
 }
 
-// cacheTransaction caches a transaction to Redis, maintaining the latest 100 transactions.
+// cacheTransaction caches a transaction to Redis, maintaining the latest 1000 transactions.
 func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
