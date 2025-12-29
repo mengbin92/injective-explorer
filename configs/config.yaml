@@ -174,3 +174,41 @@ token_price:
   # Note: Duration format must be in seconds (e.g., "300s" for 5 minutes, "3600s" for 1 hour)
   price_cache_ttl: 300s
   supply_cache_ttl: 3600s
+
+# API management configuration
+api_management:
+  # Rate limit configuration
+  rate_limit:
+    ip_per_minute: 100 # IP rate limit per minute
+    ip_per_hour: 5000 # IP rate limit per hour
+    token_per_second: 5 # Token rate limit per second
+    default_monthly_limit: 100000 # Default monthly limit
+
+  # Usage statistics configuration
+  usage_stats:
+    async_delay_seconds: 2 # Async statistics delay (1-5 seconds)
+    archive_days: 90 # Archive retention period in days (default: 90)
+
+  # IP location configuration (optional)
+  # ip_location:
+  #   geoip_db_path: "/path/to/GeoLite2-City.mmdb"
+
+  # Archive usage configuration
+  archive_usage:
+    enabled: false
+    interval: 86400s
+    batch_size: 1000
+
+  # IP whitelist configuration
+  # Whitelisted IPs bypass token authentication and rate limiting
+  # Supports individual IP addresses and CIDR ranges (IPv4 and IPv6)
+  # Examples:
+  #   - "127.0.0.1"           # Localhost IPv4
+  #   - "::1"                 # Localhost IPv6
+  #   - "192.168.1.0/24"      # IPv4 CIDR range
+  #   - "2001:db8::/32"       # IPv6 CIDR range
+  ip_whitelist:
+    ips:
+      - "127.0.0.1"
+      - "::1"
+      - "192.168.1.0/24"

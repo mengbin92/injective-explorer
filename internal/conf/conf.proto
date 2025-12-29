@@ -13,7 +13,7 @@ message Bootstrap {
   Chain chain = 5;
   Sync sync = 6;
   Archive archive = 7;
-  TokenPrice token_price = 8; // Token price service configuration
+  TokenPrice token_price = 8;       // Token price service configuration
   APIManagement api_management = 9; // API management configuration
 }
 
@@ -95,15 +95,15 @@ message Chain {
   EVM evm = 12; // EVM RPC configuration
 
   message EVM {
-    bool enabled = 1;                    // Whether EVM support is enabled
-    string rpc_endpoint = 2;              // EVM JSON-RPC endpoint
-    string ws_endpoint = 3;               // EVM WebSocket endpoint
-    int64 chain_id = 4;                   // EVM chain ID (1776 for mainnet, 1439 for testnet)
+    bool enabled = 1;        // Whether EVM support is enabled
+    string rpc_endpoint = 2; // EVM JSON-RPC endpoint
+    string ws_endpoint = 3;  // EVM WebSocket endpoint
+    int64 chain_id = 4; // EVM chain ID (1776 for mainnet, 1439 for testnet)
     google.protobuf.Duration timeout = 5; // RPC timeout
     Retry retry = 6;                      // Retry configuration
 
     message Retry {
-      int32 max_attempts = 1;            // Maximum retry attempts
+      int32 max_attempts = 1;                     // Maximum retry attempts
       google.protobuf.Duration initial_delay = 2; // Initial retry delay
     }
   }
@@ -207,26 +207,34 @@ message APIManagement {
   UsageStats usage_stats = 2;
   IPLocation ip_location = 3;
   ArchiveUsage archive_usage = 4;
+  IPWhitelist ip_whitelist = 5; // IP whitelist configuration
 
   message RateLimit {
-    int32 ip_per_minute = 1;        // IP rate limit per minute
+    int32 ip_per_minute = 1;         // IP rate limit per minute
     int32 ip_per_hour = 2;           // IP rate limit per hour
-    int32 token_per_second = 3;     // Token rate limit per second
+    int32 token_per_second = 3;      // Token rate limit per second
     int32 default_monthly_limit = 4; // Default monthly limit
   }
 
   message UsageStats {
-    int32 async_delay_seconds = 1;   // Async statistics delay (1-5 seconds)
-    int32 archive_days = 2;          // Archive retention period in days (default: 90)
+    int32 async_delay_seconds = 1; // Async statistics delay (1-5 seconds)
+    int32 archive_days = 2; // Archive retention period in days (default: 90)
   }
 
   message IPLocation {
-    string geoip_db_path = 1;        // GeoIP2 database file path
+    string geoip_db_path = 1; // GeoIP2 database file path
   }
 
   message ArchiveUsage {
     bool enabled = 1;
     google.protobuf.Duration interval = 2;
     int32 batch_size = 3;
+  }
+
+  message IPWhitelist {
+    // List of IP addresses or CIDR ranges to whitelist
+    // Whitelisted IPs bypass token authentication and rate limiting
+    // Examples: "127.0.0.1", "192.168.1.0/24", "::1", "2001:db8::/32"
+    repeated string ips = 1;
   }
 }

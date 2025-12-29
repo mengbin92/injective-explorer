@@ -9,6 +9,7 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 )
 
 var (
@@ -42,6 +43,10 @@ func InitRedis(ctx context.Context, cfg *conf.Data_Redis, logger log.Logger) err
 			PoolSize:     int(cfg.PoolSize),
 			ReadTimeout:  cfg.ReadTimeout.AsDuration(),
 			WriteTimeout: cfg.WriteTimeout.AsDuration(),
+			// Disable maint_notifications to avoid errors on open-source Redis
+			MaintNotificationsConfig: &maintnotifications.Config{
+				Mode: maintnotifications.ModeDisabled,
+			},
 		})
 
 		// Test connection

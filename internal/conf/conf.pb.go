@@ -869,6 +869,7 @@ type APIManagement struct {
 	UsageStats    *APIManagement_UsageStats   `protobuf:"bytes,2,opt,name=usage_stats,json=usageStats,proto3" json:"usage_stats,omitempty"`
 	IpLocation    *APIManagement_IPLocation   `protobuf:"bytes,3,opt,name=ip_location,json=ipLocation,proto3" json:"ip_location,omitempty"`
 	ArchiveUsage  *APIManagement_ArchiveUsage `protobuf:"bytes,4,opt,name=archive_usage,json=archiveUsage,proto3" json:"archive_usage,omitempty"`
+	IpWhitelist   *APIManagement_IPWhitelist  `protobuf:"bytes,5,opt,name=ip_whitelist,json=ipWhitelist,proto3" json:"ip_whitelist,omitempty"` // IP whitelist configuration
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -927,6 +928,13 @@ func (x *APIManagement) GetIpLocation() *APIManagement_IPLocation {
 func (x *APIManagement) GetArchiveUsage() *APIManagement_ArchiveUsage {
 	if x != nil {
 		return x.ArchiveUsage
+	}
+	return nil
+}
+
+func (x *APIManagement) GetIpWhitelist() *APIManagement_IPWhitelist {
+	if x != nil {
+		return x.IpWhitelist
 	}
 	return nil
 }
@@ -2059,6 +2067,53 @@ func (x *APIManagement_ArchiveUsage) GetBatchSize() int32 {
 	return 0
 }
 
+type APIManagement_IPWhitelist struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// List of IP addresses or CIDR ranges to whitelist
+	// Whitelisted IPs bypass token authentication and rate limiting
+	// Examples: "127.0.0.1", "192.168.1.0/24", "::1", "2001:db8::/32"
+	Ips           []string `protobuf:"bytes,1,rep,name=ips,proto3" json:"ips,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *APIManagement_IPWhitelist) Reset() {
+	*x = APIManagement_IPWhitelist{}
+	mi := &file_conf_conf_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APIManagement_IPWhitelist) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APIManagement_IPWhitelist) ProtoMessage() {}
+
+func (x *APIManagement_IPWhitelist) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APIManagement_IPWhitelist.ProtoReflect.Descriptor instead.
+func (*APIManagement_IPWhitelist) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{10, 4}
+}
+
+func (x *APIManagement_IPWhitelist) GetIps() []string {
+	if x != nil {
+		return x.Ips
+	}
+	return nil
+}
+
 var File_conf_conf_proto protoreflect.FileDescriptor
 
 const file_conf_conf_proto_rawDesc = "" +
@@ -2212,7 +2267,7 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\bdecimals\x18\x04 \x01(\x05R\bdecimals\x12!\n" +
 	"\fprice_source\x18\x05 \x01(\tR\vpriceSource\x12(\n" +
 	"\x10custom_price_url\x18\x06 \x01(\tR\x0ecustomPriceUrl\x12!\n" +
-	"\fdisplay_name\x18\a \x01(\tR\vdisplayName\"\xf1\x05\n" +
+	"\fdisplay_name\x18\a \x01(\tR\vdisplayName\"\xdc\x06\n" +
 	"\rAPIManagement\x12B\n" +
 	"\n" +
 	"rate_limit\x18\x01 \x01(\v2#.kratos.api.APIManagement.RateLimitR\trateLimit\x12E\n" +
@@ -2220,7 +2275,8 @@ const file_conf_conf_proto_rawDesc = "" +
 	"usageStats\x12E\n" +
 	"\vip_location\x18\x03 \x01(\v2$.kratos.api.APIManagement.IPLocationR\n" +
 	"ipLocation\x12K\n" +
-	"\rarchive_usage\x18\x04 \x01(\v2&.kratos.api.APIManagement.ArchiveUsageR\farchiveUsage\x1a\xad\x01\n" +
+	"\rarchive_usage\x18\x04 \x01(\v2&.kratos.api.APIManagement.ArchiveUsageR\farchiveUsage\x12H\n" +
+	"\fip_whitelist\x18\x05 \x01(\v2%.kratos.api.APIManagement.IPWhitelistR\vipWhitelist\x1a\xad\x01\n" +
 	"\tRateLimit\x12\"\n" +
 	"\rip_per_minute\x18\x01 \x01(\x05R\vipPerMinute\x12\x1e\n" +
 	"\vip_per_hour\x18\x02 \x01(\x05R\tipPerHour\x12(\n" +
@@ -2237,7 +2293,9 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x125\n" +
 	"\binterval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\binterval\x12\x1d\n" +
 	"\n" +
-	"batch_size\x18\x03 \x01(\x05R\tbatchSizeB\"Z injective-explorer/internal/conf;confb\x06proto3"
+	"batch_size\x18\x03 \x01(\x05R\tbatchSize\x1a\x1f\n" +
+	"\vIPWhitelist\x12\x10\n" +
+	"\x03ips\x18\x01 \x03(\tR\x03ipsB\"Z injective-explorer/internal/conf;confb\x06proto3"
 
 var (
 	file_conf_conf_proto_rawDescOnce sync.Once
@@ -2251,7 +2309,7 @@ func file_conf_conf_proto_rawDescGZIP() []byte {
 	return file_conf_conf_proto_rawDescData
 }
 
-var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_conf_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),                  // 0: kratos.api.Bootstrap
 	(*Server)(nil),                     // 1: kratos.api.Server
@@ -2283,7 +2341,8 @@ var file_conf_conf_proto_goTypes = []any{
 	(*APIManagement_UsageStats)(nil),   // 27: kratos.api.APIManagement.UsageStats
 	(*APIManagement_IPLocation)(nil),   // 28: kratos.api.APIManagement.IPLocation
 	(*APIManagement_ArchiveUsage)(nil), // 29: kratos.api.APIManagement.ArchiveUsage
-	(*durationpb.Duration)(nil),        // 30: google.protobuf.Duration
+	(*APIManagement_IPWhitelist)(nil),  // 30: kratos.api.APIManagement.IPWhitelist
+	(*durationpb.Duration)(nil),        // 31: google.protobuf.Duration
 }
 var file_conf_conf_proto_depIdxs = []int32{
 	1,  // 0: kratos.api.Bootstrap.server:type_name -> kratos.api.Server
@@ -2308,37 +2367,38 @@ var file_conf_conf_proto_depIdxs = []int32{
 	22, // 19: kratos.api.Sync.batch_size:type_name -> kratos.api.Sync.BatchSize
 	23, // 20: kratos.api.Sync.retry:type_name -> kratos.api.Sync.Retry
 	24, // 21: kratos.api.Sync.blocks:type_name -> kratos.api.Sync.Blocks
-	30, // 22: kratos.api.Archive.interval:type_name -> google.protobuf.Duration
+	31, // 22: kratos.api.Archive.interval:type_name -> google.protobuf.Duration
 	9,  // 23: kratos.api.TokenPrice.default_token:type_name -> kratos.api.TokenConfig
 	25, // 24: kratos.api.TokenPrice.tokens:type_name -> kratos.api.TokenPrice.TokensEntry
-	30, // 25: kratos.api.TokenPrice.price_cache_ttl:type_name -> google.protobuf.Duration
-	30, // 26: kratos.api.TokenPrice.supply_cache_ttl:type_name -> google.protobuf.Duration
+	31, // 25: kratos.api.TokenPrice.price_cache_ttl:type_name -> google.protobuf.Duration
+	31, // 26: kratos.api.TokenPrice.supply_cache_ttl:type_name -> google.protobuf.Duration
 	26, // 27: kratos.api.APIManagement.rate_limit:type_name -> kratos.api.APIManagement.RateLimit
 	27, // 28: kratos.api.APIManagement.usage_stats:type_name -> kratos.api.APIManagement.UsageStats
 	28, // 29: kratos.api.APIManagement.ip_location:type_name -> kratos.api.APIManagement.IPLocation
 	29, // 30: kratos.api.APIManagement.archive_usage:type_name -> kratos.api.APIManagement.ArchiveUsage
-	30, // 31: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	30, // 32: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	30, // 33: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
-	30, // 34: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
-	30, // 35: kratos.api.Chain.EVM.timeout:type_name -> google.protobuf.Duration
-	17, // 36: kratos.api.Chain.EVM.retry:type_name -> kratos.api.Chain.EVM.Retry
-	30, // 37: kratos.api.Chain.EVM.Retry.initial_delay:type_name -> google.protobuf.Duration
-	30, // 38: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
-	30, // 39: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
-	30, // 40: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
-	30, // 41: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
-	30, // 42: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
-	30, // 43: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
-	30, // 44: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
-	30, // 45: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
-	9,  // 46: kratos.api.TokenPrice.TokensEntry.value:type_name -> kratos.api.TokenConfig
-	30, // 47: kratos.api.APIManagement.ArchiveUsage.interval:type_name -> google.protobuf.Duration
-	48, // [48:48] is the sub-list for method output_type
-	48, // [48:48] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	30, // 31: kratos.api.APIManagement.ip_whitelist:type_name -> kratos.api.APIManagement.IPWhitelist
+	31, // 32: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	31, // 33: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	31, // 34: kratos.api.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
+	31, // 35: kratos.api.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
+	31, // 36: kratos.api.Chain.EVM.timeout:type_name -> google.protobuf.Duration
+	17, // 37: kratos.api.Chain.EVM.retry:type_name -> kratos.api.Chain.EVM.Retry
+	31, // 38: kratos.api.Chain.EVM.Retry.initial_delay:type_name -> google.protobuf.Duration
+	31, // 39: kratos.api.Sync.Intervals.block_poll:type_name -> google.protobuf.Duration
+	31, // 40: kratos.api.Sync.Intervals.tx_process:type_name -> google.protobuf.Duration
+	31, // 41: kratos.api.Sync.Intervals.historical_sync:type_name -> google.protobuf.Duration
+	31, // 42: kratos.api.Sync.Intervals.historical_batch_delay:type_name -> google.protobuf.Duration
+	31, // 43: kratos.api.Sync.Intervals.backward_sync_log:type_name -> google.protobuf.Duration
+	31, // 44: kratos.api.Sync.Intervals.rpc_status_retry:type_name -> google.protobuf.Duration
+	31, // 45: kratos.api.Sync.Timeouts.block_query:type_name -> google.protobuf.Duration
+	31, // 46: kratos.api.Sync.Retry.initial_delay:type_name -> google.protobuf.Duration
+	9,  // 47: kratos.api.TokenPrice.TokensEntry.value:type_name -> kratos.api.TokenConfig
+	31, // 48: kratos.api.APIManagement.ArchiveUsage.interval:type_name -> google.protobuf.Duration
+	49, // [49:49] is the sub-list for method output_type
+	49, // [49:49] is the sub-list for method input_type
+	49, // [49:49] is the sub-list for extension type_name
+	49, // [49:49] is the sub-list for extension extendee
+	0,  // [0:49] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
@@ -2352,7 +2412,7 @@ func file_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_conf_proto_rawDesc), len(file_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

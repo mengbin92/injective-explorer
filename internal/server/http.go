@@ -64,6 +64,16 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 		}
 	}
 
+	// Initialize IP whitelist checker (optional, can be nil if not configured)
+	var ipWhitelistChecker *middleware.IPWhitelistChecker
+	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.IpWhitelist != nil {
+		whitelistIPs := bootstrap.ApiManagement.IpWhitelist.Ips
+		if len(whitelistIPs) > 0 {
+			ipWhitelistChecker = middleware.NewIPWhitelistChecker(whitelistIPs)
+			log.NewHelper(logger).Infof("IP whitelist initialized with %d entries", len(whitelistIPs))
+		}
+	}
+
 	// Start log processor in background
 	ctx := context.Background()
 	statsService.StartLogProcessor(ctx)
@@ -81,7 +91,7 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	opts := []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
-			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService),
+			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService, ipWhitelistChecker),
 		),
 	}
 
