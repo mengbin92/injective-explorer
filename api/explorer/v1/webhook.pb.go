@@ -527,7 +527,7 @@ var File_explorer_v1_webhook_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_webhook_proto_rawDesc = "" +
 	"\n" +
-	"\x19explorer/v1/webhook.proto\x12\x0fapi.explorer.v1\x1a\x1cgoogle/api/annotations.proto\"l\n" +
+	"\x19explorer/v1/webhook.proto\x12\x0fapi.explorer.v1\x1a\x18explorer/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"l\n" +
 	"\x14CreateWebhookRequest\x12\x1a\n" +
 	"\btoken_id\x18\x01 \x01(\x03R\btoken_id\x12 \n" +
 	"\vwebhook_url\x18\x02 \x01(\tR\vwebhook_url\x12\x16\n" +
@@ -565,12 +565,12 @@ const file_explorer_v1_webhook_proto_rawDesc = "" +
 	"webhook_id\x18\x01 \x01(\x03R\n" +
 	"webhook_id\"1\n" +
 	"\x15DeleteWebhookResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2\xfb\x03\n" +
-	"\x0eWebhookService\x12{\n" +
-	"\rCreateWebhook\x12%.api.explorer.v1.CreateWebhookRequest\x1a&.api.explorer.v1.CreateWebhookResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/api/v1/webhooks\x12u\n" +
-	"\fListWebhooks\x12$.api.explorer.v1.ListWebhooksRequest\x1a%.api.explorer.v1.ListWebhooksResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/webhooks\x12{\n" +
-	"\rUpdateWebhook\x12%.api.explorer.v1.UpdateWebhookRequest\x1a&.api.explorer.v1.UpdateWebhookResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\x1a\x10/api/v1/webhooks\x12x\n" +
-	"\rDeleteWebhook\x12%.api.explorer.v1.DeleteWebhookRequest\x1a&.api.explorer.v1.DeleteWebhookResponse\"\x18\x82\xd3\xe4\x93\x02\x12*\x10/api/v1/webhooksB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
+	"\amessage\x18\x01 \x01(\tR\amessage2\xbc\x03\n" +
+	"\x0eWebhookService\x12k\n" +
+	"\rCreateWebhook\x12%.api.explorer.v1.CreateWebhookRequest\x1a\x16.api.explorer.v1.Reply\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/api/v1/webhooks\x12f\n" +
+	"\fListWebhooks\x12$.api.explorer.v1.ListWebhooksRequest\x1a\x16.api.explorer.v1.Reply\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/webhooks\x12k\n" +
+	"\rUpdateWebhook\x12%.api.explorer.v1.UpdateWebhookRequest\x1a\x16.api.explorer.v1.Reply\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\x1a\x10/api/v1/webhooks\x12h\n" +
+	"\rDeleteWebhook\x12%.api.explorer.v1.DeleteWebhookRequest\x1a\x16.api.explorer.v1.Reply\"\x18\x82\xd3\xe4\x93\x02\x12*\x10/api/v1/webhooksB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (
 	file_explorer_v1_webhook_proto_rawDescOnce sync.Once
@@ -595,6 +595,7 @@ var file_explorer_v1_webhook_proto_goTypes = []any{
 	(*UpdateWebhookResponse)(nil), // 6: api.explorer.v1.UpdateWebhookResponse
 	(*DeleteWebhookRequest)(nil),  // 7: api.explorer.v1.DeleteWebhookRequest
 	(*DeleteWebhookResponse)(nil), // 8: api.explorer.v1.DeleteWebhookResponse
+	(*Reply)(nil),                 // 9: api.explorer.v1.Reply
 }
 var file_explorer_v1_webhook_proto_depIdxs = []int32{
 	4, // 0: api.explorer.v1.ListWebhooksResponse.webhooks:type_name -> api.explorer.v1.WebhookInfo
@@ -602,10 +603,10 @@ var file_explorer_v1_webhook_proto_depIdxs = []int32{
 	2, // 2: api.explorer.v1.WebhookService.ListWebhooks:input_type -> api.explorer.v1.ListWebhooksRequest
 	5, // 3: api.explorer.v1.WebhookService.UpdateWebhook:input_type -> api.explorer.v1.UpdateWebhookRequest
 	7, // 4: api.explorer.v1.WebhookService.DeleteWebhook:input_type -> api.explorer.v1.DeleteWebhookRequest
-	1, // 5: api.explorer.v1.WebhookService.CreateWebhook:output_type -> api.explorer.v1.CreateWebhookResponse
-	3, // 6: api.explorer.v1.WebhookService.ListWebhooks:output_type -> api.explorer.v1.ListWebhooksResponse
-	6, // 7: api.explorer.v1.WebhookService.UpdateWebhook:output_type -> api.explorer.v1.UpdateWebhookResponse
-	8, // 8: api.explorer.v1.WebhookService.DeleteWebhook:output_type -> api.explorer.v1.DeleteWebhookResponse
+	9, // 5: api.explorer.v1.WebhookService.CreateWebhook:output_type -> api.explorer.v1.Reply
+	9, // 6: api.explorer.v1.WebhookService.ListWebhooks:output_type -> api.explorer.v1.Reply
+	9, // 7: api.explorer.v1.WebhookService.UpdateWebhook:output_type -> api.explorer.v1.Reply
+	9, // 8: api.explorer.v1.WebhookService.DeleteWebhook:output_type -> api.explorer.v1.Reply
 	5, // [5:9] is the sub-list for method output_type
 	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -618,6 +619,7 @@ func file_explorer_v1_webhook_proto_init() {
 	if File_explorer_v1_webhook_proto != nil {
 		return
 	}
+	file_explorer_v1_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

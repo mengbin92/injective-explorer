@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package api.explorer.v1;
 
+import "explorer/v1/common.proto";
 import "google/api/annotations.proto";
 
 option go_package = "injective-explorer/api/explorer/v1;v1";
@@ -9,7 +10,7 @@ option go_package = "injective-explorer/api/explorer/v1;v1";
 // APITokenService provides API token management services
 service APITokenService {
   // CreateToken creates a new API token
-  rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse) {
+  rpc CreateToken(CreateTokenRequest) returns (Reply) {
     option (google.api.http) = {
       post : "/api/v1/tokens"
       body : "*"
@@ -17,35 +18,35 @@ service APITokenService {
   }
 
   // ListTokens lists all tokens for a user
-  rpc ListTokens(ListTokensRequest) returns (ListTokensResponse) {
+  rpc ListTokens(ListTokensRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/tokens"
     };
   }
 
   // DeleteToken deletes a token
-  rpc DeleteToken(DeleteTokenRequest) returns (DeleteTokenResponse) {
+  rpc DeleteToken(DeleteTokenRequest) returns (Reply) {
     option (google.api.http) = {
       delete : "/api/v1/tokens"
     };
   }
 
   // GetTokenUsage gets token usage statistics
-  rpc GetTokenUsage(GetTokenUsageRequest) returns (GetTokenUsageResponse) {
+  rpc GetTokenUsage(GetTokenUsageRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/tokens/usage"
     };
   }
 
   // GetDashboardStats gets dashboard statistics for a user
-  rpc GetDashboardStats(GetDashboardStatsRequest) returns (GetDashboardStatsResponse) {
+  rpc GetDashboardStats(GetDashboardStatsRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/dashboard/stats"
     };
   }
 
   // ExportUsageLogs exports usage logs to Excel format
-  rpc ExportUsageLogs(ExportUsageLogsRequest) returns (ExportUsageLogsResponse) {
+  rpc ExportUsageLogs(ExportUsageLogsRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/export/logs"
     };

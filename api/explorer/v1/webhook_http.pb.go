@@ -26,13 +26,13 @@ const OperationWebhookServiceUpdateWebhook = "/api.explorer.v1.WebhookService/Up
 
 type WebhookServiceHTTPServer interface {
 	// CreateWebhook CreateWebhook creates a webhook configuration
-	CreateWebhook(context.Context, *CreateWebhookRequest) (*CreateWebhookResponse, error)
+	CreateWebhook(context.Context, *CreateWebhookRequest) (*Reply, error)
 	// DeleteWebhook DeleteWebhook deletes a webhook
-	DeleteWebhook(context.Context, *DeleteWebhookRequest) (*DeleteWebhookResponse, error)
+	DeleteWebhook(context.Context, *DeleteWebhookRequest) (*Reply, error)
 	// ListWebhooks ListWebhooks lists webhook configurations
-	ListWebhooks(context.Context, *ListWebhooksRequest) (*ListWebhooksResponse, error)
+	ListWebhooks(context.Context, *ListWebhooksRequest) (*Reply, error)
 	// UpdateWebhook UpdateWebhook updates webhook configuration
-	UpdateWebhook(context.Context, *UpdateWebhookRequest) (*UpdateWebhookResponse, error)
+	UpdateWebhook(context.Context, *UpdateWebhookRequest) (*Reply, error)
 }
 
 func RegisterWebhookServiceHTTPServer(s *http.Server, srv WebhookServiceHTTPServer) {
@@ -60,7 +60,7 @@ func _WebhookService_CreateWebhook0_HTTP_Handler(srv WebhookServiceHTTPServer) f
 		if err != nil {
 			return err
 		}
-		reply := out.(*CreateWebhookResponse)
+		reply := out.(*Reply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -79,7 +79,7 @@ func _WebhookService_ListWebhooks0_HTTP_Handler(srv WebhookServiceHTTPServer) fu
 		if err != nil {
 			return err
 		}
-		reply := out.(*ListWebhooksResponse)
+		reply := out.(*Reply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -101,7 +101,7 @@ func _WebhookService_UpdateWebhook0_HTTP_Handler(srv WebhookServiceHTTPServer) f
 		if err != nil {
 			return err
 		}
-		reply := out.(*UpdateWebhookResponse)
+		reply := out.(*Reply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -120,20 +120,20 @@ func _WebhookService_DeleteWebhook0_HTTP_Handler(srv WebhookServiceHTTPServer) f
 		if err != nil {
 			return err
 		}
-		reply := out.(*DeleteWebhookResponse)
+		reply := out.(*Reply)
 		return ctx.Result(200, reply)
 	}
 }
 
 type WebhookServiceHTTPClient interface {
 	// CreateWebhook CreateWebhook creates a webhook configuration
-	CreateWebhook(ctx context.Context, req *CreateWebhookRequest, opts ...http.CallOption) (rsp *CreateWebhookResponse, err error)
+	CreateWebhook(ctx context.Context, req *CreateWebhookRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	// DeleteWebhook DeleteWebhook deletes a webhook
-	DeleteWebhook(ctx context.Context, req *DeleteWebhookRequest, opts ...http.CallOption) (rsp *DeleteWebhookResponse, err error)
+	DeleteWebhook(ctx context.Context, req *DeleteWebhookRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	// ListWebhooks ListWebhooks lists webhook configurations
-	ListWebhooks(ctx context.Context, req *ListWebhooksRequest, opts ...http.CallOption) (rsp *ListWebhooksResponse, err error)
+	ListWebhooks(ctx context.Context, req *ListWebhooksRequest, opts ...http.CallOption) (rsp *Reply, err error)
 	// UpdateWebhook UpdateWebhook updates webhook configuration
-	UpdateWebhook(ctx context.Context, req *UpdateWebhookRequest, opts ...http.CallOption) (rsp *UpdateWebhookResponse, err error)
+	UpdateWebhook(ctx context.Context, req *UpdateWebhookRequest, opts ...http.CallOption) (rsp *Reply, err error)
 }
 
 type WebhookServiceHTTPClientImpl struct {
@@ -145,8 +145,8 @@ func NewWebhookServiceHTTPClient(client *http.Client) WebhookServiceHTTPClient {
 }
 
 // CreateWebhook CreateWebhook creates a webhook configuration
-func (c *WebhookServiceHTTPClientImpl) CreateWebhook(ctx context.Context, in *CreateWebhookRequest, opts ...http.CallOption) (*CreateWebhookResponse, error) {
-	var out CreateWebhookResponse
+func (c *WebhookServiceHTTPClientImpl) CreateWebhook(ctx context.Context, in *CreateWebhookRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
 	pattern := "/api/v1/webhooks"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationWebhookServiceCreateWebhook))
@@ -159,8 +159,8 @@ func (c *WebhookServiceHTTPClientImpl) CreateWebhook(ctx context.Context, in *Cr
 }
 
 // DeleteWebhook DeleteWebhook deletes a webhook
-func (c *WebhookServiceHTTPClientImpl) DeleteWebhook(ctx context.Context, in *DeleteWebhookRequest, opts ...http.CallOption) (*DeleteWebhookResponse, error) {
-	var out DeleteWebhookResponse
+func (c *WebhookServiceHTTPClientImpl) DeleteWebhook(ctx context.Context, in *DeleteWebhookRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
 	pattern := "/api/v1/webhooks"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationWebhookServiceDeleteWebhook))
@@ -173,8 +173,8 @@ func (c *WebhookServiceHTTPClientImpl) DeleteWebhook(ctx context.Context, in *De
 }
 
 // ListWebhooks ListWebhooks lists webhook configurations
-func (c *WebhookServiceHTTPClientImpl) ListWebhooks(ctx context.Context, in *ListWebhooksRequest, opts ...http.CallOption) (*ListWebhooksResponse, error) {
-	var out ListWebhooksResponse
+func (c *WebhookServiceHTTPClientImpl) ListWebhooks(ctx context.Context, in *ListWebhooksRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
 	pattern := "/api/v1/webhooks"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationWebhookServiceListWebhooks))
@@ -187,8 +187,8 @@ func (c *WebhookServiceHTTPClientImpl) ListWebhooks(ctx context.Context, in *Lis
 }
 
 // UpdateWebhook UpdateWebhook updates webhook configuration
-func (c *WebhookServiceHTTPClientImpl) UpdateWebhook(ctx context.Context, in *UpdateWebhookRequest, opts ...http.CallOption) (*UpdateWebhookResponse, error) {
-	var out UpdateWebhookResponse
+func (c *WebhookServiceHTTPClientImpl) UpdateWebhook(ctx context.Context, in *UpdateWebhookRequest, opts ...http.CallOption) (*Reply, error) {
+	var out Reply
 	pattern := "/api/v1/webhooks"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationWebhookServiceUpdateWebhook))

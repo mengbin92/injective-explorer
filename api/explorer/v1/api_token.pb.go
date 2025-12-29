@@ -808,7 +808,7 @@ var File_explorer_v1_api_token_proto protoreflect.FileDescriptor
 
 const file_explorer_v1_api_token_proto_rawDesc = "" +
 	"\n" +
-	"\x1bexplorer/v1/api_token.proto\x12\x0fapi.explorer.v1\x1a\x1cgoogle/api/annotations.proto\"(\n" +
+	"\x1bexplorer/v1/api_token.proto\x12\x0fapi.explorer.v1\x1a\x18explorer/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"(\n" +
 	"\x12CreateTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"\x87\x01\n" +
 	"\x13CreateTokenResponse\x12\x14\n" +
@@ -858,15 +858,15 @@ const file_explorer_v1_api_token_proto_rawDesc = "" +
 	"\x16ExportUsageLogsRequest\"W\n" +
 	"\x17ExportUsageLogsResponse\x12\"\n" +
 	"\fdownload_url\x18\x01 \x01(\tR\fdownload_url\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xf7\x05\n" +
-	"\x0fAPITokenService\x12s\n" +
-	"\vCreateToken\x12#.api.explorer.v1.CreateTokenRequest\x1a$.api.explorer.v1.CreateTokenResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v1/tokens\x12m\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\x96\x05\n" +
+	"\x0fAPITokenService\x12e\n" +
+	"\vCreateToken\x12#.api.explorer.v1.CreateTokenRequest\x1a\x16.api.explorer.v1.Reply\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v1/tokens\x12`\n" +
 	"\n" +
-	"ListTokens\x12\".api.explorer.v1.ListTokensRequest\x1a#.api.explorer.v1.ListTokensResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/tokens\x12p\n" +
-	"\vDeleteToken\x12#.api.explorer.v1.DeleteTokenRequest\x1a$.api.explorer.v1.DeleteTokenResponse\"\x16\x82\xd3\xe4\x93\x02\x10*\x0e/api/v1/tokens\x12|\n" +
-	"\rGetTokenUsage\x12%.api.explorer.v1.GetTokenUsageRequest\x1a&.api.explorer.v1.GetTokenUsageResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/tokens/usage\x12\x8b\x01\n" +
-	"\x11GetDashboardStats\x12).api.explorer.v1.GetDashboardStatsRequest\x1a*.api.explorer.v1.GetDashboardStatsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/dashboard/stats\x12\x81\x01\n" +
-	"\x0fExportUsageLogs\x12'.api.explorer.v1.ExportUsageLogsRequest\x1a(.api.explorer.v1.ExportUsageLogsResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/api/v1/export/logsB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
+	"ListTokens\x12\".api.explorer.v1.ListTokensRequest\x1a\x16.api.explorer.v1.Reply\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/tokens\x12b\n" +
+	"\vDeleteToken\x12#.api.explorer.v1.DeleteTokenRequest\x1a\x16.api.explorer.v1.Reply\"\x16\x82\xd3\xe4\x93\x02\x10*\x0e/api/v1/tokens\x12l\n" +
+	"\rGetTokenUsage\x12%.api.explorer.v1.GetTokenUsageRequest\x1a\x16.api.explorer.v1.Reply\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/tokens/usage\x12w\n" +
+	"\x11GetDashboardStats\x12).api.explorer.v1.GetDashboardStatsRequest\x1a\x16.api.explorer.v1.Reply\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/dashboard/stats\x12o\n" +
+	"\x0fExportUsageLogs\x12'.api.explorer.v1.ExportUsageLogsRequest\x1a\x16.api.explorer.v1.Reply\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/api/v1/export/logsB\"Z injective-explorer/api/explorer/v1;v1b\x06proto3"
 
 var (
 	file_explorer_v1_api_token_proto_rawDescOnce sync.Once
@@ -896,6 +896,7 @@ var file_explorer_v1_api_token_proto_goTypes = []any{
 	(*DailyStats)(nil),                // 11: api.explorer.v1.DailyStats
 	(*ExportUsageLogsRequest)(nil),    // 12: api.explorer.v1.ExportUsageLogsRequest
 	(*ExportUsageLogsResponse)(nil),   // 13: api.explorer.v1.ExportUsageLogsResponse
+	(*Reply)(nil),                     // 14: api.explorer.v1.Reply
 }
 var file_explorer_v1_api_token_proto_depIdxs = []int32{
 	4,  // 0: api.explorer.v1.ListTokensResponse.tokens:type_name -> api.explorer.v1.TokenInfo
@@ -906,12 +907,12 @@ var file_explorer_v1_api_token_proto_depIdxs = []int32{
 	7,  // 5: api.explorer.v1.APITokenService.GetTokenUsage:input_type -> api.explorer.v1.GetTokenUsageRequest
 	9,  // 6: api.explorer.v1.APITokenService.GetDashboardStats:input_type -> api.explorer.v1.GetDashboardStatsRequest
 	12, // 7: api.explorer.v1.APITokenService.ExportUsageLogs:input_type -> api.explorer.v1.ExportUsageLogsRequest
-	1,  // 8: api.explorer.v1.APITokenService.CreateToken:output_type -> api.explorer.v1.CreateTokenResponse
-	3,  // 9: api.explorer.v1.APITokenService.ListTokens:output_type -> api.explorer.v1.ListTokensResponse
-	6,  // 10: api.explorer.v1.APITokenService.DeleteToken:output_type -> api.explorer.v1.DeleteTokenResponse
-	8,  // 11: api.explorer.v1.APITokenService.GetTokenUsage:output_type -> api.explorer.v1.GetTokenUsageResponse
-	10, // 12: api.explorer.v1.APITokenService.GetDashboardStats:output_type -> api.explorer.v1.GetDashboardStatsResponse
-	13, // 13: api.explorer.v1.APITokenService.ExportUsageLogs:output_type -> api.explorer.v1.ExportUsageLogsResponse
+	14, // 8: api.explorer.v1.APITokenService.CreateToken:output_type -> api.explorer.v1.Reply
+	14, // 9: api.explorer.v1.APITokenService.ListTokens:output_type -> api.explorer.v1.Reply
+	14, // 10: api.explorer.v1.APITokenService.DeleteToken:output_type -> api.explorer.v1.Reply
+	14, // 11: api.explorer.v1.APITokenService.GetTokenUsage:output_type -> api.explorer.v1.Reply
+	14, // 12: api.explorer.v1.APITokenService.GetDashboardStats:output_type -> api.explorer.v1.Reply
+	14, // 13: api.explorer.v1.APITokenService.ExportUsageLogs:output_type -> api.explorer.v1.Reply
 	8,  // [8:14] is the sub-list for method output_type
 	2,  // [2:8] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
@@ -924,6 +925,7 @@ func file_explorer_v1_api_token_proto_init() {
 	if File_explorer_v1_api_token_proto != nil {
 		return
 	}
+	file_explorer_v1_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

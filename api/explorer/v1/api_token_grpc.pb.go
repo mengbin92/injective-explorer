@@ -34,17 +34,17 @@ const (
 // APITokenService provides API token management services
 type APITokenServiceClient interface {
 	// CreateToken creates a new API token
-	CreateToken(ctx context.Context, in *CreateTokenRequest, opts ...grpc.CallOption) (*CreateTokenResponse, error)
+	CreateToken(ctx context.Context, in *CreateTokenRequest, opts ...grpc.CallOption) (*Reply, error)
 	// ListTokens lists all tokens for a user
-	ListTokens(ctx context.Context, in *ListTokensRequest, opts ...grpc.CallOption) (*ListTokensResponse, error)
+	ListTokens(ctx context.Context, in *ListTokensRequest, opts ...grpc.CallOption) (*Reply, error)
 	// DeleteToken deletes a token
-	DeleteToken(ctx context.Context, in *DeleteTokenRequest, opts ...grpc.CallOption) (*DeleteTokenResponse, error)
+	DeleteToken(ctx context.Context, in *DeleteTokenRequest, opts ...grpc.CallOption) (*Reply, error)
 	// GetTokenUsage gets token usage statistics
-	GetTokenUsage(ctx context.Context, in *GetTokenUsageRequest, opts ...grpc.CallOption) (*GetTokenUsageResponse, error)
+	GetTokenUsage(ctx context.Context, in *GetTokenUsageRequest, opts ...grpc.CallOption) (*Reply, error)
 	// GetDashboardStats gets dashboard statistics for a user
-	GetDashboardStats(ctx context.Context, in *GetDashboardStatsRequest, opts ...grpc.CallOption) (*GetDashboardStatsResponse, error)
+	GetDashboardStats(ctx context.Context, in *GetDashboardStatsRequest, opts ...grpc.CallOption) (*Reply, error)
 	// ExportUsageLogs exports usage logs to Excel format
-	ExportUsageLogs(ctx context.Context, in *ExportUsageLogsRequest, opts ...grpc.CallOption) (*ExportUsageLogsResponse, error)
+	ExportUsageLogs(ctx context.Context, in *ExportUsageLogsRequest, opts ...grpc.CallOption) (*Reply, error)
 }
 
 type aPITokenServiceClient struct {
@@ -55,9 +55,9 @@ func NewAPITokenServiceClient(cc grpc.ClientConnInterface) APITokenServiceClient
 	return &aPITokenServiceClient{cc}
 }
 
-func (c *aPITokenServiceClient) CreateToken(ctx context.Context, in *CreateTokenRequest, opts ...grpc.CallOption) (*CreateTokenResponse, error) {
+func (c *aPITokenServiceClient) CreateToken(ctx context.Context, in *CreateTokenRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateTokenResponse)
+	out := new(Reply)
 	err := c.cc.Invoke(ctx, APITokenService_CreateToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -65,9 +65,9 @@ func (c *aPITokenServiceClient) CreateToken(ctx context.Context, in *CreateToken
 	return out, nil
 }
 
-func (c *aPITokenServiceClient) ListTokens(ctx context.Context, in *ListTokensRequest, opts ...grpc.CallOption) (*ListTokensResponse, error) {
+func (c *aPITokenServiceClient) ListTokens(ctx context.Context, in *ListTokensRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListTokensResponse)
+	out := new(Reply)
 	err := c.cc.Invoke(ctx, APITokenService_ListTokens_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -75,9 +75,9 @@ func (c *aPITokenServiceClient) ListTokens(ctx context.Context, in *ListTokensRe
 	return out, nil
 }
 
-func (c *aPITokenServiceClient) DeleteToken(ctx context.Context, in *DeleteTokenRequest, opts ...grpc.CallOption) (*DeleteTokenResponse, error) {
+func (c *aPITokenServiceClient) DeleteToken(ctx context.Context, in *DeleteTokenRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteTokenResponse)
+	out := new(Reply)
 	err := c.cc.Invoke(ctx, APITokenService_DeleteToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -85,9 +85,9 @@ func (c *aPITokenServiceClient) DeleteToken(ctx context.Context, in *DeleteToken
 	return out, nil
 }
 
-func (c *aPITokenServiceClient) GetTokenUsage(ctx context.Context, in *GetTokenUsageRequest, opts ...grpc.CallOption) (*GetTokenUsageResponse, error) {
+func (c *aPITokenServiceClient) GetTokenUsage(ctx context.Context, in *GetTokenUsageRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetTokenUsageResponse)
+	out := new(Reply)
 	err := c.cc.Invoke(ctx, APITokenService_GetTokenUsage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -95,9 +95,9 @@ func (c *aPITokenServiceClient) GetTokenUsage(ctx context.Context, in *GetTokenU
 	return out, nil
 }
 
-func (c *aPITokenServiceClient) GetDashboardStats(ctx context.Context, in *GetDashboardStatsRequest, opts ...grpc.CallOption) (*GetDashboardStatsResponse, error) {
+func (c *aPITokenServiceClient) GetDashboardStats(ctx context.Context, in *GetDashboardStatsRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetDashboardStatsResponse)
+	out := new(Reply)
 	err := c.cc.Invoke(ctx, APITokenService_GetDashboardStats_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -105,9 +105,9 @@ func (c *aPITokenServiceClient) GetDashboardStats(ctx context.Context, in *GetDa
 	return out, nil
 }
 
-func (c *aPITokenServiceClient) ExportUsageLogs(ctx context.Context, in *ExportUsageLogsRequest, opts ...grpc.CallOption) (*ExportUsageLogsResponse, error) {
+func (c *aPITokenServiceClient) ExportUsageLogs(ctx context.Context, in *ExportUsageLogsRequest, opts ...grpc.CallOption) (*Reply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ExportUsageLogsResponse)
+	out := new(Reply)
 	err := c.cc.Invoke(ctx, APITokenService_ExportUsageLogs_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -122,17 +122,17 @@ func (c *aPITokenServiceClient) ExportUsageLogs(ctx context.Context, in *ExportU
 // APITokenService provides API token management services
 type APITokenServiceServer interface {
 	// CreateToken creates a new API token
-	CreateToken(context.Context, *CreateTokenRequest) (*CreateTokenResponse, error)
+	CreateToken(context.Context, *CreateTokenRequest) (*Reply, error)
 	// ListTokens lists all tokens for a user
-	ListTokens(context.Context, *ListTokensRequest) (*ListTokensResponse, error)
+	ListTokens(context.Context, *ListTokensRequest) (*Reply, error)
 	// DeleteToken deletes a token
-	DeleteToken(context.Context, *DeleteTokenRequest) (*DeleteTokenResponse, error)
+	DeleteToken(context.Context, *DeleteTokenRequest) (*Reply, error)
 	// GetTokenUsage gets token usage statistics
-	GetTokenUsage(context.Context, *GetTokenUsageRequest) (*GetTokenUsageResponse, error)
+	GetTokenUsage(context.Context, *GetTokenUsageRequest) (*Reply, error)
 	// GetDashboardStats gets dashboard statistics for a user
-	GetDashboardStats(context.Context, *GetDashboardStatsRequest) (*GetDashboardStatsResponse, error)
+	GetDashboardStats(context.Context, *GetDashboardStatsRequest) (*Reply, error)
 	// ExportUsageLogs exports usage logs to Excel format
-	ExportUsageLogs(context.Context, *ExportUsageLogsRequest) (*ExportUsageLogsResponse, error)
+	ExportUsageLogs(context.Context, *ExportUsageLogsRequest) (*Reply, error)
 	mustEmbedUnimplementedAPITokenServiceServer()
 }
 
@@ -143,22 +143,22 @@ type APITokenServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAPITokenServiceServer struct{}
 
-func (UnimplementedAPITokenServiceServer) CreateToken(context.Context, *CreateTokenRequest) (*CreateTokenResponse, error) {
+func (UnimplementedAPITokenServiceServer) CreateToken(context.Context, *CreateTokenRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateToken not implemented")
 }
-func (UnimplementedAPITokenServiceServer) ListTokens(context.Context, *ListTokensRequest) (*ListTokensResponse, error) {
+func (UnimplementedAPITokenServiceServer) ListTokens(context.Context, *ListTokensRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTokens not implemented")
 }
-func (UnimplementedAPITokenServiceServer) DeleteToken(context.Context, *DeleteTokenRequest) (*DeleteTokenResponse, error) {
+func (UnimplementedAPITokenServiceServer) DeleteToken(context.Context, *DeleteTokenRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteToken not implemented")
 }
-func (UnimplementedAPITokenServiceServer) GetTokenUsage(context.Context, *GetTokenUsageRequest) (*GetTokenUsageResponse, error) {
+func (UnimplementedAPITokenServiceServer) GetTokenUsage(context.Context, *GetTokenUsageRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTokenUsage not implemented")
 }
-func (UnimplementedAPITokenServiceServer) GetDashboardStats(context.Context, *GetDashboardStatsRequest) (*GetDashboardStatsResponse, error) {
+func (UnimplementedAPITokenServiceServer) GetDashboardStats(context.Context, *GetDashboardStatsRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDashboardStats not implemented")
 }
-func (UnimplementedAPITokenServiceServer) ExportUsageLogs(context.Context, *ExportUsageLogsRequest) (*ExportUsageLogsResponse, error) {
+func (UnimplementedAPITokenServiceServer) ExportUsageLogs(context.Context, *ExportUsageLogsRequest) (*Reply, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExportUsageLogs not implemented")
 }
 func (UnimplementedAPITokenServiceServer) mustEmbedUnimplementedAPITokenServiceServer() {}

@@ -7,16 +7,23 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 
+	"github.com/bytedance/sonic"
+	"github.com/pkg/errors"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
 
@@ -41,9 +48,9 @@ func NewAPITokenService() *APITokenService {
 //   - req: Request containing token name
 //
 // Returns:
-//   - *pb.CreateTokenResponse: Response containing the created token (shown only once)
+//   - *pb.Reply: Response containing the created token (shown only once)
 //   - error: Error if the operation fails
-func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRequest) (*pb.CreateTokenResponse, error) {
+func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
@@ -105,12 +112,14 @@ func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRe
 		return nil, status.Error(codes.Internal, "failed to create token")
 	}
 
-	return &pb.CreateTokenResponse{
+	response := &pb.CreateTokenResponse{
 		Token:        token,
 		TokenPreview: tokenPreview,
 		TokenId:      int64(apiToken.ID),
 		Message:      "Token created successfully",
-	}, nil
+	}
+
+	return s.marshalAndReply(response, "marshal create token response error")
 }
 
 // ListTokens lists all tokens for the authenticated user.
@@ -120,9 +129,9 @@ func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRe
 //   - req: Empty request (user ID is extracted from context)
 //
 // Returns:
-//   - *pb.ListTokensResponse: Response containing list of tokens
+//   - *pb.Reply: Response containing list of tokens
 //   - error: Error if the operation fails
-func (s *APITokenService) ListTokens(ctx context.Context, req *pb.ListTokensRequest) (*pb.ListTokensResponse, error) {
+func (s *APITokenService) ListTokens(ctx context.Context, req *pb.ListTokensRequest) (*pb.Reply, error) {
 	// Get user ID from HTTP header
 	userID := s.getUserIDFromContext(ctx)
 	if userID == "" {
@@ -161,9 +170,11 @@ func (s *APITokenService) ListTokens(ctx context.Context, req *pb.ListTokensRequ
 		})
 	}
 
-	return &pb.ListTokensResponse{
+	response := &pb.ListTokensResponse{
 		Tokens: tokenInfos,
-	}, nil
+	}
+
+	return s.marshalAndReply(response, "marshal list tokens response error")
 }
 
 // DeleteToken deletes a token owned by the authenticated user.
@@ -173,9 +184,9 @@ func (s *APITokenService) ListTokens(ctx context.Context, req *pb.ListTokensRequ
 //   - req: Request containing token ID to delete
 //
 // Returns:
-//   - *pb.DeleteTokenResponse: Response confirming deletion
+//   - *pb.Reply: Response confirming deletion
 //   - error: Error if the operation fails (token not found, not owned by user, etc.)
-func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRequest) (*pb.DeleteTokenResponse, error) {
+func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRequest) (*pb.Reply, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
 	}
@@ -209,9 +220,11 @@ func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRe
 		return nil, status.Error(codes.Internal, "failed to delete token")
 	}
 
-	return &pb.DeleteTokenResponse{
+	response := &pb.DeleteTokenResponse{
 		Message: "Token deleted successfully",
-	}, nil
+	}
+
+	return s.marshalAndReply(response, "marshal delete token response error")
 }
 
 // GetTokenUsage gets token usage statistics for a token owned by the authenticated user.
@@ -221,9 +234,9 @@ func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRe
 //   - req: Request containing token ID
 //
 // Returns:
-//   - *pb.GetTokenUsageResponse: Response containing usage statistics
+//   - *pb.Reply: Response containing usage statistics
 //   - error: Error if the operation fails (token not found, not owned by user, etc.)
-func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsageRequest) (*pb.GetTokenUsageResponse, error) {
+func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsageRequest) (*pb.Reply, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
 	}
@@ -281,12 +294,14 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 		lastUsedAt = token.LastUsedAt.Format(time.RFC3339)
 	}
 
-	return &pb.GetTokenUsageResponse{
+	response := &pb.GetTokenUsageResponse{
 		TotalCalls:   totalCalls,
 		SuccessCalls: successCalls,
 		FailedCalls:  failedCalls,
 		LastUsedAt:   lastUsedAt,
-	}, nil
+	}
+
+	return s.marshalAndReply(response, "marshal token usage response error")
 }
 
 // generateAPIToken generates a new API token.
@@ -345,6 +360,77 @@ func (s *APITokenService) getUserIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// errorReply creates a standardized error reply with sanitized error messages.
+func (s *APITokenService) errorReply(code int, message string, err error) *pb.Reply {
+	sanitizedErr := utils.SanitizeError(err, 200)
+	return &pb.Reply{
+		Code:    int32(code),
+		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
+	}
+}
+
+// marshalAndReply serializes the value and returns a success reply.
+// The value is converted to google.protobuf.Struct, allowing direct JSON object response.
+func (s *APITokenService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
+	var structData *structpb.Struct
+	var err error
+
+	// Check if v is a proto.Message, use protoMessageToStructWithOptions if so
+	if msg, ok := v.(proto.Message); ok {
+		structData, err = s.protoMessageToStructWithOptions(msg, nil)
+	} else {
+		// For non-proto types (maps, etc.), use toStruct
+		structData, err = s.toStruct(v)
+	}
+
+	if err != nil {
+		global.Logger.Errorf("%s: %v", errorMsg, err)
+		return s.errorReply(http.StatusInternalServerError, errorMsg, err), err
+	}
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+		Data:    structData,
+	}, nil
+}
+
+// toStruct converts any value to google.protobuf.Struct.
+func (s *APITokenService) toStruct(v interface{}) (*structpb.Struct, error) {
+	jsonBytes, err := sonic.Marshal(v)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal to JSON")
+	}
+
+	var structData structpb.Struct
+	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
+	}
+
+	return &structData, nil
+}
+
+// protoMessageToStructWithOptions converts a protobuf message to google.protobuf.Struct.
+func (s *APITokenService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
+	if options == nil {
+		options = &protojson.MarshalOptions{
+			UseProtoNames:   true,
+			EmitUnpopulated: false,
+		}
+	}
+
+	jsonBytes, err := options.Marshal(msg)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal proto message")
+	}
+
+	var structData structpb.Struct
+	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
+	}
+
+	return &structData, nil
+}
+
 // GetDashboardStats gets dashboard statistics for the authenticated user.
 // Returns aggregated usage statistics including daily stats and monthly quota information.
 //
@@ -353,9 +439,9 @@ func (s *APITokenService) getUserIDFromContext(ctx context.Context) string {
 //   - req: Request containing number of days to query (default: 30)
 //
 // Returns:
-//   - *pb.GetDashboardStatsResponse: Response containing dashboard statistics
+//   - *pb.Reply: Response containing dashboard statistics
 //   - error: Error if the operation fails
-func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDashboardStatsRequest) (*pb.GetDashboardStatsResponse, error) {
+func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDashboardStatsRequest) (*pb.Reply, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
 	}
@@ -445,14 +531,16 @@ func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDash
 		})
 	}
 
-	return &pb.GetDashboardStatsResponse{
+	response := &pb.GetDashboardStatsResponse{
 		TotalCalls:   totalCalls,
 		SuccessCalls: successCalls,
 		FailedCalls:  failedCalls,
 		MonthlyLimit: int64(monthlyLimit),
 		MonthlyUsed:  int64(monthlyUsed),
 		DailyStats:   dailyStats,
-	}, nil
+	}
+
+	return s.marshalAndReply(response, "marshal dashboard stats response error")
 }
 
 // ExportUsageLogs exports API usage logs to Excel format.
@@ -464,9 +552,9 @@ func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDash
 //   - req: Request (empty, uses authenticated user from context)
 //
 // Returns:
-//   - *pb.ExportUsageLogsResponse: Response with success message
+//   - *pb.Reply: Response with success message
 //   - error: Error if export fails
-func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsageLogsRequest) (*pb.ExportUsageLogsResponse, error) {
+func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsageLogsRequest) (*pb.Reply, error) {
 	// This endpoint should be handled by a custom HTTP route handler for file download
 	// Protobuf services are better suited for JSON responses
 	return nil, status.Error(codes.Unimplemented, "Export functionality is handled via custom HTTP route at /api/v1/export/logs")
