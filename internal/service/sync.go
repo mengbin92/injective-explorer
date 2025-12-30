@@ -1364,8 +1364,57 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			}
 			batch := txsToUpdate[i:end]
 
+			// Pre-serialize JSON fields for the batch to avoid GORM serialization issues
+			// When using map[string]interface{} with Updates, GORM doesn't apply serializer:json tags
+			type serializedData struct {
+				eventsJSON     string
+				msgTypesJSON   string
+				sigsJSON       string
+				claimIdsJSON   string
+			}
+			serializedBatch := make([]serializedData, len(batch))
+
+			for i, txModel := range batch {
+				// Serialize events
+				if txModel.Events != nil {
+					eventsJSON, err := sonic.Marshal(txModel.Events)
+					if err != nil {
+						global.Logger.Warnf("Failed to serialize events for transaction %s: %v", txModel.Hash, err)
+					} else {
+						serializedBatch[i].eventsJSON = string(eventsJSON)
+					}
+				}
+				// Serialize message_types
+				if txModel.MessageTypes != nil {
+					msgTypesJSON, err := sonic.Marshal(txModel.MessageTypes)
+					if err != nil {
+						global.Logger.Warnf("Failed to serialize message_types for transaction %s: %v", txModel.Hash, err)
+					} else {
+						serializedBatch[i].msgTypesJSON = string(msgTypesJSON)
+					}
+				}
+				// Serialize signatures
+				if txModel.Signatures != nil {
+					sigsJSON, err := sonic.Marshal(txModel.Signatures)
+					if err != nil {
+						global.Logger.Warnf("Failed to serialize signatures for transaction %s: %v", txModel.Hash, err)
+					} else {
+						serializedBatch[i].sigsJSON = string(sigsJSON)
+					}
+				}
+				// Serialize claim_ids
+				if txModel.ClaimIds != nil {
+					claimIdsJSON, err := sonic.Marshal(txModel.ClaimIds)
+					if err != nil {
+						global.Logger.Warnf("Failed to serialize claim_ids for transaction %s: %v", txModel.Hash, err)
+					} else {
+						serializedBatch[i].claimIdsJSON = string(claimIdsJSON)
+					}
+				}
+			}
+
 			err = db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-				for _, txModel := range batch {
+				for i, txModel := range batch {
 					// Use Select to explicitly specify fields to update, including EVMHash
 					// This ensures zero-value fields are updated correctly
 					updateFields := map[string]interface{}{
@@ -1378,16 +1427,17 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						"gas_used":             txModel.GasUsed,
 						"gas_fee":              txModel.GasFee,
 						"codespace":            txModel.Codespace,
-						"events":               txModel.Events,
+						"events":               serializedBatch[i].eventsJSON, // Use serialized data
 						"tx_type":              txModel.TxType,
+						"message_types":        serializedBatch[i].msgTypesJSON, // Use serialized data
 						"messages":             txModel.Messages,
-						"signatures":           txModel.Signatures,
+						"signatures":           serializedBatch[i].sigsJSON, // Use serialized data
 						"memo":                 txModel.Memo,
 						"tx_number":            txModel.TxNumber,
 						"block_unix_timestamp": txModel.BlockUnixTimestamp,
 						"error_log":            txModel.ErrorLog,
 						"logs":                 txModel.Logs,
-						"claim_ids":            txModel.ClaimIds,
+						"claim_ids":            serializedBatch[i].claimIdsJSON, // Use serialized data
 						"signer":               txModel.Signer,
 						"to":                   txModel.To,
 						"value":                txModel.Value,

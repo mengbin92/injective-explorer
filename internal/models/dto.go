@@ -138,34 +138,58 @@ func ToBlockDTOs(blocks []Block) []*pb.BlockDTO {
 
 // ToTransactionDTO converts a Transaction model to proto TransactionDTO.
 // It automatically decompresses compressed data fields before returning.
+// It also loads data from object storage if storage keys exist.
 func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 	if tx == nil {
 		return nil
 	}
 
-	// Helper function to decompress and format data for DTO
+	// Helper function to load and decompress data from database or object storage
 	// Returns the decompressed data as a string (base64 for binary, plain text for text)
-	// This ensures that compressed data stored in the database is properly decompressed before returning to clients
-	decompressForDTO := func(compressedData string) string {
-		if compressedData == "" {
+	// This ensures that data stored in object storage or compressed data stored in the database
+	// is properly loaded and decompressed before returning to clients
+	loadAndDecompressForDTO := func(dbField, storageKey string) string {
+		// If storage key exists, try to load from object storage first
+		if storageKey != "" {
+			storageClient := storage.Get()
+			ctx := context.Background()
+			if storageData, err := storageClient.GetObject(ctx, storageKey); err == nil {
+				// Decompress data from object storage (may be compressed binary format)
+				decompressed, decompErr := DecompressDataFromBytes(storageData)
+				if decompErr != nil {
+					// If decompression fails, assume it's uncompressed (backward compatibility)
+					decompressed = storageData
+				}
+				// Successfully decompressed, check if it's text or binary
+				if isValidUTF8(decompressed) {
+					return string(decompressed)
+				}
+				// For binary data, encode to base64 for safe JSON transmission
+				return encodeBinaryData(decompressed)
+			}
+			// If object storage fails, fall back to database field
+		}
+
+		// No storage key or object storage failed, decompress database field
+		if dbField == "" {
 			return ""
 		}
 		// Decompress the data (handles both compressed and uncompressed data)
-		decompressed, err := DecompressData(compressedData)
+		decompressed, err := DecompressData(dbField)
 		if err != nil {
 			// If decompression fails, the data might be in old format (uncompressed)
 			// Try to decode as base64 if it looks like base64, otherwise return as-is
-			decoded := decodeBinaryData(compressedData)
-			if len(decoded) > 0 && len(decoded) != len(compressedData) {
+			decoded := decodeBinaryData(dbField)
+			if len(decoded) > 0 && len(decoded) != len(dbField) {
 				// Successfully decoded as base64 (size changed), check if it's text or binary
 				if isValidUTF8(decoded) {
 					return string(decoded)
 				}
 				// Binary data, return base64 encoded (original format)
-				return compressedData
+				return dbField
 			}
 			// Not base64 or same size, return as plain text (backward compatibility)
-			return compressedData
+			return dbField
 		}
 		// Successfully decompressed, check if it's text or binary
 		if isValidUTF8(decompressed) {
@@ -178,10 +202,10 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 	}
 
 	if isDetail {
-		// Decompress compressed fields before returning
-		dataStr := decompressForDTO(tx.Data)
-		messagesStr := decompressForDTO(tx.Messages)
-		logsStr := decompressForDTO(tx.Logs)
+		// Load and decompress fields (checking object storage first)
+		dataStr := loadAndDecompressForDTO(tx.Data, tx.DataStorageKey)
+		messagesStr := loadAndDecompressForDTO(tx.Messages, tx.MessagesStorageKey)
+		logsStr := loadAndDecompressForDTO(tx.Logs, tx.LogsStorageKey)
 
 		// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed
 		txDTO := &pb.TransactionDTO{
@@ -222,7 +246,8 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 		return txDTO
 	} else {
 		// For non-detail mode, also decompress Messages if present
-		messagesStr := decompressForDTO(tx.Messages)
+		// Load from object storage if storage key exists, otherwise from database
+		messagesStr := loadAndDecompressForDTO(tx.Messages, tx.MessagesStorageKey)
 
 		// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed
 		return &pb.TransactionDTO{
