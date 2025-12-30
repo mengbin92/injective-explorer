@@ -9,6 +9,7 @@ import (
 	"injective-explorer/internal/global"
 
 	"github.com/oschwald/geoip2-golang"
+	"github.com/pkg/errors"
 )
 
 // IPLocationService provides IP geolocation lookup using GeoIP2 database.
@@ -17,6 +18,9 @@ type IPLocationService struct {
 	db   *geoip2.Reader
 	mu   sync.RWMutex
 	path string
+
+	// 预解析的私有IP网络
+	privateIPNets []*net.IPNet
 }
 
 // NewIPLocationService creates a new IP location service instance.
@@ -46,6 +50,25 @@ func NewIPLocationService(dbPath string) (*IPLocationService, error) {
 	}
 
 	service.db = db
+
+	privateCIDRs := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+	}
+
+	privateIPNets := make([]*net.IPNet, 0, len(privateCIDRs))
+	for _, cidr := range privateCIDRs {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// panic if the private CIDR is invalid
+			global.Logger.Errorf("invalid private CIDR: %s, error: %v", cidr, err)
+			return nil, errors.New("invalid private CIDR: " + cidr + ", error: " + err.Error())
+		}
+		privateIPNets = append(privateIPNets, ipNet)
+	}
+
+	service.privateIPNets = privateIPNets
 	return service, nil
 }
 
@@ -114,32 +137,9 @@ func isPrivateIP(ip string) bool {
 		return false
 	}
 
-	// Check if IP is a loopback address
-	if ipAddr.IsLoopback() {
+	// Check if IP is a loopback/link-local/private/internal IP address
+	if ipAddr.IsLoopback() || ipAddr.IsLinkLocalUnicast() || ipAddr.IsPrivate() {
 		return true
-	}
-
-	// Check if IP is a link-local address
-	if ipAddr.IsLinkLocalUnicast() || ipAddr.IsLinkLocalMulticast() {
-		return true
-	}
-
-	// Check private network ranges
-	privateRanges := []string{
-		"10.0.0.0/8",     // RFC 1918
-		"172.16.0.0/12",  // RFC 1918
-		"192.168.0.0/16", // RFC 1918
-		"169.254.0.0/16", // RFC 3927 link-local
-	}
-
-	for _, cidr := range privateRanges {
-		_, ipNet, err := net.ParseCIDR(cidr)
-		if err != nil {
-			continue
-		}
-		if ipNet.Contains(ipAddr) {
-			return true
-		}
 	}
 
 	return false
@@ -188,4 +188,3 @@ func (s *IPLocationService) Close() error {
 	}
 	return nil
 }
-
