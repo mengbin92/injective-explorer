@@ -190,8 +190,8 @@ api_management:
     archive_days: 90 # Archive retention period in days (default: 90)
 
   # IP location configuration (optional)
-  # ip_location:
-  #   geoip_db_path: "/path/to/GeoLite2-City.mmdb"
+  ip_location:
+    geoip_db_path: /data/GeoLite2-City.mmdb
 
   # Archive usage configuration
   archive_usage:

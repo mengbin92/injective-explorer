@@ -51,14 +51,20 @@ func NewIPLocationService(dbPath string) (*IPLocationService, error) {
 
 // GetLocation gets IP location information asynchronously.
 // Returns empty string if lookup fails (non-blocking, graceful degradation).
+// For private/internal IPs, returns "Private Network, Local".
 //
 // Parameters:
 //   - ctx: Context for the operation
 //   - ip: The IP address to lookup
 //
 // Returns:
-//   - string: Location string in format "City, Country" or empty if lookup fails
+//   - string: Location string in format "City, Country" or "Private Network, Local" for private IPs
 func (s *IPLocationService) GetLocation(ctx context.Context, ip string) string {
+	// Check if IP is a private/internal IP address
+	if isPrivateIP(ip) {
+		return "Private Network, Local"
+	}
+
 	s.mu.RLock()
 	db := s.db
 	s.mu.RUnlock()
@@ -87,6 +93,56 @@ func (s *IPLocationService) GetLocation(ctx context.Context, ip string) string {
 		return country
 	}
 	return ""
+}
+
+// isPrivateIP checks if the given IP address is a private/internal IP.
+// Private IP ranges:
+//   - 10.0.0.0/8
+//   - 172.16.0.0/12
+//   - 192.168.0.0/16
+//   - 127.0.0.0/8 (loopback)
+//   - 169.254.0.0/16 (link-local)
+//
+// Parameters:
+//   - ip: The IP address to check
+//
+// Returns:
+//   - bool: true if the IP is private, false otherwise
+func isPrivateIP(ip string) bool {
+	ipAddr := net.ParseIP(ip)
+	if ipAddr == nil {
+		return false
+	}
+
+	// Check if IP is a loopback address
+	if ipAddr.IsLoopback() {
+		return true
+	}
+
+	// Check if IP is a link-local address
+	if ipAddr.IsLinkLocalUnicast() || ipAddr.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// Check private network ranges
+	privateRanges := []string{
+		"10.0.0.0/8",     // RFC 1918
+		"172.16.0.0/12",  // RFC 1918
+		"192.168.0.0/16", // RFC 1918
+		"169.254.0.0/16", // RFC 3927 link-local
+	}
+
+	for _, cidr := range privateRanges {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if ipNet.Contains(ipAddr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Reload reloads the GeoIP2 database from the configured path.

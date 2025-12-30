@@ -12,6 +12,7 @@ services:
       - 9000:9000
     volumes:
       - ./configs:/data/conf
+      - ./data/GeoLite2-City.mmdb:/data/GeoLite2-City.mmdb
     networks:
       - injective-explorer-network
     logging:

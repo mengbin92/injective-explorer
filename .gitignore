@@ -53,3 +53,4 @@ injective_data/
 # Build binaries
 injective-explorer
 bin/
+data/
