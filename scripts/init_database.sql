@@ -1,0 +1,446 @@
+/*
+ Database Initialization Script for Injective Explorer
+ This script creates all tables and indexes in one go.
+ Can be executed at MySQL startup or manually.
+
+ Usage:
+   mysql -u username -p database_name < scripts/init_database.sql
+
+ Date: 2025-01-XX
+ MySQL Version: 5.6+ (8.0+ recommended)
+*/
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ============================================================================
+-- TABLE CREATION
+-- ============================================================================
+
+-- ----------------------------
+-- Table structure for account_balances
+-- ----------------------------
+DROP TABLE IF EXISTS `account_balances`;
+CREATE TABLE `account_balances` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `address` varchar(191) DEFAULT NULL,
+  `denom` varchar(191) DEFAULT NULL,
+  `amount` longtext,
+  PRIMARY KEY (`id`),
+  KEY `idx_account_balances_deleted_at` (`deleted_at`),
+  KEY `idx_account_balances_address` (`address`),
+  KEY `idx_account_balances_denom` (`denom`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for accounts
+-- ----------------------------
+DROP TABLE IF EXISTS `accounts`;
+CREATE TABLE `accounts` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `address` varchar(191) DEFAULT NULL,
+  `base_account` longtext,
+  `code_hash` longtext,
+  PRIMARY KEY (`id`),
+  KEY `idx_accounts_deleted_at` (`deleted_at`),
+  KEY `idx_accounts_address` (`address`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for api_plans
+-- ----------------------------
+DROP TABLE IF EXISTS `api_plans`;
+CREATE TABLE `api_plans` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `name` varchar(50) NOT NULL,
+  `plan_type` varchar(20) NOT NULL,
+  `monthly_limit` bigint unsigned NOT NULL,
+  `rate_limit_per_second` bigint NOT NULL,
+  `max_tokens` bigint NOT NULL,
+  `enable_webhook` tinyint(1) NOT NULL DEFAULT '0',
+  `price` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_api_plans_name` (`name`),
+  KEY `idx_api_plans_deleted_at` (`deleted_at`),
+  KEY `idx_api_plans_plan_type` (`plan_type`),
+  KEY `idx_api_plans_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for api_request_logs
+-- ----------------------------
+DROP TABLE IF EXISTS `api_request_logs`;
+CREATE TABLE `api_request_logs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `token_id` bigint unsigned NOT NULL,
+  `user_id` varchar(64) NOT NULL,
+  `ip_address` varchar(45) NOT NULL,
+  `ip_location` varchar(100) DEFAULT NULL,
+  `endpoint` varchar(255) NOT NULL,
+  `method` varchar(10) NOT NULL,
+  `status_code` bigint NOT NULL,
+  `response_time` bigint NOT NULL,
+  `error_message` text,
+  PRIMARY KEY (`id`),
+  KEY `idx_api_request_logs_deleted_at` (`deleted_at`),
+  KEY `idx_api_request_logs_token_id` (`token_id`),
+  KEY `idx_api_request_logs_user_id` (`user_id`),
+  KEY `idx_api_request_logs_ip_address` (`ip_address`),
+  KEY `idx_api_request_logs_endpoint` (`endpoint`),
+  KEY `idx_api_request_logs_status_code` (`status_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for api_tokens
+-- ----------------------------
+DROP TABLE IF EXISTS `api_tokens`;
+CREATE TABLE `api_tokens` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `user_id` varchar(64) NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `token_hash` varchar(64) NOT NULL,
+  `token_preview` varchar(20) NOT NULL,
+  `plan_type` varchar(20) NOT NULL DEFAULT 'free',
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `last_used_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_api_tokens_token_hash` (`token_hash`),
+  KEY `idx_api_tokens_deleted_at` (`deleted_at`),
+  KEY `idx_api_tokens_user_id` (`user_id`),
+  KEY `idx_api_tokens_plan_type` (`plan_type`),
+  KEY `idx_api_tokens_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for blocks
+-- ----------------------------
+DROP TABLE IF EXISTS `blocks`;
+CREATE TABLE `blocks` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `height` bigint unsigned DEFAULT NULL,
+  `proposer` longtext,
+  `moniker` longtext,
+  `block_hash` varchar(191) DEFAULT NULL,
+  `parent_hash` longtext,
+  `num_precommits` bigint DEFAULT NULL,
+  `num_txs` bigint DEFAULT NULL,
+  `total_txs` bigint DEFAULT NULL,
+  `txs` longtext,
+  `timestamp` longtext,
+  `block_unix_timestamp` bigint unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_blocks_deleted_at` (`deleted_at`),
+  KEY `idx_height` (`height`),
+  KEY `idx_height_desc` (`height`),
+  KEY `idx_blocks_block_hash` (`block_hash`),
+  KEY `idx_timestamp_desc` (`block_unix_timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for contract_infos
+-- ----------------------------
+DROP TABLE IF EXISTS `contract_infos`;
+CREATE TABLE `contract_infos` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `contract_address` varchar(128) NOT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `token_name` varchar(255) DEFAULT NULL,
+  `token_symbol` varchar(50) DEFAULT NULL,
+  `contract_type` varchar(50) DEFAULT 'cosmwasm',
+  `chain_id` varchar(50) DEFAULT 'injective-1',
+  `verification_status` varchar(50) DEFAULT 'unverified',
+  `is_verified` tinyint(1) DEFAULT '0',
+  `verified_at` datetime(3) DEFAULT NULL,
+  `verified_by` varchar(128) DEFAULT NULL,
+  `metadata` json DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_contract_infos_deleted_at` (`deleted_at`),
+  KEY `idx_token_symbol` (`token_symbol`),
+  KEY `idx_contract_infos_contract_type` (`contract_type`),
+  KEY `idx_contract_infos_chain_id` (`chain_id`),
+  KEY `idx_contract_infos_verification_status` (`verification_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for contract_tags
+-- ----------------------------
+DROP TABLE IF EXISTS `contract_tags`;
+CREATE TABLE `contract_tags` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `contract_address` varchar(128) NOT NULL,
+  `chain_id` varchar(50) NOT NULL,
+  `tag_type` varchar(50) NOT NULL,
+  `tag_value` varchar(255) DEFAULT NULL,
+  `tag_color` varchar(20) DEFAULT NULL,
+  `description` text,
+  `created_by` varchar(128) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_contract_tags_deleted_at` (`deleted_at`),
+  KEY `idx_contract_tags_tag_type` (`tag_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for transaction_data_archives
+-- ----------------------------
+DROP TABLE IF EXISTS `transaction_data_archives`;
+CREATE TABLE `transaction_data_archives` (
+  `transaction_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `data` longtext,
+  `data_storage_key` varchar(191) DEFAULT NULL,
+  `info` longtext,
+  `messages` longtext,
+  `messages_storage_key` varchar(191) DEFAULT NULL,
+  `logs` longtext,
+  `logs_storage_key` varchar(191) DEFAULT NULL,
+  `error_log` longtext,
+  PRIMARY KEY (`transaction_id`),
+  KEY `idx_transaction_data_archives_data_storage_key` (`data_storage_key`),
+  KEY `idx_transaction_data_archives_messages_storage_key` (`messages_storage_key`),
+  KEY `idx_transaction_data_archives_logs_storage_key` (`logs_storage_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for transactions
+-- ----------------------------
+DROP TABLE IF EXISTS `transactions`;
+CREATE TABLE `transactions` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `tx_data_id` longtext,
+  `block_number` bigint unsigned DEFAULT NULL,
+  `block_timestamp` longtext,
+  `hash` varchar(191) DEFAULT NULL,
+  `code` int unsigned DEFAULT NULL,
+  `data` longtext,
+  `info` longtext,
+  `gas_wanted` bigint DEFAULT NULL,
+  `gas_used` bigint DEFAULT NULL,
+  `gas_fee` longtext,
+  `codespace` longtext,
+  `events` longtext,
+  `tx_type` longtext,
+  `message_types` longtext,
+  `messages` longtext,
+  `signatures` longtext,
+  `memo` longtext,
+  `tx_number` bigint unsigned DEFAULT NULL,
+  `block_unix_timestamp` bigint unsigned DEFAULT NULL,
+  `error_log` longtext,
+  `logs` longtext,
+  `claim_ids` longtext,
+  `signer` varchar(128) DEFAULT NULL,
+  `to` varchar(128) DEFAULT NULL,
+  `value` varchar(128) DEFAULT NULL,
+  `evm_from_address` varchar(128) DEFAULT NULL,
+  `evm_to_address` varchar(128) DEFAULT NULL,
+  `archived` tinyint(1) DEFAULT '0',
+  `data_storage_key` longtext,
+  `messages_storage_key` longtext,
+  `logs_storage_key` longtext,
+  `evm_hash` varchar(128) DEFAULT NULL,
+  `evm_details_storage_key` longtext,
+  `evm_details_synced` tinyint(1) DEFAULT '0',
+  `evm_details_sync_error` text,
+  `evm_details_sync_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_transactions_deleted_at` (`deleted_at`),
+  KEY `idx_block_tx` (`block_number`,`tx_number`),
+  KEY `idx_transactions_hash` (`hash`),
+  KEY `idx_timestamp_code` (`code`,`block_unix_timestamp`),
+  KEY `idx_tx_number` (`tx_number`),
+  KEY `idx_timestamp_tx` (`block_unix_timestamp`),
+  KEY `idx_signer` (`signer`),
+  KEY `idx_signer_timestamp` (`signer`),
+  KEY `idx_evm_from_address` (`evm_from_address`),
+  KEY `idx_evm_to_address` (`evm_to_address`),
+  KEY `idx_transactions_archived` (`archived`),
+  KEY `idx_evm_hash` (`evm_hash`),
+  KEY `idx_evm_details_synced` (`evm_details_synced`),
+  KEY `idx_timestamp_code_deleted` (`block_unix_timestamp`,`code`,`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for usage_daily_stats
+-- ----------------------------
+DROP TABLE IF EXISTS `usage_daily_stats`;
+CREATE TABLE `usage_daily_stats` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `user_id` varchar(64) NOT NULL,
+  `stat_date` date NOT NULL,
+  `total_calls` bigint unsigned NOT NULL DEFAULT '0',
+  `success_calls` bigint unsigned NOT NULL DEFAULT '0',
+  `failed_calls` bigint unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_date` (`user_id`,`stat_date`),
+  KEY `idx_usage_daily_stats_deleted_at` (`deleted_at`),
+  KEY `idx_usage_daily_stats_stat_date` (`stat_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for user_usage_stats
+-- ----------------------------
+DROP TABLE IF EXISTS `user_usage_stats`;
+CREATE TABLE `user_usage_stats` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `user_id` varchar(64) NOT NULL,
+  `monthly_used` bigint unsigned NOT NULL DEFAULT '0',
+  `monthly_limit` bigint unsigned NOT NULL DEFAULT '100000',
+  `total_usage` bigint unsigned NOT NULL DEFAULT '0',
+  `success_count` bigint unsigned NOT NULL DEFAULT '0',
+  `failed_count` bigint unsigned NOT NULL DEFAULT '0',
+  `last_reset_at` datetime(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_user_usage_stats_user_id` (`user_id`),
+  KEY `idx_user_usage_stats_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for webhooks
+-- ----------------------------
+DROP TABLE IF EXISTS `webhooks`;
+CREATE TABLE `webhooks` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `token_id` bigint unsigned NOT NULL,
+  `webhook_url` varchar(512) NOT NULL,
+  `secret` varchar(64) NOT NULL,
+  `events` longtext,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `last_triggered_at` datetime(3) DEFAULT NULL,
+  `failure_count` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_webhooks_deleted_at` (`deleted_at`),
+  KEY `idx_webhooks_token_id` (`token_id`),
+  KEY `idx_webhooks_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================================
+-- ADDITIONAL INDEXES FOR QUERY OPTIMIZATION
+-- ============================================================================
+
+-- Note: Some indexes may already exist from table creation above.
+-- For MySQL 5.6 compatibility, we create indexes directly.
+-- If an index already exists, MySQL will return an error which can be safely ignored.
+-- For MySQL 5.7.4+, IF NOT EXISTS syntax is supported, but we use direct CREATE for compatibility.
+
+-- ============================================================================
+-- TRANSACTION TABLE ADDITIONAL INDEXES
+-- ============================================================================
+
+-- Index for 'to' field queries (used in enhanceBlockDTOWithTransactions)
+-- Query: SELECT hash, signer, to, value FROM transactions WHERE block_number = ?
+-- Note: If index already exists, MySQL will return error which can be safely ignored
+CREATE INDEX idx_transaction_to ON transactions(`to`);
+
+-- Index for storage migration queries (IS NULL checks on storage keys)
+-- Query: WHERE (data_storage_key IS NULL OR data_storage_key = '') AND ...
+CREATE INDEX idx_data_storage_key ON transactions(data_storage_key);
+CREATE INDEX idx_messages_storage_key ON transactions(messages_storage_key);
+CREATE INDEX idx_logs_storage_key ON transactions(logs_storage_key);
+CREATE INDEX idx_evm_details_storage_key ON transactions(evm_details_storage_key);
+
+-- Composite index for archived transactions queries
+-- Query: WHERE archived = ? ORDER BY block_unix_timestamp DESC, tx_number DESC
+CREATE INDEX idx_archived_timestamp_tx ON transactions(archived, block_unix_timestamp DESC, tx_number DESC);
+
+-- Composite index for EVM transactions with synced status
+-- Query: WHERE evm_hash != '' AND evm_hash IS NOT NULL AND evm_details_synced = ?
+CREATE INDEX idx_evm_hash_synced ON transactions(evm_hash, evm_details_synced);
+
+-- Index for message_types JSON queries (MySQL 5.7+)
+-- Query: WHERE message_types LIKE ? OR JSON_CONTAINS(message_types, ?)
+-- Use prefix index directly on JSON column (simpler, works for LIKE queries)
+CREATE INDEX idx_message_types_prefix ON transactions(message_types(255));
+
+-- Composite index for EVM account transactions
+-- Query: WHERE (evm_from_address = ? OR evm_to_address = ?) ORDER BY block_unix_timestamp DESC
+CREATE INDEX idx_evm_from_timestamp ON transactions(evm_from_address, block_unix_timestamp DESC, tx_number DESC);
+CREATE INDEX idx_evm_to_timestamp ON transactions(evm_to_address, block_unix_timestamp DESC, tx_number DESC);
+
+-- ============================================================================
+-- ACCOUNT BALANCE TABLE ADDITIONAL INDEXES
+-- ============================================================================
+
+-- Composite index for address + denom queries
+-- Query: WHERE address = ? AND denom = ?
+CREATE INDEX idx_account_balance_address_denom ON account_balances(address, denom);
+
+-- ============================================================================
+-- CONTRACT INFO TABLE ADDITIONAL INDEXES
+-- ============================================================================
+
+-- Index for name and token_name LIKE queries
+-- Query: WHERE name LIKE ? OR token_name LIKE ?
+CREATE INDEX idx_contract_name_prefix ON contract_infos(name(50));
+CREATE INDEX idx_contract_token_name_prefix ON contract_infos(token_name(50));
+
+-- Full-text index for name and token_name (MySQL 5.6+)
+-- This enables MATCH() AGAINST() queries for better full-text search
+-- Note: FULLTEXT INDEX doesn't support IF NOT EXISTS, so we check first or ignore error
+ALTER TABLE contract_infos ADD FULLTEXT INDEX idx_contract_name_fulltext (name, token_name);
+
+-- Composite index for common filter combinations
+-- Query: WHERE chain_id = ? AND contract_type = ? AND verification_status = ?
+CREATE INDEX idx_contract_filters ON contract_infos(chain_id, contract_type, verification_status);
+
+-- ============================================================================
+-- VERIFICATION AND COMPLETION
+-- ============================================================================
+
+-- Verify all indexes were created successfully
+-- Note: This will show all indexes including duplicates, which is expected
+SELECT 'Index creation completed. Verifying indexes...' AS status;
+
+-- Show index summary
+SELECT
+    TABLE_NAME,
+    INDEX_NAME,
+    GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ', ') AS COLUMNS,
+    CARDINALITY,
+    INDEX_TYPE
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+AND TABLE_NAME IN ('transactions', 'blocks', 'account_balances', 'transaction_data_archives', 'contract_infos')
+AND INDEX_NAME LIKE 'idx_%'
+GROUP BY TABLE_NAME, INDEX_NAME, CARDINALITY, INDEX_TYPE
+ORDER BY TABLE_NAME, INDEX_NAME;
+
+SELECT 'Database initialization completed successfully!' AS status;
+

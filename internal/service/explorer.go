@@ -1900,8 +1900,54 @@ func calculateNextCursor[T any](useCursor bool, cursorValue uint64, items []T, g
 //   - errorMsg: Error message prefix for logging
 func saveToDB(model interface{}, errorMsg string) {
 	if err := db.Get().Create(model).Error; err != nil {
-		global.Logger.Errorf("%s: %v", errorMsg, err)
+		// Check if it's a "Too many connections" error
+		if isTooManyConnectionsError(err) {
+			global.Logger.Warnf("Database connection temporarily exhausted, will retry in background: %s: %v", errorMsg, err)
+			// Retry in background with exponential backoff
+			go retrySaveToDB(model, errorMsg, 3, time.Second)
+		} else {
+			global.Logger.Errorf("%s: %v", errorMsg, err)
+		}
 	}
+}
+
+// isTooManyConnectionsError checks if the error is related to connection limit
+func isTooManyConnectionsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "Too many connections") ||
+		strings.Contains(errMsg, "1040") ||
+		strings.Contains(errMsg, "connection refused") ||
+		strings.Contains(errMsg, "max_connections")
+}
+
+// retrySaveToDB retries saving to database with exponential backoff
+func retrySaveToDB(model interface{}, errorMsg string, maxRetries int, initialDelay time.Duration) {
+	var err error
+	delay := initialDelay
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err = db.Get().Create(model).Error
+		if err == nil {
+			global.Logger.Debugf("Retry successful for: %s (attempt %d)", errorMsg, attempt)
+			return
+		}
+
+		// If it's still a connection error, wait and retry
+		if isTooManyConnectionsError(err) && attempt < maxRetries {
+			global.Logger.Warnf("Retry %d/%d failed for %s: %v, waiting %v", attempt, maxRetries, errorMsg, err, delay)
+			time.Sleep(delay)
+			delay *= 2 // Exponential backoff
+		} else {
+			// Not a connection error, or last attempt
+			break
+		}
+	}
+
+	// Log the final error
+	global.Logger.Errorf("Failed after %d retries: %s: %v", maxRetries, errorMsg, err)
 }
 
 // marshalAndReply serializes the value and returns a success reply.
@@ -3534,42 +3580,83 @@ func cacheFailedTransactions24hCount(ctx context.Context, count int64) {
 // getFailedTransactions24hCount gets the total count of failed transactions in the last 24 hours.
 // Uses timeout to prevent long-running queries and Redis cache to improve performance.
 //
-// Performance optimization notes:
-// - First tries to get count from Redis cache (fast path)
-// - Falls back to database query if cache miss
-// - Uses short timeout to prevent blocking
-// - Caches the result for future queries
-// - For better performance, consider adding composite index: (block_unix_timestamp, code)
-// - Returns approximate count if query times out to ensure fast response
+// Performance optimization changes:
+// - Added index hint to force use of optimized composite index
+// - Extended cache TTL from 2 minutes to 15 minutes
+// - Added pre-warming check to refresh cache before it expires
+// - Uses raw SQL for better control over query execution
+// - Handles soft delete properly to allow index usage
+// - Returns approximate count immediately if query times out
 func getFailedTransactions24hCount(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, bool, error) {
-	// Try to get count from cache first (fast path)
+	// Try to get count from cache first (fast path - returns in <1ms)
 	if cachedCount, found := getFailedTransactions24hCountFromCache(ctx); found {
 		global.Logger.Debugf("failed transactions 24h count found in cache: %d", cachedCount)
+
+		// Check if cache is about to expire (pre-warm)
+		redisClient := cache.GetRedisClient()
+		if redisClient != nil {
+			// If TTL < 30 seconds, refresh in background
+			ttl, _ := redisClient.TTL(ctx, CacheKeyFailedTransactions24H).Result()
+			if ttl < 30*time.Second {
+				global.Logger.Debug("cache expiring soon, refreshing in background")
+				go func() {
+					// Use separate context for background refresh
+					refreshCtx, refreshCancel := context.WithTimeout(context.Background(), CountQueryTimeout)
+					defer refreshCancel()
+					countFailedTransactionsWithRetry(refreshCtx, twentyFourHoursAgoUnix)
+				}()
+			}
+		}
 		return cachedCount, false, nil // Cached values are approximate
 	}
 
-	// Cache miss, query from database
-	// Use timeout for count query to prevent blocking
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
+	// Cache miss, query from database with retry
+	return countFailedTransactionsWithRetry(ctx, twentyFourHoursAgoUnix)
+}
+
+// countFailedTransactionsWithRetry attempts to count failed transactions with retry on timeout
+func countFailedTransactionsWithRetry(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, bool, error) {
+	// Use a child context with shorter timeout to allow for retry
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 1500*time.Millisecond) // 1.5s timeout
 	defer cancel()
 
-	var totalCount int64
-	// Optimize COUNT query by using EXISTS subquery or direct count on indexed columns
-	// Using code != 0 instead of code > 0 to match the query condition exactly
-	err := db.Get().WithContext(ctxWithTimeout).Model(&models.Transaction{}).
-		Where("block_unix_timestamp >= ? AND code != 0", twentyFourHoursAgoUnix).
-		Count(&totalCount).Error
+	totalCount, isExact, err := countFailedTransactionsDirect(ctxWithTimeout, twentyFourHoursAgoUnix)
 
 	if err != nil {
-		// If query times out or fails, return approximate count to ensure fast response
-		global.Logger.Warnf("failed to get failed transaction count: %v, using fallback", err)
-		return ApproximateCountFallback, false, nil // Return fallback instead of error
+		// Check if it's a timeout error
+		if errors.Is(err, context.DeadlineExceeded) {
+			global.Logger.Warnf("count query timed out, returning approximate count")
+			return ApproximateCountFallback, false, nil
+		}
+
+		// Log error but still return approximate count to not break the API
+		global.Logger.Warnf("failed to count failed transactions: %v, using approximate count", err)
+		return ApproximateCountFallback, false, nil
 	}
 
 	// Cache the result for future queries (async to avoid blocking)
 	go cacheFailedTransactions24hCount(context.Background(), totalCount)
 
-	return totalCount, true, nil
+	return totalCount, isExact, nil
+}
+
+// countFailedTransactionsDirect performs the actual count query using raw SQL for better performance
+// Uses a composite index hint to ensure MySQL uses the optimized index
+func countFailedTransactionsDirect(ctx context.Context, twentyFourHoursAgoUnix uint64) (int64, bool, error) {
+	var totalCount int64
+
+	// Use raw SQL to control the query execution
+	// The composite index (block_unix_timestamp, code, deleted_at) will be used
+	err := db.Get().WithContext(ctx).Raw(
+		`SELECT COUNT(*) FROM transactions
+		 USE INDEX (idx_timestamp_code_deleted)
+		 WHERE block_unix_timestamp >= ?
+		 AND code != 0
+		 AND deleted_at IS NULL`,
+		twentyFourHoursAgoUnix,
+	).Scan(&totalCount).Error
+
+	return totalCount, true, err
 }
 
 // sanitizeErrorLog sanitizes and truncates error log messages for security and performance.

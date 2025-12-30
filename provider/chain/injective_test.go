@@ -3,7 +3,6 @@ package chain
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -39,7 +38,7 @@ func TestInjectiveWithSDK(t *testing.T) {
 
 	tmBlock, err := tmClient.GetBlock(context.Background(), blockHeight)
 	assert.NoError(t, err, "failed to get block")
-	str, _ := json.MarshalIndent(tmBlock, "", "\t")
+	str, _ := sonic.MarshalIndent(tmBlock, "", "\t")
 	fmt.Print(string(str))
 
 	explorerClient, err := explorerclient.NewExplorerClient(network)
@@ -53,7 +52,7 @@ func TestInjectiveWithSDK(t *testing.T) {
 
 	explorerClient.GetTxByTxHash(ctx, "0x1234567890abcdef")
 
-	str, _ = json.MarshalIndent(res, "", "\t")
+	str, _ = sonic.MarshalIndent(res, "", "\t")
 	fmt.Print(string(str))
 }
 
@@ -134,7 +133,7 @@ func TestGetLatestTransactions(t *testing.T) {
 		Data:    structData,
 	}
 
-	str, _ := json.Marshal(reply)
+	str, _ := sonic.Marshal(reply)
 	fmt.Println(string(str))
 }
 
@@ -169,7 +168,7 @@ func TestGetAccountInfo(t *testing.T) {
 		Data:    structData,
 	}
 
-	str, _ := json.Marshal(reply)
+	str, _ := sonic.Marshal(reply)
 	fmt.Println(string(str))
 }
 

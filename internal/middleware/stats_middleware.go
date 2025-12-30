@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/service"
 
@@ -42,9 +43,9 @@ func StatsMiddleware(statsService *service.UsageStatsService, ipLocationService 
 					tokenID, _ := ctx.Value(ContextKeyTokenID).(uint)
 					userID, _ := ctx.Value(ContextKeyUserID).(string)
 
-					// Only log if we have token info (authenticated requests)
-					if tokenID == 0 || userID == "" {
-						return // Skip logging for unauthenticated requests
+					// Only log if we have token info (authenticated requests) or whitelisted IP
+					if tokenID == 0 && userID == "" {
+						return // Skip logging for completely unauthenticated requests
 					}
 
 					// Get client IP
@@ -94,6 +95,7 @@ func StatsMiddleware(statsService *service.UsageStatsService, ipLocationService 
 					if err := statsService.RecordRequest(context.Background(), log); err != nil {
 						// Log error but don't fail the request
 						// In production, you might want to use a proper logger here
+						global.Logger.Errorf("failed to record request statistics: %v", err)
 					}
 				}()
 			}
@@ -102,4 +104,3 @@ func StatsMiddleware(statsService *service.UsageStatsService, ipLocationService 
 		}
 	}
 }
-

@@ -5,7 +5,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -18,6 +17,7 @@ import (
 	"injective-explorer/provider/cache"
 
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
+	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 )
 
@@ -119,7 +119,7 @@ func GetTokenPriceFromCoinGecko(ctx context.Context, tokenConfig *TokenConfig) (
 				Change24h   float64 `json:"change_24h"`
 				LastUpdated int64   `json:"last_updated"`
 			}
-			if err := json.Unmarshal([]byte(cachedPrice), &cachedData); err == nil {
+			if err := sonic.Unmarshal([]byte(cachedPrice), &cachedData); err == nil {
 				// Check if cache is still valid (within TTL, default 5 minutes)
 				ttl := 5 * time.Minute
 				if time.Now().Unix()-cachedData.LastUpdated < int64(ttl.Seconds()) {
@@ -159,7 +159,7 @@ func GetTokenPriceFromCoinGecko(ctx context.Context, tokenConfig *TokenConfig) (
 	}
 
 	var coingeckoResp CoinGeckoResponse
-	if err := json.NewDecoder(resp.Body).Decode(&coingeckoResp); err != nil {
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&coingeckoResp); err != nil {
 		return 0, 0, errors.Wrap(err, "failed to decode CoinGecko response")
 	}
 
@@ -179,7 +179,7 @@ func GetTokenPriceFromCoinGecko(ctx context.Context, tokenConfig *TokenConfig) (
 			"change_24h":   change24h,
 			"last_updated": time.Now().Unix(),
 		}
-		cacheJSON, _ := json.Marshal(cacheData)
+		cacheJSON, _ := sonic.Marshal(cacheData)
 		ttl := 5 * time.Minute
 		if err := redisClient.Set(ctx, cacheKey, string(cacheJSON), ttl).Err(); err != nil {
 			global.Logger.Warnf("failed to cache price for %s: %v", tokenConfig.Symbol, err)
@@ -209,7 +209,7 @@ func GetTokenPriceFromCustom(ctx context.Context, tokenConfig *TokenConfig) (flo
 				Change24h   float64 `json:"change_24h"`
 				LastUpdated int64   `json:"last_updated"`
 			}
-			if err := json.Unmarshal([]byte(cachedPrice), &cachedData); err == nil {
+			if err := sonic.Unmarshal([]byte(cachedPrice), &cachedData); err == nil {
 				ttl := 5 * time.Minute
 				if time.Now().Unix()-cachedData.LastUpdated < int64(ttl.Seconds()) {
 					global.Logger.Debugf("returning cached price for %s: $%.2f",
@@ -242,7 +242,7 @@ func GetTokenPriceFromCustom(ctx context.Context, tokenConfig *TokenConfig) (flo
 	}
 
 	var customResp CustomPriceResponse
-	if err := json.NewDecoder(resp.Body).Decode(&customResp); err != nil {
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&customResp); err != nil {
 		return 0, 0, errors.Wrap(err, "failed to decode custom price response")
 	}
 
@@ -256,7 +256,7 @@ func GetTokenPriceFromCustom(ctx context.Context, tokenConfig *TokenConfig) (flo
 			"change_24h":   change24h,
 			"last_updated": time.Now().Unix(),
 		}
-		cacheJSON, _ := json.Marshal(cacheData)
+		cacheJSON, _ := sonic.Marshal(cacheData)
 		ttl := 5 * time.Minute
 		if err := redisClient.Set(ctx, cacheKey, string(cacheJSON), ttl).Err(); err != nil {
 			global.Logger.Warnf("failed to cache price for %s: %v", tokenConfig.Symbol, err)
@@ -303,7 +303,7 @@ func GetTokenTotalSupplyFromCoinGecko(ctx context.Context, tokenConfig *TokenCon
 				Supply      string `json:"supply"`
 				LastUpdated int64  `json:"last_updated"`
 			}
-			if err := json.Unmarshal([]byte(cachedSupply), &cachedData); err == nil {
+			if err := sonic.Unmarshal([]byte(cachedSupply), &cachedData); err == nil {
 				ttl := 1 * time.Hour
 				if time.Now().Unix()-cachedData.LastUpdated < int64(ttl.Seconds()) {
 					supply, ok := new(big.Int).SetString(cachedData.Supply, 10)
@@ -349,7 +349,7 @@ func GetTokenTotalSupplyFromCoinGecko(ctx context.Context, tokenConfig *TokenCon
 		} `json:"market_data"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&coinDetailResp); err != nil {
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&coinDetailResp); err != nil {
 		return nil, "", errors.Wrap(err, "failed to decode CoinGecko detail response")
 	}
 
@@ -387,7 +387,7 @@ func GetTokenTotalSupplyFromCoinGecko(ctx context.Context, tokenConfig *TokenCon
 			"supply":       supplyStr,
 			"last_updated": time.Now().Unix(),
 		}
-		cacheJSON, _ := json.Marshal(cacheData)
+		cacheJSON, _ := sonic.Marshal(cacheData)
 		ttl := 1 * time.Hour
 		if err := redisClient.Set(ctx, cacheKey, string(cacheJSON), ttl).Err(); err != nil {
 			global.Logger.Warnf("failed to cache CoinGecko supply for %s: %v", tokenConfig.Symbol, err)
@@ -413,7 +413,7 @@ func GetTokenTotalSupply(ctx context.Context, chainClient chainclient.ChainClien
 				Supply      string `json:"supply"`
 				LastUpdated int64  `json:"last_updated"`
 			}
-			if err := json.Unmarshal([]byte(cachedSupply), &cachedData); err == nil {
+			if err := sonic.Unmarshal([]byte(cachedSupply), &cachedData); err == nil {
 				ttl := 1 * time.Hour
 				if time.Now().Unix()-cachedData.LastUpdated < int64(ttl.Seconds()) {
 					supply, ok := new(big.Int).SetString(cachedData.Supply, 10)
@@ -463,7 +463,7 @@ func GetTokenTotalSupply(ctx context.Context, chainClient chainclient.ChainClien
 			"supply":       supplyStr,
 			"last_updated": time.Now().Unix(),
 		}
-		cacheJSON, _ := json.Marshal(cacheData)
+		cacheJSON, _ := sonic.Marshal(cacheData)
 		ttl := 1 * time.Hour
 		if err := redisClient.Set(ctx, cacheKey, string(cacheJSON), ttl).Err(); err != nil {
 			global.Logger.Warnf("failed to cache supply for %s: %v", tokenConfig.Symbol, err)

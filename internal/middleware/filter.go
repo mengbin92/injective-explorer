@@ -45,7 +45,12 @@ func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService 
 					ip := getClientIP(request)
 					if ipWhitelistChecker.IsWhitelisted(ip) {
 						// Whitelisted IPs bypass token auth and rate limiting
-						// Still apply stats middleware for logging
+						// Create virtual token info for IP address to enable stats logging
+						ctx = context.WithValue(ctx, ContextKeyTokenID, uint(0)) // 0 indicates whitelisted IP
+						ctx = context.WithValue(ctx, ContextKeyUserID, "whitelisted_ip_"+ip)
+						ctx = context.WithValue(ctx, ContextKeyPlanType, "whitelisted")
+
+						// Apply stats middleware for logging
 						statsHandler := statsMiddleware(handler)
 						return statsHandler(ctx, req)
 					}

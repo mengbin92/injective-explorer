@@ -89,7 +89,7 @@ const (
 	CacheBlockTTL                 = 1 * time.Hour                   // Single block cache expiration time (1 hour - increased from 5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
 	CacheTransactionStatsTTL      = 5 * time.Minute                 // Transaction statistics cache expiration time (5 minutes)
-	CacheFailedTransactions24HTTL = 2 * time.Minute                 // Failed transactions 24h count cache expiration time (2 minutes)
+	CacheFailedTransactions24HTTL = 15 * time.Minute                // Failed transactions 24h count cache expiration time (15 minutes - increased from 2 minutes)
 	CacheBlockMaxGasTTL           = 10 * time.Minute                // Block max gas cache expiration time (10 minutes)
 	CacheBlockGasUtilizationTTL   = 1 * time.Minute                 // Block gas utilization cache expiration time (1 minute)
 	CacheEVMDetailsTTL            = 24 * time.Hour                  // Cache TTL: 24 hours (EVM details are relatively static)

@@ -97,12 +97,17 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 	// Optimize connection pool for high TPS:
 	// - MaxIdleConns: Keep more idle connections to reduce connection overhead
 	// - MaxOpenConns: Allow more concurrent connections for high load
+	//   IMPORTANT: Must be 60-70% of MySQL's max_connections to avoid "Too many connections"
+	//   Default MySQL max_connections is 151, so 100 is safe (66% of 151)
 	// - ConnMaxLifetime: Recycle connections periodically to prevent stale connections
 	// - ConnMaxIdleTime: Close idle connections after 10 minutes to free resources
-	sqlDB.SetMaxIdleConns(50)                  // Increased from 10 to 50
-	sqlDB.SetMaxOpenConns(200)                 // Increased from 100 to 200
-	sqlDB.SetConnMaxLifetime(time.Hour)        // Keep existing
-	sqlDB.SetConnMaxIdleTime(10 * time.Minute) // Close idle connections after 10 minutes
+	//
+	// CRITICAL: If you see "Too many connections" error, reduce MaxOpenConns to 60% of MySQL max_connections
+	// Example: If MySQL max_connections = 151, set MaxOpenConns = 90 (151 * 0.6)
+	sqlDB.SetMaxIdleConns(15)                  // 15% of MaxOpenConns for efficiency (100 * 0.15)
+	sqlDB.SetMaxOpenConns(50)                  // Safe value: 50 (well below default MySQL limit of 151)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)  // Reduced from 1 hour to 5 minutes for faster recycling
+	sqlDB.SetConnMaxIdleTime(3 * time.Minute)  // Close idle connections after 3 minutes to free resources
 
 	// Test the connection
 	if err := sqlDB.PingContext(ctx); err != nil {

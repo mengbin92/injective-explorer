@@ -9,7 +9,6 @@ package models
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -423,7 +422,7 @@ func LoadEVMTransactionDetails(ctx context.Context, tx *Transaction) (*chain.Tra
 			detailsBytes, err := storageClient.GetObject(ctx, tx.EVMDetailsStorageKey)
 			if err == nil {
 				var details chain.TransactionDetails
-				if err := json.Unmarshal(detailsBytes, &details); err == nil {
+				if err := sonic.Unmarshal(detailsBytes, &details); err == nil {
 					return &details, nil
 				}
 			}

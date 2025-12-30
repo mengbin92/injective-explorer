@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"injective-explorer/internal/global"
@@ -11,6 +10,7 @@ import (
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
+	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -48,7 +48,7 @@ func (s *UsageStatsService) RecordRequest(ctx context.Context, log *models.APIRe
 	}
 
 	// Serialize log to JSON
-	data, err := json.Marshal(log)
+	data, err := sonic.Marshal(log)
 	if err != nil {
 		global.Logger.Errorf("failed to marshal request log: %v", err)
 		return err
@@ -108,7 +108,7 @@ func (s *UsageStatsService) ProcessLogQueue(ctx context.Context) error {
 
 			// Deserialize log
 			var log models.APIRequestLog
-			if err := json.Unmarshal([]byte(result[1]), &log); err != nil {
+			if err := sonic.Unmarshal([]byte(result[1]), &log); err != nil {
 				global.Logger.Errorf("failed to unmarshal log: %v", err)
 				continue // Skip invalid log
 			}
@@ -179,8 +179,8 @@ func (s *UsageStatsService) UpdateDailyStats(ctx context.Context, date time.Time
 
 	// Aggregate statistics by user
 	type StatsResult struct {
-		UserID      string
-		TotalCalls  int64
+		UserID       string
+		TotalCalls   int64
 		SuccessCalls int64
 		FailedCalls  int64
 	}
@@ -201,9 +201,9 @@ func (s *UsageStatsService) UpdateDailyStats(ctx context.Context, date time.Time
 	// Insert/update daily stats
 	for _, result := range results {
 		dailyStat := models.UsageDailyStats{
-			UserID:      result.UserID,
-			StatDate:    startDate,
-			TotalCalls:  uint64(result.TotalCalls),
+			UserID:       result.UserID,
+			StatDate:     startDate,
+			TotalCalls:   uint64(result.TotalCalls),
 			SuccessCalls: uint64(result.SuccessCalls),
 			FailedCalls:  uint64(result.FailedCalls),
 		}
@@ -221,4 +221,3 @@ func (s *UsageStatsService) UpdateDailyStats(ctx context.Context, date time.Time
 
 	return nil
 }
-

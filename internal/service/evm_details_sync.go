@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"injective-explorer/provider/db"
 	"injective-explorer/provider/storage"
 
+	"github.com/bytedance/sonic"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -255,7 +255,7 @@ func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash str
 //   - error: Error if the operation fails
 func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.Transaction, details *chain.TransactionDetails) error {
 	// Marshal to JSON
-	detailsJSON, err := json.Marshal(details)
+	detailsJSON, err := sonic.Marshal(details)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal transaction details")
 	}
@@ -278,10 +278,10 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 	now := time.Now()
 	updates := map[string]interface{}{
 		"evm_details_synced":     true,
-		"evm_details_sync_at":     &now,
-		"evm_details_sync_error":  "",
-		"evm_from_address":        details.From,
-		"evm_to_address":          details.To,
+		"evm_details_sync_at":    &now,
+		"evm_details_sync_error": "",
+		"evm_from_address":       details.From,
+		"evm_to_address":         details.To,
 	}
 
 	if storageKey != "" {
@@ -341,4 +341,3 @@ func (s *EVMDetailsSyncService) retryTask(ctx context.Context, taskStr string) {
 		}
 	}()
 }
-

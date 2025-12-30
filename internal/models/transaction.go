@@ -4,7 +4,6 @@ package models
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"log"
 	"time"
 	"unicode/utf8"
@@ -12,6 +11,7 @@ import (
 	"injective-explorer/provider/storage"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	"github.com/bytedance/sonic"
 	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
@@ -703,7 +703,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 	// Check if it looks like JSON (starts with '[' or '{')
 	if len(messagesBytes) > 0 && (messagesBytes[0] == '[' || messagesBytes[0] == '{') {
 		var jsonMessages []map[string]interface{}
-		if err := json.Unmarshal(messagesBytes, &jsonMessages); err == nil {
+		if err := sonic.Unmarshal(messagesBytes, &jsonMessages); err == nil {
 			// Successfully parsed as JSON array
 			messageTypes := make([]string, 0, len(jsonMessages))
 			for _, msg := range jsonMessages {
@@ -717,7 +717,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 		} else {
 			// Try parsing as single JSON object instead of array
 			var singleMsg map[string]interface{}
-			if err := json.Unmarshal(messagesBytes, &singleMsg); err == nil {
+			if err := sonic.Unmarshal(messagesBytes, &singleMsg); err == nil {
 				if msgType, ok := singleMsg["type"].(string); ok && msgType != "" {
 					return []string{msgType}
 				}
