@@ -43,10 +43,9 @@ var (
 
 	// 测试地址示例（用于需要address参数的接口）
 	testAddresses = []string{
-		"inj1lfycr67vur5gayrakw6xj06sx86f4zf7qex26d",
-		"inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z",
-		"inj1ng84mfnq4z4tuh0cd7a28x0hxw75vxcm70ls9q",
-		"inj1exyaj8xflhqvrs5x30lxms4egya4v527tzu2xq",
+		"0x935b705b5943b0e1b859651d2ccf375bc96dfdd7",
+		"0x9a0f5da660a8aabe5df86fbaa399f733bd461b1b",
+		"0xc989d91cc9fdc0c1c2868bfe6dc2b9413b56515e",
 	}
 )
 
@@ -187,7 +186,7 @@ var endpoints = []EndpointConfig{
 		Path:   "/api/v1/block/by-height",
 		Method: "GET",
 		Params: map[string]string{
-			"height": "1",
+			"height": "148025427",
 		},
 	},
 	{

@@ -17,8 +17,8 @@ type UsageDailyStats struct {
 
 	// UserID is the user ID (part of unique index with StatDate)
 	UserID string `gorm:"column:user_id;type:varchar(64);not null;uniqueIndex:uk_user_date" json:"user_id"`
-	// StatDate is the statistics date (part of unique index with UserID, indexed for faster lookups)
-	StatDate time.Time `gorm:"column:stat_date;type:date;not null;uniqueIndex:uk_user_date;index" json:"stat_date"`
+	// StatDate is the statistics date (part of unique index with UserID)
+	StatDate time.Time `gorm:"column:stat_date;type:date;not null;uniqueIndex:uk_user_date" json:"stat_date"`
 	// TotalCalls is the total number of API calls on this date
 	TotalCalls uint64 `gorm:"column:total_calls;type:bigint unsigned;not null;default:0" json:"total_calls"`
 	// SuccessCalls is the number of successful API calls on this date

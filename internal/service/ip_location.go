@@ -13,6 +13,7 @@ import (
 
 // IPLocationService provides IP geolocation lookup using GeoIP2 database.
 // It uses MaxMind GeoLite2 free database for IP location queries.
+// The service gracefully handles missing database files and private IP addresses.
 type IPLocationService struct {
 	db   *geoip2.Reader
 	mu   sync.RWMutex
@@ -96,25 +97,31 @@ func (s *IPLocationService) GetLocation(ctx context.Context, ip string) string {
 }
 
 // isPrivateIP checks if the given IP address is a private/internal IP.
-// Private IP ranges:
-//   - 10.0.0.0/8
-//   - 172.16.0.0/12
-//   - 192.168.0.0/16
-//   - 127.0.0.0/8 (loopback)
-//   - 169.254.0.0/16 (link-local)
+// Uses Go's standard library net.IP methods for reliable IP classification.
+// This approach eliminates the need for manual IP range checking and hard-coded data.
+// The implementation correctly identifies:
+//   - Loopback addresses (e.g., 127.0.0.0/8)
+//   - Link-local addresses (e.g., 169.254.0.0/16)
+//   - Private addresses (e.g., 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+//
+// Benefits of this approach:
+//   - No hard-coded IP ranges
+//   - Leverages well-tested standard library
+//   - Automatically handles IPv6 private ranges
+//   - Reduces maintenance burden and potential errors
 //
 // Parameters:
 //   - ip: The IP address to check
 //
 // Returns:
-//   - bool: true if the IP is private, false otherwise
+//   - bool: true if the IP is private/loopback/link-local, false otherwise
 func isPrivateIP(ip string) bool {
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil {
 		return false
 	}
 
-	// Check if IP is a loopback/link-local/private/internal IP address
+	// Use standard library methods for reliable IP classification
 	if ipAddr.IsLoopback() || ipAddr.IsLinkLocalUnicast() || ipAddr.IsPrivate() {
 		return true
 	}

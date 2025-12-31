@@ -25,8 +25,8 @@ import (
 type Account struct {
 	gorm.Model
 
-	// Address is the blockchain address (indexed for faster lookups)
-	Address string `json:"address" gorm:"column:address;index"`
+	// Address is the blockchain address
+	Address string `json:"address" gorm:"column:address"`
 	// BaseAccount contains serialized base account information (stored as JSON)
 	BaseAccount string `json:"base_account" gorm:"column:base_account"`
 	// CodeHash is the hash of the account's code (if it's a contract account)
@@ -137,10 +137,10 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 type AccountBalance struct {
 	gorm.Model
 
-	// Address is the account address (indexed for faster lookups)
-	Address string `json:"address" gorm:"column:address;index"`
-	// Denom is the denomination (token type) of the balance (indexed for faster lookups)
-	Denom string `json:"denom" gorm:"column:denom;index"`
+	// Address is the account address
+	Address string `json:"address" gorm:"column:address"`
+	// Denom is the denomination (token type) of the balance
+	Denom string `json:"denom" gorm:"column:denom"`
 	// Amount is the balance amount as a string (supports large numbers)
 	Amount string `json:"amount" gorm:"column:amount"`
 }
@@ -222,6 +222,60 @@ func IsValidInjectiveAddress(addr string) bool {
 	}
 	_, _, err := bech32.Decode(addr)
 	return err == nil
+}
+
+// EthToInjAddress converts an Ethereum address (0x...) to Injective address (inj1...).
+//
+// Parameters:
+//   - ethAddr: The Ethereum address string (0x...)
+//
+// Returns:
+//   - string: The Injective address (inj1...)
+//   - error: Error if conversion fails
+func EthToInjAddress(ethAddr string) (string, error) {
+	if ethAddr == "" {
+		return "", fmt.Errorf("%w: empty address", ErrInvalidAddress)
+	}
+
+	// Validate Ethereum address format
+	if !strings.HasPrefix(ethAddr, "0x") {
+		return "", fmt.Errorf("%w: invalid Ethereum address format, must start with 0x", ErrInvalidAddress)
+	}
+
+	// Remove 0x prefix and convert to lowercase
+	hexStr := strings.ToLower(strings.TrimPrefix(ethAddr, "0x"))
+
+	// Validate hex string length and characters
+	if len(hexStr) != 40 {
+		return "", fmt.Errorf("%w: invalid Ethereum address length", ErrInvalidAddress)
+	}
+
+	// Validate hex characters
+	for _, c := range hexStr {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return "", fmt.Errorf("%w: invalid hex character in Ethereum address", ErrInvalidAddress)
+		}
+	}
+
+	// Convert hex string to bytes
+	addrBytes, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to decode hex string: %v", ErrConversion, err)
+	}
+
+	// 8-bit → 5-bit conversion for bech32
+	conv, err := bech32.ConvertBits(addrBytes, 8, 5, true)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to convert bits: %v", ErrConversion, err)
+	}
+
+	// Encode as bech32 with "inj" prefix
+	injAddr, err := bech32.Encode("inj", conv)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
+	}
+
+	return injAddr, nil
 }
 
 // InjToEthAddress converts an Injective address (inj1...) to Ethereum address (0x...).

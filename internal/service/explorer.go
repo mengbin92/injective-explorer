@@ -4384,10 +4384,17 @@ func calculateGasUtilization(txs []models.Transaction) float64 {
 }
 
 // convertToQueryAddress converts an address to the format used for database/chain queries.
-// Since database now stores addresses in Ethereum format (0x...), we need to convert:
-// - If input is Ethereum format (0x...), return as-is (database format)
-// - If input is Injective format (inj1...), convert to Ethereum format for database query
-// - For chain queries, we still need Injective format, so we convert back if needed
+// - If forChainQuery=true: Returns Injective format (inj1...) for chain queries
+// - If forChainQuery=false: Returns Ethereum format (0x...) for database queries
+//
+// Conversion logic:
+// - If input is Ethereum format (0x...):
+//   - For chain queries: Convert to Injective format
+//   - For database queries: Return as-is (database stores Ethereum format)
+//
+// - If input is Injective format (inj1...):
+//   - For chain queries: Return as-is
+//   - For database queries: Convert to Ethereum format
 //
 // Parameters:
 //   - ctx: Context for the request
@@ -4402,10 +4409,12 @@ func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address str
 	// If already Ethereum format
 	if strings.HasPrefix(address, "0x") {
 		if forChainQuery {
-			// For chain queries, convert Ethereum to Injective
-			// Note: This conversion is handled by the chain client if needed
-			// For now, return the address as-is for chain queries
-			return address, nil
+			// For chain queries, convert Ethereum to Injective format
+			injAddr, err := models.EthToInjAddress(address)
+			if err != nil {
+				return "", errors.Wrapf(err, "failed to convert Ethereum address to Injective: %s", address)
+			}
+			return injAddr, nil
 		}
 		// For database queries, return as-is (database stores Ethereum format)
 		return address, nil

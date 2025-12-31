@@ -14,7 +14,7 @@ type ContractTag struct {
 
 	ContractAddress string `json:"contract_address" gorm:"column:contract_address;size:128;not null"`
 	ChainID         string `json:"chain_id" gorm:"column:chain_id;size:50;not null"`
-	TagType         string `json:"tag_type" gorm:"column:tag_type;size:50;not null;index"`
+	TagType         string `json:"tag_type" gorm:"column:tag_type;size:50;not null"`
 	TagValue        string `json:"tag_value" gorm:"column:tag_value;size:255"`
 	TagColor        string `json:"tag_color" gorm:"column:tag_color;size:20"`
 	Description     string `json:"description" gorm:"column:description;type:text"`

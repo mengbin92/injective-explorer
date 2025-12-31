@@ -15,16 +15,16 @@ import (
 type Webhook struct {
 	gorm.Model
 
-	// TokenID is the API token ID (must be paid plan, indexed for faster lookups)
-	TokenID uint `gorm:"column:token_id;type:bigint unsigned;not null;index" json:"token_id"`
+	// TokenID is the API token ID (must be paid plan)
+	TokenID uint `gorm:"column:token_id;type:bigint unsigned;not null" json:"token_id"`
 	// WebhookURL is the webhook callback URL
 	WebhookURL string `gorm:"column:webhook_url;type:varchar(512);not null" json:"webhook_url"`
 	// Secret is the webhook signing secret for payload verification
 	Secret string `gorm:"column:secret;type:varchar(64);not null" json:"secret"`
 	// Events is the list of subscribed event types (stored as JSON)
 	Events []string `gorm:"column:events;serializer:json" json:"events"`
-	// Status is the webhook status (active/inactive, indexed for faster lookups)
-	Status string `gorm:"column:status;type:varchar(20);not null;default:'active';index" json:"status"`
+	// Status is the webhook status (active/inactive)
+	Status string `gorm:"column:status;type:varchar(20);not null;default:'active'" json:"status"`
 	// LastTriggeredAt is the last time the webhook was triggered
 	LastTriggeredAt *time.Time `gorm:"column:last_triggered_at" json:"last_triggered_at"`
 	// FailureCount is the number of consecutive failures

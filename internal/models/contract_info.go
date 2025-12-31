@@ -24,12 +24,12 @@ type ContractInfo struct {
 	ContractAddress string `json:"contract_address" gorm:"column:contract_address;size:128;not null"`
 	Name            string `json:"name" gorm:"column:name;size:255"`                                       // Generic contract name (optional)
 	TokenName       string `json:"token_name" gorm:"column:token_name;size:255"`                           // Token name (optional, for token contracts)
-	TokenSymbol     string `json:"token_symbol" gorm:"column:token_symbol;size:50;index:idx_token_symbol"` // Token symbol (optional, for token contracts)
-	ContractType    string `json:"contract_type" gorm:"column:contract_type;size:50;default:cosmwasm;index"`
-	ChainID         string `json:"chain_id" gorm:"column:chain_id;size:50;default:injective-1;index"`
+	TokenSymbol     string `json:"token_symbol" gorm:"column:token_symbol;size:50"` // Token symbol (optional, for token contracts)
+	ContractType    string `json:"contract_type" gorm:"column:contract_type;size:50;default:cosmwasm"`
+	ChainID         string `json:"chain_id" gorm:"column:chain_id;size:50;default:injective-1"`
 
 	// Verification related (reserved for future extension)
-	VerificationStatus string     `json:"verification_status" gorm:"column:verification_status;size:50;default:unverified;index"`
+	VerificationStatus string     `json:"verification_status" gorm:"column:verification_status;size:50;default:unverified"`
 	IsVerified         bool       `json:"is_verified" gorm:"column:is_verified;default:false"`
 	VerifiedAt         *time.Time `json:"verified_at" gorm:"column:verified_at"`
 	VerifiedBy         string     `json:"verified_by" gorm:"column:verified_by;size:128"`
