@@ -47,6 +47,22 @@ message Data {
     int32 pool_size = 4;
     google.protobuf.Duration read_timeout = 5;
     google.protobuf.Duration write_timeout = 6;
+    // Redis connection pool advanced settings
+    int32 min_idle_conns = 7;           // Minimum number of idle connections
+    google.protobuf.Duration conn_max_lifetime = 8; // Maximum lifetime of connections
+    google.protobuf.Duration conn_max_idle_time = 9; // Maximum idle time of connections
+    google.protobuf.Duration dial_timeout = 10;     // Timeout for establishing new connections
+    google.protobuf.Duration pool_timeout = 11;     // Timeout for waiting for a connection
+    int32 max_retries = 12;            // Maximum number of retries before giving up
+    google.protobuf.Duration min_retry_backoff = 13; // Minimum backoff between retries
+    google.protobuf.Duration max_retry_backoff = 14; // Maximum backoff between retries
+    // Monitoring and health check settings
+    bool enable_metrics = 15;          // Enable Redis metrics collection
+    google.protobuf.Duration health_check_interval = 16; // Health check interval
+    // Cache warming settings
+    bool enable_warming = 17;          // Enable cache warming on startup
+    repeated string warm_keys = 18;    // List of keys to warm on startup
+    google.protobuf.Duration warm_ttl = 19; // Default TTL for warmed keys
   }
   message ObjectStorage {
     string provider = 1;          // "s3", "oss", "cos", "minio"

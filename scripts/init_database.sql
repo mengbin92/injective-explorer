@@ -76,6 +76,11 @@ CREATE TABLE `api_plans` (
   KEY `idx_api_plans_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- Initialize Free plan data
+INSERT INTO `api_plans` (`name`, `plan_type`, `monthly_limit`, `rate_limit_per_second`, `max_tokens`, `enable_webhook`, `price`, `status`) 
+VALUES ('Free', 'free', 100000, 5, 3, 0, 0.00, 'active')
+ON DUPLICATE KEY UPDATE `name`=`name`;
+
 -- ----------------------------
 -- Table structure for api_request_logs
 -- ----------------------------

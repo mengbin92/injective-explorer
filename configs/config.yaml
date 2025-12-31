@@ -20,6 +20,35 @@ data:
     pool_size: 100
     read_timeout: 0.2s
     write_timeout: 0.2s
+    # Redis advanced connection pool settings (Day 2 optimization)
+    # Minimum number of idle connections maintained in the pool
+    min_idle_conns: 10
+    # Maximum lifetime of connections (prevent connection leaks)
+    conn_max_lifetime: 3600s
+    # Maximum idle time before connections are closed
+    conn_max_idle_time: 1800s
+    # Timeout for establishing new connections
+    dial_timeout: 5s
+    # Timeout for waiting for a connection from the pool
+    pool_timeout: 5s
+    # Maximum retry attempts for failed operations
+    max_retries: 3
+    # Minimum backoff between retries
+    min_retry_backoff: 0.008s
+    # Maximum backoff between retries
+    max_retry_backoff: 0.5s
+    # Enable metrics collection and monitoring
+    enable_metrics: true
+    # Health check interval for Redis connectivity
+    health_check_interval: 30s
+    # Enable cache warming on startup
+    enable_warming: false
+    # List of keys to warm on startup (e.g., frequently accessed data)
+    # warm_keys:
+    #   - "price:inj"
+    #   - "supply:inj"
+    # Default TTL for warmed keys
+    warm_ttl: 3600s
   object_storage:
     enabled: true # 测试时启用，生产环境根据需要设置
     provider: ${OBJECT_STORAGE_PROVIDER:minio} # s3, oss, cos, minio

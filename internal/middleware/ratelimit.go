@@ -11,22 +11,26 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// RateLimiter implements rate limiting using Redis sorted sets for sliding window.
+// RateLimiter implements rate limiting using token bucket algorithm (optimized).
+// This provides better performance with 75% fewer Redis operations compared to sliding window.
 type RateLimiter struct {
-	redis *redis.Client
+	tokenBucket *TokenBucketRateLimiter
+	redis       *redis.Client
 }
 
-// NewRateLimiter creates a new rate limiter instance.
+// NewRateLimiter creates a new rate limiter instance using token bucket algorithm.
 //
 // Returns:
 //   - *RateLimiter: A new rate limiter instance
 func NewRateLimiter() *RateLimiter {
 	return &RateLimiter{
-		redis: cache.GetRedisClient(),
+		tokenBucket: NewTokenBucketRateLimiter(),
+		redis:       cache.GetRedisClient(),
 	}
 }
 
-// CheckIPRateLimit checks IP rate limit using a sliding window approach.
+// CheckIPRateLimit checks IP rate limit using token bucket algorithm (optimized).
+// This reduces Redis operations from 4 to 1 (75% reduction) compared to sliding window.
 // If Redis is not available, it allows the request (graceful degradation).
 //
 // Parameters:
@@ -37,40 +41,15 @@ func NewRateLimiter() *RateLimiter {
 // Returns:
 //   - bool: true if request is allowed, false if rate limit exceeded
 //   - error: Error if the check fails
+//
+// Performance: Uses token bucket algorithm with 1 Redis operation instead of 4
 func (r *RateLimiter) CheckIPRateLimit(ctx context.Context, ip string, limit int) (bool, error) {
-	if r.redis == nil {
-		// If Redis is not available, allow the request (graceful degradation)
-		return true, nil
-	}
-
-	key := fmt.Sprintf("ratelimit:ip:%s", ip)
-	now := time.Now()
-	windowStart := now.Add(-1 * time.Minute)
-
-	// Remove expired entries
-	r.redis.ZRemRangeByScore(ctx, key, "0", fmt.Sprintf("%d", windowStart.Unix()))
-
-	// Count current requests
-	count, err := r.redis.ZCard(ctx, key).Result()
-	if err != nil {
-		return false, err
-	}
-
-	if count >= int64(limit) {
-		return false, nil // Rate limit exceeded
-	}
-
-	// Add current request
-	r.redis.ZAdd(ctx, key, redis.Z{
-		Score:  float64(now.Unix()),
-		Member: fmt.Sprintf("%d", now.UnixNano()),
-	})
-	r.redis.Expire(ctx, key, 2*time.Minute) // Auto cleanup
-
-	return true, nil
+	// Use token bucket algorithm with default burst = 2x limit
+	return r.tokenBucket.CheckIPRateLimitOptimized(ctx, ip, limit, limit*2)
 }
 
-// CheckTokenRateLimit checks token rate limit using a sliding window approach.
+// CheckTokenRateLimit checks token rate limit using token bucket algorithm (optimized).
+// This reduces Redis operations from 4 to 1 (75% reduction) compared to sliding window.
 // If Redis is not available, it allows the request (graceful degradation).
 //
 // Parameters:
@@ -81,37 +60,11 @@ func (r *RateLimiter) CheckIPRateLimit(ctx context.Context, ip string, limit int
 // Returns:
 //   - bool: true if request is allowed, false if rate limit exceeded
 //   - error: Error if the check fails
+//
+// Performance: Uses token bucket algorithm with 1 Redis operation instead of 4
 func (r *RateLimiter) CheckTokenRateLimit(ctx context.Context, tokenID int64, limit int) (bool, error) {
-	if r.redis == nil {
-		// If Redis is not available, allow the request (graceful degradation)
-		return true, nil
-	}
-
-	key := fmt.Sprintf("ratelimit:token:%d", tokenID)
-	now := time.Now()
-	windowStart := now.Add(-1 * time.Second)
-
-	// Remove expired entries
-	r.redis.ZRemRangeByScore(ctx, key, "0", fmt.Sprintf("%d", windowStart.Unix()))
-
-	// Count current requests
-	count, err := r.redis.ZCard(ctx, key).Result()
-	if err != nil {
-		return false, err
-	}
-
-	if count >= int64(limit) {
-		return false, nil // Rate limit exceeded
-	}
-
-	// Add current request
-	r.redis.ZAdd(ctx, key, redis.Z{
-		Score:  float64(now.Unix()),
-		Member: fmt.Sprintf("%d", now.UnixNano()),
-	})
-	r.redis.Expire(ctx, key, 2*time.Second) // Auto cleanup
-
-	return true, nil
+	// Use token bucket algorithm with default burst = 2x limit
+	return r.tokenBucket.CheckTokenRateLimitOptimized(ctx, tokenID, limit, limit*2)
 }
 
 // CheckUserMonthlyLimit checks user monthly usage limit.
@@ -215,4 +168,3 @@ func (r *RateLimiter) ResetMonthlyQuota(ctx context.Context) error {
 
 	return nil
 }
-
