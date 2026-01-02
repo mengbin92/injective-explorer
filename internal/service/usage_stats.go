@@ -190,7 +190,7 @@ func (s *UsageStatsService) UpdateDailyStats(ctx context.Context, date time.Time
 		Select("user_id, COUNT(*) as total_calls, "+
 			"SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as success_calls, "+
 			"SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as failed_calls").
-		Where("created_at >= ? AND created_at < ?", startDate, endDate).
+		Where("created_at >= ? AND created_at < ? AND user_id IS NOT NULL", startDate, endDate).
 		Group("user_id").
 		Scan(&results).Error
 

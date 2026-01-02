@@ -57,16 +57,18 @@ func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService 
 				}
 			}
 
-			// Apply middleware chain: auth -> rate limit -> stats -> handler
-			authHandler := authMiddleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-				rateLimitHandler := rateLimitMiddleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-					statsHandler := statsMiddleware(handler)
-					return statsHandler(ctx, req)
+			// Apply middleware chain: stats -> auth -> rate limit -> handler
+			// Stats middleware is placed at the outermost layer to record all requests,
+			// including 401 authentication failures
+			statsHandler := statsMiddleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+				authHandler := authMiddleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+					rateLimitHandler := rateLimitMiddleware(handler)
+					return rateLimitHandler(ctx, req)
 				})
-				return rateLimitHandler(ctx, req)
+				return authHandler(ctx, req)
 			})
 
-			return authHandler(ctx, req)
+			return statsHandler(ctx, req)
 		}
 	}
 }

@@ -13,10 +13,10 @@ import (
 type APIRequestLog struct {
 	gorm.Model
 
-	// TokenID is the API token ID used for this request
-	TokenID uint `gorm:"column:token_id;type:bigint unsigned;not null" json:"token_id"`
-	// UserID is the user ID
-	UserID string `gorm:"column:user_id;type:varchar(64);not null" json:"user_id"`
+	// TokenID is the API token ID used for this request (nullable for unauthenticated requests)
+	TokenID *uint `gorm:"column:token_id;type:bigint unsigned" json:"token_id"`
+	// UserID is the user ID (nullable for unauthenticated requests)
+	UserID *string `gorm:"column:user_id;type:varchar(64)" json:"user_id"`
 	// IPAddress is the client IP address (supports IPv6)
 	IPAddress string `gorm:"column:ip_address;type:varchar(45);not null" json:"ip_address"`
 	// IPLocation is the IP geolocation (may be empty if lookup failed)

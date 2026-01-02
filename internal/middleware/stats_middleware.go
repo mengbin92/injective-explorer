@@ -40,12 +40,17 @@ func StatsMiddleware(statsService *service.UsageStatsService, ipLocationService 
 			if request, ok := khttp.RequestFromServerContext(ctx); ok {
 				go func() {
 					// Extract token and user info from context
-					tokenID, _ := ctx.Value(ContextKeyTokenID).(uint)
-					userID, _ := ctx.Value(ContextKeyUserID).(string)
+					tokenIDValue, _ := ctx.Value(ContextKeyTokenID).(uint)
+					userIDValue, _ := ctx.Value(ContextKeyUserID).(string)
 
-					// Only log if we have token info (authenticated requests) or whitelisted IP
-					if tokenID == 0 && userID == "" {
-						return // Skip logging for completely unauthenticated requests
+					// Prepare tokenID and userID pointers (nullable for unauthenticated requests)
+					var tokenID *uint
+					var userID *string
+					if tokenIDValue != 0 {
+						tokenID = &tokenIDValue
+					}
+					if userIDValue != "" {
+						userID = &userIDValue
 					}
 
 					// Get client IP
@@ -78,7 +83,7 @@ func StatsMiddleware(statsService *service.UsageStatsService, ipLocationService 
 						errorMessage = errMsg
 					}
 
-					// Create log entry
+					// Create log entry (record all requests, including 401 errors)
 					log := &models.APIRequestLog{
 						TokenID:      tokenID,
 						UserID:       userID,

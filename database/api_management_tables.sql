@@ -44,8 +44,8 @@ COMMENT='用户使用量统计表';
 -- API请求日志表
 CREATE TABLE IF NOT EXISTS `api_request_logs` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `token_id` BIGINT UNSIGNED NOT NULL COMMENT 'Token ID',
-  `user_id` VARCHAR(64) NOT NULL COMMENT '用户ID',
+  `token_id` BIGINT UNSIGNED NULL COMMENT 'Token ID（未认证请求为NULL）',
+  `user_id` VARCHAR(64) NULL COMMENT '用户ID（未认证请求为NULL）',
   `ip_address` VARCHAR(45) NOT NULL COMMENT 'IP地址（支持IPv6）',
   `ip_location` VARCHAR(100) NULL COMMENT 'IP归属地',
   `endpoint` VARCHAR(255) NOT NULL COMMENT '请求接口路径',
