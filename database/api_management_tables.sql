@@ -125,3 +125,62 @@ CREATE TABLE IF NOT EXISTS `webhooks` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
 COMMENT='Webhook配置表（预留）';
 
+-- IP黑名单表
+CREATE TABLE IF NOT EXISTS `ip_blacklist` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `ip_address` VARCHAR(45) NOT NULL UNIQUE COMMENT 'IP地址（支持IPv4和IPv6）',
+  `ip_location` VARCHAR(100) NULL COMMENT 'IP归属地',
+  `reason` VARCHAR(50) NOT NULL COMMENT '加入原因：batch_register/api_abuse/proxy/spam/other',
+  `reason_text` VARCHAR(255) NULL COMMENT '原因描述',
+  `block_count` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '拦截次数',
+  `operator_id` VARCHAR(64) NULL COMMENT '操作人ID',
+  `operator_name` VARCHAR(100) NULL COMMENT '操作人名称',
+  `block_type` VARCHAR(20) NOT NULL DEFAULT 'all' COMMENT '限制类型：all/register/api',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX `idx_ip_address` (`ip_address`),
+  INDEX `idx_reason` (`reason`),
+  INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
+COMMENT='IP黑名单表';
+
+-- IP注册记录表（用于统计和管理）
+CREATE TABLE IF NOT EXISTS `ip_registration_records` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `ip_address` VARCHAR(45) NOT NULL COMMENT 'IP地址',
+  `ip_location` VARCHAR(100) NULL COMMENT 'IP归属地',
+  `user_id` VARCHAR(64) NOT NULL COMMENT '注册的用户ID',
+  `email` VARCHAR(255) NULL COMMENT '注册邮箱',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX `idx_ip_address` (`ip_address`),
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
+COMMENT='IP注册记录表';
+
+-- 邮箱黑名单表
+CREATE TABLE IF NOT EXISTS `email_blacklist` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `domain` VARCHAR(255) NOT NULL UNIQUE COMMENT '邮箱域名（小写）',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '状态：active/disabled',
+  `block_count` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '拦截次数',
+  `note` TEXT NULL COMMENT '备注',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX `idx_domain` (`domain`),
+  INDEX `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
+COMMENT='邮箱黑名单表';
+
+-- 初始化一些常见的一次性邮箱域名
+INSERT INTO `email_blacklist` (`domain`, `status`, `note`) VALUES
+('tempmail.com', 'active', '知名临时邮箱服务'),
+('guerrillamail.com', 'active', '游击邮件服务'),
+('10minutemail.com', 'active', '10分钟临时邮箱'),
+('mailinator.com', 'active', '临时邮箱服务'),
+('throwaway.email', 'active', '一次性邮箱')
+ON DUPLICATE KEY UPDATE `domain`=`domain`;
+

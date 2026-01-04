@@ -91,6 +91,474 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/email/blacklist:
+        get:
+            tags:
+                - AdminService
+            description: |-
+                ========== 邮箱黑名单管理 ==========
+                 ListEmailBlacklist lists email blacklist domains
+            operationId: AdminService_ListEmailBlacklist
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+                - name: domain
+                  in: query
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        put:
+            tags:
+                - AdminService
+            description: UpdateEmailDomain updates an email domain
+            operationId: AdminService_UpdateEmailDomain
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdateEmailDomainRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        post:
+            tags:
+                - AdminService
+            description: AddEmailDomain adds an email domain to blacklist
+            operationId: AdminService_AddEmailDomain
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.AddEmailDomainRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        delete:
+            tags:
+                - AdminService
+            description: DeleteEmailDomain deletes an email domain from blacklist
+            operationId: AdminService_DeleteEmailDomain
+            parameters:
+                - name: id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/email/blacklist/batch-import:
+        post:
+            tags:
+                - AdminService
+            description: BatchImportEmailDomains batch imports email domains
+            operationId: AdminService_BatchImportEmailDomains
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.BatchImportEmailDomainsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/email/blacklist/toggle:
+        put:
+            tags:
+                - AdminService
+            description: ToggleEmailDomainStatus toggles email domain status (active/disabled)
+            operationId: AdminService_ToggleEmailDomainStatus
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.ToggleEmailDomainStatusRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/blacklist:
+        get:
+            tags:
+                - AdminService
+            description: ListIPBlacklist lists IP blacklist
+            operationId: AdminService_ListIPBlacklist
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+                - name: ip_address
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        post:
+            tags:
+                - AdminService
+            description: AddIPToBlacklist adds an IP to blacklist
+            operationId: AdminService_AddIPToBlacklist
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.AddIPToBlacklistRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        delete:
+            tags:
+                - AdminService
+            description: RemoveIPFromBlacklist removes an IP from blacklist
+            operationId: AdminService_RemoveIPFromBlacklist
+            parameters:
+                - name: ip_address
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/blacklist/batch:
+        post:
+            tags:
+                - AdminService
+            description: BatchAddIPToBlacklist batch adds IPs to blacklist
+            operationId: AdminService_BatchAddIPToBlacklist
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.BatchAddIPToBlacklistRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/blacklist/batch-remove:
+        post:
+            tags:
+                - AdminService
+            description: BatchRemoveIPFromBlacklist batch removes IPs from blacklist
+            operationId: AdminService_BatchRemoveIPFromBlacklist
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.BatchRemoveIPFromBlacklistRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/config:
+        get:
+            tags:
+                - AdminService
+            description: GetIPRateLimitConfig gets IP rate limit configuration
+            operationId: AdminService_GetIPRateLimitConfig
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        put:
+            tags:
+                - AdminService
+            description: UpdateIPRateLimitConfig updates IP rate limit configuration
+            operationId: AdminService_UpdateIPRateLimitConfig
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdateIPRateLimitConfigRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/detail:
+        get:
+            tags:
+                - AdminService
+            description: GetIPDetail gets IP detail information
+            operationId: AdminService_GetIPDetail
+            parameters:
+                - name: ip_address
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/monitor:
+        get:
+            tags:
+                - AdminService
+            description: GetIPRequestMonitor gets IP request monitoring data
+            operationId: AdminService_GetIPRequestMonitor
+            parameters:
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
+                - name: ip_address
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/records:
+        get:
+            tags:
+                - AdminService
+            description: |-
+                ========== IP管理 ==========
+                 ListIPRegistrationRecords lists IP registration records
+            operationId: AdminService_ListIPRegistrationRecords
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+                - name: ip_address
+                  in: query
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  schema:
+                    type: string
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
+                - name: min_register_count
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/plan:
+        get:
+            tags:
+                - AdminService
+            description: |-
+                ========== 套餐管理 ==========
+                 GetPlan gets a plan by ID
+            operationId: AdminService_GetPlan
+            parameters:
+                - name: id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/plans:
+        get:
+            tags:
+                - AdminService
+            description: ListPlans lists all plans
+            operationId: AdminService_ListPlans
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+                - name: plan_type
+                  in: query
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        put:
+            tags:
+                - AdminService
+            description: UpdatePlan updates a plan configuration
+            operationId: AdminService_UpdatePlan
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdatePlanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/plans/stats:
+        get:
+            tags:
+                - AdminService
+            description: GetPlanStats gets plan usage statistics
+            operationId: AdminService_GetPlanStats
+            parameters:
+                - name: id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/block/by-height:
         get:
             tags:
@@ -940,6 +1408,61 @@ components:
                     type: string
                 createdBy:
                     type: string
+        api.explorer.v1.AddEmailDomainRequest:
+            type: object
+            properties:
+                domain:
+                    type: string
+                status:
+                    type: string
+                note:
+                    type: string
+        api.explorer.v1.AddIPToBlacklistRequest:
+            type: object
+            properties:
+                ip_address:
+                    type: string
+                reason:
+                    type: string
+                reason_text:
+                    type: string
+                block_type:
+                    type: string
+                operator_id:
+                    type: string
+                operator_name:
+                    type: string
+        api.explorer.v1.BatchAddIPToBlacklistRequest:
+            type: object
+            properties:
+                ip_addresses:
+                    type: array
+                    items:
+                        type: string
+                reason:
+                    type: string
+                reason_text:
+                    type: string
+                block_type:
+                    type: string
+                operator_id:
+                    type: string
+                operator_name:
+                    type: string
+        api.explorer.v1.BatchImportEmailDomainsRequest:
+            type: object
+            properties:
+                domains:
+                    type: array
+                    items:
+                        type: string
+        api.explorer.v1.BatchRemoveIPFromBlacklistRequest:
+            type: object
+            properties:
+                ip_addresses:
+                    type: array
+                    items:
+                        type: string
         api.explorer.v1.BlockDTO:
             type: object
             properties:
@@ -1137,6 +1660,11 @@ components:
                     type: object
                     description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
             description: 通用响应结构
+        api.explorer.v1.ToggleEmailDomainStatusRequest:
+            type: object
+            properties:
+                id:
+                    type: string
         api.explorer.v1.TransactionDTO:
             type: object
             properties:
@@ -1234,6 +1762,41 @@ components:
                     type: object
                     additionalProperties:
                         type: string
+        api.explorer.v1.UpdateEmailDomainRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                status:
+                    type: string
+                note:
+                    type: string
+        api.explorer.v1.UpdateIPRateLimitConfigRequest:
+            type: object
+            properties:
+                ip_per_minute:
+                    type: integer
+                    format: int32
+                ip_per_hour:
+                    type: integer
+                    format: int32
+                block_type:
+                    type: string
+        api.explorer.v1.UpdatePlanRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                description:
+                    type: string
+                monthly_limit:
+                    type: string
+                rate_limit_per_second:
+                    type: integer
+                    format: int32
+                max_tokens:
+                    type: integer
+                    format: int32
         api.explorer.v1.UpdateWebhookRequest:
             type: object
             properties:
@@ -1251,6 +1814,10 @@ components:
 tags:
     - name: APITokenService
       description: APITokenService provides API token management services
+    - name: AdminService
+      description: |-
+        AdminService provides admin management services for API plans, IP management,
+         and email blacklist
     - name: ContractInfoService
       description: |-
         ContractInfoService provides contract information query and management

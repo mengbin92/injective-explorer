@@ -1,0 +1,378 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// AdminService provides admin management services for API plans, IP management,
+// and email blacklist
+service AdminService {
+  // ========== 套餐管理 ==========
+  // GetPlan gets a plan by ID
+  rpc GetPlan(GetPlanRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/plan"
+    };
+  }
+
+  // ListPlans lists all plans
+  rpc ListPlans(ListPlansRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/plans"
+    };
+  }
+
+  // UpdatePlan updates a plan configuration
+  rpc UpdatePlan(UpdatePlanRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/plans"
+      body : "*"
+    };
+  }
+
+  // GetPlanStats gets plan usage statistics
+  rpc GetPlanStats(GetPlanStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/plans/stats"
+    };
+  }
+
+  // ========== IP管理 ==========
+  // ListIPRegistrationRecords lists IP registration records
+  rpc ListIPRegistrationRecords(ListIPRegistrationRecordsRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/records"
+    };
+  }
+
+  // GetIPDetail gets IP detail information
+  rpc GetIPDetail(GetIPDetailRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/detail"
+    };
+  }
+
+  // ListIPBlacklist lists IP blacklist
+  rpc ListIPBlacklist(ListIPBlacklistRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/blacklist"
+    };
+  }
+
+  // AddIPToBlacklist adds an IP to blacklist
+  rpc AddIPToBlacklist(AddIPToBlacklistRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/ip/blacklist"
+      body : "*"
+    };
+  }
+
+  // RemoveIPFromBlacklist removes an IP from blacklist
+  rpc RemoveIPFromBlacklist(RemoveIPFromBlacklistRequest) returns (Reply) {
+    option (google.api.http) = {
+      delete : "/api/v1/admin/ip/blacklist"
+    };
+  }
+
+  // BatchAddIPToBlacklist batch adds IPs to blacklist
+  rpc BatchAddIPToBlacklist(BatchAddIPToBlacklistRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/ip/blacklist/batch"
+      body : "*"
+    };
+  }
+
+  // BatchRemoveIPFromBlacklist batch removes IPs from blacklist
+  rpc BatchRemoveIPFromBlacklist(BatchRemoveIPFromBlacklistRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/ip/blacklist/batch-remove"
+      body : "*"
+    };
+  }
+
+  // GetIPRequestMonitor gets IP request monitoring data
+  rpc GetIPRequestMonitor(GetIPRequestMonitorRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/monitor"
+    };
+  }
+
+  // GetIPRateLimitConfig gets IP rate limit configuration
+  rpc GetIPRateLimitConfig(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/config"
+    };
+  }
+
+  // UpdateIPRateLimitConfig updates IP rate limit configuration
+  rpc UpdateIPRateLimitConfig(UpdateIPRateLimitConfigRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/ip/config"
+      body : "*"
+    };
+  }
+
+  // ========== 邮箱黑名单管理 ==========
+  // ListEmailBlacklist lists email blacklist domains
+  rpc ListEmailBlacklist(ListEmailBlacklistRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/email/blacklist"
+    };
+  }
+
+  // AddEmailDomain adds an email domain to blacklist
+  rpc AddEmailDomain(AddEmailDomainRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/email/blacklist"
+      body : "*"
+    };
+  }
+
+  // UpdateEmailDomain updates an email domain
+  rpc UpdateEmailDomain(UpdateEmailDomainRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/email/blacklist"
+      body : "*"
+    };
+  }
+
+  // DeleteEmailDomain deletes an email domain from blacklist
+  rpc DeleteEmailDomain(DeleteEmailDomainRequest) returns (Reply) {
+    option (google.api.http) = {
+      delete : "/api/v1/admin/email/blacklist"
+    };
+  }
+
+  // BatchImportEmailDomains batch imports email domains
+  rpc BatchImportEmailDomains(BatchImportEmailDomainsRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/email/blacklist/batch-import"
+      body : "*"
+    };
+  }
+
+  // ToggleEmailDomainStatus toggles email domain status (active/disabled)
+  rpc ToggleEmailDomainStatus(ToggleEmailDomainStatusRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/email/blacklist/toggle"
+      body : "*"
+    };
+  }
+}
+
+// ========== 套餐管理相关消息 ==========
+message GetPlanRequest { uint64 id = 1; }
+
+message ListPlansRequest {
+  PaginationRequest pagination = 1;
+  string plan_type = 2 [ json_name = "plan_type" ]; // free/paid
+  string status = 3;                                // active/inactive
+}
+
+message UpdatePlanRequest {
+  uint64 id = 1;
+  string description = 2;                                   // 套餐描述
+  uint64 monthly_limit = 3 [ json_name = "monthly_limit" ]; // 月度调用限额
+  int32 rate_limit_per_second = 4
+      [ json_name = "rate_limit_per_second" ];       // 每秒请求限制
+  int32 max_tokens = 5 [ json_name = "max_tokens" ]; // 最大Token数
+}
+
+message GetPlanStatsRequest { uint64 id = 1; }
+
+message PlanInfo {
+  uint64 id = 1;
+  string name = 2;
+  string plan_type = 3 [ json_name = "plan_type" ];
+  string description = 4;
+  uint64 monthly_limit = 5 [ json_name = "monthly_limit" ];
+  int32 rate_limit_per_second = 6 [ json_name = "rate_limit_per_second" ];
+  int32 max_tokens = 7 [ json_name = "max_tokens" ];
+  double price = 8;
+  string status = 9;
+  int64 token_count = 10 [ json_name = "token_count" ]; // 使用此套餐的Token数
+  int64 user_count = 11 [ json_name = "user_count" ];   // 使用此套餐的用户数
+  string created_at = 12 [ json_name = "created_at" ];
+  string updated_at = 13 [ json_name = "updated_at" ];
+}
+
+// ========== IP管理相关消息 ==========
+message ListIPRegistrationRecordsRequest {
+  PaginationRequest pagination = 1;
+  string ip_address = 2 [ json_name = "ip_address" ]; // 搜索IP地址
+  string status = 3;                                  // normal/blocked
+  string time_range = 4 [ json_name = "time_range" ]; // today/7days/30days/all
+  int32 min_register_count = 5
+      [ json_name = "min_register_count" ]; // 最小注册数
+}
+
+message GetIPDetailRequest {
+  string ip_address = 1 [ json_name = "ip_address" ];
+}
+
+message ListIPBlacklistRequest {
+  PaginationRequest pagination = 1;
+  string ip_address = 2 [ json_name = "ip_address" ]; // 搜索IP地址
+}
+
+message AddIPToBlacklistRequest {
+  string ip_address = 1 [ json_name = "ip_address" ];
+  string reason = 2; // batch_register/api_abuse/proxy/spam/other
+  string reason_text = 3 [ json_name = "reason_text" ];
+  string block_type = 4 [ json_name = "block_type" ]; // all/register/api
+  string operator_id = 5 [ json_name = "operator_id" ];
+  string operator_name = 6 [ json_name = "operator_name" ];
+}
+
+message RemoveIPFromBlacklistRequest {
+  string ip_address = 1 [ json_name = "ip_address" ];
+}
+
+message BatchAddIPToBlacklistRequest {
+  repeated string ip_addresses = 1 [ json_name = "ip_addresses" ];
+  string reason = 2;
+  string reason_text = 3 [ json_name = "reason_text" ];
+  string block_type = 4 [ json_name = "block_type" ];
+  string operator_id = 5 [ json_name = "operator_id" ];
+  string operator_name = 6 [ json_name = "operator_name" ];
+}
+
+message BatchRemoveIPFromBlacklistRequest {
+  repeated string ip_addresses = 1 [ json_name = "ip_addresses" ];
+}
+
+message GetIPRequestMonitorRequest {
+  string time_range = 1 [ json_name = "time_range" ]; // 1h/6h/24h/7d
+  string ip_address = 2 [ json_name = "ip_address" ]; // 搜索IP地址
+}
+
+message UpdateIPRateLimitConfigRequest {
+  int32 ip_per_minute = 1 [ json_name = "ip_per_minute" ]; // 每分钟请求上限
+  int32 ip_per_hour = 2 [ json_name = "ip_per_hour" ];     // 每小时请求上限
+  string block_type = 3
+      [ json_name = "block_type" ]; // 黑名单限制方式：all/register/api
+}
+
+message IPRegistrationRecordInfo {
+  string ip_address = 1 [ json_name = "ip_address" ];
+  string ip_location = 2 [ json_name = "ip_location" ];
+  int64 register_count = 3 [ json_name = "register_count" ];
+  string last_register_time = 4 [ json_name = "last_register_time" ];
+  string status = 5; // normal/blocked
+}
+
+message IPBlacklistInfo {
+  uint64 id = 1;
+  string ip_address = 2 [ json_name = "ip_address" ];
+  string ip_location = 3 [ json_name = "ip_location" ];
+  string reason = 4;
+  string reason_text = 5 [ json_name = "reason_text" ];
+  uint64 block_count = 6 [ json_name = "block_count" ];
+  string operator_name = 7 [ json_name = "operator_name" ];
+  string block_type = 8 [ json_name = "block_type" ];
+  string created_at = 9 [ json_name = "created_at" ];
+}
+
+message IPDetailInfo {
+  string ip_address = 1 [ json_name = "ip_address" ];
+  string ip_location = 2 [ json_name = "ip_location" ];
+  string status = 3; // normal/blocked
+  string first_register_time = 4 [ json_name = "first_register_time" ];
+  int64 total_registers = 5 [ json_name = "total_registers" ];
+  repeated IPRegistrationAccount accounts = 6;
+}
+
+message IPRegistrationAccount {
+  string user_id = 1 [ json_name = "user_id" ];
+  string email = 2;
+  string username = 3;
+  string register_time = 4 [ json_name = "register_time" ];
+}
+
+message IPRequestMonitorInfo {
+  int64 total_requests = 1 [ json_name = "total_requests" ];
+  int64 unique_ips = 2 [ json_name = "unique_ips" ];
+  int64 rate_limited_count = 3 [ json_name = "rate_limited_count" ];
+  int64 abnormal_ips = 4 [ json_name = "abnormal_ips" ];
+  repeated IPRequestTopInfo top_ips = 5 [ json_name = "top_ips" ];
+  repeated IPAbnormalInfo abnormal_ip_list = 6
+      [ json_name = "abnormal_ip_list" ];
+  repeated IPRateLimitLog rate_limit_logs = 7 [ json_name = "rate_limit_logs" ];
+}
+
+message IPRequestTopInfo {
+  int32 rank = 1;
+  string ip_address = 2 [ json_name = "ip_address" ];
+  int64 request_count = 3 [ json_name = "request_count" ];
+  string status = 4; // normal/high_frequency/abnormal
+}
+
+message IPAbnormalInfo {
+  string ip_address = 1 [ json_name = "ip_address" ];
+  string ip_location = 2 [ json_name = "ip_location" ];
+  string abnormal_type = 3
+      [ json_name = "abnormal_type" ]; // 请求量异常/频率超限/短时高频
+  string detected_time = 4 [ json_name = "detected_time" ];
+}
+
+message IPRateLimitLog {
+  string time = 1;
+  string ip_address = 2 [ json_name = "ip_address" ];
+  string endpoint = 3;
+  string limit_reason = 4 [ json_name = "limit_reason" ];
+  int32 current_rate = 5 [ json_name = "current_rate" ];
+}
+
+// ========== 邮箱黑名单管理相关消息 ==========
+message ListEmailBlacklistRequest {
+  PaginationRequest pagination = 1;
+  string domain = 2; // 搜索域名
+  string status = 3; // active/disabled
+}
+
+message AddEmailDomainRequest {
+  string domain = 1;
+  string status = 2; // active/disabled
+  string note = 3;
+}
+
+message UpdateEmailDomainRequest {
+  uint64 id = 1;
+  string status = 2; // active/disabled
+  string note = 3;
+}
+
+message DeleteEmailDomainRequest { uint64 id = 1; }
+
+message BatchImportEmailDomainsRequest {
+  repeated string domains = 1; // 域名列表
+}
+
+message ToggleEmailDomainStatusRequest { uint64 id = 1; }
+
+message EmailBlacklistInfo {
+  uint64 id = 1;
+  string domain = 2;
+  string status = 3;
+  uint64 block_count = 4 [ json_name = "block_count" ];
+  string note = 5;
+  string created_at = 6 [ json_name = "created_at" ];
+  string updated_at = 7 [ json_name = "updated_at" ];
+}
+
+message BatchImportResult {
+  int32 total = 1;
+  int32 valid = 2;
+  int32 invalid = 3;
+  int32 duplicate = 4;
+  repeated string invalid_domains = 5 [ json_name = "invalid_domains" ];
+  repeated string duplicate_domains = 6 [ json_name = "duplicate_domains" ];
+}

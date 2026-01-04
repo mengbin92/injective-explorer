@@ -41,6 +41,8 @@ configs/*.yaml
 # Editor/IDE
 .idea/
 .vscode/
+.claude/
+.cursor/
 
 injective_data/
 
