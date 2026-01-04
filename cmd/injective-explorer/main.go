@@ -149,18 +149,36 @@ func main() {
 		}
 	}
 
-	// Start blockchain sync service
-	syncConfig := service.LoadSyncConfig(&bc)
-	syncService := service.NewSyncService(syncConfig)
-	if err := syncService.Start(); err != nil {
-		log.NewHelper(logger).Errorf("Failed to start sync service: %v", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := syncService.Stop(); err != nil {
-			log.NewHelper(logger).Errorf("Failed to stop sync service: %v", err)
+	// Start blockchain sync service (only if enabled via environment variable)
+	// In horizontal scaling scenarios, only one instance should run sync service
+	enableSync := os.Getenv("ENABLE_SYNC")
+	if enableSync == "" || enableSync == "true" {
+		syncConfig := service.LoadSyncConfig(&bc)
+		syncService := service.NewSyncService(syncConfig)
+		
+		// Try to acquire distributed lock for sync service
+		// This ensures only one instance runs sync even if multiple instances have ENABLE_SYNC=true
+		if acquired, err := syncService.TryAcquireSyncLock(context.Background()); err != nil {
+			log.NewHelper(logger).Warnf("Failed to check sync lock, starting sync service anyway: %v", err)
+			// Continue to start sync service if lock check fails (graceful degradation)
+		} else if !acquired {
+			log.NewHelper(logger).Infof("Sync service lock already acquired by another instance, skipping sync service startup")
+			// Don't start sync service if lock is already held
+		} else {
+			// Lock acquired, start sync service
+			if err := syncService.Start(); err != nil {
+				log.NewHelper(logger).Errorf("Failed to start sync service: %v", err)
+				os.Exit(1)
+			}
+			defer func() {
+				if err := syncService.Stop(); err != nil {
+					log.NewHelper(logger).Errorf("Failed to stop sync service: %v", err)
+				}
+			}()
 		}
-	}()
+	} else {
+		log.NewHelper(logger).Infof("Sync service disabled via ENABLE_SYNC=%s", enableSync)
+	}
 
 	// Start archive scheduler service (if enabled)
 	if bc.Archive != nil && bc.Archive.GetEnabled() {

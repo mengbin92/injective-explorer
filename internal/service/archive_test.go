@@ -66,9 +66,9 @@ func setupTestDB(t *testing.T) *gorm.DB {
 			to_field TEXT,
 			value TEXT,
 			archived INTEGER DEFAULT 0,
-			data_storage_key TEXT,
-			messages_storage_key TEXT,
-			logs_storage_key TEXT
+			data_storage_key VARCHAR(255),
+			messages_storage_key VARCHAR(255),
+			logs_storage_key VARCHAR(255)
 		)
 	`).Error
 	require.NoError(t, err, "failed to create transactions table")
@@ -80,12 +80,12 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		CREATE TABLE IF NOT EXISTS transaction_data_archives (
 			transaction_id INTEGER PRIMARY KEY,
 			data TEXT,
-			data_storage_key TEXT,
+			data_storage_key VARCHAR(255),
 			info TEXT,
 			messages TEXT,
-			messages_storage_key TEXT,
+			messages_storage_key VARCHAR(255),
 			logs TEXT,
-			logs_storage_key TEXT,
+			logs_storage_key VARCHAR(255),
 			error_log TEXT
 		)
 	`).Error

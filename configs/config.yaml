@@ -50,7 +50,7 @@ data:
     # Default TTL for warmed keys
     warm_ttl: 3600s
   object_storage:
-    enabled: true # 测试时启用，生产环境根据需要设置
+    enabled: false # 测试时启用，生产环境根据需要设置
     provider: ${OBJECT_STORAGE_PROVIDER:minio} # s3, oss, cos, minio
     endpoint: ${OBJECT_STORAGE_ENDPOINT:localhost:19000}
     access_key_id: ${OBJECT_STORAGE_ACCESS_KEY:minioadmin}

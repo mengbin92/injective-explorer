@@ -1,0 +1,129 @@
+admin:
+  address:
+    socket_address:
+      protocol: TCP
+      address: 0.0.0.0
+      port_value: 9901
+
+static_resources:
+  listeners:
+    - name: listener_0
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 9001
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: AUTO
+                # 流式传输配置：禁用流空闲超时，允许长时间运行的流式请求
+                stream_idle_timeout: 0s
+                # 请求超时配置
+                request_timeout: 0s
+                # 请求头超时配置
+                request_headers_timeout: 0s
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: backend
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: grpc_service
+                            timeout: 0s # 流式接口需要无超时限制
+                            max_stream_duration:
+                              grpc_timeout_header_max: 0s # 允许无限流式传输
+                          typed_per_filter_config:
+                            envoy.filters.http.cors:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
+                              allow_origin_string_match:
+                                - safe_regex:
+                                    regex: ".*"
+                              allow_methods: "GET, POST, PUT, DELETE, OPTIONS"
+                              allow_headers: >
+                                keep-alive,user-agent,cache-control,content-type,content-transfer-encoding,
+                                x-accept-content-transfer-encoding,x-accept-response-streaming,x-user-agent,
+                                x-grpc-web,grpc-timeout
+                              expose_headers: "grpc-status,grpc-message"
+                              allow_credentials: false
+                              max_age: "1728000"
+
+                http_filters:
+                  # gRPC-Web filter 必须在 router 之前
+                  - name: envoy.filters.http.grpc_web
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
+
+                  # Router 必须在最后
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: grpc_service
+      connect_timeout: 0.25s
+      # 使用 STRICT_DNS 类型支持多个 DNS 端点负载均衡
+      # LOGICAL_DNS 只支持单个端点
+      # STATIC 需要 IP 地址，不适合 Docker 服务名
+      # STRICT_DNS 支持多个端点并自动解析 DNS
+      type: STRICT_DNS
+      # DNS 解析配置
+      dns_lookup_family: V4_ONLY
+      # 负载均衡策略：round_robin（轮询）或 least_request（最少连接）
+      lb_policy: round_robin
+      http2_protocol_options:
+        # 配置 HTTP/2 流式传输
+        max_concurrent_streams: 100
+        initial_stream_window_size: 65536
+        initial_connection_window_size: 1048576
+      # 配置 keepalive 以保持长连接
+      upstream_connection_options:
+        tcp_keepalive:
+          keepalive_probes: 3
+          keepalive_time: 30
+          keepalive_interval: 5
+      # 健康检查配置
+      health_checks:
+        - timeout: 1s
+          interval: 10s
+          unhealthy_threshold: 3
+          healthy_threshold: 2
+          grpc_health_check:
+            service_name: ""
+          # 健康检查失败后的处理
+          no_traffic_interval: 60s
+          interval_jitter: 1s
+      # 负载均衡端点配置
+      load_assignment:
+        cluster_name: grpc_service
+        endpoints:
+          - lb_endpoints:
+              # 实例 1
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: injective-explorer-1
+                      port_value: 9000
+              # 实例 2
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: injective-explorer-2
+                      port_value: 9000
+              # 实例 3
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: injective-explorer-3
+                      port_value: 9000
+              # 可以添加更多实例...
+              # - endpoint:
+              #     address:
+              #       socket_address:
+              #         address: injective-explorer-4
+              #         port_value: 9000

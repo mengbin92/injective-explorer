@@ -266,11 +266,11 @@ CREATE TABLE `transactions` (
   `evm_from_address` varchar(128) DEFAULT NULL,
   `evm_to_address` varchar(128) DEFAULT NULL,
   `archived` tinyint(1) DEFAULT '0',
-  `data_storage_key` longtext,
-  `messages_storage_key` longtext,
-  `logs_storage_key` longtext,
+  `data_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
+  `messages_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
+  `logs_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `evm_hash` varchar(128) DEFAULT NULL,
-  `evm_details_storage_key` longtext,
+  `evm_details_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `evm_details_synced` tinyint(1) DEFAULT '0',
   `evm_details_sync_error` text,
   `evm_details_sync_at` datetime(3) DEFAULT NULL,
@@ -376,6 +376,7 @@ CREATE INDEX idx_transaction_to ON transactions(`to`);
 
 -- Index for storage migration queries (IS NULL checks on storage keys)
 -- Query: WHERE (data_storage_key IS NULL OR data_storage_key = '') AND ...
+-- Note: VARCHAR columns can be indexed directly without prefix length
 CREATE INDEX idx_data_storage_key ON transactions(data_storage_key);
 CREATE INDEX idx_messages_storage_key ON transactions(messages_storage_key);
 CREATE INDEX idx_logs_storage_key ON transactions(logs_storage_key);

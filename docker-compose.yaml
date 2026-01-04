@@ -1,12 +1,15 @@
 services:
   injective-explorer:
-    # image: injective-explorer:latest
+    image: injective-explorer:latest
     container_name: injective-explorer
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      - INSTANCE_ID=1
+      - ENABLE_SYNC=true  # 只有实例1运行同步服务
     ports:
       - 8000:8000
       - 9000:9000

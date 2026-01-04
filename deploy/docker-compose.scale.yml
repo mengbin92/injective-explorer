@@ -1,0 +1,273 @@
+# Docker Compose 横向扩展配置
+# 使用方式: docker-compose -f docker-compose.yml -f docker-compose.scale.yml up -d
+# 或者: docker-compose -f deploy/docker-compose.scale.yml up -d
+
+version: '3.8'
+
+services:
+  # 实例 1 - 运行同步服务
+  injective-explorer-1:
+    image: injective-explorer:${VERSION:-latest}
+    container_name: injective-explorer-1
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - INSTANCE_ID=1
+      - ENABLE_SYNC=true  # 只有实例1运行同步服务
+    expose:
+      - 8000  # HTTP 服务（通过 Nginx 负载均衡访问）
+      - 9000  # gRPC 服务（通过 Envoy 负载均衡访问）
+    # 注意：不再直接暴露端口，统一通过负载均衡器访问
+    # 如需直接访问，可取消注释以下行：
+    # ports:
+    #   - "8001:8000"
+    #   - "9001:9000"
+    volumes:
+      - ../configs:/data/conf:ro
+      - ../data/GeoLite2-City.mmdb:/data/GeoLite2-City.mmdb:ro
+    networks:
+      - injective-explorer-network
+    depends_on:
+      injective-explorer-mysql:
+        condition: service_healthy
+      injective-explorer-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: 5
+
+  # 实例 2 - 不运行同步服务
+  injective-explorer-2:
+    image: injective-explorer:${VERSION:-latest}
+    container_name: injective-explorer-2
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - INSTANCE_ID=2
+      - ENABLE_SYNC=false  # 其他实例不运行同步服务
+    expose:
+      - 8000
+      - 9000
+    # ports:
+    #   - "8002:8000"
+    #   - "9002:9000"
+    volumes:
+      - ../configs:/data/conf:ro
+      - ../data/GeoLite2-City.mmdb:/data/GeoLite2-City.mmdb:ro
+    networks:
+      - injective-explorer-network
+    depends_on:
+      injective-explorer-mysql:
+        condition: service_healthy
+      injective-explorer-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: 5
+
+  # 实例 3 - 不运行同步服务
+  injective-explorer-3:
+    image: injective-explorer:${VERSION:-latest}
+    container_name: injective-explorer-3
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - INSTANCE_ID=3
+      - ENABLE_SYNC=false
+    expose:
+      - 8000
+      - 9000
+    # ports:
+    #   - "8003:8000"
+    #   - "9003:9000"
+    volumes:
+      - ../configs:/data/conf:ro
+      - ../data/GeoLite2-City.mmdb:/data/GeoLite2-City.mmdb:ro
+    networks:
+      - injective-explorer-network
+    depends_on:
+      injective-explorer-mysql:
+        condition: service_healthy
+      injective-explorer-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: 5
+
+  # Nginx HTTP 负载均衡器
+  nginx-lb:
+    image: nginx:alpine
+    container_name: injective-explorer-nginx-lb
+    restart: unless-stopped
+    ports:
+      - 8000:80  # HTTP API 统一入口
+      - 443:443  # HTTPS API 统一入口
+    volumes:
+      - ../envoy/nginx-http-lb.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - injective-explorer-network
+    depends_on:
+      - injective-explorer-1
+      - injective-explorer-2
+      - injective-explorer-3
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/nginx-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Envoy gRPC 负载均衡器
+  envoy:
+    image: envoyproxy/envoy:v1.36-latest
+    container_name: injective-explorer-envoy-scale
+    restart: unless-stopped
+    ports:
+      - 9001:9001  # gRPC-Web 端口
+      - 9901:9901  # Envoy admin 端口
+    volumes:
+      - ../envoy/envoy.scale.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - injective-explorer-network
+    depends_on:
+      - injective-explorer-1
+      - injective-explorer-2
+      - injective-explorer-3
+    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml --service-cluster envoy --service-node envoy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9901/server_info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  # Redis (可配置为集群或哨兵模式)
+  injective-explorer-redis:
+    image: redis:8.4
+    container_name: injective-explorer-redis-scale
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    volumes:
+      - injective-explorer-redis-scale:/data
+    networks:
+      - injective-explorer-network
+    command: >
+      redis-server
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  # MySQL (建议配置主从)
+  injective-explorer-mysql:
+    image: mysql:8.0
+    container_name: injective-explorer-mysql-scale
+    restart: unless-stopped
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-jKBrZHGcsNG5fMc52EWz}
+      - MYSQL_DATABASE=${DB_NAME:-explorer}
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    volumes:
+      - injective-explorer-mysql-scale:/var/lib/mysql
+      - ../scripts/init_database.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - injective-explorer-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-jKBrZHGcsNG5fMc52EWz}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+    # MySQL 配置优化（可选）
+    # command: --max-connections=500 --innodb-buffer-pool-size=2G
+
+networks:
+  injective-explorer-network:
+    driver: bridge
+    name: injective-explorer-scale-network
+
+volumes:
+  injective-explorer-redis-scale:
+    name: injective-explorer-redis-scale
+  injective-explorer-mysql-scale:
+    name: injective-explorer-mysql-scale
+

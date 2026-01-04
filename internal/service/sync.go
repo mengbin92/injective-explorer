@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -56,6 +57,11 @@ type SyncService struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	// Distributed lock for sync service (ensures only one instance runs sync)
+	syncLockKey     string
+	syncLockValue   string
+	syncLockRenewal *sync.WaitGroup
 }
 
 // NewSyncService creates a new instance of SyncService.
@@ -70,10 +76,138 @@ func NewSyncService(config *SyncConfig) *SyncService {
 		config = LoadSyncConfig(nil)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Generate unique lock value for this instance
+	hostname, _ := os.Hostname()
+	lockValue := fmt.Sprintf("%s-%d-%d", hostname, os.Getpid(), time.Now().Unix())
+
 	return &SyncService{
-		config: config,
-		ctx:    ctx,
-		cancel: cancel,
+		config:          config,
+		ctx:             ctx,
+		cancel:          cancel,
+		syncLockKey:     "sync:lock:blockchain",
+		syncLockValue:   lockValue,
+		syncLockRenewal: &sync.WaitGroup{},
+	}
+}
+
+// TryAcquireSyncLock attempts to acquire a distributed lock for sync service.
+// This ensures only one instance runs sync service in a horizontal scaling setup.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//
+// Returns:
+//   - bool: true if lock was acquired, false if already held by another instance
+//   - error: Error if the lock check fails
+func (s *SyncService) TryAcquireSyncLock(ctx context.Context) (bool, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		// If Redis is not available, allow sync to start (graceful degradation)
+		// In production, you might want to return false to prevent sync from starting
+		global.Logger.Warnf("Redis client not available, cannot acquire sync lock, allowing sync to start")
+		return true, nil
+	}
+
+	lockTTL := 30 * time.Second
+
+	// Try to acquire lock using SETNX (SET if Not eXists)
+	acquired, err := redisClient.SetNX(ctx, s.syncLockKey, s.syncLockValue, lockTTL).Result()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to acquire sync lock")
+	}
+
+	if acquired {
+		global.Logger.Infof("Sync service lock acquired: %s", s.syncLockValue)
+		// Start lock renewal goroutine
+		s.syncLockRenewal.Add(1)
+		go s.renewSyncLock(ctx, lockTTL)
+		return true, nil
+	}
+
+	// Lock already held by another instance
+	// Check if it's still valid (not expired)
+	currentValue, err := redisClient.Get(ctx, s.syncLockKey).Result()
+	if err == redis.Nil {
+		// Lock expired, try to acquire again
+		acquired, err := redisClient.SetNX(ctx, s.syncLockKey, s.syncLockValue, lockTTL).Result()
+		if err != nil {
+			return false, errors.Wrap(err, "failed to acquire sync lock after expiration check")
+		}
+		if acquired {
+			global.Logger.Infof("Sync service lock acquired after expiration: %s", s.syncLockValue)
+			s.syncLockRenewal.Add(1)
+			go s.renewSyncLock(ctx, lockTTL)
+			return true, nil
+		}
+	} else if err != nil {
+		return false, errors.Wrap(err, "failed to check sync lock status")
+	}
+
+	global.Logger.Infof("Sync service lock already held by another instance: %s", currentValue)
+	return false, nil
+}
+
+// renewSyncLock periodically renews the sync service lock to prevent expiration.
+// This ensures the lock remains valid as long as this instance is running.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - ttl: Time-to-live for the lock
+func (s *SyncService) renewSyncLock(ctx context.Context, ttl time.Duration) {
+	defer s.syncLockRenewal.Done()
+
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Renew lock every TTL/2 to ensure it doesn't expire
+	ticker := time.NewTicker(ttl / 2)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Release lock on shutdown
+			if err := redisClient.Del(ctx, s.syncLockKey).Err(); err != nil {
+				global.Logger.Warnf("Failed to release sync lock on shutdown: %v", err)
+			} else {
+				global.Logger.Infof("Sync service lock released on shutdown")
+			}
+			return
+		case <-ticker.C:
+			// Check if lock still belongs to this instance
+			currentValue, err := redisClient.Get(ctx, s.syncLockKey).Result()
+			if err == redis.Nil {
+				// Lock expired, try to reacquire
+				acquired, err := redisClient.SetNX(ctx, s.syncLockKey, s.syncLockValue, ttl).Result()
+				if err != nil {
+					global.Logger.Warnf("Failed to reacquire sync lock: %v", err)
+					return
+				}
+				if !acquired {
+					// Lock acquired by another instance, stop renewal
+					global.Logger.Warnf("Sync lock acquired by another instance, stopping renewal")
+					return
+				}
+				global.Logger.Debugf("Sync lock reacquired after expiration")
+			} else if err != nil {
+				global.Logger.Warnf("Failed to check sync lock during renewal: %v", err)
+				return
+			} else if currentValue != s.syncLockValue {
+				// Lock held by another instance, stop renewal
+				global.Logger.Warnf("Sync lock held by another instance (%s), stopping renewal", currentValue)
+				return
+			}
+
+			// Renew lock
+			if err := redisClient.Expire(ctx, s.syncLockKey, ttl).Err(); err != nil {
+				global.Logger.Warnf("Failed to renew sync lock: %v", err)
+				return
+			}
+			global.Logger.Debugf("Sync lock renewed successfully")
+		}
 	}
 }
 
@@ -170,6 +304,9 @@ func (s *SyncService) Stop() error {
 	if s.evmDetailsSyncService != nil {
 		s.evmDetailsSyncService.Stop()
 	}
+
+	// Wait for lock renewal goroutine to finish
+	s.syncLockRenewal.Wait()
 
 	// Wait for all goroutines to finish with timeout
 	done := make(chan struct{})
@@ -1367,10 +1504,10 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			// Pre-serialize JSON fields for the batch to avoid GORM serialization issues
 			// When using map[string]interface{} with Updates, GORM doesn't apply serializer:json tags
 			type serializedData struct {
-				eventsJSON     string
-				msgTypesJSON   string
-				sigsJSON       string
-				claimIdsJSON   string
+				eventsJSON   string
+				msgTypesJSON string
+				sigsJSON     string
+				claimIdsJSON string
 			}
 			serializedBatch := make([]serializedData, len(batch))
 
