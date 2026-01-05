@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -543,19 +544,90 @@ func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDash
 	return s.marshalAndReply(response, "marshal dashboard stats response error")
 }
 
-// ExportUsageLogs exports API usage logs to Excel format.
-// Note: This method is reserved for future implementation.
-// File downloads are handled by custom HTTP route handler in server/http.go.
+// ExportUsageLogs exports API usage logs to CSV format.
+// Returns CSV data in the response, similar to ExportIPList.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
-//   - req: Request (empty, uses authenticated user from context)
+//   - req: Request containing optional filters
 //
 // Returns:
-//   - *pb.Reply: Response with success message
+//   - *pb.Reply: Response containing CSV data in data.csv_data field
 //   - error: Error if export fails
 func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsageLogsRequest) (*pb.Reply, error) {
-	// This endpoint should be handled by a custom HTTP route handler for file download
-	// Protobuf services are better suited for JSON responses
-	return nil, status.Error(codes.Unimplemented, "Export functionality is handled via custom HTTP route at /api/v1/export/logs")
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	// Get user ID from context
+	userID := s.getUserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+
+	// Build query
+	query := db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
+		Where("user_id = ?", userID)
+
+	// Apply time range filter if provided
+	if req.TimeRange != "" {
+		now := time.Now()
+		switch req.TimeRange {
+		case "today":
+			query = query.Where("created_at >= ?", time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
+		case "7days":
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -7))
+		case "30days":
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -30))
+		}
+	}
+
+	// Query logs
+	var logs []models.APIRequestLog
+	err := query.Order("created_at DESC").Find(&logs).Error
+	if err != nil {
+		global.Logger.Errorf("failed to query usage logs: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query usage logs")
+	}
+
+	// Build CSV
+	csv := "时间,IP地址,IP归属地,接口,方法,状态码,响应时间(ms),错误信息\n"
+	for _, log := range logs {
+		timeStr := log.CreatedAt.Format("2006-01-02 15:04:05")
+		// Escape CSV special characters (comma, quote, newline)
+		errorMsg := log.ErrorMessage
+		if errorMsg != "" {
+			// Replace quotes with double quotes and wrap in quotes if contains comma or newline
+			if strings.Contains(errorMsg, ",") || strings.Contains(errorMsg, "\n") || strings.Contains(errorMsg, "\"") {
+				errorMsg = "\"" + strings.ReplaceAll(errorMsg, "\"", "\"\"") + "\""
+			}
+		}
+		csv += fmt.Sprintf("%s,%s,%s,%s,%s,%d,%d,%s\n",
+			timeStr,
+			log.IPAddress,
+			log.IPLocation,
+			log.Endpoint,
+			log.Method,
+			log.StatusCode,
+			log.ResponseTime,
+			errorMsg)
+	}
+
+	response := map[string]interface{}{
+		"csv_data": csv,
+	}
+
+	data, err := structpb.NewStruct(response)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to marshal response")
+	}
+
+	return &pb.Reply{
+		Code:    0,
+		Message: "success",
+		Data:    data,
+	}, nil
 }

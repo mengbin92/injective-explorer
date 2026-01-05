@@ -188,6 +188,25 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/email/blacklist/batch-delete:
+        post:
+            tags:
+                - AdminService
+            description: BatchDeleteEmailDomains batch deletes email domains
+            operationId: AdminService_BatchDeleteEmailDomains
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.BatchDeleteEmailDomainsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/email/blacklist/batch-import:
         post:
             tags:
@@ -200,6 +219,38 @@ paths:
                         schema:
                             $ref: '#/components/schemas/api.explorer.v1.BatchImportEmailDomainsRequest'
                 required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/email/blacklist/preview-import:
+        post:
+            tags:
+                - AdminService
+            description: PreviewImportEmailDomains previews batch import email domains
+            operationId: AdminService_PreviewImportEmailDomains
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.PreviewImportEmailDomainsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/email/blacklist/stats:
+        get:
+            tags:
+                - AdminService
+            description: GetEmailBlacklistStats gets email blacklist statistics
+            operationId: AdminService_GetEmailBlacklistStats
             responses:
                 "200":
                     description: OK
@@ -337,6 +388,19 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/blacklist/stats:
+        get:
+            tags:
+                - AdminService
+            description: GetIPBlacklistStats gets IP blacklist statistics
+            operationId: AdminService_GetIPBlacklistStats
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/ip/config:
         get:
             tags:
@@ -376,6 +440,28 @@ paths:
             operationId: AdminService_GetIPDetail
             parameters:
                 - name: ip_address
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/export:
+        get:
+            tags:
+                - AdminService
+            description: ExportIPList exports IP list (records/blacklist/monitor)
+            operationId: AdminService_ExportIPList
+            parameters:
+                - name: type
+                  in: query
+                  schema:
+                    type: string
+                - name: time_range
                   in: query
                   schema:
                     type: string
@@ -454,6 +540,24 @@ paths:
                   schema:
                     type: integer
                     format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/ip/records/stats:
+        get:
+            tags:
+                - AdminService
+            description: GetIPRecordsStats gets IP registration records statistics
+            operationId: AdminService_GetIPRecordsStats
+            parameters:
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -549,6 +653,49 @@ paths:
             operationId: AdminService_GetPlanStats
             parameters:
                 - name: id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/usage/errors:
+        get:
+            tags:
+                - AdminService
+            description: GetUsageErrors gets error request list
+            operationId: AdminService_GetUsageErrors
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: 页码，从1开始，默认1（基于页数的分页）
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: 每页大小，默认20，最大100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+                     对于区块：使用区块高度(height)
+                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                  schema:
+                    type: string
+                - name: status_code
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: time_range
                   in: query
                   schema:
                     type: string
@@ -984,6 +1131,11 @@ paths:
                 - APITokenService
             description: ExportUsageLogs exports usage logs to Excel format
             operationId: APITokenService_ExportUsageLogs
+            parameters:
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -1449,6 +1601,13 @@ components:
                     type: string
                 operator_name:
                     type: string
+        api.explorer.v1.BatchDeleteEmailDomainsRequest:
+            type: object
+            properties:
+                ids:
+                    type: array
+                    items:
+                        type: string
         api.explorer.v1.BatchImportEmailDomainsRequest:
             type: object
             properties:
@@ -1646,6 +1805,13 @@ components:
                     description: Optional latency in milliseconds
                     format: double
             description: HealthDetails contains detailed health information for each component
+        api.explorer.v1.PreviewImportEmailDomainsRequest:
+            type: object
+            properties:
+                domains:
+                    type: array
+                    items:
+                        type: string
         api.explorer.v1.Reply:
             type: object
             properties:

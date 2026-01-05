@@ -820,3 +820,285 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 	}, nil
 }
 
+// GetIPRecordsStats gets IP registration records statistics
+func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecordsStatsRequest) (*pb.Reply, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer queryCancel()
+
+	// Build base query
+	query := db.Get().WithContext(queryCtx).Table("ip_registration_records")
+
+	// Apply time range filter
+	now := time.Now()
+	if req.TimeRange != "" {
+		switch req.TimeRange {
+		case "today":
+			query = query.Where("created_at >= ?", time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
+		case "7days":
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -7))
+		case "30days":
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -30))
+		}
+	}
+
+	// Get total records
+	var totalRecords int64
+	query.Count(&totalRecords)
+
+	// Get today's new records
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var todayNew int64
+	db.Get().WithContext(queryCtx).
+		Table("ip_registration_records").
+		Where("created_at >= ?", todayStart).
+		Count(&todayNew)
+
+	// Get blocked IPs count (IPs in blacklist)
+	var blockedCount int64
+	db.Get().WithContext(queryCtx).
+		Table("ip_registration_records").
+		Select("COUNT(DISTINCT ip_registration_records.ip_address)").
+		Joins("INNER JOIN ip_blacklist ON ip_registration_records.ip_address = ip_blacklist.ip_address").
+		Count(&blockedCount)
+
+	// Get normal IPs count (total unique IPs - blocked IPs)
+	var totalUniqueIPs int64
+	db.Get().WithContext(queryCtx).
+		Table("ip_registration_records").
+		Select("COUNT(DISTINCT ip_address)").
+		Count(&totalUniqueIPs)
+	normalCount := totalUniqueIPs - blockedCount
+	if normalCount < 0 {
+		normalCount = 0
+	}
+
+	stats := &pb.IPRecordsStatsInfo{
+		TotalRecords: totalRecords,
+		TodayNew:     todayNew,
+		BlockedCount: blockedCount,
+		NormalCount:  normalCount,
+	}
+
+	statsMap := make(map[string]interface{})
+	statsBytes, _ := sonic.Marshal(stats)
+	sonic.Unmarshal(statsBytes, &statsMap)
+
+	data, err := structpb.NewStruct(statsMap)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to marshal response")
+	}
+
+	return &pb.Reply{
+		Code:    0,
+		Message: "success",
+		Data:    data,
+	}, nil
+}
+
+// GetIPBlacklistStats gets IP blacklist statistics
+func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer queryCancel()
+
+	// Get total count
+	var totalCount int64
+	db.Get().WithContext(queryCtx).Model(&models.IPBlacklist{}).Count(&totalCount)
+
+	// Get today's added count
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var todayAdded int64
+	db.Get().WithContext(queryCtx).
+		Model(&models.IPBlacklist{}).
+		Where("created_at >= ?", todayStart).
+		Count(&todayAdded)
+
+	// Get total blocked count (sum of block_count)
+	var totalBlocked int64
+	db.Get().WithContext(queryCtx).
+		Model(&models.IPBlacklist{}).
+		Select("COALESCE(SUM(block_count), 0)").
+		Scan(&totalBlocked)
+
+	stats := &pb.IPBlacklistStatsInfo{
+		TotalCount:   totalCount,
+		TodayAdded:   todayAdded,
+		TotalBlocked: totalBlocked,
+	}
+
+	statsMap := make(map[string]interface{})
+	statsBytes, _ := sonic.Marshal(stats)
+	sonic.Unmarshal(statsBytes, &statsMap)
+
+	data, err := structpb.NewStruct(statsMap)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to marshal response")
+	}
+
+	return &pb.Reply{
+		Code:    0,
+		Message: "success",
+		Data:    data,
+	}, nil
+}
+
+// ExportIPList exports IP list (records/blacklist/monitor)
+func (s *AdminService) ExportIPList(ctx context.Context, req *pb.ExportIPListRequest) (*pb.Reply, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	if req.Type == "" {
+		return nil, status.Error(codes.InvalidArgument, "type is required (records/blacklist/monitor)")
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+
+	var csvData string
+	var err error
+
+	switch req.Type {
+	case "records":
+		csvData, err = s.exportIPRecords(queryCtx)
+	case "blacklist":
+		csvData, err = s.exportIPBlacklist(queryCtx)
+	case "monitor":
+		csvData, err = s.exportIPMonitor(queryCtx, req.TimeRange)
+	default:
+		return nil, status.Error(codes.InvalidArgument, "invalid type, must be records/blacklist/monitor")
+	}
+
+	if err != nil {
+		global.Logger.Errorf("failed to export IP list: %v", err)
+		return nil, status.Error(codes.Internal, "failed to export IP list")
+	}
+
+	response := map[string]interface{}{
+		"csv_data": csvData,
+		"type":     req.Type,
+	}
+
+	data, err := structpb.NewStruct(response)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to marshal response")
+	}
+
+	return &pb.Reply{
+		Code:    0,
+		Message: "success",
+		Data:    data,
+	}, nil
+}
+
+// exportIPRecords exports IP registration records to CSV
+func (s *AdminService) exportIPRecords(ctx context.Context) (string, error) {
+	var results []struct {
+		IPAddress        string    `gorm:"column:ip_address"`
+		IPLocation       string    `gorm:"column:ip_location"`
+		RegisterCount    int64     `gorm:"column:register_count"`
+		LastRegisterTime time.Time `gorm:"column:last_register_time"`
+	}
+
+	err := db.Get().WithContext(ctx).
+		Table("ip_registration_records").
+		Select("ip_address, ip_location, COUNT(*) as register_count, MAX(created_at) as last_register_time").
+		Group("ip_address, ip_location").
+		Order("register_count DESC").
+		Scan(&results).Error
+
+	if err != nil {
+		return "", err
+	}
+
+	// Build CSV
+	csv := "IP地址,IP归属地,注册次数,最后注册时间\n"
+	for _, r := range results {
+		csv += fmt.Sprintf("%s,%s,%d,%s\n",
+			r.IPAddress,
+			r.IPLocation,
+			r.RegisterCount,
+			r.LastRegisterTime.Format("2006-01-02 15:04:05"))
+	}
+
+	return csv, nil
+}
+
+// exportIPBlacklist exports IP blacklist to CSV
+func (s *AdminService) exportIPBlacklist(ctx context.Context) (string, error) {
+	var blacklist []models.IPBlacklist
+	err := db.Get().WithContext(ctx).
+		Model(&models.IPBlacklist{}).
+		Order("created_at DESC").
+		Find(&blacklist).Error
+
+	if err != nil {
+		return "", err
+	}
+
+	// Build CSV
+	csv := "IP地址,IP归属地,原因,原因描述,拦截次数,操作人,限制类型,创建时间\n"
+	for _, b := range blacklist {
+		csv += fmt.Sprintf("%s,%s,%s,%s,%d,%s,%s,%s\n",
+			b.IPAddress,
+			b.IPLocation,
+			b.Reason,
+			b.ReasonText,
+			b.BlockCount,
+			b.OperatorName,
+			b.BlockType,
+			b.CreatedAt.Format("2006-01-02 15:04:05"))
+	}
+
+	return csv, nil
+}
+
+// exportIPMonitor exports IP monitor data to CSV
+func (s *AdminService) exportIPMonitor(ctx context.Context, timeRange string) (string, error) {
+	// Determine time range
+	now := time.Now()
+	var startTime time.Time
+	switch timeRange {
+	case "1h":
+		startTime = now.Add(-1 * time.Hour)
+	case "6h":
+		startTime = now.Add(-6 * time.Hour)
+	case "24h", "":
+		startTime = now.Add(-24 * time.Hour)
+	case "7d":
+		startTime = now.AddDate(0, 0, -7)
+	default:
+		startTime = now.Add(-24 * time.Hour)
+	}
+
+	var topIPs []struct {
+		IPAddress    string `gorm:"column:ip_address"`
+		RequestCount int64  `gorm:"column:request_count"`
+	}
+
+	err := db.Get().WithContext(ctx).
+		Model(&models.APIRequestLog{}).
+		Select("ip_address, COUNT(*) as request_count").
+		Where("created_at >= ?", startTime).
+		Group("ip_address").
+		Order("request_count DESC").
+		Limit(1000).
+		Scan(&topIPs).Error
+
+	if err != nil {
+		return "", err
+	}
+
+	// Build CSV
+	csv := "IP地址,请求次数\n"
+	for _, ip := range topIPs {
+		csv += fmt.Sprintf("%s,%d\n", ip.IPAddress, ip.RequestCount)
+	}
+
+	return csv, nil
+}
+

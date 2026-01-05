@@ -3,7 +3,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -560,36 +559,12 @@ func registerSwaggerRoutes(srv *khttp.Server, logger log.Logger) {
 }
 
 // registerExportRoutes registers custom HTTP routes for file exports.
-// These routes handle file downloads directly without going through protobuf serialization.
+// Note: Export usage logs endpoint is now handled by proto-generated route.
+// The endpoint /api/v1/export/logs returns CSV data in JSON response format
+// (same as ExportIPList), not Excel file download.
 func registerExportRoutes(srv *khttp.Server, apiTokenService *service.APITokenService, logger log.Logger) {
-	r := srv.Route("/")
-
-	// Export usage logs endpoint
-	r.GET("/api/v1/export/logs", func(ctx khttp.Context) error {
-		// Get user ID from header
-		userID := ctx.Request().Header.Get("X-User-ID")
-		if userID == "" {
-			ctx.Response().Header().Set("Content-Type", "application/json")
-			ctx.Response().WriteHeader(http.StatusUnauthorized)
-			ctx.Response().Write([]byte(`{"error":"UNAUTHORIZED","message":"Missing X-User-ID header"}`))
-			return nil
-		}
-
-		// Set response headers for Excel file download
-		response := ctx.Response()
-		response.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-		response.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=usage_logs_%s.xlsx", time.Now().Format("20060102_150405")))
-
-		// Create export service and export logs
-		exportService := service.NewExportService()
-		if err := exportService.ExportUsageLogs(ctx.Request().Context(), userID, response); err != nil {
-			log.NewHelper(logger).Errorf("failed to export usage logs: %v", err)
-			response.Header().Set("Content-Type", "application/json")
-			response.WriteHeader(http.StatusInternalServerError)
-			response.Write([]byte(`{"error":"EXPORT_FAILED","message":"Failed to export usage logs"}`))
-			return nil
-		}
-
-		return nil
-	})
+	// Export routes are now handled by proto-generated routes
+	_ = srv // Suppress unused parameter warning
+	_ = apiTokenService
+	_ = logger
 }

@@ -120,6 +120,34 @@ service AdminService {
     };
   }
 
+  // GetIPRecordsStats gets IP registration records statistics
+  rpc GetIPRecordsStats(GetIPRecordsStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/records/stats"
+    };
+  }
+
+  // GetIPBlacklistStats gets IP blacklist statistics
+  rpc GetIPBlacklistStats(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/blacklist/stats"
+    };
+  }
+
+  // ExportIPList exports IP list (records/blacklist/monitor)
+  rpc ExportIPList(ExportIPListRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/ip/export"
+    };
+  }
+
+  // GetUsageErrors gets error request list
+  rpc GetUsageErrors(GetUsageErrorsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/usage/errors"
+    };
+  }
+
   // ========== 邮箱黑名单管理 ==========
   // ListEmailBlacklist lists email blacklist domains
   rpc ListEmailBlacklist(ListEmailBlacklistRequest) returns (Reply) {
@@ -163,6 +191,29 @@ service AdminService {
   rpc ToggleEmailDomainStatus(ToggleEmailDomainStatusRequest) returns (Reply) {
     option (google.api.http) = {
       put : "/api/v1/admin/email/blacklist/toggle"
+      body : "*"
+    };
+  }
+
+  // GetEmailBlacklistStats gets email blacklist statistics
+  rpc GetEmailBlacklistStats(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/email/blacklist/stats"
+    };
+  }
+
+  // PreviewImportEmailDomains previews batch import email domains
+  rpc PreviewImportEmailDomains(PreviewImportEmailDomainsRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/email/blacklist/preview-import"
+      body : "*"
+    };
+  }
+
+  // BatchDeleteEmailDomains batch deletes email domains
+  rpc BatchDeleteEmailDomains(BatchDeleteEmailDomainsRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/email/blacklist/batch-delete"
       body : "*"
     };
   }
@@ -259,6 +310,21 @@ message UpdateIPRateLimitConfigRequest {
   int32 ip_per_hour = 2 [ json_name = "ip_per_hour" ];     // 每小时请求上限
   string block_type = 3
       [ json_name = "block_type" ]; // 黑名单限制方式：all/register/api
+}
+
+message GetIPRecordsStatsRequest {
+  string time_range = 1 [ json_name = "time_range" ]; // today/7days/30days/all
+}
+
+message ExportIPListRequest {
+  string type = 1; // records/blacklist/monitor
+  string time_range = 2 [ json_name = "time_range" ]; // For monitor type: 1h/6h/24h/7d
+}
+
+message GetUsageErrorsRequest {
+  PaginationRequest pagination = 1;
+  int32 status_code = 2 [ json_name = "status_code" ]; // Filter by status code (e.g., 400, 500)
+  string time_range = 3 [ json_name = "time_range" ]; // today/7days/30days/all
 }
 
 message IPRegistrationRecordInfo {
@@ -375,4 +441,41 @@ message BatchImportResult {
   int32 duplicate = 4;
   repeated string invalid_domains = 5 [ json_name = "invalid_domains" ];
   repeated string duplicate_domains = 6 [ json_name = "duplicate_domains" ];
+}
+
+message PreviewImportEmailDomainsRequest {
+  repeated string domains = 1; // 域名列表
+}
+
+message BatchDeleteEmailDomainsRequest {
+  repeated uint64 ids = 1; // 域名ID列表
+}
+
+message IPRecordsStatsInfo {
+  int64 total_records = 1 [ json_name = "total_records" ];
+  int64 today_new = 2 [ json_name = "today_new" ];
+  int64 blocked_count = 3 [ json_name = "blocked_count" ];
+  int64 normal_count = 4 [ json_name = "normal_count" ];
+}
+
+message IPBlacklistStatsInfo {
+  int64 total_count = 1 [ json_name = "total_count" ];
+  int64 today_added = 2 [ json_name = "today_added" ];
+  int64 total_blocked = 3 [ json_name = "total_blocked" ]; // Total block count
+}
+
+message EmailBlacklistStatsInfo {
+  int64 total_count = 1 [ json_name = "total_count" ];
+  int64 active_count = 2 [ json_name = "active_count" ];
+  int64 disabled_count = 3 [ json_name = "disabled_count" ];
+}
+
+message UsageErrorInfo {
+  string time = 1;
+  string ip_address = 2 [ json_name = "ip_address" ];
+  string endpoint = 3;
+  string method = 4;
+  int32 status_code = 5 [ json_name = "status_code" ];
+  string error_message = 6 [ json_name = "error_message" ];
+  int32 response_time = 7 [ json_name = "response_time" ];
 }

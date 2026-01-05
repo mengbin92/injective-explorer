@@ -108,22 +108,26 @@ message GetTokenUsageResponse {
 
 // GetDashboardStatsRequest gets dashboard statistics
 message GetDashboardStatsRequest {
-  int32 days = 1 [ json_name = "days" ]; // Number of days to query (default: 30)
+  int32 days = 1
+      [ json_name = "days" ]; // Number of days to query (default: 30)
 }
 
 // GetDashboardStatsResponse returns dashboard statistics
 message GetDashboardStatsResponse {
-  int64 total_calls = 1 [ json_name = "total_calls" ];           // Total calls in period
-  int64 success_calls = 2 [ json_name = "success_calls" ];       // Success calls in period
-  int64 failed_calls = 3 [ json_name = "failed_calls" ];         // Failed calls in period
-  int64 monthly_limit = 4 [ json_name = "monthly_limit" ];        // Monthly limit
-  int64 monthly_used = 5 [ json_name = "monthly_used" ];         // Monthly used
-  repeated DailyStats daily_stats = 6 [ json_name = "daily_stats" ]; // Daily statistics
+  int64 total_calls = 1 [ json_name = "total_calls" ]; // Total calls in period
+  int64 success_calls = 2
+      [ json_name = "success_calls" ]; // Success calls in period
+  int64 failed_calls = 3
+      [ json_name = "failed_calls" ]; // Failed calls in period
+  int64 monthly_limit = 4 [ json_name = "monthly_limit" ]; // Monthly limit
+  int64 monthly_used = 5 [ json_name = "monthly_used" ];   // Monthly used
+  repeated DailyStats daily_stats = 6
+      [ json_name = "daily_stats" ]; // Daily statistics
 }
 
 // DailyStats represents daily usage statistics
 message DailyStats {
-  string date = 1 [ json_name = "date" ];           // Date in YYYY-MM-DD format
+  string date = 1 [ json_name = "date" ]; // Date in YYYY-MM-DD format
   int64 total_calls = 2 [ json_name = "total_calls" ];
   int64 success_calls = 3 [ json_name = "success_calls" ];
   int64 failed_calls = 4 [ json_name = "failed_calls" ];
@@ -131,11 +135,13 @@ message DailyStats {
 
 // ExportUsageLogsRequest exports usage logs
 message ExportUsageLogsRequest {
-  // Empty, uses authenticated user from context
+  string time_range = 1
+      [ json_name = "time_range" ]; // Optional: today/7days/30days/all
 }
 
 // ExportUsageLogsResponse returns Excel file download URL or direct data
 message ExportUsageLogsResponse {
-  string download_url = 1 [ json_name = "download_url" ]; // Download URL (if using file storage)
-  string message = 2 [ json_name = "message" ];           // Success message
+  string download_url = 1
+      [ json_name = "download_url" ]; // Download URL (if using file storage)
+  string message = 2 [ json_name = "message" ]; // Success message
 }

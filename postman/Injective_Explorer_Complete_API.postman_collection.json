@@ -1891,8 +1891,13 @@
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
-									"pm.test(\"Response is Excel file\", function () {",
-									"    pm.expect(pm.response.headers.get('Content-Type')).to.include('spreadsheetml');",
+									"pm.test(\"Response has CSV data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('csv_data');",
+									"    }",
 									"});"
 								],
 								"type": "text/javascript"
@@ -1909,7 +1914,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/export/logs",
+							"raw": "{{base_url}}/api/v1/export/logs?time_range=7days",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1918,9 +1923,16 @@
 								"v1",
 								"export",
 								"logs"
+							],
+							"query": [
+								{
+									"key": "time_range",
+									"value": "7days",
+									"description": "Time range: today/7days/30days/all"
+								}
 							]
 						},
-						"description": "Export usage logs to Excel format"
+						"description": "Export usage logs to CSV format (returns CSV data in JSON response)"
 					},
 					"response": []
 				}
@@ -2430,6 +2442,64 @@
 					"response": []
 				},
 				{
+					"name": "Get IP Records Stats",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has stats data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('total_records');",
+									"        pm.expect(jsonData.data).to.have.property('today_new');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/ip/records/stats?time_range=all",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"ip",
+								"records",
+								"stats"
+							],
+							"query": [
+								{
+									"key": "time_range",
+									"value": "all",
+									"description": "Time range: today/7days/30days/all"
+								}
+							]
+						},
+						"description": "Get IP registration records statistics"
+					},
+					"response": []
+				},
+				{
 					"name": "Get IP Detail",
 					"event": [
 						{
@@ -2529,6 +2599,57 @@
 							]
 						},
 						"description": "List IP blacklist"
+					},
+					"response": []
+				},
+				{
+					"name": "Get IP Blacklist Stats",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has stats data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('total_count');",
+									"        pm.expect(jsonData.data).to.have.property('today_added');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/ip/blacklist/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"ip",
+								"blacklist",
+								"stats"
+							]
+						},
+						"description": "Get IP blacklist statistics"
 					},
 					"response": []
 				},
@@ -2885,6 +3006,69 @@
 						"description": "Update IP rate limit configuration"
 					},
 					"response": []
+				},
+				{
+					"name": "Export IP List",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has CSV data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('csv_data');",
+									"        pm.expect(jsonData.data).to.have.property('type');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/ip/export?type=records&time_range=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"ip",
+								"export"
+							],
+							"query": [
+								{
+									"key": "type",
+									"value": "records",
+									"description": "Export type: records/blacklist/monitor"
+								},
+								{
+									"key": "time_range",
+									"value": "",
+									"description": "Time range for monitor type: 1h/6h/24h/7d",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Export IP list to CSV format"
+					},
+					"response": []
 				}
 			],
 			"description": "IP management endpoints for admin"
@@ -2951,6 +3135,58 @@
 							]
 						},
 						"description": "List email blacklist domains"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Email Blacklist Stats",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has stats data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('total_count');",
+									"        pm.expect(jsonData.data).to.have.property('active_count');",
+									"        pm.expect(jsonData.data).to.have.property('disabled_count');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/email/blacklist/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"email",
+								"blacklist",
+								"stats"
+							]
+						},
+						"description": "Get email blacklist statistics"
 					},
 					"response": []
 				},
@@ -3162,6 +3398,72 @@
 					"response": []
 				},
 				{
+					"name": "Preview Import Email Domains",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has preview data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('total');",
+									"        pm.expect(jsonData.data).to.have.property('valid');",
+									"        pm.expect(jsonData.data).to.have.property('invalid');",
+									"        pm.expect(jsonData.data).to.have.property('duplicate');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"domains\": [\"example.com\", \"test.com\", \"invalid-domain\", \"example.com\"]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/email/blacklist/preview-import",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"email",
+								"blacklist",
+								"preview-import"
+							]
+						},
+						"description": "Preview batch import email domains (validate format without importing)"
+					},
+					"response": []
+				},
+				{
 					"name": "Toggle Email Domain Status",
 					"event": [
 						{
@@ -3214,9 +3516,152 @@
 						"description": "Toggle email domain status (active/disabled)"
 					},
 					"response": []
+				},
+				{
+					"name": "Batch Delete Email Domains",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has delete result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('deleted');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ids\": [1, 2, 3]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/email/blacklist/batch-delete",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"email",
+								"blacklist",
+								"batch-delete"
+							]
+						},
+						"description": "Batch delete email domains"
+					},
+					"response": []
 				}
 			],
 			"description": "Email blacklist management endpoints for admin"
+		},
+		{
+			"name": "Admin APIs - Usage Statistics",
+			"item": [
+				{
+					"name": "Get Usage Errors",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has errors data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    if (jsonData.code === 0 && jsonData.data) {",
+									"        pm.expect(jsonData.data).to.have.property('errors');",
+									"        pm.expect(jsonData.data).to.have.property('pagination');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/usage/errors?pagination.page=1&pagination.page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"usage",
+								"errors"
+							],
+							"query": [
+								{
+									"key": "pagination.page",
+									"value": "1",
+									"description": "页码，从1开始，默认1"
+								},
+								{
+									"key": "pagination.page_size",
+									"value": "20",
+									"description": "每页大小，默认20，最大100"
+								},
+								{
+									"key": "status_code",
+									"value": "",
+									"description": "Filter by status code (e.g., 400, 500)",
+									"disabled": true
+								},
+								{
+									"key": "time_range",
+									"value": "",
+									"description": "Time range: today/7days/30days/all",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get error request list (status code >= 400)"
+					},
+					"response": []
+				}
+			],
+			"description": "Usage statistics endpoints for admin"
 		},
 		{
 			"name": "Rate Limit & Auth Tests",
