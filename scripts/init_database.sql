@@ -105,7 +105,12 @@ CREATE TABLE `api_request_logs` (
   KEY `idx_api_request_logs_user_id` (`user_id`),
   KEY `idx_api_request_logs_ip_address` (`ip_address`),
   KEY `idx_api_request_logs_endpoint` (`endpoint`),
-  KEY `idx_api_request_logs_status_code` (`status_code`)
+  KEY `idx_api_request_logs_status_code` (`status_code`),
+  -- Performance indexes for time-based queries (added after optimization analysis)
+  KEY `idx_api_logs_created_at` (`created_at`),
+  KEY `idx_api_logs_token_time` (`token_id`,`created_at`),
+  KEY `idx_api_logs_ip_time` (`ip_address`,`created_at`),
+  KEY `idx_api_logs_user_time` (`user_id`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
@@ -288,7 +293,12 @@ CREATE TABLE `transactions` (
   KEY `idx_transactions_archived` (`archived`),
   KEY `idx_evm_hash` (`evm_hash`),
   KEY `idx_evm_details_synced` (`evm_details_synced`),
-  KEY `idx_timestamp_code_deleted` (`block_unix_timestamp`,`code`,`deleted_at`)
+  KEY `idx_timestamp_code_deleted` (`block_unix_timestamp`,`code`,`deleted_at`),
+  -- Performance indexes for transaction pagination and query patterns (added after optimization analysis)
+  KEY `idx_timestamp_tx_pagination` (`block_unix_timestamp` DESC,`tx_number` DESC,`id`),
+  KEY `idx_signer_timestamp_tx` (`signer`,`block_unix_timestamp` DESC,`tx_number` DESC),
+  -- Covering index for block transaction queries
+  KEY `idx_block_tx_covering` (`block_number`,`tx_number`,`hash`,`signer`,`to`,`value`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
@@ -373,6 +383,10 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Query: SELECT hash, signer, to, value FROM transactions WHERE block_number = ?
 -- Note: If index already exists, MySQL will return error which can be safely ignored
 CREATE INDEX idx_transaction_to ON transactions(`to`);
+
+-- Index for active addresses query (getActiveAddresses24h)
+-- Query: WHERE block_unix_timestamp >= ? AND signer != ''
+CREATE INDEX idx_timestamp_signer_distinct ON transactions(block_unix_timestamp, signer);
 
 -- Index for storage migration queries (IS NULL checks on storage keys)
 -- Query: WHERE (data_storage_key IS NULL OR data_storage_key = '') AND ...
