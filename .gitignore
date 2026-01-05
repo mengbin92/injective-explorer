@@ -56,3 +56,6 @@ injective_data/
 injective-explorer
 bin/
 data/
+
+# Generated protobuf files
+*.pb.go
