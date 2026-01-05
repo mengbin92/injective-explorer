@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -10,7 +11,6 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
 
-	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -43,24 +43,20 @@ func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb
 		global.Logger.Warnf("failed to get plan stats: %v", err)
 	}
 
-	planInfo := &pb.PlanInfo{
-		Id:                 uint64(plan.ID),
-		Name:               plan.Name,
-		PlanType:           plan.PlanType,
-		MonthlyLimit:       plan.MonthlyLimit,
-		RateLimitPerSecond: int32(plan.RateLimitPerSecond),
-		MaxTokens:          int32(plan.MaxTokens),
-		Price:              plan.Price,
-		Status:             plan.Status,
-		TokenCount:         tokenCount,
-		UserCount:          userCount,
-		CreatedAt:          plan.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:          plan.UpdatedAt.Format(time.RFC3339),
+	planMap := map[string]interface{}{
+		"id":                    uint64(plan.ID),
+		"name":                  plan.Name,
+		"plan_type":             plan.PlanType,
+		"monthly_limit":         plan.MonthlyLimit,
+		"rate_limit_per_second": int32(plan.RateLimitPerSecond),
+		"max_tokens":            int32(plan.MaxTokens),
+		"price":                 plan.Price,
+		"status":                plan.Status,
+		"token_count":           tokenCount,
+		"user_count":            userCount,
+		"created_at":            plan.CreatedAt.Format(time.RFC3339),
+		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
 	}
-
-	planMap := make(map[string]interface{})
-	planBytes, _ := sonic.Marshal(planInfo)
-	sonic.Unmarshal(planBytes, &planMap)
 
 	data, err := structpb.NewStruct(planMap)
 	if err != nil {
@@ -68,7 +64,7 @@ func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -122,36 +118,36 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 		return nil, status.Error(codes.Internal, "failed to query plans")
 	}
 
-	planInfos := make([]*pb.PlanInfo, 0, len(plans))
+	// Convert plans to []map[string]interface{}
+	planInfos := make([]map[string]interface{}, 0, len(plans))
 	for _, plan := range plans {
 		tokenCount, userCount, _ := s.getPlanStats(queryCtx, plan.ID)
-		planInfo := &pb.PlanInfo{
-			Id:                 uint64(plan.ID),
-			Name:               plan.Name,
-			PlanType:           plan.PlanType,
-			MonthlyLimit:       plan.MonthlyLimit,
-			RateLimitPerSecond: int32(plan.RateLimitPerSecond),
-			MaxTokens:          int32(plan.MaxTokens),
-			Price:              plan.Price,
-			Status:             plan.Status,
-			TokenCount:         tokenCount,
-			UserCount:          userCount,
-			CreatedAt:          plan.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:          plan.UpdatedAt.Format(time.RFC3339),
-		}
-		planInfos = append(planInfos, planInfo)
+		planInfos = append(planInfos, map[string]interface{}{
+			"id":                    uint64(plan.ID),
+			"name":                  plan.Name,
+			"plan_type":             plan.PlanType,
+			"monthly_limit":         plan.MonthlyLimit,
+			"rate_limit_per_second": int32(plan.RateLimitPerSecond),
+			"max_tokens":            int32(plan.MaxTokens),
+			"price":                 plan.Price,
+			"status":                plan.Status,
+			"token_count":           tokenCount,
+			"user_count":            userCount,
+			"created_at":            plan.CreatedAt.Format(time.RFC3339),
+			"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
+		})
 	}
 
 	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
 	response := map[string]interface{}{
 		"plans": planInfos,
-		"pagination": &pb.PaginationInfo{
-			Page:      pagination.Page,
-			PageSize:  pagination.PageSize,
-			Total:     total,
-			TotalPages: totalPages,
-			HasPrev:   pagination.Page > 1,
-			HasNext:   pagination.Page < totalPages,
+		"pagination": map[string]interface{}{
+			"page":        pagination.Page,
+			"page_size":   pagination.PageSize,
+			"total":       total,
+			"total_pages": totalPages,
+			"has_prev":    pagination.Page > 1,
+			"has_next":    pagination.Page < totalPages,
 		},
 	}
 
@@ -161,8 +157,112 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
+		Data:    data,
+	}, nil
+}
+
+// CreatePlan creates a new plan
+func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest) (*pb.Reply, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if req.PlanType == "" {
+		return nil, status.Error(codes.InvalidArgument, "plan_type is required")
+	}
+	if req.PlanType != "free" && req.PlanType != "paid" {
+		return nil, status.Error(codes.InvalidArgument, "plan_type must be 'free' or 'paid'")
+	}
+	if req.MonthlyLimit == 0 {
+		return nil, status.Error(codes.InvalidArgument, "monthly_limit must be greater than 0")
+	}
+	if req.RateLimitPerSecond <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "rate_limit_per_second must be greater than 0")
+	}
+	if req.MaxTokens <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "max_tokens must be greater than 0")
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer queryCancel()
+
+	// Check if plan name already exists
+	var existing models.APIPlan
+	err := db.Get().WithContext(queryCtx).
+		Where("name = ?", req.Name).
+		First(&existing).Error
+	if err == nil {
+		return nil, status.Error(codes.AlreadyExists, "plan name already exists")
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		global.Logger.Errorf("failed to check plan name: %v", err)
+		return nil, status.Error(codes.Internal, "failed to check plan name")
+	}
+
+	// Set default values
+	planStatus := req.Status
+	if planStatus == "" {
+		planStatus = "active"
+	}
+	if planStatus != "active" && planStatus != "inactive" {
+		planStatus = "active"
+	}
+
+	price := req.Price
+	if price < 0 {
+		price = 0.00
+	}
+
+	// Create plan
+	plan := &models.APIPlan{
+		Name:               req.Name,
+		PlanType:           req.PlanType,
+		MonthlyLimit:       req.MonthlyLimit,
+		RateLimitPerSecond: int(req.RateLimitPerSecond),
+		MaxTokens:          int(req.MaxTokens),
+		EnableWebhook:      req.EnableWebhook,
+		Price:              price,
+		Status:             planStatus,
+	}
+
+	err = db.Get().WithContext(queryCtx).Create(plan).Error
+	if err != nil {
+		global.Logger.Errorf("failed to create plan: %v", err)
+		return nil, status.Error(codes.Internal, "failed to create plan")
+	}
+
+	// Get plan statistics (will be 0 for new plan)
+	tokenCount, userCount, _ := s.getPlanStats(queryCtx, plan.ID)
+
+	planMap := map[string]interface{}{
+		"id":                    uint64(plan.ID),
+		"name":                  plan.Name,
+		"plan_type":             plan.PlanType,
+		"monthly_limit":         plan.MonthlyLimit,
+		"rate_limit_per_second": int32(plan.RateLimitPerSecond),
+		"max_tokens":            int32(plan.MaxTokens),
+		"price":                 plan.Price,
+		"status":                plan.Status,
+		"token_count":           tokenCount,
+		"user_count":            userCount,
+		"created_at":            plan.CreatedAt.Format(time.RFC3339),
+		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
+	}
+
+	data, err := structpb.NewStruct(planMap)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to marshal response")
+	}
+
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "Plan created successfully",
 		Data:    data,
 	}, nil
 }
@@ -187,10 +287,8 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 	}
 
 	// Update fields
+	// Note: description field is not in the APIPlan model, so we skip it
 	updates := make(map[string]interface{})
-	if req.Description != "" {
-		updates["description"] = req.Description
-	}
 	if req.MonthlyLimit > 0 {
 		updates["monthly_limit"] = req.MonthlyLimit
 	}
@@ -218,22 +316,18 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 		return nil, status.Error(codes.Internal, "failed to reload plan")
 	}
 
-	planInfo := &pb.PlanInfo{
-		Id:                 uint64(plan.ID),
-		Name:               plan.Name,
-		PlanType:           plan.PlanType,
-		MonthlyLimit:       plan.MonthlyLimit,
-		RateLimitPerSecond: int32(plan.RateLimitPerSecond),
-		MaxTokens:          int32(plan.MaxTokens),
-		Price:              plan.Price,
-		Status:             plan.Status,
-		CreatedAt:          plan.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:          plan.UpdatedAt.Format(time.RFC3339),
+	planMap := map[string]interface{}{
+		"id":                    uint64(plan.ID),
+		"name":                  plan.Name,
+		"plan_type":             plan.PlanType,
+		"monthly_limit":         plan.MonthlyLimit,
+		"rate_limit_per_second": int32(plan.RateLimitPerSecond),
+		"max_tokens":            int32(plan.MaxTokens),
+		"price":                 plan.Price,
+		"status":                plan.Status,
+		"created_at":            plan.CreatedAt.Format(time.RFC3339),
+		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
 	}
-
-	planMap := make(map[string]interface{})
-	planBytes, _ := sonic.Marshal(planInfo)
-	sonic.Unmarshal(planBytes, &planMap)
 
 	data, err := structpb.NewStruct(planMap)
 	if err != nil {
@@ -241,7 +335,7 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "plan updated successfully",
 		Data:    data,
 	}, nil
@@ -273,7 +367,7 @@ func (s *AdminService) GetPlanStats(ctx context.Context, req *pb.GetPlanStatsReq
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -310,4 +404,3 @@ func (s *AdminService) getPlanStats(ctx context.Context, planID uint) (int64, in
 
 	return tokenCount, userCount, nil
 }
-

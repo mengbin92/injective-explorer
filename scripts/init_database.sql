@@ -364,6 +364,78 @@ CREATE TABLE `webhooks` (
   KEY `idx_webhooks_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- ----------------------------
+-- Table structure for ip_blacklist
+-- ----------------------------
+DROP TABLE IF EXISTS `ip_blacklist`;
+CREATE TABLE `ip_blacklist` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `ip_address` varchar(45) NOT NULL COMMENT 'IP地址（支持IPv4和IPv6）',
+  `ip_location` varchar(100) DEFAULT NULL COMMENT 'IP归属地',
+  `reason` varchar(50) NOT NULL COMMENT '加入原因：batch_register/api_abuse/proxy/spam/other',
+  `reason_text` varchar(255) DEFAULT NULL COMMENT '原因描述',
+  `block_count` bigint unsigned NOT NULL DEFAULT '0' COMMENT '拦截次数',
+  `operator_id` varchar(64) DEFAULT NULL COMMENT '操作人ID',
+  `operator_name` varchar(100) DEFAULT NULL COMMENT '操作人名称',
+  `block_type` varchar(20) NOT NULL DEFAULT 'all' COMMENT '限制类型：all/register/api',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_ip_blacklist_ip_address` (`ip_address`),
+  KEY `idx_ip_blacklist_deleted_at` (`deleted_at`),
+  KEY `idx_ip_blacklist_reason` (`reason`),
+  KEY `idx_ip_blacklist_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for ip_registration_records
+-- ----------------------------
+DROP TABLE IF EXISTS `ip_registration_records`;
+CREATE TABLE `ip_registration_records` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `ip_address` varchar(45) NOT NULL COMMENT 'IP地址',
+  `ip_location` varchar(100) DEFAULT NULL COMMENT 'IP归属地',
+  `user_id` varchar(64) NOT NULL COMMENT '注册的用户ID',
+  `email` varchar(255) DEFAULT NULL COMMENT '注册邮箱',
+  PRIMARY KEY (`id`),
+  KEY `idx_ip_registration_records_deleted_at` (`deleted_at`),
+  KEY `idx_ip_registration_records_ip_address` (`ip_address`),
+  KEY `idx_ip_registration_records_user_id` (`user_id`),
+  KEY `idx_ip_registration_records_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for email_blacklist
+-- ----------------------------
+DROP TABLE IF EXISTS `email_blacklist`;
+CREATE TABLE `email_blacklist` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `domain` varchar(255) NOT NULL COMMENT '邮箱域名（小写）',
+  `status` varchar(20) NOT NULL DEFAULT 'active' COMMENT '状态：active/disabled',
+  `block_count` bigint unsigned NOT NULL DEFAULT '0' COMMENT '拦截次数',
+  `note` text COMMENT '备注',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_email_blacklist_domain` (`domain`),
+  KEY `idx_email_blacklist_deleted_at` (`deleted_at`),
+  KEY `idx_email_blacklist_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Initialize some common disposable email domains
+INSERT INTO `email_blacklist` (`domain`, `status`, `note`) VALUES
+('tempmail.com', 'active', '知名临时邮箱服务'),
+('guerrillamail.com', 'active', '游击邮件服务'),
+('10minutemail.com', 'active', '10分钟临时邮箱'),
+('mailinator.com', 'active', '临时邮箱服务'),
+('throwaway.email', 'active', '一次性邮箱')
+ON DUPLICATE KEY UPDATE `domain`=`domain`;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================================

@@ -2263,6 +2263,77 @@
 					"response": []
 				},
 				{
+					"name": "Create Plan",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has standard format\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.code).to.equal(200);",
+									"});",
+									"",
+									"pm.test(\"Response data has plan information\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('id');",
+									"    pm.expect(jsonData.data).to.have.property('name');",
+									"    pm.expect(jsonData.data).to.have.property('plan_type');",
+									"    pm.expect(jsonData.data).to.have.property('monthly_limit');",
+									"    ",
+									"    // Save plan ID for later use",
+									"    pm.environment.set(\"plan_id\", jsonData.data.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Basic Plan\",\n    \"plan_type\": \"free\",\n    \"monthly_limit\": 10000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5,\n    \"enable_webhook\": false,\n    \"price\": 0.00,\n    \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/admin/plans",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"plans"
+							]
+						},
+						"description": "Create a new plan. Required fields: name (unique), plan_type (free/paid), monthly_limit, rate_limit_per_second, max_tokens. Optional fields: enable_webhook (default: false), price (default: 0.00), status (default: active)."
+					},
+					"response": []
+				},
+				{
 					"name": "Update Plan",
 					"event": [
 						{

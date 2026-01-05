@@ -44,5 +44,11 @@ func NewGRPCServer(c *conf.Server, logger log.Logger) *grpc.Server {
 	contractInfoService := service.NewContractInfoService()
 	v1.RegisterContractInfoServiceServer(srv, contractInfoService)
 
+	apiTokenService := service.NewAPITokenService()
+	v1.RegisterAPITokenServiceServer(srv, apiTokenService)
+
+	adminService := service.NewAdminService()
+	v1.RegisterAdminServiceServer(srv, adminService)
+
 	return srv
 }

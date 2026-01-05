@@ -28,6 +28,14 @@ service AdminService {
     };
   }
 
+  // CreatePlan creates a new plan
+  rpc CreatePlan(CreatePlanRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/plans"
+      body : "*"
+    };
+  }
+
   // UpdatePlan updates a plan configuration
   rpc UpdatePlan(UpdatePlanRequest) returns (Reply) {
     option (google.api.http) = {
@@ -226,6 +234,18 @@ message ListPlansRequest {
   PaginationRequest pagination = 1;
   string plan_type = 2 [ json_name = "plan_type" ]; // free/paid
   string status = 3;                                // active/inactive
+}
+
+message CreatePlanRequest {
+  string name = 1;                                         // 套餐名称（必填，唯一）
+  string plan_type = 2 [ json_name = "plan_type" ];      // 套餐类型：free/paid（必填）
+  uint64 monthly_limit = 3 [ json_name = "monthly_limit" ]; // 月度调用限额（必填）
+  int32 rate_limit_per_second = 4
+      [ json_name = "rate_limit_per_second" ];            // 每秒请求限制（必填）
+  int32 max_tokens = 5 [ json_name = "max_tokens" ];     // 最大Token数（必填）
+  bool enable_webhook = 6 [ json_name = "enable_webhook" ]; // 是否启用Webhook（可选，默认false）
+  double price = 7;                                        // 套餐价格（可选，默认0.00）
+  string status = 8;                                       // 状态：active/inactive（可选，默认active）
 }
 
 message UpdatePlanRequest {

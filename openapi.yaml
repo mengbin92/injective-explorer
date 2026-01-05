@@ -645,6 +645,24 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+        post:
+            tags:
+                - AdminService
+            description: CreatePlan creates a new plan
+            operationId: AdminService_CreatePlan
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.CreatePlanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/plans/stats:
         get:
             tags:
@@ -1707,6 +1725,28 @@ components:
                     items:
                         type: string
             description: Request messages
+        api.explorer.v1.CreatePlanRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                plan_type:
+                    type: string
+                monthly_limit:
+                    type: string
+                rate_limit_per_second:
+                    type: integer
+                    format: int32
+                max_tokens:
+                    type: integer
+                    format: int32
+                enable_webhook:
+                    type: boolean
+                price:
+                    type: number
+                    format: double
+                status:
+                    type: string
         api.explorer.v1.CreateTokenRequest:
             type: object
             properties:

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -18,8 +19,8 @@ import (
 	"injective-explorer/provider/db"
 
 	"github.com/bytedance/sonic"
-	"github.com/pkg/errors"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -525,8 +526,8 @@ func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDash
 	dailyStats := make([]*pb.DailyStats, 0, len(dailyStatsList))
 	for _, stat := range dailyStatsList {
 		dailyStats = append(dailyStats, &pb.DailyStats{
-			Date:        stat.StatDate.Format("2006-01-02"),
-			TotalCalls:  int64(stat.TotalCalls),
+			Date:         stat.StatDate.Format("2006-01-02"),
+			TotalCalls:   int64(stat.TotalCalls),
 			SuccessCalls: int64(stat.SuccessCalls),
 			FailedCalls:  int64(stat.FailedCalls),
 		})
@@ -593,31 +594,42 @@ func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsa
 		return nil, status.Error(codes.Internal, "failed to query usage logs")
 	}
 
-	// Build CSV
-	csv := "时间,IP地址,IP归属地,接口,方法,状态码,响应时间(ms),错误信息\n"
+	// Build CSV using strings.Builder and encoding/csv
+	var builder strings.Builder
+	writer := csv.NewWriter(&builder)
+
+	// Write header
+	if err := writer.Write([]string{"时间", "IP地址", "IP归属地", "接口", "方法", "状态码", "响应时间(ms)", "错误信息"}); err != nil {
+		global.Logger.Errorf("failed to write CSV header: %v", err)
+		return nil, status.Error(codes.Internal, "failed to generate CSV")
+	}
+
+	// Write data rows
 	for _, log := range logs {
 		timeStr := log.CreatedAt.Format("2006-01-02 15:04:05")
-		// Escape CSV special characters (comma, quote, newline)
-		errorMsg := log.ErrorMessage
-		if errorMsg != "" {
-			// Replace quotes with double quotes and wrap in quotes if contains comma or newline
-			if strings.Contains(errorMsg, ",") || strings.Contains(errorMsg, "\n") || strings.Contains(errorMsg, "\"") {
-				errorMsg = "\"" + strings.ReplaceAll(errorMsg, "\"", "\"\"") + "\""
-			}
-		}
-		csv += fmt.Sprintf("%s,%s,%s,%s,%s,%d,%d,%s\n",
+		if err := writer.Write([]string{
 			timeStr,
 			log.IPAddress,
 			log.IPLocation,
 			log.Endpoint,
 			log.Method,
-			log.StatusCode,
-			log.ResponseTime,
-			errorMsg)
+			fmt.Sprintf("%d", log.StatusCode),
+			fmt.Sprintf("%d", log.ResponseTime),
+			log.ErrorMessage, // encoding/csv will handle escaping automatically
+		}); err != nil {
+			global.Logger.Errorf("failed to write CSV row: %v", err)
+			return nil, status.Error(codes.Internal, "failed to generate CSV")
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		global.Logger.Errorf("failed to flush CSV: %v", err)
+		return nil, status.Error(codes.Internal, "failed to generate CSV")
 	}
 
 	response := map[string]interface{}{
-		"csv_data": csv,
+		"csv_data": builder.String(),
 	}
 
 	data, err := structpb.NewStruct(response)
@@ -626,7 +638,7 @@ func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsa
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil

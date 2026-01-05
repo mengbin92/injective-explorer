@@ -138,10 +138,12 @@ CREATE TABLE IF NOT EXISTS `ip_blacklist` (
   `block_type` VARCHAR(20) NOT NULL DEFAULT 'all' COMMENT '限制类型：all/register/api',
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` TIMESTAMP NULL COMMENT '软删除时间',
   
   INDEX `idx_ip_address` (`ip_address`),
   INDEX `idx_reason` (`reason`),
-  INDEX `idx_created_at` (`created_at`)
+  INDEX `idx_created_at` (`created_at`),
+  INDEX `idx_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
 COMMENT='IP黑名单表';
 
@@ -153,10 +155,13 @@ CREATE TABLE IF NOT EXISTS `ip_registration_records` (
   `user_id` VARCHAR(64) NOT NULL COMMENT '注册的用户ID',
   `email` VARCHAR(255) NULL COMMENT '注册邮箱',
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` TIMESTAMP NULL COMMENT '软删除时间',
   
   INDEX `idx_ip_address` (`ip_address`),
   INDEX `idx_user_id` (`user_id`),
-  INDEX `idx_created_at` (`created_at`)
+  INDEX `idx_created_at` (`created_at`),
+  INDEX `idx_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
 COMMENT='IP注册记录表';
 

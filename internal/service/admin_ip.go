@@ -3,8 +3,11 @@ package service
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"net"
+	"net/http"
+	"strings"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -12,7 +15,6 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
 
-	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -110,9 +112,13 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 
 	var blacklistedIPs []models.IPBlacklist
 	if len(ipAddresses) > 0 {
-		db.Get().WithContext(queryCtx).
+		err := db.Get().WithContext(queryCtx).
 			Where("ip_address IN ?", ipAddresses).
-			Find(&blacklistedIPs)
+			Find(&blacklistedIPs).Error
+		if err != nil {
+			global.Logger.Warnf("failed to check blacklisted IPs: %v", err)
+			// Continue with empty blacklist map if query fails
+		}
 	}
 
 	blacklistMap := make(map[string]bool)
@@ -121,32 +127,32 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 	}
 
 	// Convert to response format
-	records := make([]*pb.IPRegistrationRecordInfo, 0, len(results))
+	records := make([]map[string]interface{}, 0, len(results))
 	for _, r := range results {
 		status := "normal"
 		if blacklistMap[r.IPAddress] {
 			status = "blocked"
 		}
 
-		records = append(records, &pb.IPRegistrationRecordInfo{
-			IpAddress:        r.IPAddress,
-			IpLocation:       r.IPLocation,
-			RegisterCount:    r.RegisterCount,
-			LastRegisterTime: r.LastRegisterTime.Format(time.RFC3339),
-			Status:           status,
+		records = append(records, map[string]interface{}{
+			"ip_address":         r.IPAddress,
+			"ip_location":        r.IPLocation,
+			"register_count":     r.RegisterCount,
+			"last_register_time": r.LastRegisterTime.Format(time.RFC3339),
+			"status":             status,
 		})
 	}
 
 	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
 	response := map[string]interface{}{
 		"records": records,
-		"pagination": &pb.PaginationInfo{
-			Page:       pagination.Page,
-			PageSize:   pagination.PageSize,
-			Total:      total,
-			TotalPages: totalPages,
-			HasPrev:    pagination.Page > 1,
-			HasNext:    pagination.Page < totalPages,
+		"pagination": map[string]interface{}{
+			"page":        pagination.Page,
+			"page_size":   pagination.PageSize,
+			"total":       total,
+			"total_pages": totalPages,
+			"has_prev":    pagination.Page > 1,
+			"has_next":    pagination.Page < totalPages,
 		},
 	}
 
@@ -156,7 +162,7 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -210,29 +216,25 @@ func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailReque
 	// Get first and last registration time
 	firstTime := records[len(records)-1].CreatedAt
 
-	// Get accounts registered from this IP
-	accounts := make([]*pb.IPRegistrationAccount, 0, len(records))
+	// Convert accounts to []map[string]interface{}
+	accountsList := make([]map[string]interface{}, 0, len(records))
 	for _, r := range records {
-		accounts = append(accounts, &pb.IPRegistrationAccount{
-			UserId:       r.UserID,
-			Email:        r.Email,
-			Username:     "", // Username not available in Account model
-			RegisterTime: r.CreatedAt.Format(time.RFC3339),
+		accountsList = append(accountsList, map[string]interface{}{
+			"user_id":       r.UserID,
+			"email":         r.Email,
+			"username":      "", // Username not available in Account model
+			"register_time": r.CreatedAt.Format(time.RFC3339),
 		})
 	}
 
-	detail := &pb.IPDetailInfo{
-		IpAddress:        req.IpAddress,
-		IpLocation:       ipLocation,
-		Status:           ipStatus,
-		FirstRegisterTime: firstTime.Format(time.RFC3339),
-		TotalRegisters:   int64(len(records)),
-		Accounts:         accounts,
+	detailMap := map[string]interface{}{
+		"ip_address":          req.IpAddress,
+		"ip_location":         ipLocation,
+		"status":              ipStatus,
+		"first_register_time": firstTime.Format(time.RFC3339),
+		"total_registers":     int64(len(records)),
+		"accounts":            accountsList,
 	}
-
-	detailMap := make(map[string]interface{})
-	detailBytes, _ := sonic.Marshal(detail)
-	sonic.Unmarshal(detailBytes, &detailMap)
 
 	data, err := structpb.NewStruct(detailMap)
 	if err != nil {
@@ -240,7 +242,7 @@ func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailReque
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -291,31 +293,32 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 		return nil, status.Error(codes.Internal, "failed to query IP blacklist")
 	}
 
-	infos := make([]*pb.IPBlacklistInfo, 0, len(blacklist))
+	// Convert blacklist to []map[string]interface{}
+	infos := make([]map[string]interface{}, 0, len(blacklist))
 	for _, b := range blacklist {
-		infos = append(infos, &pb.IPBlacklistInfo{
-			Id:           uint64(b.ID),
-			IpAddress:    b.IPAddress,
-			IpLocation:   b.IPLocation,
-			Reason:       b.Reason,
-			ReasonText:   b.ReasonText,
-			BlockCount:   b.BlockCount,
-			OperatorName: b.OperatorName,
-			BlockType:    b.BlockType,
-			CreatedAt:    b.CreatedAt.Format(time.RFC3339),
+		infos = append(infos, map[string]interface{}{
+			"id":            uint64(b.ID),
+			"ip_address":    b.IPAddress,
+			"ip_location":   b.IPLocation,
+			"reason":        b.Reason,
+			"reason_text":   b.ReasonText,
+			"block_count":   b.BlockCount,
+			"operator_name": b.OperatorName,
+			"block_type":    b.BlockType,
+			"created_at":    b.CreatedAt.Format(time.RFC3339),
 		})
 	}
 
 	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
 	response := map[string]interface{}{
 		"blacklist": infos,
-		"pagination": &pb.PaginationInfo{
-			Page:       pagination.Page,
-			PageSize:   pagination.PageSize,
-			Total:      total,
-			TotalPages: totalPages,
-			HasPrev:    pagination.Page > 1,
-			HasNext:    pagination.Page < totalPages,
+		"pagination": map[string]interface{}{
+			"page":        pagination.Page,
+			"page_size":   pagination.PageSize,
+			"total":       total,
+			"total_pages": totalPages,
+			"has_prev":    pagination.Page > 1,
+			"has_next":    pagination.Page < totalPages,
 		},
 	}
 
@@ -325,7 +328,7 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -398,21 +401,17 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 		return nil, status.Error(codes.Internal, "failed to add IP to blacklist")
 	}
 
-	info := &pb.IPBlacklistInfo{
-		Id:           uint64(blacklist.ID),
-		IpAddress:    blacklist.IPAddress,
-		IpLocation:   blacklist.IPLocation,
-		Reason:       blacklist.Reason,
-		ReasonText:   blacklist.ReasonText,
-		BlockCount:   blacklist.BlockCount,
-		OperatorName: blacklist.OperatorName,
-		BlockType:    blacklist.BlockType,
-		CreatedAt:    blacklist.CreatedAt.Format(time.RFC3339),
+	infoMap := map[string]interface{}{
+		"id":            uint64(blacklist.ID),
+		"ip_address":    blacklist.IPAddress,
+		"ip_location":   blacklist.IPLocation,
+		"reason":        blacklist.Reason,
+		"reason_text":   blacklist.ReasonText,
+		"block_count":   blacklist.BlockCount,
+		"operator_name": blacklist.OperatorName,
+		"block_type":    blacklist.BlockType,
+		"created_at":    blacklist.CreatedAt.Format(time.RFC3339),
 	}
-
-	infoMap := make(map[string]interface{})
-	infoBytes, _ := sonic.Marshal(info)
-	sonic.Unmarshal(infoBytes, &infoMap)
 
 	data, err := structpb.NewStruct(infoMap)
 	if err != nil {
@@ -420,7 +419,7 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "IP added to blacklist successfully",
 		Data:    data,
 	}, nil
@@ -454,7 +453,7 @@ func (s *AdminService) RemoveIPFromBlacklist(ctx context.Context, req *pb.Remove
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "IP removed from blacklist successfully",
 	}, nil
 }
@@ -560,7 +559,7 @@ func (s *AdminService) BatchAddIPToBlacklist(ctx context.Context, req *pb.BatchA
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: fmt.Sprintf("Batch add completed: %d added, %d skipped, %d invalid", added, skipped, len(invalidIPs)),
 		Data:    data,
 	}, nil
@@ -598,7 +597,7 @@ func (s *AdminService) BatchRemoveIPFromBlacklist(ctx context.Context, req *pb.B
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: fmt.Sprintf("Removed %d IPs from blacklist", result.RowsAffected),
 		Data:    data,
 	}, nil
@@ -674,8 +673,8 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 	// }
 
 	// Build top IPs list with status
-	topIPInfos := make([]*pb.IPRequestTopInfo, 0, len(topIPs))
-	abnormalIPs := make([]*pb.IPAbnormalInfo, 0)
+	topIPInfos := make([]map[string]interface{}, 0, len(topIPs))
+	abnormalIPs := make([]map[string]interface{}, 0)
 	for i, topIP := range topIPs {
 		ipStatus := "normal"
 		abnormalType := ""
@@ -685,57 +684,58 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 		if requestsPerHour > float64(ipPerHour)*2 {
 			ipStatus = "abnormal"
 			abnormalType = "请求量异常"
-			abnormalIPs = append(abnormalIPs, &pb.IPAbnormalInfo{
-				IpAddress:    topIP.IPAddress,
-				IpLocation:   "", // Could be fetched from registration records
-				AbnormalType: abnormalType,
-				DetectedTime: now.Format(time.RFC3339),
+			abnormalIPs = append(abnormalIPs, map[string]interface{}{
+				"ip_address":    topIP.IPAddress,
+				"ip_location":   "", // Could be fetched from registration records
+				"abnormal_type": abnormalType,
+				"detected_time": now.Format(time.RFC3339),
 			})
 		} else if requestsPerHour > float64(ipPerHour) {
 			ipStatus = "high_frequency"
 		}
 
-		topIPInfos = append(topIPInfos, &pb.IPRequestTopInfo{
-			Rank:         int32(i + 1),
-			IpAddress:    topIP.IPAddress,
-			RequestCount: topIP.RequestCount,
-			Status:       ipStatus,
+		topIPInfos = append(topIPInfos, map[string]interface{}{
+			"rank":          int32(i + 1),
+			"ip_address":    topIP.IPAddress,
+			"request_count": topIP.RequestCount,
+			"status":        ipStatus,
 		})
 	}
 
 	// Get rate limit logs (recent 429 errors)
 	var rateLimitLogs []models.APIRequestLog
-	db.Get().WithContext(queryCtx).
+	err := db.Get().WithContext(queryCtx).
 		Model(&models.APIRequestLog{}).
 		Where("created_at >= ? AND status_code = 429", startTime).
 		Order("created_at DESC").
 		Limit(100).
-		Find(&rateLimitLogs)
+		Find(&rateLimitLogs).Error
+	if err != nil {
+		global.Logger.Warnf("failed to get rate limit logs: %v", err)
+		// Continue with empty logs if query fails
+	}
 
-	logInfos := make([]*pb.IPRateLimitLog, 0, len(rateLimitLogs))
+	// Convert rate limit logs to []map[string]interface{}
+	logInfosList := make([]map[string]interface{}, 0, len(rateLimitLogs))
 	for _, log := range rateLimitLogs {
-		logInfos = append(logInfos, &pb.IPRateLimitLog{
-			Time:         log.CreatedAt.Format(time.RFC3339),
-			IpAddress:    log.IPAddress,
-			Endpoint:     log.Endpoint,
-			LimitReason:  "IP 频率超限",
-			CurrentRate:  0, // Could be calculated from logs
+		logInfosList = append(logInfosList, map[string]interface{}{
+			"time":         log.CreatedAt.Format(time.RFC3339),
+			"ip_address":   log.IPAddress,
+			"endpoint":     log.Endpoint,
+			"limit_reason": "IP 频率超限",
+			"current_rate": 0, // Could be calculated from logs
 		})
 	}
 
-	monitor := &pb.IPRequestMonitorInfo{
-		TotalRequests:    totalRequests,
-		UniqueIps:       uniqueIPs,
-		RateLimitedCount: rateLimitedCount,
-		AbnormalIps:     int64(len(abnormalIPs)),
-		TopIps:          topIPInfos,
-		AbnormalIpList:  abnormalIPs,
-		RateLimitLogs:   logInfos,
+	monitorMap := map[string]interface{}{
+		"total_requests":     totalRequests,
+		"unique_ips":         uniqueIPs,
+		"rate_limited_count": rateLimitedCount,
+		"abnormal_ips":       int64(len(abnormalIPs)),
+		"top_ips":            topIPInfos,
+		"abnormal_ip_list":   abnormalIPs,
+		"rate_limit_logs":    logInfosList,
 	}
-
-	monitorMap := make(map[string]interface{})
-	monitorBytes, _ := sonic.Marshal(monitor)
-	sonic.Unmarshal(monitorBytes, &monitorMap)
 
 	data, err := structpb.NewStruct(monitorMap)
 	if err != nil {
@@ -743,7 +743,7 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -775,7 +775,7 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -814,7 +814,7 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 	// For now, just return success
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "Configuration updated successfully",
 		Data:    data,
 	}, nil
@@ -847,7 +847,11 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 
 	// Get total records
 	var totalRecords int64
-	query.Count(&totalRecords)
+	err := query.Count(&totalRecords).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count IP records: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query IP records stats")
+	}
 
 	// Get today's new records
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -876,16 +880,12 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 		normalCount = 0
 	}
 
-	stats := &pb.IPRecordsStatsInfo{
-		TotalRecords: totalRecords,
-		TodayNew:     todayNew,
-		BlockedCount: blockedCount,
-		NormalCount:  normalCount,
+	statsMap := map[string]interface{}{
+		"total_records": totalRecords,
+		"today_new":     todayNew,
+		"blocked_count": blockedCount,
+		"normal_count":  normalCount,
 	}
-
-	statsMap := make(map[string]interface{})
-	statsBytes, _ := sonic.Marshal(stats)
-	sonic.Unmarshal(statsBytes, &statsMap)
 
 	data, err := structpb.NewStruct(statsMap)
 	if err != nil {
@@ -893,7 +893,7 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -906,7 +906,11 @@ func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Emp
 
 	// Get total count
 	var totalCount int64
-	db.Get().WithContext(queryCtx).Model(&models.IPBlacklist{}).Count(&totalCount)
+	err := db.Get().WithContext(queryCtx).Model(&models.IPBlacklist{}).Count(&totalCount).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count IP blacklist: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query IP blacklist stats")
+	}
 
 	// Get today's added count
 	now := time.Now()
@@ -924,15 +928,11 @@ func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Emp
 		Select("COALESCE(SUM(block_count), 0)").
 		Scan(&totalBlocked)
 
-	stats := &pb.IPBlacklistStatsInfo{
-		TotalCount:   totalCount,
-		TodayAdded:   todayAdded,
-		TotalBlocked: totalBlocked,
+	statsMap := map[string]interface{}{
+		"total_count":   totalCount,
+		"today_added":   todayAdded,
+		"total_blocked": totalBlocked,
 	}
-
-	statsMap := make(map[string]interface{})
-	statsBytes, _ := sonic.Marshal(stats)
-	sonic.Unmarshal(statsBytes, &statsMap)
 
 	data, err := structpb.NewStruct(statsMap)
 	if err != nil {
@@ -940,7 +940,7 @@ func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Emp
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -989,7 +989,7 @@ func (s *AdminService) ExportIPList(ctx context.Context, req *pb.ExportIPListReq
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -1015,17 +1015,33 @@ func (s *AdminService) exportIPRecords(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// Build CSV
-	csv := "IP地址,IP归属地,注册次数,最后注册时间\n"
-	for _, r := range results {
-		csv += fmt.Sprintf("%s,%s,%d,%s\n",
-			r.IPAddress,
-			r.IPLocation,
-			r.RegisterCount,
-			r.LastRegisterTime.Format("2006-01-02 15:04:05"))
+	// Build CSV using strings.Builder and encoding/csv
+	var builder strings.Builder
+	writer := csv.NewWriter(&builder)
+
+	// Write header
+	if err := writer.Write([]string{"IP地址", "IP归属地", "注册次数", "最后注册时间"}); err != nil {
+		return "", err
 	}
 
-	return csv, nil
+	// Write data rows
+	for _, r := range results {
+		if err := writer.Write([]string{
+			r.IPAddress,
+			r.IPLocation,
+			fmt.Sprintf("%d", r.RegisterCount),
+			r.LastRegisterTime.Format("2006-01-02 15:04:05"),
+		}); err != nil {
+			return "", err
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return "", err
+	}
+
+	return builder.String(), nil
 }
 
 // exportIPBlacklist exports IP blacklist to CSV
@@ -1040,21 +1056,37 @@ func (s *AdminService) exportIPBlacklist(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// Build CSV
-	csv := "IP地址,IP归属地,原因,原因描述,拦截次数,操作人,限制类型,创建时间\n"
+	// Build CSV using strings.Builder and encoding/csv
+	var builder strings.Builder
+	writer := csv.NewWriter(&builder)
+
+	// Write header
+	if err := writer.Write([]string{"IP地址", "IP归属地", "原因", "原因描述", "拦截次数", "操作人", "限制类型", "创建时间"}); err != nil {
+		return "", err
+	}
+
+	// Write data rows
 	for _, b := range blacklist {
-		csv += fmt.Sprintf("%s,%s,%s,%s,%d,%s,%s,%s\n",
+		if err := writer.Write([]string{
 			b.IPAddress,
 			b.IPLocation,
 			b.Reason,
 			b.ReasonText,
-			b.BlockCount,
+			fmt.Sprintf("%d", b.BlockCount),
 			b.OperatorName,
 			b.BlockType,
-			b.CreatedAt.Format("2006-01-02 15:04:05"))
+			b.CreatedAt.Format("2006-01-02 15:04:05"),
+		}); err != nil {
+			return "", err
+		}
 	}
 
-	return csv, nil
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return "", err
+	}
+
+	return builder.String(), nil
 }
 
 // exportIPMonitor exports IP monitor data to CSV
@@ -1093,12 +1125,29 @@ func (s *AdminService) exportIPMonitor(ctx context.Context, timeRange string) (s
 		return "", err
 	}
 
-	// Build CSV
-	csv := "IP地址,请求次数\n"
-	for _, ip := range topIPs {
-		csv += fmt.Sprintf("%s,%d\n", ip.IPAddress, ip.RequestCount)
+	// Build CSV using strings.Builder and encoding/csv
+	var builder strings.Builder
+	writer := csv.NewWriter(&builder)
+
+	// Write header
+	if err := writer.Write([]string{"IP地址", "请求次数"}); err != nil {
+		return "", err
 	}
 
-	return csv, nil
-}
+	// Write data rows
+	for _, ip := range topIPs {
+		if err := writer.Write([]string{
+			ip.IPAddress,
+			fmt.Sprintf("%d", ip.RequestCount),
+		}); err != nil {
+			return "", err
+		}
+	}
 
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return "", err
+	}
+
+	return builder.String(), nil
+}

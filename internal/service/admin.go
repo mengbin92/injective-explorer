@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -129,9 +130,8 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
 }
-

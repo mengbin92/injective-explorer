@@ -151,9 +151,9 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	apiTokenService := service.NewAPITokenService()
 	v1.RegisterAPITokenServiceHTTPServer(srv, apiTokenService)
 
-	// Register webhook service (reserved for future implementation)
-	webhookService := service.NewWebhookService()
-	v1.RegisterWebhookServiceHTTPServer(srv, webhookService)
+	// Register admin service (auth and rate limiting applied via middleware)
+	adminService := service.NewAdminService()
+	v1.RegisterAdminServiceHTTPServer(srv, adminService)
 
 	// Register custom HTTP routes for file downloads
 	registerExportRoutes(srv, apiTokenService, logger)

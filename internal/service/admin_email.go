@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
 
-	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -107,7 +107,7 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -173,19 +173,15 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 		return nil, status.Error(codes.Internal, "failed to add email domain to blacklist")
 	}
 
-	info := &pb.EmailBlacklistInfo{
-		Id:         uint64(blacklist.ID),
-		Domain:     blacklist.Domain,
-		Status:     blacklist.Status,
-		BlockCount: blacklist.BlockCount,
-		Note:       blacklist.Note,
-		CreatedAt:  blacklist.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  blacklist.UpdatedAt.Format(time.RFC3339),
+	infoMap := map[string]interface{}{
+		"id":          uint64(blacklist.ID),
+		"domain":      blacklist.Domain,
+		"status":      blacklist.Status,
+		"block_count": blacklist.BlockCount,
+		"note":        blacklist.Note,
+		"created_at":  blacklist.CreatedAt.Format(time.RFC3339),
+		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
 	}
-
-	infoMap := make(map[string]interface{})
-	infoBytes, _ := sonic.Marshal(info)
-	sonic.Unmarshal(infoBytes, &infoMap)
 
 	data, err := structpb.NewStruct(infoMap)
 	if err != nil {
@@ -193,7 +189,7 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "Email domain added to blacklist successfully",
 		Data:    data,
 	}, nil
@@ -253,19 +249,15 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 		return nil, status.Error(codes.Internal, "failed to reload email blacklist")
 	}
 
-	info := &pb.EmailBlacklistInfo{
-		Id:         uint64(blacklist.ID),
-		Domain:     blacklist.Domain,
-		Status:     blacklist.Status,
-		BlockCount: blacklist.BlockCount,
-		Note:       blacklist.Note,
-		CreatedAt:  blacklist.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  blacklist.UpdatedAt.Format(time.RFC3339),
+	infoMap := map[string]interface{}{
+		"id":          uint64(blacklist.ID),
+		"domain":      blacklist.Domain,
+		"status":      blacklist.Status,
+		"block_count": blacklist.BlockCount,
+		"note":        blacklist.Note,
+		"created_at":  blacklist.CreatedAt.Format(time.RFC3339),
+		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
 	}
-
-	infoMap := make(map[string]interface{})
-	infoBytes, _ := sonic.Marshal(info)
-	sonic.Unmarshal(infoBytes, &infoMap)
 
 	data, err := structpb.NewStruct(infoMap)
 	if err != nil {
@@ -273,7 +265,7 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "Email domain updated successfully",
 		Data:    data,
 	}, nil
@@ -311,7 +303,7 @@ func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmai
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "Email domain deleted successfully",
 	}, nil
 }
@@ -402,17 +394,13 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 		added = len(newDomains)
 	}
 
-	result := &pb.BatchImportResult{
-		Total:          int32(len(req.Domains)),
-		Valid:          int32(len(validDomains)),
-		Invalid:        int32(len(invalidDomains)),
-		Duplicate:      int32(duplicate),
-		InvalidDomains: invalidDomains,
+	resultMap := map[string]interface{}{
+		"total":           int32(len(req.Domains)),
+		"valid":           int32(len(validDomains)),
+		"invalid":         int32(len(invalidDomains)),
+		"duplicate":       int32(duplicate),
+		"invalid_domains": invalidDomains,
 	}
-
-	resultMap := make(map[string]interface{})
-	resultBytes, _ := sonic.Marshal(result)
-	sonic.Unmarshal(resultBytes, &resultMap)
 
 	data, err := structpb.NewStruct(resultMap)
 	if err != nil {
@@ -420,7 +408,7 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: fmt.Sprintf("Batch import completed: %d added, %d duplicate, %d invalid", added, duplicate, len(invalidDomains)),
 		Data:    data,
 	}, nil
@@ -470,19 +458,15 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 		return nil, status.Error(codes.Internal, "failed to reload email blacklist")
 	}
 
-	info := &pb.EmailBlacklistInfo{
-		Id:         uint64(blacklist.ID),
-		Domain:     blacklist.Domain,
-		Status:     blacklist.Status,
-		BlockCount: blacklist.BlockCount,
-		Note:       blacklist.Note,
-		CreatedAt:  blacklist.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  blacklist.UpdatedAt.Format(time.RFC3339),
+	infoMap := map[string]interface{}{
+		"id":          uint64(blacklist.ID),
+		"domain":      blacklist.Domain,
+		"status":      blacklist.Status,
+		"block_count": blacklist.BlockCount,
+		"note":        blacklist.Note,
+		"created_at":  blacklist.CreatedAt.Format(time.RFC3339),
+		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
 	}
-
-	infoMap := make(map[string]interface{})
-	infoBytes, _ := sonic.Marshal(info)
-	sonic.Unmarshal(infoBytes, &infoMap)
 
 	data, err := structpb.NewStruct(infoMap)
 	if err != nil {
@@ -490,7 +474,7 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: fmt.Sprintf("Email domain status toggled to %s", newStatus),
 		Data:    data,
 	}, nil
@@ -503,7 +487,11 @@ func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.
 
 	// Get total count
 	var totalCount int64
-	db.Get().WithContext(queryCtx).Model(&models.EmailBlacklist{}).Count(&totalCount)
+	err := db.Get().WithContext(queryCtx).Model(&models.EmailBlacklist{}).Count(&totalCount).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count email blacklist: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query email blacklist stats")
+	}
 
 	// Get active count
 	var activeCount int64
@@ -519,15 +507,11 @@ func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.
 		Where("status = ?", "disabled").
 		Count(&disabledCount)
 
-	stats := &pb.EmailBlacklistStatsInfo{
-		TotalCount:    totalCount,
-		ActiveCount:   activeCount,
-		DisabledCount: disabledCount,
+	statsMap := map[string]interface{}{
+		"total_count":    totalCount,
+		"active_count":   activeCount,
+		"disabled_count": disabledCount,
 	}
-
-	statsMap := make(map[string]interface{})
-	statsBytes, _ := sonic.Marshal(stats)
-	sonic.Unmarshal(statsBytes, &statsMap)
 
 	data, err := structpb.NewStruct(statsMap)
 	if err != nil {
@@ -535,7 +519,7 @@ func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "success",
 		Data:    data,
 	}, nil
@@ -587,9 +571,13 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 	// Check which domains already exist in blacklist
 	var existing []models.EmailBlacklist
 	if len(validDomains) > 0 {
-		db.Get().WithContext(queryCtx).
+		err := db.Get().WithContext(queryCtx).
 			Where("domain IN ?", validDomains).
-			Find(&existing)
+			Find(&existing).Error
+		if err != nil {
+			global.Logger.Errorf("failed to check existing domains: %v", err)
+			return nil, status.Error(codes.Internal, "failed to check existing domains")
+		}
 	}
 
 	existingMap := make(map[string]bool)
@@ -607,18 +595,14 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 		}
 	}
 
-	result := &pb.BatchImportResult{
-		Total:            int32(len(req.Domains)),
-		Valid:            int32(len(validDomains)),
-		Invalid:          int32(len(invalidDomains)),
-		Duplicate:        int32(len(duplicateDomains)),
-		InvalidDomains:   invalidDomains,
-		DuplicateDomains: duplicateDomains,
+	resultMap := map[string]interface{}{
+		"total":             int32(len(req.Domains)),
+		"valid":             int32(len(validDomains)),
+		"invalid":           int32(len(invalidDomains)),
+		"duplicate":         int32(len(duplicateDomains)),
+		"invalid_domains":   invalidDomains,
+		"duplicate_domains": duplicateDomains,
 	}
-
-	resultMap := make(map[string]interface{})
-	resultBytes, _ := sonic.Marshal(result)
-	sonic.Unmarshal(resultBytes, &resultMap)
 
 	data, err := structpb.NewStruct(resultMap)
 	if err != nil {
@@ -626,7 +610,7 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: "Preview completed",
 		Data:    data,
 	}, nil
@@ -664,9 +648,8 @@ func (s *AdminService) BatchDeleteEmailDomains(ctx context.Context, req *pb.Batc
 	}
 
 	return &pb.Reply{
-		Code:    0,
+		Code:    int32(http.StatusOK),
 		Message: fmt.Sprintf("Deleted %d email domains", result.RowsAffected),
 		Data:    data,
 	}, nil
 }
-
