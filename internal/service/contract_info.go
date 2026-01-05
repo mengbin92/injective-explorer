@@ -10,17 +10,13 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
-	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
 
@@ -72,16 +68,16 @@ const (
 func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.CreateContractInfoRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.ContractAddress == "" {
-		return s.errorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
 	}
 
 	// At least one of name, token_name, or token_symbol should be provided
 	if req.Name == "" && req.TokenName == "" && req.TokenSymbol == "" {
-		return s.errorReply(http.StatusBadRequest, "at least one of name, token_name, or token_symbol is required", errors.New("name, token_name, or token_symbol is required")), errors.New("name, token_name, or token_symbol is required")
+		return ErrorReply(http.StatusBadRequest, "at least one of name, token_name, or token_symbol is required", errors.New("name, token_name, or token_symbol is required")), errors.New("name, token_name, or token_symbol is required")
 	}
 
 	// Set default values
@@ -114,11 +110,11 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 
 	if err == nil {
 		// Contract already exists
-		return s.errorReply(http.StatusConflict, "contract already exists", errors.New("contract already exists")), errors.New("contract already exists")
+		return ErrorReply(http.StatusConflict, "contract already exists", errors.New("contract already exists")), errors.New("contract already exists")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error
 		global.Logger.Errorf("failed to check existing contract: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to check existing contract", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to check existing contract", err), err
 	}
 
 	// Create contract info
@@ -146,7 +142,7 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 	err = db.Get().WithContext(queryCtx).Create(contractInfo).Error
 	if err != nil {
 		global.Logger.Errorf("failed to create contract info: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to create contract info", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to create contract info", err), err
 	}
 
 	// Create tags if provided
@@ -181,7 +177,7 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 
 	// Convert to response
 	info := models.ToContractInfoDTO(contractInfo)
-	return s.marshalAndReply(info, "marshal contract info error")
+	return MarshalAndReply(info, "marshal contract info error")
 }
 
 // GetContractInfoByAddress retrieves contract information by address.
@@ -196,11 +192,11 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req *pb.GetContractInfoByAddressRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.ContractAddress == "" {
-		return s.errorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
 	}
 
 	// Set default chain ID
@@ -220,7 +216,7 @@ func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req 
 	if err == nil && cachedContract != nil {
 		global.Logger.Debugf("contract info found in cache: address=%s", contractAddress)
 		info := models.ToContractInfoDTO(cachedContract)
-		return s.marshalAndReply(info, "marshal contract info error")
+		return MarshalAndReply(info, "marshal contract info error")
 	}
 
 	// Query from database
@@ -232,10 +228,10 @@ func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req 
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return s.errorReply(http.StatusNotFound, "contract info not found", errors.New("contract info not found")), errors.New("contract info not found")
+			return ErrorReply(http.StatusNotFound, "contract info not found", errors.New("contract info not found")), errors.New("contract info not found")
 		}
 		global.Logger.Errorf("failed to get contract info: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to get contract info", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to get contract info", err), err
 	}
 
 	// Cache the contract
@@ -243,7 +239,7 @@ func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req 
 
 	// Convert to response
 	info := models.ToContractInfoDTO(&contractInfo)
-	return s.marshalAndReply(info, "marshal contract info error")
+	return MarshalAndReply(info, "marshal contract info error")
 }
 
 // GetContractsBySymbol retrieves contracts by symbol (supports one-to-many relationship).
@@ -259,11 +255,11 @@ func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req 
 func (s *ContractInfoService) GetContractsBySymbol(ctx context.Context, req *pb.GetContractsBySymbolRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.Symbol == "" {
-		return s.errorReply(http.StatusBadRequest, "symbol is required", errors.New("symbol is required")), errors.New("symbol is required")
+		return ErrorReply(http.StatusBadRequest, "symbol is required", errors.New("symbol is required")), errors.New("symbol is required")
 	}
 
 	// Normalize pagination parameters
@@ -325,7 +321,7 @@ func (s *ContractInfoService) GetContractsBySymbol(ctx context.Context, req *pb.
 	err := query.Preload("Tags").Find(&contracts).Error
 	if err != nil {
 		global.Logger.Errorf("failed to query contracts by symbol: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to query contracts", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to query contracts", err), err
 	}
 
 	// Convert to DTO
@@ -333,7 +329,7 @@ func (s *ContractInfoService) GetContractsBySymbol(ctx context.Context, req *pb.
 
 	// Build paginated response
 	response := buildPaginatedResponse(contractInfos, page, pageSize, total, isExactCount, useCursor, 0, "", len(contracts))
-	return s.marshalAndReply(response, "marshal contracts error")
+	return MarshalAndReply(response, "marshal contracts error")
 }
 
 // ListContractInfos lists contract information with various filter conditions.
@@ -348,7 +344,7 @@ func (s *ContractInfoService) GetContractsBySymbol(ctx context.Context, req *pb.
 func (s *ContractInfoService) ListContractInfos(ctx context.Context, req *pb.ListContractInfosRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Normalize pagination parameters
@@ -422,7 +418,7 @@ func (s *ContractInfoService) ListContractInfos(ctx context.Context, req *pb.Lis
 	err := query.Preload("Tags").Find(&contracts).Error
 	if err != nil {
 		global.Logger.Errorf("failed to query contract infos: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to query contract infos", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to query contract infos", err), err
 	}
 
 	// Convert to DTO
@@ -430,7 +426,7 @@ func (s *ContractInfoService) ListContractInfos(ctx context.Context, req *pb.Lis
 
 	// Build paginated response
 	response := buildPaginatedResponse(contractInfos, page, pageSize, total, isExactCount, useCursor, 0, "", len(contracts))
-	return s.marshalAndReply(response, "marshal contracts error")
+	return MarshalAndReply(response, "marshal contracts error")
 }
 
 // UpdateContractInfo updates contract information.
@@ -445,15 +441,15 @@ func (s *ContractInfoService) ListContractInfos(ctx context.Context, req *pb.Lis
 func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.UpdateContractInfoRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.ContractAddress == "" {
-		return s.errorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
 	}
 
 	if req.ChainId == "" {
-		return s.errorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -470,10 +466,10 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return s.errorReply(http.StatusNotFound, "contract info not found", errors.New("contract info not found")), errors.New("contract info not found")
+			return ErrorReply(http.StatusNotFound, "contract info not found", errors.New("contract info not found")), errors.New("contract info not found")
 		}
 		global.Logger.Errorf("failed to get contract info: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to get contract info", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to get contract info", err), err
 	}
 
 	// Update fields (only update provided fields)
@@ -510,7 +506,7 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 			Updates(updates).Error
 		if err != nil {
 			global.Logger.Errorf("failed to update contract info: %v", err)
-			return s.errorReply(http.StatusInternalServerError, "failed to update contract info", err), err
+			return ErrorReply(http.StatusInternalServerError, "failed to update contract info", err), err
 		}
 	}
 
@@ -528,7 +524,7 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 
 	// Convert to response
 	info := models.ToContractInfoDTO(&contractInfo)
-	return s.marshalAndReply(info, "marshal contract info error")
+	return MarshalAndReply(info, "marshal contract info error")
 }
 
 // DeleteContractInfo deletes contract information (soft delete).
@@ -588,19 +584,19 @@ func (s *ContractInfoService) DeleteContractInfo(ctx context.Context, req *pb.De
 func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddContractTagRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.ContractAddress == "" {
-		return s.errorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
 	}
 
 	if req.ChainId == "" {
-		return s.errorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
 	if req.TagType == "" {
-		return s.errorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
+		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -627,7 +623,7 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 
 	if err != nil {
 		global.Logger.Errorf("failed to add contract tag: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to add contract tag", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to add contract tag", err), err
 	}
 
 	// Clear cache
@@ -635,7 +631,7 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 
 	// Convert to response
 	tagInfo := models.ToContractTagInfoDTO(tag)
-	return s.marshalAndReply(tagInfo, "marshal tag error")
+	return MarshalAndReply(tagInfo, "marshal tag error")
 }
 
 // RemoveContractTag removes a tag from a contract.
@@ -699,15 +695,15 @@ func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.Rem
 func (s *ContractInfoService) GetContractTags(ctx context.Context, req *pb.GetContractTagsRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.ContractAddress == "" {
-		return s.errorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
 	}
 
 	if req.ChainId == "" {
-		return s.errorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -721,7 +717,7 @@ func (s *ContractInfoService) GetContractTags(ctx context.Context, req *pb.GetCo
 	if err == nil && cachedTags != nil {
 		global.Logger.Debugf("contract tags found in cache: address=%s", contractAddress)
 		tagInfos := models.ToContractTagInfoDTOs(cachedTags)
-		return s.marshalAndReply(tagInfos, "marshal tags error")
+		return MarshalAndReply(tagInfos, "marshal tags error")
 	}
 
 	// Query from database
@@ -732,7 +728,7 @@ func (s *ContractInfoService) GetContractTags(ctx context.Context, req *pb.GetCo
 
 	if err != nil {
 		global.Logger.Errorf("failed to get contract tags: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to get contract tags", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to get contract tags", err), err
 	}
 
 	// Cache the tags
@@ -741,7 +737,7 @@ func (s *ContractInfoService) GetContractTags(ctx context.Context, req *pb.GetCo
 	// Convert to response
 	tagInfos := models.ToContractTagInfoDTOs(tags)
 
-	return s.marshalAndReply(tagInfos, "marshal tags error")
+	return MarshalAndReply(tagInfos, "marshal tags error")
 }
 
 // Cache helper methods
@@ -863,77 +859,4 @@ func (s *ContractInfoService) clearContractCache(ctx context.Context, chainID, c
 			global.Logger.Warnf("failed to clear cache key %s: %v", key, err)
 		}
 	}
-}
-
-// Response helpers (consistent with explorer service)
-
-// errorReply creates a standardized error reply with sanitized error messages.
-func (s *ContractInfoService) errorReply(code int, message string, err error) *pb.Reply {
-	sanitizedErr := utils.SanitizeError(err, 200)
-	return &pb.Reply{
-		Code:    int32(code),
-		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
-	}
-}
-
-// marshalAndReply serializes the value and returns a success reply.
-// The value is converted to google.protobuf.Struct, allowing direct JSON object response.
-func (s *ContractInfoService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
-	var structData *structpb.Struct
-	var err error
-
-	// Check if v is a proto.Message, use protoMessageToStructWithOptions if so
-	if msg, ok := v.(proto.Message); ok {
-		structData, err = s.protoMessageToStructWithOptions(msg, nil)
-	} else {
-		// For non-proto types (maps, etc.), use toStruct
-		structData, err = s.toStruct(v)
-	}
-
-	if err != nil {
-		global.Logger.Errorf("%s: %v", errorMsg, err)
-		return s.errorReply(http.StatusInternalServerError, errorMsg, err), err
-	}
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    structData,
-	}, nil
-}
-
-// toStruct converts any value to google.protobuf.Struct.
-func (s *ContractInfoService) toStruct(v interface{}) (*structpb.Struct, error) {
-	jsonBytes, err := sonic.Marshal(v)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal to JSON")
-	}
-
-	var structData structpb.Struct
-	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
-	}
-
-	return &structData, nil
-}
-
-// protoMessageToStructWithOptions converts a protobuf message to google.protobuf.Struct.
-func (s *ContractInfoService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
-	if options == nil {
-		options = &protojson.MarshalOptions{
-			UseProtoNames:   true,
-			EmitUnpopulated: false,
-		}
-	}
-
-	jsonBytes, err := options.Marshal(msg)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal proto message")
-	}
-
-	var structData structpb.Struct
-	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
-	}
-
-	return &structData, nil
 }

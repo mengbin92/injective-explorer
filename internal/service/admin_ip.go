@@ -16,17 +16,14 @@ import (
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
 
 // ListIPRegistrationRecords lists IP registration records
 func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.ListIPRegistrationRecordsRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	pagination := req.Pagination
@@ -44,7 +41,7 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 		pagination.PageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Build query for IP registration records
@@ -85,7 +82,7 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 
 	if err := countQuery.Error; err != nil {
 		global.Logger.Errorf("failed to count IP records: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP records")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP records", err), err
 	}
 
 	// Apply pagination and ordering
@@ -101,7 +98,7 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 	err := query.Order("register_count DESC").Offset(int(offset)).Limit(int(pagination.PageSize)).Scan(&results).Error
 	if err != nil {
 		global.Logger.Errorf("failed to list IP records: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP records")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP records", err), err
 	}
 
 	// Check IP status (in blacklist or not)
@@ -156,25 +153,16 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 		},
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // GetIPDetail gets IP detail information
 func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailRequest) (*pb.Reply, error) {
 	if req == nil || req.IpAddress == "" {
-		return nil, status.Error(codes.InvalidArgument, "ip_address is required")
+		return ErrorReply(http.StatusBadRequest, "ip_address is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Get IP registration records
@@ -185,11 +173,11 @@ func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailReque
 		Find(&records).Error
 	if err != nil {
 		global.Logger.Errorf("failed to get IP records: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP records")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP records", err), err
 	}
 
 	if len(records) == 0 {
-		return nil, status.Error(codes.NotFound, "IP address not found")
+		return ErrorReply(http.StatusNotFound, "IP address not found", nil), nil
 	}
 
 	// Get IP location (from first record)
@@ -236,22 +224,13 @@ func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailReque
 		"accounts":            accountsList,
 	}
 
-	data, err := structpb.NewStruct(detailMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(detailMap, "failed to marshal response")
 }
 
 // ListIPBlacklist lists IP blacklist
 func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlacklistRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	pagination := req.Pagination
@@ -269,7 +248,7 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 		pagination.PageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.IPBlacklist{})
@@ -282,7 +261,7 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 	err := query.Count(&total).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count IP blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP blacklist", err), err
 	}
 
 	var blacklist []models.IPBlacklist
@@ -290,7 +269,7 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 	err = query.Offset(int(offset)).Limit(int(pagination.PageSize)).Order("created_at DESC").Find(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to list IP blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP blacklist", err), err
 	}
 
 	// Convert blacklist to []map[string]interface{}
@@ -322,36 +301,27 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 		},
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // AddIPToBlacklist adds an IP to blacklist
 func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlacklistRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if req.IpAddress == "" {
-		return nil, status.Error(codes.InvalidArgument, "ip_address is required")
+		return ErrorReply(http.StatusBadRequest, "ip_address is required", nil), nil
 	}
 
 	// Validate IP address format
 	ip := net.ParseIP(req.IpAddress)
 	if ip == nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid IP address format")
+		return ErrorReply(http.StatusBadRequest, "invalid IP address format", nil), nil
 	}
 
 	if req.Reason == "" {
-		return nil, status.Error(codes.InvalidArgument, "reason is required")
+		return ErrorReply(http.StatusBadRequest, "reason is required", nil), nil
 	}
 
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -363,11 +333,11 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 		Where("ip_address = ?", req.IpAddress).
 		First(&existing).Error
 	if err == nil {
-		return nil, status.Error(codes.AlreadyExists, "IP already in blacklist")
+		return ErrorReply(http.StatusConflict, "IP already in blacklist", nil), nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		global.Logger.Errorf("failed to check IP blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to check IP blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to check IP blacklist", err), err
 	}
 
 	// Get IP location (try to get from registration records)
@@ -398,7 +368,7 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 	err = db.Get().WithContext(queryCtx).Create(blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to add IP to blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to add IP to blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to add IP to blacklist", err), err
 	}
 
 	infoMap := map[string]interface{}{
@@ -413,25 +383,16 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 		"created_at":    blacklist.CreatedAt.Format(time.RFC3339),
 	}
 
-	data, err := structpb.NewStruct(infoMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "IP added to blacklist successfully",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(infoMap, "failed to marshal response")
 }
 
 // RemoveIPFromBlacklist removes an IP from blacklist
 func (s *AdminService) RemoveIPFromBlacklist(ctx context.Context, req *pb.RemoveIPFromBlacklistRequest) (*pb.Reply, error) {
 	if req == nil || req.IpAddress == "" {
-		return nil, status.Error(codes.InvalidArgument, "ip_address is required")
+		return ErrorReply(http.StatusBadRequest, "ip_address is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	var blacklist models.IPBlacklist
@@ -440,39 +401,40 @@ func (s *AdminService) RemoveIPFromBlacklist(ctx context.Context, req *pb.Remove
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Error(codes.NotFound, "IP not found in blacklist")
+			return ErrorReply(http.StatusNotFound, "IP not found in blacklist", nil), nil
 		}
 		global.Logger.Errorf("failed to get IP blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP blacklist", err), err
 	}
 
 	err = db.Get().WithContext(queryCtx).Delete(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to remove IP from blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to remove IP from blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to remove IP from blacklist", err), err
 	}
 
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),
 		Message: "IP removed from blacklist successfully",
+		Data:    nil,
 	}, nil
 }
 
 // BatchAddIPToBlacklist batch adds IPs to blacklist
 func (s *AdminService) BatchAddIPToBlacklist(ctx context.Context, req *pb.BatchAddIPToBlacklistRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if len(req.IpAddresses) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ip_addresses is required")
+		return ErrorReply(http.StatusBadRequest, "ip_addresses is required", nil), nil
 	}
 
 	if req.Reason == "" {
-		return nil, status.Error(codes.InvalidArgument, "reason is required")
+		return ErrorReply(http.StatusBadRequest, "reason is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Validate all IPs
@@ -488,7 +450,7 @@ func (s *AdminService) BatchAddIPToBlacklist(ctx context.Context, req *pb.BatchA
 	}
 
 	if len(validIPs) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no valid IP addresses")
+		return ErrorReply(http.StatusBadRequest, "no valid IP addresses", nil), nil
 	}
 
 	// Check which IPs are already in blacklist
@@ -553,29 +515,20 @@ func (s *AdminService) BatchAddIPToBlacklist(ctx context.Context, req *pb.BatchA
 		"invalid_ips": invalidIPs,
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: fmt.Sprintf("Batch add completed: %d added, %d skipped, %d invalid", added, skipped, len(invalidIPs)),
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // BatchRemoveIPFromBlacklist batch removes IPs from blacklist
 func (s *AdminService) BatchRemoveIPFromBlacklist(ctx context.Context, req *pb.BatchRemoveIPFromBlacklistRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if len(req.IpAddresses) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ip_addresses is required")
+		return ErrorReply(http.StatusBadRequest, "ip_addresses is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	result := db.Get().WithContext(queryCtx).
@@ -584,32 +537,23 @@ func (s *AdminService) BatchRemoveIPFromBlacklist(ctx context.Context, req *pb.B
 
 	if result.Error != nil {
 		global.Logger.Errorf("failed to batch remove IPs from blacklist: %v", result.Error)
-		return nil, status.Error(codes.Internal, "failed to remove IPs from blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to remove IPs from blacklist", result.Error), result.Error
 	}
 
 	response := map[string]interface{}{
 		"removed": int64(result.RowsAffected),
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: fmt.Sprintf("Removed %d IPs from blacklist", result.RowsAffected),
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // GetIPRequestMonitor gets IP request monitoring data
 func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPRequestMonitorRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Determine time range
@@ -737,16 +681,7 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 		"rate_limit_logs":    logInfosList,
 	}
 
-	data, err := structpb.NewStruct(monitorMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(monitorMap, "failed to marshal response")
 }
 
 // GetIPRateLimitConfig gets IP rate limit configuration
@@ -769,30 +704,21 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 		"block_type":    blockType,
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // UpdateIPRateLimitConfig updates IP rate limit configuration
 func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.UpdateIPRateLimitConfigRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	// Validate values
 	if req.IpPerMinute < 10 || req.IpPerMinute > 1000 {
-		return nil, status.Error(codes.InvalidArgument, "ip_per_minute must be between 10 and 1000")
+		return ErrorReply(http.StatusBadRequest, "ip_per_minute must be between 10 and 1000", nil), nil
 	}
 	if req.IpPerHour < 100 || req.IpPerHour > 50000 {
-		return nil, status.Error(codes.InvalidArgument, "ip_per_hour must be between 100 and 50000")
+		return ErrorReply(http.StatusBadRequest, "ip_per_hour must be between 100 and 50000", nil), nil
 	}
 
 	// Update config (in production, this should be persisted to database or config file)
@@ -805,28 +731,16 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 		"block_type":    req.BlockType,
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	// TODO: Persist configuration to database or config file
-	// For now, just return success
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "Configuration updated successfully",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // GetIPRecordsStats gets IP registration records statistics
 func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecordsStatsRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Build base query
@@ -850,7 +764,7 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 	err := query.Count(&totalRecords).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count IP records: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP records stats")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP records stats", err), err
 	}
 
 	// Get today's new records
@@ -887,21 +801,12 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 		"normal_count":  normalCount,
 	}
 
-	data, err := structpb.NewStruct(statsMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(statsMap, "failed to marshal response")
 }
 
 // GetIPBlacklistStats gets IP blacklist statistics
 func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Get total count
@@ -909,7 +814,7 @@ func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Emp
 	err := db.Get().WithContext(queryCtx).Model(&models.IPBlacklist{}).Count(&totalCount).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count IP blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query IP blacklist stats")
+		return ErrorReply(http.StatusInternalServerError, "failed to query IP blacklist stats", err), err
 	}
 
 	// Get today's added count
@@ -934,29 +839,20 @@ func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Emp
 		"total_blocked": totalBlocked,
 	}
 
-	data, err := structpb.NewStruct(statsMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(statsMap, "failed to marshal response")
 }
 
 // ExportIPList exports IP list (records/blacklist/monitor)
 func (s *AdminService) ExportIPList(ctx context.Context, req *pb.ExportIPListRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if req.Type == "" {
-		return nil, status.Error(codes.InvalidArgument, "type is required (records/blacklist/monitor)")
+		return ErrorReply(http.StatusBadRequest, "type is required (records/blacklist/monitor)", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	var csvData string
@@ -970,12 +866,12 @@ func (s *AdminService) ExportIPList(ctx context.Context, req *pb.ExportIPListReq
 	case "monitor":
 		csvData, err = s.exportIPMonitor(queryCtx, req.TimeRange)
 	default:
-		return nil, status.Error(codes.InvalidArgument, "invalid type, must be records/blacklist/monitor")
+		return ErrorReply(http.StatusBadRequest, "invalid type, must be records/blacklist/monitor", nil), nil
 	}
 
 	if err != nil {
 		global.Logger.Errorf("failed to export IP list: %v", err)
-		return nil, status.Error(codes.Internal, "failed to export IP list")
+		return ErrorReply(http.StatusInternalServerError, "failed to export IP list", err), err
 	}
 
 	response := map[string]interface{}{
@@ -983,16 +879,7 @@ func (s *AdminService) ExportIPList(ctx context.Context, req *pb.ExportIPListReq
 		"type":     req.Type,
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // exportIPRecords exports IP registration records to CSV

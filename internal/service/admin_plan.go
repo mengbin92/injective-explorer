@@ -12,35 +12,36 @@ import (
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
 
 // GetPlan gets a plan by ID
 func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
 	}
 
 	var plan models.APIPlan
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Error(codes.NotFound, "plan not found")
+			return ErrorReply(http.StatusNotFound, "plan not found", err), err
 		}
 		global.Logger.Errorf("failed to get plan: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query plan")
+		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
 	}
 
 	// Get plan statistics
 	tokenCount, userCount, err := s.getPlanStats(queryCtx, plan.ID)
 	if err != nil {
 		global.Logger.Warnf("failed to get plan stats: %v", err)
+		// Use fallback values
+		tokenCount = 0
+		userCount = 0
 	}
 
 	planMap := map[string]interface{}{
@@ -58,22 +59,14 @@ func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb
 		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
 	}
 
-	data, err := structpb.NewStruct(planMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(planMap, "failed to marshal response")
 }
 
 // ListPlans lists all plans
 func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
 	}
 
 	pagination := req.Pagination
@@ -91,7 +84,7 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 		pagination.PageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.APIPlan{})
@@ -107,7 +100,7 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 	err := query.Count(&total).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count plans: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query plans")
+		return ErrorReply(http.StatusInternalServerError, "failed to query plans", err), err
 	}
 
 	var plans []models.APIPlan
@@ -115,7 +108,7 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 	err = query.Offset(offset).Limit(int(pagination.PageSize)).Order("created_at DESC").Find(&plans).Error
 	if err != nil {
 		global.Logger.Errorf("failed to list plans: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query plans")
+		return ErrorReply(http.StatusInternalServerError, "failed to query plans", err), err
 	}
 
 	// Convert plans to []map[string]interface{}
@@ -151,45 +144,43 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 		},
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // CreatePlan creates a new plan
 func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
 	}
 
 	// Validate required fields
 	if req.Name == "" {
-		return nil, status.Error(codes.InvalidArgument, "name is required")
+		err := errors.New("missing name")
+		return ErrorReply(http.StatusBadRequest, "name is required", err), err
 	}
 	if req.PlanType == "" {
-		return nil, status.Error(codes.InvalidArgument, "plan_type is required")
+		err := errors.New("missing plan_type")
+		return ErrorReply(http.StatusBadRequest, "plan_type is required", err), err
 	}
 	if req.PlanType != "free" && req.PlanType != "paid" {
-		return nil, status.Error(codes.InvalidArgument, "plan_type must be 'free' or 'paid'")
+		err := errors.New("invalid plan_type")
+		return ErrorReply(http.StatusBadRequest, "plan_type must be 'free' or 'paid'", err), err
 	}
 	if req.MonthlyLimit == 0 {
-		return nil, status.Error(codes.InvalidArgument, "monthly_limit must be greater than 0")
+		err := errors.New("invalid monthly_limit")
+		return ErrorReply(http.StatusBadRequest, "monthly_limit must be greater than 0", err), err
 	}
 	if req.RateLimitPerSecond <= 0 {
-		return nil, status.Error(codes.InvalidArgument, "rate_limit_per_second must be greater than 0")
+		err := errors.New("invalid rate_limit_per_second")
+		return ErrorReply(http.StatusBadRequest, "rate_limit_per_second must be greater than 0", err), err
 	}
 	if req.MaxTokens <= 0 {
-		return nil, status.Error(codes.InvalidArgument, "max_tokens must be greater than 0")
+		err := errors.New("invalid max_tokens")
+		return ErrorReply(http.StatusBadRequest, "max_tokens must be greater than 0", err), err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Check if plan name already exists
@@ -198,11 +189,12 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 		Where("name = ?", req.Name).
 		First(&existing).Error
 	if err == nil {
-		return nil, status.Error(codes.AlreadyExists, "plan name already exists")
+		err := errors.New("plan name already exists")
+		return ErrorReply(http.StatusConflict, "plan name already exists", err), err
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		global.Logger.Errorf("failed to check plan name: %v", err)
-		return nil, status.Error(codes.Internal, "failed to check plan name")
+		return ErrorReply(http.StatusInternalServerError, "failed to check plan name", err), err
 	}
 
 	// Set default values
@@ -234,7 +226,7 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 	err = db.Get().WithContext(queryCtx).Create(plan).Error
 	if err != nil {
 		global.Logger.Errorf("failed to create plan: %v", err)
-		return nil, status.Error(codes.Internal, "failed to create plan")
+		return ErrorReply(http.StatusInternalServerError, "failed to create plan", err), err
 	}
 
 	// Get plan statistics (will be 0 for new plan)
@@ -255,35 +247,27 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
 	}
 
-	data, err := structpb.NewStruct(planMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "Plan created successfully",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(planMap, "failed to marshal response")
 }
 
 // UpdatePlan updates a plan configuration
 func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	var plan models.APIPlan
 	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Error(codes.NotFound, "plan not found")
+			return ErrorReply(http.StatusNotFound, "plan not found", err), err
 		}
 		global.Logger.Errorf("failed to get plan: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query plan")
+		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
 	}
 
 	// Update fields
@@ -300,20 +284,21 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 	}
 
 	if len(updates) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no fields to update")
+		err := errors.New("no fields to update")
+		return ErrorReply(http.StatusBadRequest, "no fields to update", err), err
 	}
 
 	err = db.Get().WithContext(queryCtx).Model(&plan).Updates(updates).Error
 	if err != nil {
 		global.Logger.Errorf("failed to update plan: %v", err)
-		return nil, status.Error(codes.Internal, "failed to update plan")
+		return ErrorReply(http.StatusInternalServerError, "failed to update plan", err), err
 	}
 
 	// Reload plan
 	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload plan: %v", err)
-		return nil, status.Error(codes.Internal, "failed to reload plan")
+		return ErrorReply(http.StatusInternalServerError, "failed to reload plan", err), err
 	}
 
 	planMap := map[string]interface{}{
@@ -329,31 +314,23 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
 	}
 
-	data, err := structpb.NewStruct(planMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "plan updated successfully",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(planMap, "failed to marshal response")
 }
 
 // GetPlanStats gets plan usage statistics
 func (s *AdminService) GetPlanStats(ctx context.Context, req *pb.GetPlanStatsRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	tokenCount, userCount, err := s.getPlanStats(queryCtx, uint(req.Id))
 	if err != nil {
 		global.Logger.Errorf("failed to get plan stats: %v", err)
-		return nil, status.Error(codes.Internal, "failed to get plan stats")
+		return ErrorReply(http.StatusInternalServerError, "failed to get plan stats", err), err
 	}
 
 	response := map[string]interface{}{
@@ -361,16 +338,7 @@ func (s *AdminService) GetPlanStats(ctx context.Context, req *pb.GetPlanStatsReq
 		"user_count":  userCount,
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // getPlanStats gets plan statistics (token count and user count)

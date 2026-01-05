@@ -6,14 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/pkg/errors"
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // AdminService implements the admin management service.
@@ -33,7 +30,8 @@ func NewAdminService() *AdminService {
 // GetUsageErrors gets error request list
 func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageErrorsRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
 	}
 
 	pagination := req.Pagination
@@ -51,10 +49,10 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 		pagination.PageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// Build query for error requests (status code >= 400)
+	// Build query for error requests (status code >= 400)	
 	query := db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
 		Where("status_code >= ?", 400)
 
@@ -81,7 +79,7 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 	err := query.Count(&total).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count error requests: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query error requests")
+		return ErrorReply(http.StatusInternalServerError, "failed to query error requests", err), err
 	}
 
 	// Get error logs with pagination
@@ -94,7 +92,7 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 
 	if err != nil {
 		global.Logger.Errorf("failed to list error requests: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query error requests")
+		return ErrorReply(http.StatusInternalServerError, "failed to query error requests", err), err
 	}
 
 	// Convert to response format
@@ -124,14 +122,5 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 		},
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "marshal response error")
 }

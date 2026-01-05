@@ -12,7 +12,6 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
-	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/chain"
 	"injective-explorer/provider/db"
@@ -30,14 +29,13 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
 
-// ExplorerService implements the explorer API service.
+// ExplorerService implements the explorer API 
 // It provides methods to query blockchain data including blocks, transactions, and account information.
 //
 // The service maintains client connections for better performance,
@@ -81,7 +79,7 @@ func getStorageThresholdForSync() int {
 func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Normalize pagination parameters
@@ -121,7 +119,7 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedBlocks, func(b models.Block) uint64 { return b.Height })
 			blockDTOs := models.ToBlockDTOs(cachedBlocks)
 			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedBlocks))
-			return s.marshalAndReply(blocksResp, "marshal blocks error")
+			return MarshalAndReply(blocksResp, "marshal blocks error")
 		}
 	}
 
@@ -170,7 +168,7 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbBlocks, func(b models.Block) uint64 { return b.Height })
 			blockDTOs := models.ToBlockDTOs(dbBlocks)
 			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbBlocks))
-			return s.marshalAndReply(blocksResp, "marshal blocks error")
+			return MarshalAndReply(blocksResp, "marshal blocks error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -181,7 +179,7 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 	global.Logger.Debugf("blocks not found in database or conversion failed, querying from chain")
 	client, err := GetSharedExplorerClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use independent context for RPC calls to avoid HTTP timeout issues
@@ -191,7 +189,7 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 	blocks, err := client.GetBlocks(callCtx)
 	if err != nil {
 		global.Logger.Errorf("get blocks error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get blocks error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get blocks error", err), err
 	}
 
 	// Save to database and build response with pagination
@@ -218,7 +216,7 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbBlocks, func(b models.Block) uint64 { return b.Height })
 	blockDTOs := models.ToBlockDTOs(dbBlocks)
 	blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, int64(len(dbBlocks)), true, useCursor, cursorValue, nextCursor, len(dbBlocks))
-	return s.marshalAndReply(blocksResp, "marshal blocks error")
+	return MarshalAndReply(blocksResp, "marshal blocks error")
 }
 
 // GetBlockByHeight retrieves a specific block by its height.
@@ -233,12 +231,12 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHeightRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Validate block height
 	if err := ValidateBlockHeight(req.Height); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid block height", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid block height", err), err
 	}
 
 	global.Logger.Debugf("get block by height: height=%d", req.Height)
@@ -263,7 +261,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 			}()
 		}
 
-		return s.marshalAndReply(blockDTO, "marshal block error")
+		return MarshalAndReply(blockDTO, "marshal block error")
 	}
 
 	// Second, try to query from database
@@ -286,7 +284,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 		if uint64(req.Height) > getLatestBlockHeight()-1000 && len(blockDTO.Txs) <= 100 {
 			// Enhance synchronously for recent small blocks
 			enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
-			return s.marshalAndReply(enhancedBlockDTO, "marshal block error")
+			return MarshalAndReply(enhancedBlockDTO, "marshal block error")
 		} else {
 			// Return block without enhancement or enhance asynchronously for large/recent blocks
 			if len(blockDTO.Txs) > 100 {
@@ -300,7 +298,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 					s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.Height))
 				}()
 			}
-			return s.marshalAndReply(blockDTO, "marshal block error")
+			return MarshalAndReply(blockDTO, "marshal block error")
 		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -315,7 +313,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	global.Logger.Debugf("block not found in database, querying from chain: height=%d", req.Height)
 	client, err := GetSharedExplorerClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use independent context for RPC calls to avoid HTTP timeout issues
@@ -325,7 +323,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	block, err := client.GetBlock(callCtx, fmt.Sprintf("%d", req.Height))
 	if err != nil {
 		global.Logger.Errorf("get block error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get block error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get block error", err), err
 	}
 
 	// Save to database for future queries
@@ -342,12 +340,12 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	if len(blockDTO.Txs) <= 50 {
 		// Enhance synchronously for small blocks
 		enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
-		return s.marshalAndReply(enhancedBlockDTO, "marshal block error")
+		return MarshalAndReply(enhancedBlockDTO, "marshal block error")
 	} else {
 		// Return block without enhancement for large blocks
 		global.Logger.Debugf("skipping transaction enhancement for chain block %d with %d transactions (too many)",
 			req.Height, len(blockDTO.Txs))
-		return s.marshalAndReply(blockDTO, "marshal block error")
+		return MarshalAndReply(blockDTO, "marshal block error")
 	}
 }
 
@@ -611,10 +609,10 @@ func (s *ExplorerService) GetLatestBlockHeight(ctx context.Context, req *emptypb
 	height, err := client.GetLatestBlockHeight(ctx)
 	if err != nil {
 		global.Logger.Errorf("get latest block height error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get latest block height error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get latest block height error", err), err
 	}
 
-	return s.marshalAndReply(&pb.LatestBlockHeightResponse{Height: height}, "marshal height error")
+	return MarshalAndReply(&pb.LatestBlockHeightResponse{Height: height}, "marshal height error")
 }
 
 // GetBlockGasUtilization retrieves gas utilization statistics for the latest N blocks.
@@ -636,7 +634,7 @@ func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *empty
 		if err == nil {
 			var response pb.BlockGasUtilizationResponse
 			if err := sonic.Unmarshal([]byte(cached), &response); err == nil {
-				return s.marshalAndReply(&response, "marshal block gas utilization error")
+				return MarshalAndReply(&response, "marshal block gas utilization error")
 			}
 		}
 	}
@@ -655,7 +653,7 @@ func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *empty
 	gasUtilization, totalGasUsed, totalGasLimit, blockCount, transactionCount, err := calculateBlockGasUtilization(queryCtx, maxGas)
 	if err != nil {
 		global.Logger.Errorf("failed to calculate block gas utilization: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to calculate block gas utilization", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to calculate block gas utilization", err), err
 	}
 
 	response := &pb.BlockGasUtilizationResponse{
@@ -683,7 +681,7 @@ func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *empty
 	global.Logger.Infof("block gas utilization: %.2f%%, total_gas_used=%d, total_gas_limit=%d, blocks=%d, txs=%d, max_gas=%d",
 		gasUtilization, totalGasUsed, totalGasLimit, blockCount, transactionCount, maxGas)
 
-	return s.marshalAndReply(response, "marshal block gas utilization error")
+	return MarshalAndReply(response, "marshal block gas utilization error")
 }
 
 // GetLatestTransactions retrieves the latest transactions from the blockchain with pagination.
@@ -698,7 +696,7 @@ func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *empty
 func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Normalize pagination parameters
@@ -737,7 +735,7 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 			txDTOs := models.ToTransactionDTOs(cachedTxs)
 			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedTxs))
-			return s.marshalAndReply(txsResp, "marshal transactions error")
+			return MarshalAndReply(txsResp, "marshal transactions error")
 		}
 	}
 
@@ -787,7 +785,7 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 			txDTOs := models.ToTransactionDTOs(dbTxs)
 			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-			return s.marshalAndReply(txsResp, "marshal transactions error")
+			return MarshalAndReply(txsResp, "marshal transactions error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -798,7 +796,7 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	global.Logger.Debugf("transactions not found in database or conversion failed, querying from chain")
 	client, err := GetSharedExplorerClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use independent context for RPC calls to avoid HTTP timeout issues
@@ -808,7 +806,7 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	transactions, err := client.GetTxs(callCtx, &injective_explorer_rpcpb.GetTxsRequest{Limit: pageSize})
 	if err != nil {
 		global.Logger.Errorf("get transactions error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get transactions error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get transactions error", err), err
 	}
 
 	// Save to database and build response with pagination
@@ -831,7 +829,7 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 	txDTOs := models.ToTransactionDTOs(dbTxs)
 	txsResp := buildPaginatedResponse(txDTOs, page, pageSize, int64(len(dbTxs)), true, useCursor, cursorValue, nextCursor, len(dbTxs))
-	return s.marshalAndReply(txsResp, "marshal transactions error")
+	return MarshalAndReply(txsResp, "marshal transactions error")
 }
 
 // GetTransactionByHash retrieves a specific transaction by its hash.
@@ -846,13 +844,13 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetTransactionByHashRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Sanitize and validate transaction hash
 	hash := SanitizeHash(req.Hash)
 	if err := ValidateTransactionHash(hash); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid transaction hash", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid transaction hash", err), err
 	}
 
 	global.Logger.Debugf("get transaction by hash: hash=%s", hash)
@@ -866,7 +864,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 	if err == nil && cachedTx != nil {
 		global.Logger.Debugf("transaction found in cache: hash=0x%s", hash)
 		txDTO := models.ToTransactionDTO(cachedTx, models.DTOModeWithDetail)
-		return s.marshalAndReply(txDTO, "marshal transaction error")
+		return MarshalAndReply(txDTO, "marshal transaction error")
 	}
 
 	// Second, try to query from database
@@ -885,7 +883,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 				// Cache the transaction for future queries
 				cacheTransaction(queryCtx, archivedTx)
 				txDTO := models.ToTransactionDTO(archivedTx, models.DTOModeWithDetail)
-				return s.marshalAndReply(txDTO, "marshal transaction error")
+				return MarshalAndReply(txDTO, "marshal transaction error")
 			} else {
 				// Archive data not found, but transaction is marked as archived
 				// Return the transaction with empty fields (fallback)
@@ -898,7 +896,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 		cacheTransaction(queryCtx, &dbTx)
 
 		txDTO := models.ToTransactionDTO(&dbTx, models.DTOModeWithDetail)
-		return s.marshalAndReply(txDTO, "marshal transaction error")
+		return MarshalAndReply(txDTO, "marshal transaction error")
 
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -912,7 +910,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 			// Cache the transaction for future queries
 			cacheTransaction(queryCtx, archivedTx)
 			txDTO := models.ToTransactionDTO(archivedTx, models.DTOModeWithDetail)
-			return s.marshalAndReply(txDTO, "marshal transaction error")
+			return MarshalAndReply(txDTO, "marshal transaction error")
 		}
 	}
 
@@ -920,7 +918,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 	global.Logger.Debugf("transaction not found in database or conversion failed, querying from chain: hash=%s", hash)
 	client, err := GetSharedExplorerClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use independent context for RPC calls to avoid HTTP timeout issues
@@ -930,7 +928,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 	transaction, err := client.GetTxByTxHash(callCtx, hash)
 	if err != nil {
 		global.Logger.Errorf("get transaction error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get transaction error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get transaction error", err), err
 	}
 
 	// Save to database for future queries
@@ -944,7 +942,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 	cacheTransaction(callCtx, transactionModel)
 
 	txDTO := models.ToTransactionDTO(transactionModel, models.DTOModeWithDetail)
-	return s.marshalAndReply(txDTO, "marshal transaction error")
+	return MarshalAndReply(txDTO, "marshal transaction error")
 }
 
 // GetAccountInfo retrieves account information for a given address.
@@ -959,13 +957,13 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfoRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Sanitize and validate address
 	address := SanitizeAddress(req.Address)
 	if err := ValidateAddress(address); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
 	global.Logger.Debugf("get account info: address=%s", address)
@@ -978,7 +976,7 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	// Database now stores addresses in Ethereum format
 	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
 	if err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address format", err), err
 	}
 
 	// First, try to query from database using Ethereum format address
@@ -988,7 +986,7 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 		// Found in database, convert to DTO and return
 		global.Logger.Debugf("account found in database: dbQueryAddress=%s", dbQueryAddress)
 		accountDTO := models.ToAccountDTO(&dbAccount)
-		return s.marshalAndReply(accountDTO, "marshal account error")
+		return MarshalAndReply(accountDTO, "marshal account error")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
 		global.Logger.Warnf("database query error (not record not found), querying from chain: dbQueryAddress=%s, error=%v", dbQueryAddress, err)
@@ -998,12 +996,12 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	// For chain queries, we need Injective format
 	client, err := GetSharedChainClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "build chain client error", err), err
 	}
 
 	chainQueryAddress, err := s.convertToQueryAddress(ctx, address, client, true)
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
 	}
 
 	global.Logger.Debugf("account not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
@@ -1011,26 +1009,26 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	account, err := client.GetAccount(ctx, chainQueryAddress)
 	if err != nil {
 		global.Logger.Errorf("get account error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get account error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get account error", err), err
 	}
 
 	// Check if account or account.Account is nil
 	if account == nil || account.Account == nil {
 		global.Logger.Errorf("account or account.Account is nil for address: %s", chainQueryAddress)
-		return s.errorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account is nil")), errors.New("account is nil")
+		return ErrorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account is nil")), errors.New("account is nil")
 	}
 
 	// Check if account value is empty
 	if len(account.Account.Value) == 0 {
 		global.Logger.Errorf("account value is empty for address: %s", chainQueryAddress)
-		return s.errorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account value is empty")), errors.New("account value is empty")
+		return ErrorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account value is empty")), errors.New("account value is empty")
 	}
 
 	ethAccount := &types.EthAccount{}
 	err = client.ClientContext().Codec.Unmarshal(account.Account.Value, ethAccount)
 	if err != nil {
 		global.Logger.Errorf("unmarshal eth account error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "unmarshal eth account error", err), err
+		return ErrorReply(http.StatusInternalServerError, "unmarshal eth account error", err), err
 	}
 
 	// Save to database for future queries
@@ -1039,7 +1037,7 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	saveToDB(accountModel, "create account error")
 
 	accountDTO := models.ToAccountDTO(accountModel)
-	return s.marshalAndReply(accountDTO, "marshal account error")
+	return MarshalAndReply(accountDTO, "marshal account error")
 }
 
 // GetAccountTransactions retrieves transactions for a given account address with pagination.
@@ -1054,13 +1052,13 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.GetAccountTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Sanitize and validate address
 	address := SanitizeAddress(req.Address)
 	if err := ValidateAddress(address); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
 	// Normalize pagination parameters
@@ -1083,7 +1081,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	// Convert address to database format (Ethereum format 0x...)
 	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
 	if err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address format", err), err
 	}
 
 	// First, try to query from Redis cache (only for first page without cursor and without tx type filter)
@@ -1097,7 +1095,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 			txDTOs := models.ToTransactionDTOs(cachedTxs)
 			// Use approximate count for cached data
 			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, ApproximateCountForAddress, false, useCursor, cursorValue, nextCursor, len(cachedTxs))
-			return s.marshalAndReply(txsResp, "marshal transactions error")
+			return MarshalAndReply(txsResp, "marshal transactions error")
 		}
 	}
 
@@ -1201,7 +1199,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 			txDTOs := models.ToTransactionDTOs(dbTxs)
 			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-			return s.marshalAndReply(txsResp, "marshal transactions error")
+			return MarshalAndReply(txsResp, "marshal transactions error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
@@ -1212,18 +1210,18 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	// For chain queries, we need Injective format
 	client, err := GetSharedChainClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "build chain client error", err), err
 	}
 
 	chainQueryAddress, err := s.convertToQueryAddress(ctx, address, client, true)
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
 	}
 
 	global.Logger.Debugf("account transactions not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
 	explorerClient, err := GetSharedExplorerClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "create explorer client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
 	}
 
 	// Use independent context for RPC calls to avoid HTTP timeout issues
@@ -1236,7 +1234,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	})
 	if err != nil {
 		global.Logger.Errorf("get account transactions error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get account transactions error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get account transactions error", err), err
 	}
 
 	// Save to database for future queries
@@ -1286,15 +1284,15 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 
 		// If no transactions match the filter, return not found
 		if len(dbTxs) == 0 {
-			return s.errorReply(http.StatusNotFound, "no transactions found matching the specified message types", errors.New("no transactions found matching the specified message types")), errors.New("no transactions found matching the specified message types")
+			return ErrorReply(http.StatusNotFound, "no transactions found matching the specified message types", errors.New("no transactions found matching the specified message types")), errors.New("no transactions found matching the specified message types")
 		}
 
 		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 		txDTOs := models.ToTransactionDTOs(dbTxs)
 		transactionsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-		return s.marshalAndReply(transactionsResp, "marshal transactions error")
+		return MarshalAndReply(transactionsResp, "marshal transactions error")
 	}
-	return s.errorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
+	return ErrorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
 }
 
 // GetAccountBalances retrieves account balances for a given address.
@@ -1309,13 +1307,13 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAccountBalancesRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Sanitize and validate address
 	address := SanitizeAddress(req.Address)
 	if err := ValidateAddress(address); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
 	global.Logger.Debugf("get account balances: address=%s", address)
@@ -1327,7 +1325,7 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 	// Convert address to database format (Ethereum format 0x...)
 	dbQueryAddress, err := s.convertToQueryAddress(ctx, address, nil, false)
 	if err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address format", err), err
 	}
 
 	// First, try to query from database using Ethereum format address
@@ -1352,7 +1350,7 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 			balancesResp := map[string]interface{}{
 				"balances": balancesList,
 			}
-			return s.marshalAndReply(balancesResp, "marshal balances error")
+			return MarshalAndReply(balancesResp, "marshal balances error")
 		}
 		global.Logger.Warnf("no valid balances found in database, querying from chain: address=%s", address)
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1364,12 +1362,12 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 	// For chain queries, we need Injective format
 	client, err := GetSharedChainClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "build chain client error", err), err
+		return ErrorReply(http.StatusInternalServerError, "build chain client error", err), err
 	}
 
 	chainQueryAddress, err := s.convertToQueryAddress(ctx, address, client, true)
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
 	}
 
 	global.Logger.Debugf("account balances not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
@@ -1377,7 +1375,7 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 	balances, err := client.GetBankBalances(ctx, chainQueryAddress)
 	if err != nil {
 		global.Logger.Errorf("get account balances error: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "get account balances error", err), err
+		return ErrorReply(http.StatusInternalServerError, "get account balances error", err), err
 	}
 
 	// Save to database for future queries
@@ -1398,26 +1396,7 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 	balancesResp := map[string]interface{}{
 		"balances": balancesList,
 	}
-	return s.marshalAndReply(balancesResp, "marshal balances error")
-}
-
-// errorReply creates a standardized error reply with sanitized error messages.
-// This function ensures that sensitive information is not exposed to clients.
-//
-// Parameters:
-//   - code: HTTP status code
-//   - message: Error message prefix (user-friendly message)
-//   - err: The underlying error (may contain sensitive information)
-//
-// Returns:
-//   - *pb.Reply: A reply with sanitized error information
-func (s *ExplorerService) errorReply(code int, message string, err error) *pb.Reply {
-	// Sanitize error message to prevent sensitive information leakage
-	sanitizedErr := utils.SanitizeError(err, MaxErrorLength)
-	return &pb.Reply{
-		Code:    int32(code),
-		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
-	}
+	return MarshalAndReply(balancesResp, "marshal balances error")
 }
 
 // CheckHealthy performs a health check on the service and its dependencies.
@@ -1534,57 +1513,9 @@ func (s *ExplorerService) CheckHealthy(ctx context.Context, req *pb.CheckHealthy
 // Parameters:
 //   - v: The value to convert
 //
-// Returns:
-//   - *structpb.Struct: The converted struct
-//   - error: Error if conversion fails
-func (s *ExplorerService) toStruct(v interface{}) (*structpb.Struct, error) {
-	// Marshal to JSON first
-	jsonBytes, err := sonic.Marshal(v)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal to JSON")
-	}
-
-	// Unmarshal into structpb.Struct
-	var structData structpb.Struct
-	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
-	}
-
-	return &structData, nil
-}
-
 // protoMessageToStructWithOptions converts a protobuf message to google.protobuf.Struct
 // with customizable marshaling options.
 //
-// Parameters:
-//   - msg: The protobuf message to convert
-//   - options: Marshaling options (nil to use defaults)
-//
-// Returns:
-//   - *structpb.Struct: The converted struct
-//   - error: Error if conversion fails
-func (s *ExplorerService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
-	// Use default options or custom options
-	if options == nil {
-		options = &protojson.MarshalOptions{
-			UseProtoNames:   true,  // Use proto field names instead of JSON names
-			EmitUnpopulated: false, // Don't output unset fields
-		}
-	}
-
-	jsonBytes, err := options.Marshal(msg)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal proto to JSON")
-	}
-
-	var structData structpb.Struct
-	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
-	}
-
-	return &structData, nil
-}
-
 // normalizePagination normalizes pagination parameters with default values and validation.
 // Supports both page-based and cursor-based pagination.
 //
@@ -1957,32 +1888,6 @@ func retrySaveToDB(model interface{}, errorMsg string, maxRetries int, initialDe
 //   - v: The value to marshal
 //   - errorMsg: Error message prefix if marshaling fails
 //
-// Returns:
-//   - *pb.Reply: Success reply with data as Struct, or error reply if marshaling fails
-//   - error: Error if marshaling fails
-func (s *ExplorerService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
-	var structData *structpb.Struct
-	var err error
-
-	// Check if v is a proto.Message, use protoMessageToStructWithOptions if so
-	if msg, ok := v.(proto.Message); ok {
-		structData, err = s.protoMessageToStructWithOptions(msg, nil)
-	} else {
-		// For non-proto types (maps, etc.), use toStruct
-		structData, err = s.toStruct(v)
-	}
-
-	if err != nil {
-		global.Logger.Errorf("%s: %v", errorMsg, err)
-		return s.errorReply(http.StatusInternalServerError, errorMsg, err), err
-	}
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    structData,
-	}, nil
-}
-
 // StreamLatestBlocks streams the latest blocks as they are added to the chain.
 // This method subscribes to block events from the event bus and streams them to the client.
 func (s *ExplorerService) StreamLatestBlocks(req *pb.StreamLatestBlocksRequest, stream pb.Explorer_StreamLatestBlocksServer) error {
@@ -3354,7 +3259,7 @@ func (s *ExplorerService) GetTransactionStats(ctx context.Context, req *emptypb.
 		needsRecalc := cachedStats.Tps == 0 && cachedStats.AvgGas == 0 && cachedStats.AvgBlockTime == 0 && cachedStats.GasUtilization == 0
 		if !needsRecalc {
 			global.Logger.Infof("transaction statistics found in cache")
-			return s.marshalAndReply(cachedStats, "marshal transaction stats error")
+			return MarshalAndReply(cachedStats, "marshal transaction stats error")
 		}
 		// If complex metrics are missing, use cached simple metrics and recalculate complex ones
 		stats = cachedStats
@@ -3485,7 +3390,7 @@ func (s *ExplorerService) GetTransactionStats(ctx context.Context, req *emptypb.
 	// Cache the statistics for future queries (async to avoid blocking)
 	go cacheTransactionStats(context.Background(), stats)
 
-	return s.marshalAndReply(stats, "marshal transaction stats error")
+	return MarshalAndReply(stats, "marshal transaction stats error")
 }
 
 // queryFailedTransactions24h queries failed transactions in the last 24 hours with pagination.
@@ -3806,7 +3711,7 @@ func convertToFailedTransactionInfos(txs []models.Transaction) []*pb.FailedTrans
 func (s *ExplorerService) GetFailedTransactions24H(ctx context.Context, req *pb.GetFailedTransactions24HRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Normalize pagination parameters
@@ -3903,7 +3808,7 @@ func (s *ExplorerService) GetFailedTransactions24H(ctx context.Context, req *pb.
 
 	global.Logger.Infof("retrieved %d failed transactions (24h), total=%d, exact=%v, success_rate=%.2f%%", len(failedTxs), totalCount, isExactCount, successRate)
 
-	return s.marshalAndReply(response, "marshal failed transactions error")
+	return MarshalAndReply(response, "marshal failed transactions error")
 }
 
 // GetFailedTransactions1000 retrieves failure statistics for the latest 1000 transactions.
@@ -3995,7 +3900,7 @@ func (s *ExplorerService) GetFailedTransactions1000(ctx context.Context, req *em
 
 	global.Logger.Infof("retrieved %d failed transactions out of %d latest transactions, success_rate=%.2f%%", len(failedTxs), len(transactions), successRate)
 
-	return s.marshalAndReply(response, "marshal latest 1000 transactions error")
+	return MarshalAndReply(response, "marshal latest 1000 transactions error")
 }
 
 // queryLatest1000Transactions queries the latest 1000 transactions from the database.
@@ -4541,21 +4446,21 @@ func (s *ExplorerService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb
 	tokenConfig, err := LoadTokenConfigFromConf(nil, tokenSymbol)
 	if err != nil {
 		global.Logger.Errorf("failed to load token config: %v", err)
-		return s.errorReply(http.StatusBadRequest,
+		return ErrorReply(http.StatusBadRequest,
 			fmt.Sprintf("token configuration not found: %s", tokenSymbol), err), err
 	}
 
 	// Get chain client
 	chainClient, err := GetSharedChainClient()
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "failed to get chain client", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to get chain client", err), err
 	}
 
 	// Fetch price and supply data
 	priceData, err := GetTokenPriceAndMarketCap(ctx, chainClient, tokenConfig)
 	if err != nil {
 		global.Logger.Errorf("failed to get price and market cap: %v", err)
-		return s.errorReply(http.StatusInternalServerError, "failed to get price and market cap", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to get price and market cap", err), err
 	}
 
 	// Calculate market cap (only if supply is available)
@@ -4601,7 +4506,7 @@ func (s *ExplorerService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb
 		TotalSupplyFromChainFormatted: totalSupplyFromChainFormatted,
 	}
 
-	return s.marshalAndReply(response, "marshal price and market cap response error")
+	return MarshalAndReply(response, "marshal price and market cap response error")
 }
 
 // GetEVMTransaction retrieves EVM transaction details by EVM hash.
@@ -4616,13 +4521,13 @@ func (s *ExplorerService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb
 func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMTransactionRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Sanitize and validate transaction hash
 	hash := SanitizeHash(req.Hash)
 	if err := ValidateTransactionHash(hash); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid transaction hash", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid transaction hash", err), err
 	}
 
 	global.Logger.Debugf("get EVM transaction by hash: hash=%s", hash)
@@ -4640,22 +4545,22 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 		First(&dbTx).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return s.errorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction %s not found", evmHash), err), status.Errorf(codes.NotFound, "EVM transaction %s not found", evmHash)
+			return ErrorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction %s not found", evmHash), err), status.Errorf(codes.NotFound, "EVM transaction %s not found", evmHash)
 		}
-		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
+		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 	}
 
 	// Load EVM transaction details with Redis cache support
 	evmDetails, err := s.loadEVMTransactionDetailsWithCache(queryCtx, &dbTx)
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "failed to load EVM transaction details", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to load EVM transaction details", err), err
 	}
 
 	// If details not synced yet, try to fetch from EVM RPC (reduced timeout: 15s)
 	if evmDetails == nil {
 		evmClient, err := chain.NewEVMClient(global.NetworkName)
 		if err != nil {
-			return s.errorReply(http.StatusInternalServerError, "failed to create EVM client", err), err
+			return ErrorReply(http.StatusInternalServerError, "failed to create EVM client", err), err
 		}
 		defer evmClient.Close()
 
@@ -4664,7 +4569,7 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 
 		evmDetails, err = evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(dbTx.EVMHash))
 		if err != nil {
-			return s.errorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction details not found for %s", dbTx.EVMHash), err), err
+			return ErrorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction details not found for %s", dbTx.EVMHash), err), err
 		}
 
 		// Cache the fetched details asynchronously
@@ -4687,10 +4592,10 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 	// Convert to DTO
 	evmDTO := models.ToEVMTransactionDTO(evmDetails, &dbTx)
 	if evmDTO == nil {
-		return s.errorReply(http.StatusInternalServerError, "failed to convert EVM transaction to DTO", errors.New("conversion failed")), errors.New("conversion failed")
+		return ErrorReply(http.StatusInternalServerError, "failed to convert EVM transaction to DTO", errors.New("conversion failed")), errors.New("conversion failed")
 	}
 
-	return s.marshalAndReply(evmDTO, "marshal EVM transaction error")
+	return MarshalAndReply(evmDTO, "marshal EVM transaction error")
 }
 
 // GetEVMTransactions retrieves a list of EVM transactions with pagination.
@@ -4705,7 +4610,7 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVMTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Normalize pagination parameters
@@ -4749,13 +4654,13 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 
 	err := query.Find(&dbTxs).Error
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
+		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 	}
 
 	if len(dbTxs) == 0 {
 		// No transactions found
 		txsResp := buildPaginatedResponse([]*pb.EVMTransactionDTO{}, page, pageSize, total, isExactCount, useCursor, cursorValue, "", 0)
-		return s.marshalAndReply(txsResp, "marshal EVM transactions error")
+		return MarshalAndReply(txsResp, "marshal EVM transactions error")
 	}
 
 	// Build tx map first
@@ -4833,7 +4738,7 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 	txsResp := buildPaginatedResponse(evmDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(evmDTOs))
-	return s.marshalAndReply(txsResp, "marshal EVM transactions error")
+	return MarshalAndReply(txsResp, "marshal EVM transactions error")
 }
 
 // GetEVMAccountTransactions retrieves EVM transactions for a specific account address.
@@ -4848,13 +4753,13 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb.GetEVMAccountTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return s.errorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Sanitize and validate address
 	address := SanitizeAddress(req.Address)
 	if err := ValidateAddress(address); err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
 	// Normalize pagination parameters
@@ -4869,7 +4774,7 @@ func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb
 	// Convert address to database format (Ethereum format 0x...)
 	dbQueryAddress, err := s.convertToQueryAddress(queryCtx, address, nil, false)
 	if err != nil {
-		return s.errorReply(http.StatusBadRequest, "invalid address format", err), err
+		return ErrorReply(http.StatusBadRequest, "invalid address format", err), err
 	}
 
 	// Optimized query: Use database indexes for EVM from/to addresses when available
@@ -4899,13 +4804,13 @@ func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb
 
 	// If indexed query failed, return error
 	if err != nil {
-		return s.errorReply(http.StatusInternalServerError, "database query error", err), err
+		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 	}
 
 	// If no results found, return empty response
 	if len(dbTxs) == 0 {
 		txsResp := buildPaginatedResponse([]*pb.EVMTransactionDTO{}, page, pageSize, int64(ApproximateCountForAddress), false, useCursor, cursorValue, "", 0)
-		return s.marshalAndReply(txsResp, "marshal EVM account transactions error")
+		return MarshalAndReply(txsResp, "marshal EVM account transactions error")
 	}
 
 	// Build tx map and load EVM details for transactions returned by indexed query
@@ -4945,7 +4850,7 @@ func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb
 	}
 
 	txsResp := buildPaginatedResponse(evmDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(evmDTOs))
-	return s.marshalAndReply(txsResp, "marshal EVM account transactions error")
+	return MarshalAndReply(txsResp, "marshal EVM account transactions error")
 }
 
 // loadEVMTransactionDetailsWithCache loads EVM transaction details with Redis cache support.

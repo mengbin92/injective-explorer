@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -15,10 +14,7 @@ import (
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
 
@@ -29,7 +25,7 @@ var (
 // ListEmailBlacklist lists email blacklist domains
 func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmailBlacklistRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	pagination := req.Pagination
@@ -47,7 +43,7 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 		pagination.PageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.EmailBlacklist{})
@@ -64,7 +60,7 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 	err := query.Count(&total).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
 	}
 
 	var blacklist []models.EmailBlacklist
@@ -72,7 +68,7 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 	err = query.Offset(int(offset)).Limit(int(pagination.PageSize)).Order("created_at DESC").Find(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to list email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
 	}
 
 	infos := make([]*pb.EmailBlacklistInfo, 0, len(blacklist))
@@ -101,26 +97,17 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 		},
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // AddEmailDomain adds an email domain to blacklist
 func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomainRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if req.Domain == "" {
-		return nil, status.Error(codes.InvalidArgument, "domain is required")
+		return ErrorReply(http.StatusBadRequest, "domain is required", nil), nil
 	}
 
 	// Normalize domain (lowercase, trim)
@@ -131,10 +118,10 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 
 	// Validate domain format
 	if !domainRegex.MatchString(domain) {
-		return nil, status.Error(codes.InvalidArgument, "invalid domain format")
+		return ErrorReply(http.StatusBadRequest, "invalid domain format", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Check if domain already exists
@@ -143,11 +130,11 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 		Where("domain = ?", domain).
 		First(&existing).Error
 	if err == nil {
-		return nil, status.Error(codes.AlreadyExists, "domain already exists in blacklist")
+		return ErrorReply(http.StatusConflict, "domain already exists in blacklist", nil), nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		global.Logger.Errorf("failed to check email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to check email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to check email blacklist", err), err
 	}
 
 	// Set default status
@@ -170,7 +157,7 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 	err = db.Get().WithContext(queryCtx).Create(blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to add email domain to blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to add email domain to blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to add email domain to blacklist", err), err
 	}
 
 	infoMap := map[string]interface{}{
@@ -183,29 +170,20 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
 	}
 
-	data, err := structpb.NewStruct(infoMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "Email domain added to blacklist successfully",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(infoMap, "failed to marshal response")
 }
 
 // UpdateEmailDomain updates an email domain
 func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmailDomainRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if req.Id == 0 {
-		return nil, status.Error(codes.InvalidArgument, "id is required")
+		return ErrorReply(http.StatusBadRequest, "id is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	var blacklist models.EmailBlacklist
@@ -214,17 +192,17 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Error(codes.NotFound, "email domain not found")
+			return ErrorReply(http.StatusNotFound, "email domain not found", nil), nil
 		}
 		global.Logger.Errorf("failed to get email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
 	}
 
 	// Update fields
 	updates := make(map[string]interface{})
 	if req.Status != "" {
 		if req.Status != "active" && req.Status != "disabled" {
-			return nil, status.Error(codes.InvalidArgument, "status must be 'active' or 'disabled'")
+			return ErrorReply(http.StatusBadRequest, "status must be 'active' or 'disabled'", nil), nil
 		}
 		updates["status"] = req.Status
 	}
@@ -233,20 +211,20 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 	}
 
 	if len(updates) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no fields to update")
+		return ErrorReply(http.StatusBadRequest, "no fields to update", nil), nil
 	}
 
 	err = db.Get().WithContext(queryCtx).Model(&blacklist).Updates(updates).Error
 	if err != nil {
 		global.Logger.Errorf("failed to update email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to update email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to update email blacklist", err), err
 	}
 
 	// Reload
 	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to reload email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to reload email blacklist", err), err
 	}
 
 	infoMap := map[string]interface{}{
@@ -259,29 +237,20 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
 	}
 
-	data, err := structpb.NewStruct(infoMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "Email domain updated successfully",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(infoMap, "failed to marshal response")
 }
 
 // DeleteEmailDomain deletes an email domain from blacklist
 func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmailDomainRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if req.Id == 0 {
-		return nil, status.Error(codes.InvalidArgument, "id is required")
+		return ErrorReply(http.StatusBadRequest, "id is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	var blacklist models.EmailBlacklist
@@ -290,35 +259,32 @@ func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmai
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Error(codes.NotFound, "email domain not found")
+			return ErrorReply(http.StatusNotFound, "email domain not found", nil), nil
 		}
 		global.Logger.Errorf("failed to get email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
 	}
 
 	err = db.Get().WithContext(queryCtx).Delete(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to delete email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to delete email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to delete email blacklist", err), err
 	}
 
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "Email domain deleted successfully",
-	}, nil
+	return MarshalAndReply(map[string]interface{}{"message": "Email domain deleted successfully"}, "failed to marshal response")
 }
 
 // BatchImportEmailDomains batch imports email domains
 func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.BatchImportEmailDomainsRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if len(req.Domains) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "domains is required")
+		return ErrorReply(http.StatusBadRequest, "domains is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Normalize and validate domains
@@ -352,7 +318,7 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 	}
 
 	if len(validDomains) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no valid domains to import")
+		return ErrorReply(http.StatusBadRequest, "no valid domains to import", nil), nil
 	}
 
 	// Check which domains already exist in blacklist
@@ -367,7 +333,6 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 	}
 
 	// Import new domains
-	added := 0
 	duplicate := 0
 	newDomains := make([]models.EmailBlacklist, 0)
 
@@ -389,9 +354,8 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 		err := db.Get().WithContext(queryCtx).CreateInBatches(newDomains, 100).Error
 		if err != nil {
 			global.Logger.Errorf("failed to batch import email domains: %v", err)
-			return nil, status.Error(codes.Internal, "failed to import email domains")
+			return ErrorReply(http.StatusInternalServerError, "failed to import email domains", err), err
 		}
-		added = len(newDomains)
 	}
 
 	resultMap := map[string]interface{}{
@@ -402,29 +366,20 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 		"invalid_domains": invalidDomains,
 	}
 
-	data, err := structpb.NewStruct(resultMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: fmt.Sprintf("Batch import completed: %d added, %d duplicate, %d invalid", added, duplicate, len(invalidDomains)),
-		Data:    data,
-	}, nil
+	return MarshalAndReply(resultMap, "failed to marshal response")
 }
 
 // ToggleEmailDomainStatus toggles email domain status (active/disabled)
 func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.ToggleEmailDomainStatusRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if req.Id == 0 {
-		return nil, status.Error(codes.InvalidArgument, "id is required")
+		return ErrorReply(http.StatusBadRequest, "id is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	var blacklist models.EmailBlacklist
@@ -433,10 +388,10 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Error(codes.NotFound, "email domain not found")
+			return ErrorReply(http.StatusNotFound, "email domain not found", nil), nil
 		}
 		global.Logger.Errorf("failed to get email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
 	}
 
 	// Toggle status
@@ -448,14 +403,14 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 	err = db.Get().WithContext(queryCtx).Model(&blacklist).Update("status", newStatus).Error
 	if err != nil {
 		global.Logger.Errorf("failed to toggle email blacklist status: %v", err)
-		return nil, status.Error(codes.Internal, "failed to toggle email blacklist status")
+		return ErrorReply(http.StatusInternalServerError, "failed to toggle email blacklist status", err), err
 	}
 
 	// Reload
 	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to reload email blacklist")
+		return ErrorReply(http.StatusInternalServerError, "failed to reload email blacklist", err), err
 	}
 
 	infoMap := map[string]interface{}{
@@ -468,21 +423,12 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
 	}
 
-	data, err := structpb.NewStruct(infoMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: fmt.Sprintf("Email domain status toggled to %s", newStatus),
-		Data:    data,
-	}, nil
+	return MarshalAndReply(infoMap, "failed to marshal response")
 }
 
 // GetEmailBlacklistStats gets email blacklist statistics
 func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Get total count
@@ -490,7 +436,7 @@ func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.
 	err := db.Get().WithContext(queryCtx).Model(&models.EmailBlacklist{}).Count(&totalCount).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count email blacklist: %v", err)
-		return nil, status.Error(codes.Internal, "failed to query email blacklist stats")
+		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist stats", err), err
 	}
 
 	// Get active count
@@ -513,29 +459,20 @@ func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.
 		"disabled_count": disabledCount,
 	}
 
-	data, err := structpb.NewStruct(statsMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(statsMap, "failed to marshal response")
 }
 
 // PreviewImportEmailDomains previews batch import email domains
 func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.PreviewImportEmailDomainsRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if len(req.Domains) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "domains is required")
+		return ErrorReply(http.StatusBadRequest, "domains is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	// Normalize and validate domains
@@ -576,7 +513,7 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 			Find(&existing).Error
 		if err != nil {
 			global.Logger.Errorf("failed to check existing domains: %v", err)
-			return nil, status.Error(codes.Internal, "failed to check existing domains")
+			return ErrorReply(http.StatusInternalServerError, "failed to check existing domains", err), err
 		}
 	}
 
@@ -604,29 +541,20 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 		"duplicate_domains": duplicateDomains,
 	}
 
-	data, err := structpb.NewStruct(resultMap)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "Preview completed",
-		Data:    data,
-	}, nil
+	return MarshalAndReply(resultMap, "failed to marshal response")
 }
 
 // BatchDeleteEmailDomains batch deletes email domains
 func (s *AdminService) BatchDeleteEmailDomains(ctx context.Context, req *pb.BatchDeleteEmailDomainsRequest) (*pb.Reply, error) {
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
 	}
 
 	if len(req.Ids) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ids is required")
+		return ErrorReply(http.StatusBadRequest, "ids is required", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
 	result := db.Get().WithContext(queryCtx).
@@ -635,21 +563,12 @@ func (s *AdminService) BatchDeleteEmailDomains(ctx context.Context, req *pb.Batc
 
 	if result.Error != nil {
 		global.Logger.Errorf("failed to batch delete email domains: %v", result.Error)
-		return nil, status.Error(codes.Internal, "failed to delete email domains")
+		return ErrorReply(http.StatusInternalServerError, "failed to delete email domains", result.Error), result.Error
 	}
 
 	response := map[string]interface{}{
 		"deleted": int64(result.RowsAffected),
 	}
 
-	data, err := structpb.NewStruct(response)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to marshal response")
-	}
-
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: fmt.Sprintf("Deleted %d email domains", result.RowsAffected),
-		Data:    data,
-	}, nil
+	return MarshalAndReply(response, "failed to marshal response")
 }

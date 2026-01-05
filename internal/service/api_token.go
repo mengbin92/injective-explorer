@@ -15,16 +15,11 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
-	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 
-	"github.com/bytedance/sonic"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
@@ -121,7 +116,7 @@ func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRe
 		Message:      "Token created successfully",
 	}
 
-	return s.marshalAndReply(response, "marshal create token response error")
+	return MarshalAndReply(response, "marshal create token response error")
 }
 
 // ListTokens lists all tokens for the authenticated user.
@@ -176,7 +171,7 @@ func (s *APITokenService) ListTokens(ctx context.Context, req *pb.ListTokensRequ
 		Tokens: tokenInfos,
 	}
 
-	return s.marshalAndReply(response, "marshal list tokens response error")
+	return MarshalAndReply(response, "marshal list tokens response error")
 }
 
 // DeleteToken deletes a token owned by the authenticated user.
@@ -226,7 +221,7 @@ func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRe
 		Message: "Token deleted successfully",
 	}
 
-	return s.marshalAndReply(response, "marshal delete token response error")
+	return MarshalAndReply(response, "marshal delete token response error")
 }
 
 // GetTokenUsage gets token usage statistics for a token owned by the authenticated user.
@@ -303,7 +298,7 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 		LastUsedAt:   lastUsedAt,
 	}
 
-	return s.marshalAndReply(response, "marshal token usage response error")
+	return MarshalAndReply(response, "marshal token usage response error")
 }
 
 // generateAPIToken generates a new API token.
@@ -360,77 +355,6 @@ func (s *APITokenService) getUserIDFromContext(ctx context.Context) string {
 	}
 
 	return ""
-}
-
-// errorReply creates a standardized error reply with sanitized error messages.
-func (s *APITokenService) errorReply(code int, message string, err error) *pb.Reply {
-	sanitizedErr := utils.SanitizeError(err, 200)
-	return &pb.Reply{
-		Code:    int32(code),
-		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
-	}
-}
-
-// marshalAndReply serializes the value and returns a success reply.
-// The value is converted to google.protobuf.Struct, allowing direct JSON object response.
-func (s *APITokenService) marshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
-	var structData *structpb.Struct
-	var err error
-
-	// Check if v is a proto.Message, use protoMessageToStructWithOptions if so
-	if msg, ok := v.(proto.Message); ok {
-		structData, err = s.protoMessageToStructWithOptions(msg, nil)
-	} else {
-		// For non-proto types (maps, etc.), use toStruct
-		structData, err = s.toStruct(v)
-	}
-
-	if err != nil {
-		global.Logger.Errorf("%s: %v", errorMsg, err)
-		return s.errorReply(http.StatusInternalServerError, errorMsg, err), err
-	}
-	return &pb.Reply{
-		Code:    int32(http.StatusOK),
-		Message: "success",
-		Data:    structData,
-	}, nil
-}
-
-// toStruct converts any value to google.protobuf.Struct.
-func (s *APITokenService) toStruct(v interface{}) (*structpb.Struct, error) {
-	jsonBytes, err := sonic.Marshal(v)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal to JSON")
-	}
-
-	var structData structpb.Struct
-	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
-	}
-
-	return &structData, nil
-}
-
-// protoMessageToStructWithOptions converts a protobuf message to google.protobuf.Struct.
-func (s *APITokenService) protoMessageToStructWithOptions(msg proto.Message, options *protojson.MarshalOptions) (*structpb.Struct, error) {
-	if options == nil {
-		options = &protojson.MarshalOptions{
-			UseProtoNames:   true,
-			EmitUnpopulated: false,
-		}
-	}
-
-	jsonBytes, err := options.Marshal(msg)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal proto message")
-	}
-
-	var structData structpb.Struct
-	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
-	}
-
-	return &structData, nil
 }
 
 // GetDashboardStats gets dashboard statistics for the authenticated user.
@@ -542,7 +466,7 @@ func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDash
 		DailyStats:   dailyStats,
 	}
 
-	return s.marshalAndReply(response, "marshal dashboard stats response error")
+	return MarshalAndReply(response, "marshal dashboard stats response error")
 }
 
 // ExportUsageLogs exports API usage logs to CSV format.
