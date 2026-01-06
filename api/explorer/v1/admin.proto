@@ -13,7 +13,7 @@ option java_package = "api.explorer.v1";
 // AdminService provides admin management services for API plans, IP management,
 // and email blacklist
 service AdminService {
-  // ========== 套餐管理 ==========
+  // ========== Plan Management ==========
   // GetPlan gets a plan by ID
   rpc GetPlan(GetPlanRequest) returns (Reply) {
     option (google.api.http) = {
@@ -51,7 +51,7 @@ service AdminService {
     };
   }
 
-  // ========== IP管理 ==========
+  // ========== IP Management ==========
   // ListIPRegistrationRecords lists IP registration records
   rpc ListIPRegistrationRecords(ListIPRegistrationRecordsRequest)
       returns (Reply) {
@@ -156,7 +156,7 @@ service AdminService {
     };
   }
 
-  // ========== 邮箱黑名单管理 ==========
+  // ========== Email Blacklist Management ==========
   // ListEmailBlacklist lists email blacklist domains
   rpc ListEmailBlacklist(ListEmailBlacklistRequest) returns (Reply) {
     option (google.api.http) = {
@@ -211,7 +211,8 @@ service AdminService {
   }
 
   // PreviewImportEmailDomains previews batch import email domains
-  rpc PreviewImportEmailDomains(PreviewImportEmailDomainsRequest) returns (Reply) {
+  rpc PreviewImportEmailDomains(PreviewImportEmailDomainsRequest)
+      returns (Reply) {
     option (google.api.http) = {
       post : "/api/v1/admin/email/blacklist/preview-import"
       body : "*"
@@ -227,7 +228,7 @@ service AdminService {
   }
 }
 
-// ========== 套餐管理相关消息 ==========
+// ========== Plan Management Messages ==========
 message GetPlanRequest { uint64 id = 1; }
 
 message ListPlansRequest {
@@ -237,29 +238,37 @@ message ListPlansRequest {
 }
 
 message CreatePlanRequest {
-  string name = 1;                                         // 套餐名称（必填，唯一）
-  string plan_type = 2 [ json_name = "plan_type" ];      // 套餐类型：free/paid（必填）
-  uint64 monthly_limit = 3 [ json_name = "monthly_limit" ]; // 月度调用限额（必填）
+  string name = 1; // Plan name (required, unique)
+  string plan_type = 2
+      [ json_name = "plan_type" ]; // Plan type: free/paid (required)
+  uint64 monthly_limit = 3
+      [ json_name = "monthly_limit" ]; // Monthly call limit (required)
   int32 rate_limit_per_second = 4
-      [ json_name = "rate_limit_per_second" ];            // 每秒请求限制（必填）
-  int32 max_tokens = 5 [ json_name = "max_tokens" ];     // 最大Token数（必填）
-  bool enable_webhook = 6 [ json_name = "enable_webhook" ]; // 是否启用Webhook（可选，默认false）
-  double price = 7;                                        // 套餐价格（可选，默认0.00）
-  string status = 8;                                       // 状态：active/inactive（可选，默认active）
+      [ json_name =
+            "rate_limit_per_second" ]; // Rate limit per second (required)
+  int32 max_tokens = 5
+      [ json_name = "max_tokens" ]; // Maximum number of tokens (required)
+  bool enable_webhook = 6 [
+    json_name = "enable_webhook"
+  ];                 // Whether to enable webhook (optional, default false)
+  double price = 7;  // Plan price (optional, default 0.00)
+  string status = 8; // Status: active/inactive (optional, default active)
+  string description = 9; // Plan description (optional)
 }
 
 message UpdatePlanRequest {
   uint64 id = 1;
-  string description = 2;                                   // 套餐描述
-  uint64 monthly_limit = 3 [ json_name = "monthly_limit" ]; // 月度调用限额
+  string description = 2; // Plan description
+  uint64 monthly_limit = 3
+      [ json_name = "monthly_limit" ]; // Monthly call limit
   int32 rate_limit_per_second = 4
-      [ json_name = "rate_limit_per_second" ];       // 每秒请求限制
-  int32 max_tokens = 5 [ json_name = "max_tokens" ]; // 最大Token数
+      [ json_name = "rate_limit_per_second" ];       // Rate limit per second
+  int32 max_tokens = 5 [ json_name = "max_tokens" ]; // Maximum number of tokens
 }
 
 message GetPlanStatsRequest { uint64 id = 1; }
 
-message PlanInfo {
+message PlanDTO {
   uint64 id = 1;
   string name = 2;
   string plan_type = 3 [ json_name = "plan_type" ];
@@ -269,20 +278,22 @@ message PlanInfo {
   int32 max_tokens = 7 [ json_name = "max_tokens" ];
   double price = 8;
   string status = 9;
-  int64 token_count = 10 [ json_name = "token_count" ]; // 使用此套餐的Token数
-  int64 user_count = 11 [ json_name = "user_count" ];   // 使用此套餐的用户数
+  int64 token_count = 10
+      [ json_name = "token_count" ]; // Number of tokens using this plan
+  int64 user_count = 11
+      [ json_name = "user_count" ]; // Number of users using this plan
   string created_at = 12 [ json_name = "created_at" ];
   string updated_at = 13 [ json_name = "updated_at" ];
 }
 
-// ========== IP管理相关消息 ==========
+// ========== IP Management Messages ==========
 message ListIPRegistrationRecordsRequest {
   PaginationRequest pagination = 1;
-  string ip_address = 2 [ json_name = "ip_address" ]; // 搜索IP地址
+  string ip_address = 2 [ json_name = "ip_address" ]; // Search IP address
   string status = 3;                                  // normal/blocked
   string time_range = 4 [ json_name = "time_range" ]; // today/7days/30days/all
   int32 min_register_count = 5
-      [ json_name = "min_register_count" ]; // 最小注册数
+      [ json_name = "min_register_count" ]; // Minimum registration count
 }
 
 message GetIPDetailRequest {
@@ -291,7 +302,7 @@ message GetIPDetailRequest {
 
 message ListIPBlacklistRequest {
   PaginationRequest pagination = 1;
-  string ip_address = 2 [ json_name = "ip_address" ]; // 搜索IP地址
+  string ip_address = 2 [ json_name = "ip_address" ]; // Search IP address
 }
 
 message AddIPToBlacklistRequest {
@@ -322,14 +333,17 @@ message BatchRemoveIPFromBlacklistRequest {
 
 message GetIPRequestMonitorRequest {
   string time_range = 1 [ json_name = "time_range" ]; // 1h/6h/24h/7d
-  string ip_address = 2 [ json_name = "ip_address" ]; // 搜索IP地址
+  string ip_address = 2 [ json_name = "ip_address" ]; // Search IP address
 }
 
 message UpdateIPRateLimitConfigRequest {
-  int32 ip_per_minute = 1 [ json_name = "ip_per_minute" ]; // 每分钟请求上限
-  int32 ip_per_hour = 2 [ json_name = "ip_per_hour" ];     // 每小时请求上限
+  int32 ip_per_minute = 1
+      [ json_name = "ip_per_minute" ]; // Requests per minute limit
+  int32 ip_per_hour = 2
+      [ json_name = "ip_per_hour" ]; // Requests per hour limit
   string block_type = 3
-      [ json_name = "block_type" ]; // 黑名单限制方式：all/register/api
+      [ json_name =
+            "block_type" ]; // Blacklist restriction type: all/register/api
 }
 
 message GetIPRecordsStatsRequest {
@@ -338,16 +352,18 @@ message GetIPRecordsStatsRequest {
 
 message ExportIPListRequest {
   string type = 1; // records/blacklist/monitor
-  string time_range = 2 [ json_name = "time_range" ]; // For monitor type: 1h/6h/24h/7d
+  string time_range = 2
+      [ json_name = "time_range" ]; // For monitor type: 1h/6h/24h/7d
 }
 
 message GetUsageErrorsRequest {
   PaginationRequest pagination = 1;
-  int32 status_code = 2 [ json_name = "status_code" ]; // Filter by status code (e.g., 400, 500)
+  int32 status_code = 2
+      [ json_name = "status_code" ]; // Filter by status code (e.g., 400, 500)
   string time_range = 3 [ json_name = "time_range" ]; // today/7days/30days/all
 }
 
-message IPRegistrationRecordInfo {
+message IPRegistrationRecordDTO {
   string ip_address = 1 [ json_name = "ip_address" ];
   string ip_location = 2 [ json_name = "ip_location" ];
   int64 register_count = 3 [ json_name = "register_count" ];
@@ -355,7 +371,7 @@ message IPRegistrationRecordInfo {
   string status = 5; // normal/blocked
 }
 
-message IPBlacklistInfo {
+message IPBlacklistDTO {
   uint64 id = 1;
   string ip_address = 2 [ json_name = "ip_address" ];
   string ip_location = 3 [ json_name = "ip_location" ];
@@ -367,49 +383,52 @@ message IPBlacklistInfo {
   string created_at = 9 [ json_name = "created_at" ];
 }
 
-message IPDetailInfo {
+message IPDetailDTO {
   string ip_address = 1 [ json_name = "ip_address" ];
   string ip_location = 2 [ json_name = "ip_location" ];
   string status = 3; // normal/blocked
   string first_register_time = 4 [ json_name = "first_register_time" ];
   int64 total_registers = 5 [ json_name = "total_registers" ];
-  repeated IPRegistrationAccount accounts = 6;
+  repeated IPRegistrationAccountDTO accounts = 6;
 }
 
-message IPRegistrationAccount {
+message IPRegistrationAccountDTO {
   string user_id = 1 [ json_name = "user_id" ];
   string email = 2;
   string username = 3;
   string register_time = 4 [ json_name = "register_time" ];
 }
 
-message IPRequestMonitorInfo {
+message IPRequestMonitorDTO {
   int64 total_requests = 1 [ json_name = "total_requests" ];
   int64 unique_ips = 2 [ json_name = "unique_ips" ];
   int64 rate_limited_count = 3 [ json_name = "rate_limited_count" ];
   int64 abnormal_ips = 4 [ json_name = "abnormal_ips" ];
-  repeated IPRequestTopInfo top_ips = 5 [ json_name = "top_ips" ];
-  repeated IPAbnormalInfo abnormal_ip_list = 6
+  repeated IPRequestTopDTO top_ips = 5 [ json_name = "top_ips" ];
+  repeated IPAbnormalDTO abnormal_ip_list = 6
       [ json_name = "abnormal_ip_list" ];
-  repeated IPRateLimitLog rate_limit_logs = 7 [ json_name = "rate_limit_logs" ];
+  repeated IPRateLimitLogDTO rate_limit_logs = 7
+      [ json_name = "rate_limit_logs" ];
 }
 
-message IPRequestTopInfo {
+message IPRequestTopDTO {
   int32 rank = 1;
   string ip_address = 2 [ json_name = "ip_address" ];
   int64 request_count = 3 [ json_name = "request_count" ];
   string status = 4; // normal/high_frequency/abnormal
 }
 
-message IPAbnormalInfo {
+message IPAbnormalDTO {
   string ip_address = 1 [ json_name = "ip_address" ];
   string ip_location = 2 [ json_name = "ip_location" ];
   string abnormal_type = 3
-      [ json_name = "abnormal_type" ]; // 请求量异常/频率超限/短时高频
+      [ json_name =
+            "abnormal_type" ]; // Abnormal request volume/Frequency limit
+                               // exceeded/High frequency in short time
   string detected_time = 4 [ json_name = "detected_time" ];
 }
 
-message IPRateLimitLog {
+message IPRateLimitLogDTO {
   string time = 1;
   string ip_address = 2 [ json_name = "ip_address" ];
   string endpoint = 3;
@@ -417,10 +436,10 @@ message IPRateLimitLog {
   int32 current_rate = 5 [ json_name = "current_rate" ];
 }
 
-// ========== 邮箱黑名单管理相关消息 ==========
+// ========== Email Blacklist Management Messages ==========
 message ListEmailBlacklistRequest {
   PaginationRequest pagination = 1;
-  string domain = 2; // 搜索域名
+  string domain = 2; // Search domain
   string status = 3; // active/disabled
 }
 
@@ -439,12 +458,12 @@ message UpdateEmailDomainRequest {
 message DeleteEmailDomainRequest { uint64 id = 1; }
 
 message BatchImportEmailDomainsRequest {
-  repeated string domains = 1; // 域名列表
+  repeated string domains = 1; // Domain list
 }
 
 message ToggleEmailDomainStatusRequest { uint64 id = 1; }
 
-message EmailBlacklistInfo {
+message EmailBlacklistDTO {
   uint64 id = 1;
   string domain = 2;
   string status = 3;
@@ -454,7 +473,7 @@ message EmailBlacklistInfo {
   string updated_at = 7 [ json_name = "updated_at" ];
 }
 
-message BatchImportResult {
+message BatchImportEmailDomainsDTO {
   int32 total = 1;
   int32 valid = 2;
   int32 invalid = 3;
@@ -464,33 +483,64 @@ message BatchImportResult {
 }
 
 message PreviewImportEmailDomainsRequest {
-  repeated string domains = 1; // 域名列表
+  repeated string domains = 1; // Domain list
 }
 
 message BatchDeleteEmailDomainsRequest {
-  repeated uint64 ids = 1; // 域名ID列表
+  repeated uint64 ids = 1; // Domain ID list
 }
 
-message IPRecordsStatsInfo {
+message BatchDeleteEmailDomainsDTO {
+  int64 deleted = 1; // Number of deleted items
+}
+
+message BatchAddIPToBlacklistDTO {
+  int32 added = 1;   // Number of successfully added items
+  int32 skipped = 2; // Number of skipped items (already exists)
+  int32 invalid = 3; // Number of invalid IPs
+  repeated string invalid_ips = 4
+      [ json_name = "invalid_ips" ]; // Invalid IP list
+}
+
+message BatchRemoveIPFromBlacklistDTO {
+  int64 removed = 1; // Number of removed items
+}
+
+message IPRateLimitConfigDTO {
+  int32 ip_per_minute = 1
+      [ json_name = "ip_per_minute" ]; // Requests per minute limit
+  int32 ip_per_hour = 2
+      [ json_name = "ip_per_hour" ]; // Requests per hour limit
+  string block_type = 3
+      [ json_name =
+            "block_type" ]; // Blacklist restriction type: all/register/api
+}
+
+message PlanStatsDTO {
+  int64 token_count = 1 [ json_name = "token_count" ]; // Number of tokens
+  int64 user_count = 2 [ json_name = "user_count" ];   // Number of users
+}
+
+message IPRecordsStatsDTO {
   int64 total_records = 1 [ json_name = "total_records" ];
   int64 today_new = 2 [ json_name = "today_new" ];
   int64 blocked_count = 3 [ json_name = "blocked_count" ];
   int64 normal_count = 4 [ json_name = "normal_count" ];
 }
 
-message IPBlacklistStatsInfo {
+message IPBlacklistStatsDTO {
   int64 total_count = 1 [ json_name = "total_count" ];
   int64 today_added = 2 [ json_name = "today_added" ];
   int64 total_blocked = 3 [ json_name = "total_blocked" ]; // Total block count
 }
 
-message EmailBlacklistStatsInfo {
+message EmailBlacklistStatsDTO {
   int64 total_count = 1 [ json_name = "total_count" ];
   int64 active_count = 2 [ json_name = "active_count" ];
   int64 disabled_count = 3 [ json_name = "disabled_count" ];
 }
 
-message UsageErrorInfo {
+message UsageErrorDTO {
   string time = 1;
   string ip_address = 2 [ json_name = "ip_address" ];
   string endpoint = 3;

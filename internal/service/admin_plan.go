@@ -4,7 +4,6 @@ package service
 import (
 	"context"
 	"net/http"
-	"time"
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
@@ -44,22 +43,10 @@ func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb
 		userCount = 0
 	}
 
-	planMap := map[string]interface{}{
-		"id":                    uint64(plan.ID),
-		"name":                  plan.Name,
-		"plan_type":             plan.PlanType,
-		"monthly_limit":         plan.MonthlyLimit,
-		"rate_limit_per_second": int32(plan.RateLimitPerSecond),
-		"max_tokens":            int32(plan.MaxTokens),
-		"price":                 plan.Price,
-		"status":                plan.Status,
-		"token_count":           tokenCount,
-		"user_count":            userCount,
-		"created_at":            plan.CreatedAt.Format(time.RFC3339),
-		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
-	}
+	// Convert to DTO
+	planInfo := models.ToPlanDTO(&plan, tokenCount, userCount)
 
-	return MarshalAndReply(planMap, "failed to marshal response")
+	return MarshalAndReply(planInfo, "failed to marshal response")
 }
 
 // ListPlans lists all plans
@@ -111,38 +98,14 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 		return ErrorReply(http.StatusInternalServerError, "failed to query plans", err), err
 	}
 
-	// Convert plans to []map[string]interface{}
-	planInfos := make([]map[string]interface{}, 0, len(plans))
-	for _, plan := range plans {
-		tokenCount, userCount, _ := s.getPlanStats(queryCtx, plan.ID)
-		planInfos = append(planInfos, map[string]interface{}{
-			"id":                    uint64(plan.ID),
-			"name":                  plan.Name,
-			"plan_type":             plan.PlanType,
-			"monthly_limit":         plan.MonthlyLimit,
-			"rate_limit_per_second": int32(plan.RateLimitPerSecond),
-			"max_tokens":            int32(plan.MaxTokens),
-			"price":                 plan.Price,
-			"status":                plan.Status,
-			"token_count":           tokenCount,
-			"user_count":            userCount,
-			"created_at":            plan.CreatedAt.Format(time.RFC3339),
-			"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
-		})
+	// Convert plans to DTOs
+	getStatsFunc := func(planID uint) (int64, int64, error) {
+		return s.getPlanStats(queryCtx, planID)
 	}
+	planInfos := models.ToPlanDTOs(plans, getStatsFunc)
 
-	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
-	response := map[string]interface{}{
-		"plans": planInfos,
-		"pagination": map[string]interface{}{
-			"page":        pagination.Page,
-			"page_size":   pagination.PageSize,
-			"total":       total,
-			"total_pages": totalPages,
-			"has_prev":    pagination.Page > 1,
-			"has_next":    pagination.Page < totalPages,
-		},
-	}
+	// Build paginated response using buildPaginatedResponse
+	response := buildPaginatedResponse(planInfos, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(plans))
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
@@ -215,6 +178,7 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 	plan := &models.APIPlan{
 		Name:               req.Name,
 		PlanType:           req.PlanType,
+		Description:        req.Description,
 		MonthlyLimit:       req.MonthlyLimit,
 		RateLimitPerSecond: int(req.RateLimitPerSecond),
 		MaxTokens:          int(req.MaxTokens),
@@ -232,22 +196,10 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 	// Get plan statistics (will be 0 for new plan)
 	tokenCount, userCount, _ := s.getPlanStats(queryCtx, plan.ID)
 
-	planMap := map[string]interface{}{
-		"id":                    uint64(plan.ID),
-		"name":                  plan.Name,
-		"plan_type":             plan.PlanType,
-		"monthly_limit":         plan.MonthlyLimit,
-		"rate_limit_per_second": int32(plan.RateLimitPerSecond),
-		"max_tokens":            int32(plan.MaxTokens),
-		"price":                 plan.Price,
-		"status":                plan.Status,
-		"token_count":           tokenCount,
-		"user_count":            userCount,
-		"created_at":            plan.CreatedAt.Format(time.RFC3339),
-		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
-	}
+	// Convert to DTO
+	planInfo := models.ToPlanDTO(plan, tokenCount, userCount)
 
-	return MarshalAndReply(planMap, "failed to marshal response")
+	return MarshalAndReply(planInfo, "failed to marshal response")
 }
 
 // UpdatePlan updates a plan configuration
@@ -271,8 +223,10 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 	}
 
 	// Update fields
-	// Note: description field is not in the APIPlan model, so we skip it
 	updates := make(map[string]interface{})
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
 	if req.MonthlyLimit > 0 {
 		updates["monthly_limit"] = req.MonthlyLimit
 	}
@@ -301,20 +255,13 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 		return ErrorReply(http.StatusInternalServerError, "failed to reload plan", err), err
 	}
 
-	planMap := map[string]interface{}{
-		"id":                    uint64(plan.ID),
-		"name":                  plan.Name,
-		"plan_type":             plan.PlanType,
-		"monthly_limit":         plan.MonthlyLimit,
-		"rate_limit_per_second": int32(plan.RateLimitPerSecond),
-		"max_tokens":            int32(plan.MaxTokens),
-		"price":                 plan.Price,
-		"status":                plan.Status,
-		"created_at":            plan.CreatedAt.Format(time.RFC3339),
-		"updated_at":            plan.UpdatedAt.Format(time.RFC3339),
-	}
+	// Get plan statistics
+	tokenCount, userCount, _ := s.getPlanStats(queryCtx, plan.ID)
 
-	return MarshalAndReply(planMap, "failed to marshal response")
+	// Convert to DTO
+	planInfo := models.ToPlanDTO(&plan, tokenCount, userCount)
+
+	return MarshalAndReply(planInfo, "failed to marshal response")
 }
 
 // GetPlanStats gets plan usage statistics
@@ -333,9 +280,9 @@ func (s *AdminService) GetPlanStats(ctx context.Context, req *pb.GetPlanStatsReq
 		return ErrorReply(http.StatusInternalServerError, "failed to get plan stats", err), err
 	}
 
-	response := map[string]interface{}{
-		"token_count": tokenCount,
-		"user_count":  userCount,
+	response := &pb.PlanStatsDTO{
+		TokenCount: tokenCount,
+		UserCount:  userCount,
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")

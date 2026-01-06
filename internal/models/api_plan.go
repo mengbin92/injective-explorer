@@ -17,6 +17,8 @@ type APIPlan struct {
 	Name string `gorm:"column:name;type:varchar(50);not null;uniqueIndex" json:"name"`
 	// PlanType is the plan type: free or paid
 	PlanType string `gorm:"column:plan_type;type:varchar(20);not null" json:"plan_type"`
+	// Description is the plan description
+	Description string `gorm:"column:description;type:text" json:"description"`
 	// MonthlyLimit is the monthly API call limit
 	MonthlyLimit uint64 `gorm:"column:monthly_limit;type:bigint unsigned;not null" json:"monthly_limit"`
 	// RateLimitPerSecond is the rate limit per second

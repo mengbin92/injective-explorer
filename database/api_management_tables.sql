@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS `api_plans` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(50) NOT NULL UNIQUE COMMENT '套餐名称',
   `plan_type` VARCHAR(20) NOT NULL COMMENT '套餐类型：free/paid',
+  `description` TEXT NULL COMMENT '套餐描述',
   `monthly_limit` BIGINT UNSIGNED NOT NULL COMMENT '月度调用限额',
   `rate_limit_per_second` INT NOT NULL COMMENT '每秒请求限制',
   `max_tokens` INT NOT NULL COMMENT '最大Token数',

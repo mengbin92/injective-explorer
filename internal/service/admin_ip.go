@@ -123,35 +123,25 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 		blacklistMap[b.IPAddress] = true
 	}
 
-	// Convert to response format
-	records := make([]map[string]interface{}, 0, len(results))
+	// Convert to DTOs
+	records := make([]*pb.IPRegistrationRecordDTO, 0, len(results))
 	for _, r := range results {
 		status := "normal"
 		if blacklistMap[r.IPAddress] {
 			status = "blocked"
 		}
 
-		records = append(records, map[string]interface{}{
-			"ip_address":         r.IPAddress,
-			"ip_location":        r.IPLocation,
-			"register_count":     r.RegisterCount,
-			"last_register_time": r.LastRegisterTime.Format(time.RFC3339),
-			"status":             status,
-		})
+		records = append(records, models.ToIPRegistrationRecordDTO(
+			r.IPAddress,
+			r.IPLocation,
+			r.RegisterCount,
+			r.LastRegisterTime,
+			status,
+		))
 	}
 
-	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
-	response := map[string]interface{}{
-		"records": records,
-		"pagination": map[string]interface{}{
-			"page":        pagination.Page,
-			"page_size":   pagination.PageSize,
-			"total":       total,
-			"total_pages": totalPages,
-			"has_prev":    pagination.Page > 1,
-			"has_next":    pagination.Page < totalPages,
-		},
-	}
+	// Build paginated response using buildPaginatedResponse
+	response := buildPaginatedResponse(records, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(results))
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
@@ -204,27 +194,27 @@ func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailReque
 	// Get first and last registration time
 	firstTime := records[len(records)-1].CreatedAt
 
-	// Convert accounts to []map[string]interface{}
-	accountsList := make([]map[string]interface{}, 0, len(records))
+	// Convert accounts to DTOs
+	accountsList := make([]*pb.IPRegistrationAccountDTO, 0, len(records))
 	for _, r := range records {
-		accountsList = append(accountsList, map[string]interface{}{
-			"user_id":       r.UserID,
-			"email":         r.Email,
-			"username":      "", // Username not available in Account model
-			"register_time": r.CreatedAt.Format(time.RFC3339),
-		})
+		accountsList = append(accountsList, models.ToIPRegistrationAccountDTO(
+			r.UserID,
+			r.Email,
+			r.CreatedAt,
+		))
 	}
 
-	detailMap := map[string]interface{}{
-		"ip_address":          req.IpAddress,
-		"ip_location":         ipLocation,
-		"status":              ipStatus,
-		"first_register_time": firstTime.Format(time.RFC3339),
-		"total_registers":     int64(len(records)),
-		"accounts":            accountsList,
-	}
+	// Convert to DTO
+	detailInfo := models.ToIPDetailDTO(
+		req.IpAddress,
+		ipLocation,
+		ipStatus,
+		firstTime,
+		int64(len(records)),
+		accountsList,
+	)
 
-	return MarshalAndReply(detailMap, "failed to marshal response")
+	return MarshalAndReply(detailInfo, "failed to marshal response")
 }
 
 // ListIPBlacklist lists IP blacklist
@@ -272,34 +262,11 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 		return ErrorReply(http.StatusInternalServerError, "failed to query IP blacklist", err), err
 	}
 
-	// Convert blacklist to []map[string]interface{}
-	infos := make([]map[string]interface{}, 0, len(blacklist))
-	for _, b := range blacklist {
-		infos = append(infos, map[string]interface{}{
-			"id":            uint64(b.ID),
-			"ip_address":    b.IPAddress,
-			"ip_location":   b.IPLocation,
-			"reason":        b.Reason,
-			"reason_text":   b.ReasonText,
-			"block_count":   b.BlockCount,
-			"operator_name": b.OperatorName,
-			"block_type":    b.BlockType,
-			"created_at":    b.CreatedAt.Format(time.RFC3339),
-		})
-	}
+	// Convert to DTOs
+	infos := models.ToIPBlacklistDTOs(blacklist)
 
-	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
-	response := map[string]interface{}{
-		"blacklist": infos,
-		"pagination": map[string]interface{}{
-			"page":        pagination.Page,
-			"page_size":   pagination.PageSize,
-			"total":       total,
-			"total_pages": totalPages,
-			"has_prev":    pagination.Page > 1,
-			"has_next":    pagination.Page < totalPages,
-		},
-	}
+	// Build paginated response using buildPaginatedResponse
+	response := buildPaginatedResponse(infos, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(blacklist))
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
@@ -371,19 +338,10 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 		return ErrorReply(http.StatusInternalServerError, "failed to add IP to blacklist", err), err
 	}
 
-	infoMap := map[string]interface{}{
-		"id":            uint64(blacklist.ID),
-		"ip_address":    blacklist.IPAddress,
-		"ip_location":   blacklist.IPLocation,
-		"reason":        blacklist.Reason,
-		"reason_text":   blacklist.ReasonText,
-		"block_count":   blacklist.BlockCount,
-		"operator_name": blacklist.OperatorName,
-		"block_type":    blacklist.BlockType,
-		"created_at":    blacklist.CreatedAt.Format(time.RFC3339),
-	}
+	// Convert to DTO
+	info := models.ToIPBlacklistDTO(blacklist)
 
-	return MarshalAndReply(infoMap, "failed to marshal response")
+	return MarshalAndReply(info, "failed to marshal response")
 }
 
 // RemoveIPFromBlacklist removes an IP from blacklist
@@ -508,11 +466,11 @@ func (s *AdminService) BatchAddIPToBlacklist(ctx context.Context, req *pb.BatchA
 		added++
 	}
 
-	response := map[string]interface{}{
-		"added":       added,
-		"skipped":     skipped,
-		"invalid":     len(invalidIPs),
-		"invalid_ips": invalidIPs,
+	response := &pb.BatchAddIPToBlacklistDTO{
+		Added:     int32(added),
+		Skipped:   int32(skipped),
+		Invalid:   int32(len(invalidIPs)),
+		InvalidIps: invalidIPs,
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")
@@ -540,8 +498,8 @@ func (s *AdminService) BatchRemoveIPFromBlacklist(ctx context.Context, req *pb.B
 		return ErrorReply(http.StatusInternalServerError, "failed to remove IPs from blacklist", result.Error), result.Error
 	}
 
-	response := map[string]interface{}{
-		"removed": int64(result.RowsAffected),
+	response := &pb.BatchRemoveIPFromBlacklistDTO{
+		Removed: result.RowsAffected,
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")
@@ -617,8 +575,8 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 	// }
 
 	// Build top IPs list with status
-	topIPInfos := make([]map[string]interface{}, 0, len(topIPs))
-	abnormalIPs := make([]map[string]interface{}, 0)
+	topIPInfos := make([]*pb.IPRequestTopDTO, 0, len(topIPs))
+	abnormalIPs := make([]*pb.IPAbnormalDTO, 0)
 	for i, topIP := range topIPs {
 		ipStatus := "normal"
 		abnormalType := ""
@@ -627,22 +585,22 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 		requestsPerHour := float64(topIP.RequestCount) / (float64(time.Since(startTime)) / float64(time.Hour))
 		if requestsPerHour > float64(ipPerHour)*2 {
 			ipStatus = "abnormal"
-			abnormalType = "请求量异常"
-			abnormalIPs = append(abnormalIPs, map[string]interface{}{
-				"ip_address":    topIP.IPAddress,
-				"ip_location":   "", // Could be fetched from registration records
-				"abnormal_type": abnormalType,
-				"detected_time": now.Format(time.RFC3339),
+			abnormalType = "Abnormal request volume"
+			abnormalIPs = append(abnormalIPs, &pb.IPAbnormalDTO{
+				IpAddress:    topIP.IPAddress,
+				IpLocation:   "", // Could be fetched from registration records
+				AbnormalType: abnormalType,
+				DetectedTime: now.Format(time.RFC3339),
 			})
 		} else if requestsPerHour > float64(ipPerHour) {
 			ipStatus = "high_frequency"
 		}
 
-		topIPInfos = append(topIPInfos, map[string]interface{}{
-			"rank":          int32(i + 1),
-			"ip_address":    topIP.IPAddress,
-			"request_count": topIP.RequestCount,
-			"status":        ipStatus,
+		topIPInfos = append(topIPInfos, &pb.IPRequestTopDTO{
+			Rank:         int32(i + 1),
+			IpAddress:    topIP.IPAddress,
+			RequestCount: topIP.RequestCount,
+			Status:       ipStatus,
 		})
 	}
 
@@ -659,29 +617,29 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 		// Continue with empty logs if query fails
 	}
 
-	// Convert rate limit logs to []map[string]interface{}
-	logInfosList := make([]map[string]interface{}, 0, len(rateLimitLogs))
+	// Convert rate limit logs to proto structures
+	logInfosList := make([]*pb.IPRateLimitLogDTO, 0, len(rateLimitLogs))
 	for _, log := range rateLimitLogs {
-		logInfosList = append(logInfosList, map[string]interface{}{
-			"time":         log.CreatedAt.Format(time.RFC3339),
-			"ip_address":   log.IPAddress,
-			"endpoint":     log.Endpoint,
-			"limit_reason": "IP 频率超限",
-			"current_rate": 0, // Could be calculated from logs
+		logInfosList = append(logInfosList, &pb.IPRateLimitLogDTO{
+			Time:         log.CreatedAt.Format(time.RFC3339),
+			IpAddress:    log.IPAddress,
+			Endpoint:     log.Endpoint,
+			LimitReason:  "IP rate limit exceeded",
+			CurrentRate:  0, // Could be calculated from logs
 		})
 	}
 
-	monitorMap := map[string]interface{}{
-		"total_requests":     totalRequests,
-		"unique_ips":         uniqueIPs,
-		"rate_limited_count": rateLimitedCount,
-		"abnormal_ips":       int64(len(abnormalIPs)),
-		"top_ips":            topIPInfos,
-		"abnormal_ip_list":   abnormalIPs,
-		"rate_limit_logs":    logInfosList,
+	monitorInfo := &pb.IPRequestMonitorDTO{
+		TotalRequests:    totalRequests,
+		UniqueIps:        uniqueIPs,
+		RateLimitedCount: rateLimitedCount,
+		AbnormalIps:      int64(len(abnormalIPs)),
+		TopIps:           topIPInfos,
+		AbnormalIpList:   abnormalIPs,
+		RateLimitLogs:    logInfosList,
 	}
 
-	return MarshalAndReply(monitorMap, "failed to marshal response")
+	return MarshalAndReply(monitorInfo, "failed to marshal response")
 }
 
 // GetIPRateLimitConfig gets IP rate limit configuration
@@ -698,10 +656,10 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 	// 	ipPerHour = config.APIManagement.RateLimit.IpPerHour
 	// }
 
-	response := map[string]interface{}{
-		"ip_per_minute": ipPerMinute,
-		"ip_per_hour":   ipPerHour,
-		"block_type":    blockType,
+	response := &pb.IPRateLimitConfigDTO{
+		IpPerMinute: ipPerMinute,
+		IpPerHour:   ipPerHour,
+		BlockType:   blockType,
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")
@@ -725,10 +683,10 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 	// For now, we'll just return success
 	// TODO: Implement config persistence
 
-	response := map[string]interface{}{
-		"ip_per_minute": req.IpPerMinute,
-		"ip_per_hour":   req.IpPerHour,
-		"block_type":    req.BlockType,
+	response := &pb.IPRateLimitConfigDTO{
+		IpPerMinute: req.IpPerMinute,
+		IpPerHour:   req.IpPerHour,
+		BlockType:   req.BlockType,
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")
@@ -794,14 +752,14 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 		normalCount = 0
 	}
 
-	statsMap := map[string]interface{}{
-		"total_records": totalRecords,
-		"today_new":     todayNew,
-		"blocked_count": blockedCount,
-		"normal_count":  normalCount,
+	stats := &pb.IPRecordsStatsDTO{
+		TotalRecords: totalRecords,
+		TodayNew:     todayNew,
+		BlockedCount: blockedCount,
+		NormalCount:  normalCount,
 	}
 
-	return MarshalAndReply(statsMap, "failed to marshal response")
+	return MarshalAndReply(stats, "failed to marshal response")
 }
 
 // GetIPBlacklistStats gets IP blacklist statistics
@@ -833,13 +791,13 @@ func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Emp
 		Select("COALESCE(SUM(block_count), 0)").
 		Scan(&totalBlocked)
 
-	statsMap := map[string]interface{}{
-		"total_count":   totalCount,
-		"today_added":   todayAdded,
-		"total_blocked": totalBlocked,
+	stats := &pb.IPBlacklistStatsDTO{
+		TotalCount:   totalCount,
+		TodayAdded:   todayAdded,
+		TotalBlocked: totalBlocked,
 	}
 
-	return MarshalAndReply(statsMap, "failed to marshal response")
+	return MarshalAndReply(stats, "failed to marshal response")
 }
 
 // ExportIPList exports IP list (records/blacklist/monitor)

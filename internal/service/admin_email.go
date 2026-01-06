@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"time"
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
@@ -71,31 +70,11 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
 	}
 
-	infos := make([]*pb.EmailBlacklistInfo, 0, len(blacklist))
-	for _, b := range blacklist {
-		infos = append(infos, &pb.EmailBlacklistInfo{
-			Id:         uint64(b.ID),
-			Domain:     b.Domain,
-			Status:     b.Status,
-			BlockCount: b.BlockCount,
-			Note:       b.Note,
-			CreatedAt:  b.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:  b.UpdatedAt.Format(time.RFC3339),
-		})
-	}
+	// Convert to DTOs
+	infos := models.ToEmailBlacklistDTOs(blacklist)
 
-	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
-	response := map[string]interface{}{
-		"domains": infos,
-		"pagination": &pb.PaginationInfo{
-			Page:       pagination.Page,
-			PageSize:   pagination.PageSize,
-			Total:      total,
-			TotalPages: totalPages,
-			HasPrev:    pagination.Page > 1,
-			HasNext:    pagination.Page < totalPages,
-		},
-	}
+	// Build paginated response using buildPaginatedResponse
+	response := buildPaginatedResponse(infos, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(blacklist))
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
@@ -112,9 +91,7 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 
 	// Normalize domain (lowercase, trim)
 	domain := strings.ToLower(strings.TrimSpace(req.Domain))
-	if strings.HasPrefix(domain, "@") {
-		domain = domain[1:]
-	}
+	domain = strings.TrimPrefix(domain, "@")
 
 	// Validate domain format
 	if !domainRegex.MatchString(domain) {
@@ -160,17 +137,10 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 		return ErrorReply(http.StatusInternalServerError, "failed to add email domain to blacklist", err), err
 	}
 
-	infoMap := map[string]interface{}{
-		"id":          uint64(blacklist.ID),
-		"domain":      blacklist.Domain,
-		"status":      blacklist.Status,
-		"block_count": blacklist.BlockCount,
-		"note":        blacklist.Note,
-		"created_at":  blacklist.CreatedAt.Format(time.RFC3339),
-		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
-	}
+	// Convert to DTO
+	info := models.ToEmailBlacklistDTO(blacklist)
 
-	return MarshalAndReply(infoMap, "failed to marshal response")
+	return MarshalAndReply(info, "failed to marshal response")
 }
 
 // UpdateEmailDomain updates an email domain
@@ -227,17 +197,10 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 		return ErrorReply(http.StatusInternalServerError, "failed to reload email blacklist", err), err
 	}
 
-	infoMap := map[string]interface{}{
-		"id":          uint64(blacklist.ID),
-		"domain":      blacklist.Domain,
-		"status":      blacklist.Status,
-		"block_count": blacklist.BlockCount,
-		"note":        blacklist.Note,
-		"created_at":  blacklist.CreatedAt.Format(time.RFC3339),
-		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
-	}
+	// Convert to DTO
+	info := models.ToEmailBlacklistDTO(&blacklist)
 
-	return MarshalAndReply(infoMap, "failed to marshal response")
+	return MarshalAndReply(info, "failed to marshal response")
 }
 
 // DeleteEmailDomain deletes an email domain from blacklist
@@ -271,7 +234,12 @@ func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmai
 		return ErrorReply(http.StatusInternalServerError, "failed to delete email blacklist", err), err
 	}
 
-	return MarshalAndReply(map[string]interface{}{"message": "Email domain deleted successfully"}, "failed to marshal response")
+	// Return simple success response
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "Email domain deleted successfully",
+		Data:    nil,
+	}, nil
 }
 
 // BatchImportEmailDomains batch imports email domains
@@ -298,9 +266,7 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 		if domain == "" {
 			continue
 		}
-		if strings.HasPrefix(domain, "@") {
-			domain = domain[1:]
-		}
+		domain = strings.TrimPrefix(domain, "@")
 
 		// Check for duplicates in this batch
 		if domainSet[domain] {
@@ -358,15 +324,15 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 		}
 	}
 
-	resultMap := map[string]interface{}{
-		"total":           int32(len(req.Domains)),
-		"valid":           int32(len(validDomains)),
-		"invalid":         int32(len(invalidDomains)),
-		"duplicate":       int32(duplicate),
-		"invalid_domains": invalidDomains,
+	result := &pb.BatchImportEmailDomainsDTO{
+		Total:          int32(len(req.Domains)),
+		Valid:          int32(len(validDomains)),
+		Invalid:        int32(len(invalidDomains)),
+		Duplicate:      int32(duplicate),
+		InvalidDomains: invalidDomains,
 	}
 
-	return MarshalAndReply(resultMap, "failed to marshal response")
+	return MarshalAndReply(result, "failed to marshal response")
 }
 
 // ToggleEmailDomainStatus toggles email domain status (active/disabled)
@@ -413,17 +379,10 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 		return ErrorReply(http.StatusInternalServerError, "failed to reload email blacklist", err), err
 	}
 
-	infoMap := map[string]interface{}{
-		"id":          uint64(blacklist.ID),
-		"domain":      blacklist.Domain,
-		"status":      blacklist.Status,
-		"block_count": blacklist.BlockCount,
-		"note":        blacklist.Note,
-		"created_at":  blacklist.CreatedAt.Format(time.RFC3339),
-		"updated_at":  blacklist.UpdatedAt.Format(time.RFC3339),
-	}
+	// Convert to DTO
+	info := models.ToEmailBlacklistDTO(&blacklist)
 
-	return MarshalAndReply(infoMap, "failed to marshal response")
+	return MarshalAndReply(info, "failed to marshal response")
 }
 
 // GetEmailBlacklistStats gets email blacklist statistics
@@ -453,13 +412,13 @@ func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.
 		Where("status = ?", "disabled").
 		Count(&disabledCount)
 
-	statsMap := map[string]interface{}{
-		"total_count":    totalCount,
-		"active_count":   activeCount,
-		"disabled_count": disabledCount,
+	stats := &pb.EmailBlacklistStatsDTO{
+		TotalCount:    totalCount,
+		ActiveCount:   activeCount,
+		DisabledCount: disabledCount,
 	}
 
-	return MarshalAndReply(statsMap, "failed to marshal response")
+	return MarshalAndReply(stats, "failed to marshal response")
 }
 
 // PreviewImportEmailDomains previews batch import email domains
@@ -486,9 +445,7 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 		if domain == "" {
 			continue
 		}
-		if strings.HasPrefix(domain, "@") {
-			domain = domain[1:]
-		}
+		domain = strings.TrimPrefix(domain, "@")
 
 		// Check for duplicates in this batch
 		if domainSet[domain] {
@@ -532,16 +489,16 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 		}
 	}
 
-	resultMap := map[string]interface{}{
-		"total":             int32(len(req.Domains)),
-		"valid":             int32(len(validDomains)),
-		"invalid":           int32(len(invalidDomains)),
-		"duplicate":         int32(len(duplicateDomains)),
-		"invalid_domains":   invalidDomains,
-		"duplicate_domains": duplicateDomains,
+	result := &pb.BatchImportEmailDomainsDTO{
+		Total:            int32(len(req.Domains)),
+		Valid:            int32(len(validDomains)),
+		Invalid:          int32(len(invalidDomains)),
+		Duplicate:        int32(len(duplicateDomains)),
+		InvalidDomains:   invalidDomains,
+		DuplicateDomains: duplicateDomains,
 	}
 
-	return MarshalAndReply(resultMap, "failed to marshal response")
+	return MarshalAndReply(result, "failed to marshal response")
 }
 
 // BatchDeleteEmailDomains batch deletes email domains
@@ -566,8 +523,8 @@ func (s *AdminService) BatchDeleteEmailDomains(ctx context.Context, req *pb.Batc
 		return ErrorReply(http.StatusInternalServerError, "failed to delete email domains", result.Error), result.Error
 	}
 
-	response := map[string]interface{}{
-		"deleted": int64(result.RowsAffected),
+	response := &pb.BatchDeleteEmailDomainsDTO{
+		Deleted: result.RowsAffected,
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")

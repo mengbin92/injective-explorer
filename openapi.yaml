@@ -96,7 +96,7 @@ paths:
             tags:
                 - AdminService
             description: |-
-                ========== 邮箱黑名单管理 ==========
+                ========== Email Blacklist Management ==========
                  ListEmailBlacklist lists email blacklist domains
             operationId: AdminService_ListEmailBlacklist
             parameters:
@@ -499,7 +499,7 @@ paths:
             tags:
                 - AdminService
             description: |-
-                ========== IP管理 ==========
+                ========== IP Management ==========
                  ListIPRegistrationRecords lists IP registration records
             operationId: AdminService_ListIPRegistrationRecords
             parameters:
@@ -570,7 +570,7 @@ paths:
             tags:
                 - AdminService
             description: |-
-                ========== 套餐管理 ==========
+                ========== Plan Management ==========
                  GetPlan gets a plan by ID
             operationId: AdminService_GetPlan
             parameters:
@@ -1746,6 +1746,8 @@ components:
                     type: number
                     format: double
                 status:
+                    type: string
+                description:
                     type: string
         api.explorer.v1.CreateTokenRequest:
             type: object

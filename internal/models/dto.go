@@ -515,3 +515,206 @@ func ToEVMTransactionDTOs(detailsList []*chain.TransactionDetails, txMap map[str
 	}
 	return dtos
 }
+
+// ToEmailBlacklistDTO converts an EmailBlacklist model to EmailBlacklistDTO proto message.
+func ToEmailBlacklistDTO(blacklist *EmailBlacklist) *pb.EmailBlacklistDTO {
+	if blacklist == nil {
+		return nil
+	}
+
+	var createdAt, updatedAt string
+	if !blacklist.CreatedAt.IsZero() {
+		createdAt = blacklist.CreatedAt.Format(time.RFC3339)
+	}
+	if !blacklist.UpdatedAt.IsZero() {
+		updatedAt = blacklist.UpdatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.EmailBlacklistDTO{
+		Id:         uint64(blacklist.ID),
+		Domain:     blacklist.Domain,
+		Status:     blacklist.Status,
+		BlockCount: blacklist.BlockCount,
+		Note:       blacklist.Note,
+		CreatedAt:  createdAt,
+		UpdatedAt:  updatedAt,
+	}
+}
+
+// ToEmailBlacklistDTOs converts a slice of EmailBlacklist models to EmailBlacklistDTO proto messages.
+func ToEmailBlacklistDTOs(blacklist []EmailBlacklist) []*pb.EmailBlacklistDTO {
+	if blacklist == nil {
+		return nil
+	}
+	dtos := make([]*pb.EmailBlacklistDTO, 0, len(blacklist))
+	for _, b := range blacklist {
+		dtos = append(dtos, ToEmailBlacklistDTO(&b))
+	}
+	return dtos
+}
+
+// ToPlanDTO converts an APIPlan model to PlanDTO proto message.
+func ToPlanDTO(plan *APIPlan, tokenCount, userCount int64) *pb.PlanDTO {
+	if plan == nil {
+		return nil
+	}
+
+	var createdAt, updatedAt string
+	if !plan.CreatedAt.IsZero() {
+		createdAt = plan.CreatedAt.Format(time.RFC3339)
+	}
+	if !plan.UpdatedAt.IsZero() {
+		updatedAt = plan.UpdatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.PlanDTO{
+		Id:                 uint64(plan.ID),
+		Name:               plan.Name,
+		PlanType:           plan.PlanType,
+		Description:        plan.Description,
+		MonthlyLimit:       plan.MonthlyLimit,
+		RateLimitPerSecond: int32(plan.RateLimitPerSecond),
+		MaxTokens:          int32(plan.MaxTokens),
+		Price:              plan.Price,
+		Status:             plan.Status,
+		TokenCount:         tokenCount,
+		UserCount:          userCount,
+		CreatedAt:          createdAt,
+		UpdatedAt:          updatedAt,
+	}
+}
+
+// ToPlanDTOs converts a slice of APIPlan models to PlanDTO proto messages.
+// It requires a function to get stats for each plan.
+func ToPlanDTOs(plans []APIPlan, getStats func(uint) (int64, int64, error)) []*pb.PlanDTO {
+	if plans == nil {
+		return nil
+	}
+	dtos := make([]*pb.PlanDTO, 0, len(plans))
+	for _, plan := range plans {
+		tokenCount, userCount := int64(0), int64(0)
+		if getStats != nil {
+			tokenCount, userCount, _ = getStats(plan.ID)
+		}
+		dtos = append(dtos, ToPlanDTO(&plan, tokenCount, userCount))
+	}
+	return dtos
+}
+
+// ToIPBlacklistDTO converts an IPBlacklist model to IPBlacklistDTO proto message.
+func ToIPBlacklistDTO(blacklist *IPBlacklist) *pb.IPBlacklistDTO {
+	if blacklist == nil {
+		return nil
+	}
+
+	var createdAt string
+	if !blacklist.CreatedAt.IsZero() {
+		createdAt = blacklist.CreatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.IPBlacklistDTO{
+		Id:           uint64(blacklist.ID),
+		IpAddress:    blacklist.IPAddress,
+		IpLocation:   blacklist.IPLocation,
+		Reason:       blacklist.Reason,
+		ReasonText:   blacklist.ReasonText,
+		BlockCount:   blacklist.BlockCount,
+		OperatorName: blacklist.OperatorName,
+		BlockType:    blacklist.BlockType,
+		CreatedAt:    createdAt,
+	}
+}
+
+// ToIPBlacklistDTOs converts a slice of IPBlacklist models to IPBlacklistDTO proto messages.
+func ToIPBlacklistDTOs(blacklist []IPBlacklist) []*pb.IPBlacklistDTO {
+	if blacklist == nil {
+		return nil
+	}
+	dtos := make([]*pb.IPBlacklistDTO, 0, len(blacklist))
+	for _, b := range blacklist {
+		dtos = append(dtos, ToIPBlacklistDTO(&b))
+	}
+	return dtos
+}
+
+// ToIPRegistrationRecordDTO converts IP registration record data to IPRegistrationRecordDTO proto message.
+func ToIPRegistrationRecordDTO(ipAddress, ipLocation string, registerCount int64, lastRegisterTime time.Time, status string) *pb.IPRegistrationRecordDTO {
+	var lastRegisterTimeStr string
+	if !lastRegisterTime.IsZero() {
+		lastRegisterTimeStr = lastRegisterTime.Format(time.RFC3339)
+	}
+
+	return &pb.IPRegistrationRecordDTO{
+		IpAddress:        ipAddress,
+		IpLocation:       ipLocation,
+		RegisterCount:    registerCount,
+		LastRegisterTime: lastRegisterTimeStr,
+		Status:           status,
+	}
+}
+
+// ToIPDetailDTO converts IP detail data to IPDetailDTO proto message.
+func ToIPDetailDTO(ipAddress, ipLocation, status string, firstRegisterTime time.Time, totalRegisters int64, accounts []*pb.IPRegistrationAccountDTO) *pb.IPDetailDTO {
+	var firstRegisterTimeStr string
+	if !firstRegisterTime.IsZero() {
+		firstRegisterTimeStr = firstRegisterTime.Format(time.RFC3339)
+	}
+
+	return &pb.IPDetailDTO{
+		IpAddress:         ipAddress,
+		IpLocation:        ipLocation,
+		Status:            status,
+		FirstRegisterTime: firstRegisterTimeStr,
+		TotalRegisters:    totalRegisters,
+		Accounts:         accounts,
+	}
+}
+
+// ToIPRegistrationAccountDTO converts IP registration record to IPRegistrationAccountDTO proto message.
+func ToIPRegistrationAccountDTO(userID, email string, registerTime time.Time) *pb.IPRegistrationAccountDTO {
+	var registerTimeStr string
+	if !registerTime.IsZero() {
+		registerTimeStr = registerTime.Format(time.RFC3339)
+	}
+
+	return &pb.IPRegistrationAccountDTO{
+		UserId:       userID,
+		Email:        email,
+		Username:     "", // Username not available in IPRegistrationRecord model
+		RegisterTime: registerTimeStr,
+	}
+}
+
+// ToUsageErrorDTO converts an APIRequestLog model to UsageErrorDTO proto message.
+func ToUsageErrorDTO(log *APIRequestLog) *pb.UsageErrorDTO {
+	if log == nil {
+		return nil
+	}
+
+	var timeStr string
+	if !log.CreatedAt.IsZero() {
+		timeStr = log.CreatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.UsageErrorDTO{
+		Time:         timeStr,
+		IpAddress:    log.IPAddress,
+		Endpoint:     log.Endpoint,
+		Method:       log.Method,
+		StatusCode:   int32(log.StatusCode),
+		ErrorMessage: log.ErrorMessage,
+		ResponseTime: int32(log.ResponseTime),
+	}
+}
+
+// ToUsageErrorDTOs converts a slice of APIRequestLog models to UsageErrorDTO proto messages.
+func ToUsageErrorDTOs(logs []APIRequestLog) []*pb.UsageErrorDTO {
+	if logs == nil {
+		return nil
+	}
+	dtos := make([]*pb.UsageErrorDTO, 0, len(logs))
+	for _, log := range logs {
+		dtos = append(dtos, ToUsageErrorDTO(&log))
+	}
+	return dtos
+}

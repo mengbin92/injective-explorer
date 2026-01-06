@@ -95,32 +95,11 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 		return ErrorReply(http.StatusInternalServerError, "failed to query error requests", err), err
 	}
 
-	// Convert to response format
-	errors := make([]*pb.UsageErrorInfo, 0, len(logs))
-	for _, log := range logs {
-		errors = append(errors, &pb.UsageErrorInfo{
-			Time:         log.CreatedAt.Format(time.RFC3339),
-			IpAddress:    log.IPAddress,
-			Endpoint:     log.Endpoint,
-			Method:       log.Method,
-			StatusCode:   int32(log.StatusCode),
-			ErrorMessage: log.ErrorMessage,
-			ResponseTime: int32(log.ResponseTime),
-		})
-	}
+	// Convert to DTOs
+	errors := models.ToUsageErrorDTOs(logs)
 
-	totalPages := int32((total + int64(pagination.PageSize) - 1) / int64(pagination.PageSize))
-	response := map[string]interface{}{
-		"errors": errors,
-		"pagination": &pb.PaginationInfo{
-			Page:       pagination.Page,
-			PageSize:   pagination.PageSize,
-			Total:      total,
-			TotalPages: totalPages,
-			HasPrev:    pagination.Page > 1,
-			HasNext:    pagination.Page < totalPages,
-		},
-	}
+	// Build paginated response using buildPaginatedResponse
+	response := buildPaginatedResponse(errors, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(logs))
 
 	return MarshalAndReply(response, "marshal response error")
 }

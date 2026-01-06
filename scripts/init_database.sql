@@ -63,6 +63,7 @@ CREATE TABLE `api_plans` (
   `deleted_at` datetime(3) DEFAULT NULL,
   `name` varchar(50) NOT NULL,
   `plan_type` varchar(20) NOT NULL,
+  `description` text DEFAULT NULL,
   `monthly_limit` bigint unsigned NOT NULL,
   `rate_limit_per_second` bigint NOT NULL,
   `max_tokens` bigint NOT NULL,
