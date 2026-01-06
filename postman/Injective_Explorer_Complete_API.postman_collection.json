@@ -2287,6 +2287,7 @@
 									"    pm.expect(jsonData.data).to.have.property('name');",
 									"    pm.expect(jsonData.data).to.have.property('plan_type');",
 									"    pm.expect(jsonData.data).to.have.property('monthly_limit');",
+									"    pm.expect(jsonData.data).to.have.property('description');",
 									"    ",
 									"    // Save plan ID for later use",
 									"    pm.environment.set(\"plan_id\", jsonData.data.id);",
@@ -2310,7 +2311,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Basic Plan\",\n    \"plan_type\": \"free\",\n    \"monthly_limit\": 10000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5,\n    \"enable_webhook\": false,\n    \"price\": 0.00,\n    \"status\": \"active\"\n}",
+							"raw": "{\n    \"name\": \"Basic Plan\",\n    \"plan_type\": \"free\",\n    \"description\": \"Basic plan for free users\",\n    \"monthly_limit\": 10000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5,\n    \"enable_webhook\": false,\n    \"price\": 0.00,\n    \"status\": \"active\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2329,7 +2330,7 @@
 								"plans"
 							]
 						},
-						"description": "Create a new plan. Required fields: name (unique), plan_type (free/paid), monthly_limit, rate_limit_per_second, max_tokens. Optional fields: enable_webhook (default: false), price (default: 0.00), status (default: active)."
+						"description": "Create a new plan. Required fields: name (unique), plan_type (free/paid), monthly_limit, rate_limit_per_second, max_tokens. Optional fields: description, enable_webhook (default: false), price (default: 0.00), status (default: active)."
 					},
 					"response": []
 				},
@@ -2381,7 +2382,7 @@
 								"plans"
 							]
 						},
-						"description": "Update a plan configuration"
+						"description": "Update a plan configuration. Fields: id (required), description (optional), monthly_limit (optional), rate_limit_per_second (optional), max_tokens (optional)."
 					},
 					"response": []
 				},
