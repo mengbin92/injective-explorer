@@ -28,7 +28,12 @@ func NewAdminService() *AdminService {
 	return &AdminService{}
 }
 
-// GetUsageErrors gets error request list
+// GetUsageErrors retrieves a paginated list of API error requests (status code >= 400).
+// It supports filtering by status code, time range, and pagination parameters.
+// Returns a *pb.Reply containing a list of UsageErrorDTO with pagination metadata.
+//
+// Supported time ranges: today, 7days, 30days
+// Default pagination: page=1, page_size=20, max page_size=100
 func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageErrorsRequest) (*pb.Reply, error) {
 	if req == nil {
 		err := errors.New("nil request")
@@ -105,7 +110,12 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 	return MarshalAndReply(response, "marshal response error")
 }
 
-// ListUserTokens lists all tokens for a specific user
+// ListUserTokens retrieves all tokens for a specific user with pagination support.
+// It returns a paginated list of *pb.TokenDTO packed in a standard *pb.Reply.
+//
+// This function implements proper pagination with configurable page and page size,
+// following RESTful API best practices. Default values are page=1 and page_size=20,
+// with a maximum page_size of 100.
 func (s *AdminService) ListUserTokens(ctx context.Context, req *pb.ListUserTokensRequest) (*pb.Reply, error) {
 	if req == nil {
 		err := errors.New("nil request")
@@ -118,14 +128,48 @@ func (s *AdminService) ListUserTokens(ctx context.Context, req *pb.ListUserToken
 		return ErrorReply(http.StatusBadRequest, "user_id is required", err), err
 	}
 
+	// Initialize pagination parameters with defaults
+	page := int32(1)
+	pageSize := int32(20)
+
+	if req.Pagination != nil {
+		if req.Pagination.Page > 0 {
+			page = req.Pagination.Page
+		}
+		if req.Pagination.PageSize > 0 {
+			pageSize = req.Pagination.PageSize
+		}
+	}
+
+	// Apply page size limits: minimum 1, maximum 100
+	if pageSize < 1 {
+		pageSize = 1
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// Query all tokens for the user
+	// Get total count for pagination metadata
+	var totalCount int64
+	err := db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
+		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
+		Count(&totalCount).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count user tokens for user %s: %v", req.UserId, err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query token count", err), err
+	}
+
+	// Query tokens for the user with pagination
+	offset := (page - 1) * pageSize
 	var tokens []models.APIToken
-	err := db.Get().WithContext(queryCtx).
+	err = db.Get().WithContext(queryCtx).
 		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
 		Order("created_at DESC").
+		Limit(int(pageSize)).
+		Offset(int(offset)).
 		Find(&tokens).Error
 
 	if err != nil {
@@ -136,11 +180,20 @@ func (s *AdminService) ListUserTokens(ctx context.Context, req *pb.ListUserToken
 	// Convert to DTOs using the ToDTOs method
 	tokenDTOs := models.ToTokenDTOs(tokens)
 
-	response := buildPaginatedResponse(tokenDTOs, 1, 100, int64(len(tokenDTOs)), true, false, 0, "", len(tokenDTOs))
+	// Calculate pagination metadata
+	hasNext := (int64(offset) + int64(len(tokens))) < totalCount
+	hasPrev := page > 1
+
+	response := buildPaginatedResponse(tokenDTOs, page, pageSize, totalCount, hasNext, hasPrev, uint64(offset), "", len(tokens))
 	return MarshalAndReply(response, "marshal list user tokens response error")
 }
 
-// GetUserTokenStats gets token statistics for a specific user
+// GetUserTokenStats retrieves aggregated statistics for a user's tokens,
+// including total count, status breakdown, usage data, and plan information.
+// It returns a *pb.UserTokenStatsDTO packed in a standard *pb.Reply.
+//
+// The function optimizes database queries by using a single aggregation query
+// for token statistics instead of multiple separate count queries.
 func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTokenStatsRequest) (*pb.Reply, error) {
 	if req == nil {
 		err := errors.New("nil request")
@@ -156,7 +209,8 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// Get token counts by status
+	// Get token counts by status using a single optimized aggregate query
+	// This replaces three separate Count queries with one aggregation
 	var tokenStats struct {
 		Total    int64
 		Active   int64
@@ -164,26 +218,11 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 	}
 
 	err := db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
+		Select("COUNT(id) as total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active, SUM(CASE WHEN status = 'disabled' THEN 1 ELSE 0 END) as disabled").
 		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
-		Count(&tokenStats.Total).Error
+		Row().Scan(&tokenStats.Total, &tokenStats.Active, &tokenStats.Disabled)
 	if err != nil {
 		global.Logger.Errorf("failed to count user tokens for user %s: %v", req.UserId, err)
-		return ErrorReply(http.StatusInternalServerError, "failed to query token statistics", err), err
-	}
-
-	err = db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
-		Where("user_id = ? AND status = ? AND deleted_at IS NULL", req.UserId, "active").
-		Count(&tokenStats.Active).Error
-	if err != nil {
-		global.Logger.Errorf("failed to count active tokens for user %s: %v", req.UserId, err)
-		return ErrorReply(http.StatusInternalServerError, "failed to query token statistics", err), err
-	}
-
-	err = db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
-		Where("user_id = ? AND status = ? AND deleted_at IS NULL", req.UserId, "disabled").
-		Count(&tokenStats.Disabled).Error
-	if err != nil {
-		global.Logger.Errorf("failed to count disabled tokens for user %s: %v", req.UserId, err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query token statistics", err), err
 	}
 
@@ -194,9 +233,8 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 		First(&userStats).Error
 
 	monthlyUsed := uint64(0)
-	monthlyLimit := uint64(100000)
+	monthlyLimit := uint64(0)
 	totalUsage := uint64(0)
-	planType := "free"
 
 	if err == nil {
 		monthlyUsed = userStats.MonthlyUsed
@@ -207,15 +245,18 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 		return ErrorReply(http.StatusInternalServerError, "failed to query user usage statistics", err), err
 	}
 
-	// Get user's plan type from one of their tokens
-	var token models.APIToken
+	// Get user's plan type from their most recently created token
+	var planType string
 	err = db.Get().WithContext(queryCtx).
+		Model(&models.APIToken{}).
 		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
 		Order("created_at DESC").
-		First(&token).Error
+		Limit(1).
+		Pluck("plan_type", &planType).Error
 
-	if err == nil {
-		planType = token.PlanType
+	if err != nil && err != gorm.ErrRecordNotFound {
+		global.Logger.Errorf("failed to query plan type for user %s: %v", req.UserId, err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query plan type", err), err
 	}
 
 	stats := &pb.UserTokenStatsDTO{

@@ -568,6 +568,7 @@ message UsageErrorDTO {
 // ========== User Token Management Messages ==========
 message ListUserTokensRequest {
   string user_id = 1 [ json_name = "user_id" ]; // User ID to query
+  PaginationRequest pagination = 2; // Pagination parameters
 }
 
 message GetUserTokenStatsRequest {
