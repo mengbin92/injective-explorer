@@ -718,3 +718,37 @@ func ToUsageErrorDTOs(logs []APIRequestLog) []*pb.UsageErrorDTO {
 	}
 	return dtos
 }
+
+// ToTokenInfoDTO converts an APIToken model to TokenInfo proto message.
+func ToTokenInfoDTO(token *APIToken) *pb.TokenInfo {
+	if token == nil {
+		return nil
+	}
+
+	lastUsedAt := ""
+	if token.LastUsedAt != nil {
+		lastUsedAt = token.LastUsedAt.Format(time.RFC3339)
+	}
+
+	return &pb.TokenInfo{
+		Id:           int64(token.ID),
+		Name:         token.Name,
+		TokenPreview: token.TokenPreview,
+		PlanType:     token.PlanType,
+		Status:       token.Status,
+		CreatedAt:    token.CreatedAt.Format(time.RFC3339),
+		LastUsedAt:   lastUsedAt,
+	}
+}
+
+// ToTokenDTOs converts a slice of APIToken models to TokenInfo proto messages.
+func ToTokenDTOs(tokens []APIToken) []*pb.TokenInfo {
+	if tokens == nil {
+		return nil
+	}
+	dtos := make([]*pb.TokenInfo, 0, len(tokens))
+	for _, token := range tokens {
+		dtos = append(dtos, ToTokenInfoDTO(&token))
+	}
+	return dtos
+}

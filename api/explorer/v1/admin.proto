@@ -226,6 +226,21 @@ service AdminService {
       body : "*"
     };
   }
+
+  // ========== User Token Management ==========
+  // ListUserTokens lists all tokens for a specific user
+  rpc ListUserTokens(ListUserTokensRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/user/tokens"
+    };
+  }
+
+  // GetUserTokenStats gets token statistics for a specific user
+  rpc GetUserTokenStats(GetUserTokenStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/user/token-stats"
+    };
+  }
 }
 
 // ========== Plan Management Messages ==========
@@ -548,4 +563,23 @@ message UsageErrorDTO {
   int32 status_code = 5 [ json_name = "status_code" ];
   string error_message = 6 [ json_name = "error_message" ];
   int32 response_time = 7 [ json_name = "response_time" ];
+}
+
+// ========== User Token Management Messages ==========
+message ListUserTokensRequest {
+  string user_id = 1 [ json_name = "user_id" ]; // User ID to query
+}
+
+message GetUserTokenStatsRequest {
+  string user_id = 1 [ json_name = "user_id" ]; // User ID to query
+}
+
+message UserTokenStatsDTO {
+  int32 token_count = 1 [ json_name = "token_count" ]; // Total number of tokens
+  int32 active_token_count = 2 [ json_name = "active_token_count" ]; // Active tokens
+  int32 disabled_token_count = 3 [ json_name = "disabled_token_count" ]; // Disabled tokens
+  uint64 monthly_used = 4 [ json_name = "monthly_used" ]; // Monthly usage
+  uint64 monthly_limit = 5 [ json_name = "monthly_limit" ]; // Monthly limit
+  uint64 total_usage = 6 [ json_name = "total_usage" ]; // Total historical usage
+  string plan_type = 7 [ json_name = "plan_type" ]; // User's plan type
 }

@@ -724,6 +724,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/user/token-stats:
+        get:
+            tags:
+                - AdminService
+            description: GetUserTokenStats gets token statistics for a specific user
+            operationId: AdminService_GetUserTokenStats
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/user/tokens:
+        get:
+            tags:
+                - AdminService
+            description: |-
+                ========== User Token Management ==========
+                 ListUserTokens lists all tokens for a specific user
+            operationId: AdminService_ListUserTokens
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/block/by-height:
         get:
             tags:

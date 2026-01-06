@@ -987,6 +987,148 @@
       "description": "Plan management endpoints for admin"
     },
     {
+      "name": "管理接口 - 用户Token管理",
+      "item": [
+        {
+          "name": "查询用户Token列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has tokens array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('list');",
+                  "    pm.expect(jsonData.data.list).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has pagination info\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('total');",
+                  "    pm.expect(jsonData.data).to.have.property('page');",
+                  "    pm.expect(jsonData.data).to.have.property('page_size');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/user/tokens?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "user",
+                "tokens"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User ID to query"
+                }
+              ]
+            },
+            "description": "List all API tokens for a specific user (Admin only)."
+          },
+          "response": []
+        },
+        {
+          "name": "查询用户Token统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has token statistics\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('token_count');",
+                  "    pm.expect(jsonData.data).to.have.property('active_token_count');",
+                  "    pm.expect(jsonData.data).to.have.property('disabled_token_count');",
+                  "    pm.expect(jsonData.data).to.have.property('monthly_used');",
+                  "    pm.expect(jsonData.data).to.have.property('monthly_limit');",
+                  "    pm.expect(jsonData.data).to.have.property('total_usage');",
+                  "    pm.expect(jsonData.data).to.have.property('plan_type');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/user/token-stats?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "user",
+                "token-stats"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User ID to query"
+                }
+              ]
+            },
+            "description": "Get token statistics for a specific user (Admin only)."
+          },
+          "response": []
+        }
+      ],
+      "description": "Admin API endpoints for managing user tokens."
+    },
+    {
       "name": "管理接口 - IP管理",
       "item": [
         {
