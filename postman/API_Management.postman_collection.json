@@ -1,640 +1,2341 @@
 {
-	"info": {
-		"_postman_id": "api-management-collection",
-		"name": "Injective Explorer - API Management",
-		"description": "API Management collection for token management and API access",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "Token Management",
-			"item": [
-				{
-					"name": "Create Token",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test(\"Response has standard format\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('code');",
-									"    pm.expect(jsonData).to.have.property('message');",
-									"    pm.expect(jsonData).to.have.property('data');",
-									"    pm.expect(jsonData.code).to.equal(200);",
-									"});",
-									"",
-									"pm.test(\"Response data has token\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.have.property('token');",
-									"    pm.expect(jsonData.data).to.have.property('token_preview');",
-									"    pm.expect(jsonData.data).to.have.property('token_id');",
-									"    ",
-									"    // Save token for later use",
-									"    pm.environment.set(\"api_token\", jsonData.data.token);",
-									"    pm.environment.set(\"token_id\", jsonData.data.token_id);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-User-ID",
-								"value": "{{user_id}}",
-								"description": "User ID from external auth system"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"My API Token\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/tokens",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"tokens"
-							]
-						},
-						"description": "Create a new API token. The full token is only shown once in the response."
-					},
-					"response": []
-				},
-				{
-					"name": "List Tokens",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test(\"Response has standard format\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('code');",
-									"    pm.expect(jsonData).to.have.property('message');",
-									"    pm.expect(jsonData).to.have.property('data');",
-									"    pm.expect(jsonData.code).to.equal(200);",
-									"});",
-									"",
-									"pm.test(\"Response data has tokens array\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.have.property('tokens');",
-									"    pm.expect(jsonData.data.tokens).to.be.an('array');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-User-ID",
-								"value": "{{user_id}}",
-								"description": "User ID from external auth system"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/tokens",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"tokens"
-							]
-						},
-						"description": "List all API tokens for the authenticated user."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Token Usage",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test(\"Response has standard format\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('code');",
-									"    pm.expect(jsonData).to.have.property('message');",
-									"    pm.expect(jsonData).to.have.property('data');",
-									"    pm.expect(jsonData.code).to.equal(200);",
-									"});",
-									"",
-									"pm.test(\"Response data has usage statistics\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.have.property('total_calls');",
-									"    pm.expect(jsonData.data).to.have.property('success_calls');",
-									"    pm.expect(jsonData.data).to.have.property('failed_calls');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-User-ID",
-								"value": "{{user_id}}",
-								"description": "User ID from external auth system"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/tokens/usage?token_id={{token_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"tokens",
-								"usage"
-							]
-						},
-						"description": "Get usage statistics for a specific token."
-					},
-					"response": []
-				},
-				{
-					"name": "Delete Token",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test(\"Response has standard format\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('code');",
-									"    pm.expect(jsonData).to.have.property('message');",
-									"    pm.expect(jsonData).to.have.property('data');",
-									"    pm.expect(jsonData.code).to.equal(200);",
-									"});",
-									"",
-									"pm.test(\"Response data has success message\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.data).to.have.property('message');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "X-User-ID",
-								"value": "{{user_id}}",
-								"description": "User ID from external auth system"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/tokens?token_id={{token_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"tokens"
-							],
-							"query": [
-								{
-									"key": "token_id",
-									"value": "{{token_id}}",
-									"description": "Token ID to delete"
-								}
-							]
-						},
-						"description": "Delete an API token. Only tokens owned by the authenticated user can be deleted."
-					},
-					"response": []
-				}
-			],
-			"description": "Token management endpoints require X-User-ID header for authentication."
-		},
-		{
-			"name": "API Access (with Token)",
-			"item": [
-				{
-					"name": "Get Latest Blocks",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test(\"Response time is less than 500ms\", function () {",
-									"    pm.expect(pm.response.responseTime).to.be.below(500);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{api_token}}",
-								"description": "API token for authentication"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/block/latest?page=1&page_size=10",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"block",
-								"latest"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "page_size",
-									"value": "10"
-								}
-							]
-						},
-						"description": "Get latest blocks. Requires Bearer token authentication."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Transaction By Hash",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{api_token}}",
-								"description": "API token for authentication"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/transaction/by-hash?hash={{tx_hash}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"transaction",
-								"by-hash"
-							],
-							"query": [
-								{
-									"key": "hash",
-									"value": "{{tx_hash}}",
-									"description": "Transaction hash"
-								}
-							]
-						},
-						"description": "Get transaction by hash. Requires Bearer token authentication."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Account Info",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{api_token}}",
-								"description": "API token for authentication"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/account/info?address={{account_address}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"account",
-								"info"
-							],
-							"query": [
-								{
-									"key": "address",
-									"value": "{{account_address}}",
-									"description": "Account address (inj1... or 0x...)"
-								}
-							]
-						},
-						"description": "Get account information. Requires Bearer token authentication."
-					},
-					"response": []
-				}
-			],
-			"description": "API endpoints that require Bearer token authentication. Rate limiting applies: IP (100/min), Token (5/sec), User (100k/month)."
-		},
-		{
-			"name": "Rate Limit Tests",
-			"item": [
-				{
-					"name": "Test IP Rate Limit",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 429) {",
-									"    pm.test(\"Rate limit exceeded\", function () {",
-									"        pm.expect(pm.response.json().message).to.include('rate limit');",
-									"    });",
-									"} else {",
-									"    pm.test(\"Request allowed\", function () {",
-									"        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
-									"    });",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{api_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/block/latest-height",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"block",
-								"latest-height"
-							]
-						},
-						"description": "Test IP rate limit (100 requests per minute). Run this request multiple times quickly to trigger rate limit."
-					},
-					"response": []
-				},
-				{
-					"name": "Test Token Rate Limit",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 429) {",
-									"    pm.test(\"Token rate limit exceeded\", function () {",
-									"        var jsonData = pm.response.json();",
-									"        pm.expect(jsonData.message || jsonData.error).to.include('rate limit');",
-									"    });",
-									"} else {",
-									"    pm.test(\"Request allowed\", function () {",
-									"        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
-									"    });",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{api_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/block/latest-height",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"block",
-								"latest-height"
-							]
-						},
-						"description": "Test token rate limit (5 requests per second). Run this request 6+ times per second to trigger rate limit."
-					},
-					"response": []
-				},
-				{
-					"name": "Test Invalid Token",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 401\", function () {",
-									"    pm.response.to.have.status(401);",
-									"});",
-									"",
-									"pm.test(\"Error message indicates invalid token\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.message || jsonData.error).to.include('token');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer invalid_token_12345"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/block/latest-height",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"block",
-								"latest-height"
-							]
-						},
-						"description": "Test authentication with invalid token. Should return 401 Unauthorized."
-					},
-					"response": []
-				},
-				{
-					"name": "Test Missing Token",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 401\", function () {",
-									"    pm.response.to.have.status(401);",
-									"});",
-									"",
-									"pm.test(\"Error message indicates missing Authorization header\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.message || jsonData.error).to.include('Authorization');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/v1/block/latest-height",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"block",
-								"latest-height"
-							]
-						},
-						"description": "Test API access without token. Should return 401 Unauthorized."
-					},
-					"response": []
-				}
-			],
-			"description": "Tests for rate limiting and authentication scenarios."
-		}
-	],
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		}
-	],
-	"variable": [
-		{
-			"key": "base_url",
-			"value": "http://localhost:8000",
-			"type": "string"
-		},
-		{
-			"key": "user_id",
-			"value": "test_user_123",
-			"type": "string"
-		},
-		{
-			"key": "api_token",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "token_id",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "tx_hash",
-			"value": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-			"type": "string"
-		},
-		{
-			"key": "account_address",
-			"value": "inj1...",
-			"type": "string"
-		}
-	]
+  "info": {
+    "_postman_id": "api-management-collection",
+    "name": "Injective Explorer - API Management",
+    "description": "API Management collection for token management and API access",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "API令牌管理",
+      "item": [
+        {
+          "name": "Create Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('token');",
+                  "    pm.expect(jsonData.data).to.have.property('token_preview');",
+                  "    pm.expect(jsonData.data).to.have.property('token_id');",
+                  "    ",
+                  "    // Save token for later use",
+                  "    pm.environment.set(\"api_token\", jsonData.data.token);",
+                  "    pm.environment.set(\"token_id\", jsonData.data.token_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"My API Token\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens"
+              ]
+            },
+            "description": "Create a new API token. The full token is only shown once in the response."
+          },
+          "response": []
+        },
+        {
+          "name": "List Tokens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has tokens array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('tokens');",
+                  "    pm.expect(jsonData.data.tokens).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens"
+              ]
+            },
+            "description": "List all API tokens for the authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Token Usage",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has usage statistics\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('total_calls');",
+                  "    pm.expect(jsonData.data).to.have.property('success_calls');",
+                  "    pm.expect(jsonData.data).to.have.property('failed_calls');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/usage?token_id={{token_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "usage"
+              ]
+            },
+            "description": "Get usage statistics for a specific token."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has success message\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens?token_id={{token_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens"
+              ],
+              "query": [
+                {
+                  "key": "token_id",
+                  "value": "{{token_id}}",
+                  "description": "Token ID to delete"
+                }
+              ]
+            },
+            "description": "Delete an API token. Only tokens owned by the authenticated user can be deleted."
+          },
+          "response": []
+        }
+      ],
+      "description": "Token management endpoints require X-User-ID header for authentication."
+    },
+    {
+      "name": "API访问示例（需令牌）",
+      "item": [
+        {
+          "name": "Get Latest Blocks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response time is less than 500ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/block/latest?page=1&page_size=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "block",
+                "latest"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get latest blocks. Requires Bearer token authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Transaction By Hash",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/transaction/by-hash?hash={{tx_hash}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transaction",
+                "by-hash"
+              ],
+              "query": [
+                {
+                  "key": "hash",
+                  "value": "{{tx_hash}}",
+                  "description": "Transaction hash"
+                }
+              ]
+            },
+            "description": "Get transaction by hash. Requires Bearer token authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Account Info",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/account/info?address={{account_address}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "account",
+                "info"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "{{account_address}}",
+                  "description": "Account address (inj1... or 0x...)"
+                }
+              ]
+            },
+            "description": "Get account information. Requires Bearer token authentication."
+          },
+          "response": []
+        }
+      ],
+      "description": "API endpoints that require Bearer token authentication. Rate limiting applies: IP (100/min), Token (5/sec), User (100k/month)."
+    },
+    {
+      "name": "限流和认证测试",
+      "item": [
+        {
+          "name": "Test IP Rate Limit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 429) {",
+                  "    pm.test(\"Rate limit exceeded\", function () {",
+                  "        pm.expect(pm.response.json().message).to.include('rate limit');",
+                  "    });",
+                  "} else {",
+                  "    pm.test(\"Request allowed\", function () {",
+                  "        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/block/latest-height",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "block",
+                "latest-height"
+              ]
+            },
+            "description": "Test IP rate limit (100 requests per minute). Run this request multiple times quickly to trigger rate limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Test Token Rate Limit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 429) {",
+                  "    pm.test(\"Token rate limit exceeded\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.message || jsonData.error).to.include('rate limit');",
+                  "    });",
+                  "} else {",
+                  "    pm.test(\"Request allowed\", function () {",
+                  "        pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/block/latest-height",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "block",
+                "latest-height"
+              ]
+            },
+            "description": "Test token rate limit (5 requests per second). Run this request 6+ times per second to trigger rate limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Test Invalid Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"Error message indicates invalid token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message || jsonData.error).to.include('token');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid_token_12345"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/block/latest-height",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "block",
+                "latest-height"
+              ]
+            },
+            "description": "Test authentication with invalid token. Should return 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "Test Missing Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"Error message indicates missing Authorization header\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message || jsonData.error).to.include('Authorization');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/block/latest-height",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "block",
+                "latest-height"
+              ]
+            },
+            "description": "Test API access without token. Should return 401 Unauthorized."
+          },
+          "response": []
+        }
+      ],
+      "description": "Tests for rate limiting and authentication scenarios."
+    },
+    {
+      "name": "API令牌管理（扩展）",
+      "item": [
+        {
+          "name": "获取仪表盘统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has dashboard stats\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_calls');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/stats?days=7",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "7",
+                  "description": "Number of days for statistics (default: 7)"
+                }
+              ]
+            },
+            "description": "获取用户仪表盘统计"
+          },
+          "response": []
+        },
+        {
+          "name": "导出使用日志",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has CSV data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('csv_data');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/export/logs?time_range=7days",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "export",
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "Time range: today/7days/30days/all"
+                }
+              ]
+            },
+            "description": "导出使用日志为CSV格式（在JSON响应中返回CSV数据）"
+          },
+          "response": []
+        }
+      ],
+      "description": "Extended API token management endpoints"
+    },
+    {
+      "name": "管理接口 - 套餐管理",
+      "item": [
+        {
+          "name": "获取套餐详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plan?id=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plan"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Plan ID"
+                }
+              ]
+            },
+            "description": "根据ID获取套餐详情"
+          },
+          "response": []
+        },
+        {
+          "name": "获取套餐列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plans?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plans"
+              ],
+              "query": [
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                },
+                {
+                  "key": "plan_type",
+                  "value": "",
+                  "description": "Plan type: free/paid",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Status: active/inactive",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取套餐列表"
+          },
+          "response": []
+        },
+        {
+          "name": "创建套餐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has plan information\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('name');",
+                  "    pm.expect(jsonData.data).to.have.property('plan_type');",
+                  "    pm.expect(jsonData.data).to.have.property('monthly_limit');",
+                  "    pm.expect(jsonData.data).to.have.property('description');",
+                  "    ",
+                  "    // Save plan ID for later use",
+                  "    pm.environment.set(\"plan_id\", jsonData.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Basic Plan\",\n    \"plan_type\": \"free\",\n    \"description\": \"Basic plan for free users\",\n    \"monthly_limit\": 10000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5,\n    \"enable_webhook\": false,\n    \"price\": 0.00,\n    \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plans",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plans"
+              ]
+            },
+            "description": "创建套餐。必填字段：name（唯一）、plan_type（free/paid）、monthly_limit、rate_limit_per_second、max_tokens。可选字段：description、enable_webhook（默认：false）、price（默认：0.00）、status（默认：active）。"
+          },
+          "response": []
+        },
+        {
+          "name": "编辑套餐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1,\n    \"description\": \"Updated plan description\",\n    \"monthly_limit\": 100000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plans",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plans"
+              ]
+            },
+            "description": "编辑套餐配置。字段：id（必填）、description（可选）、monthly_limit（可选）、rate_limit_per_second（可选）、max_tokens（可选）。"
+          },
+          "response": []
+        },
+        {
+          "name": "获取套餐统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plans/stats?id=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plans",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Plan ID"
+                }
+              ]
+            },
+            "description": "获取套餐使用统计"
+          },
+          "response": []
+        }
+      ],
+      "description": "Plan management endpoints for admin"
+    },
+    {
+      "name": "管理接口 - IP管理",
+      "item": [
+        {
+          "name": "获取IP注册记录列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/records?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "records"
+              ],
+              "query": [
+                {
+                  "key": "pagination.page",
+                  "value": "1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "ip_address",
+                  "value": "",
+                  "description": "Search IP address",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Status: normal/blocked",
+                  "disabled": true
+                },
+                {
+                  "key": "time_range",
+                  "value": "",
+                  "description": "Time range: today/7days/30days/all",
+                  "disabled": true
+                },
+                {
+                  "key": "min_register_count",
+                  "value": "",
+                  "description": "Minimum register count",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取IP注册记录列表"
+          },
+          "response": []
+        },
+        {
+          "name": "获取IP注册记录统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_records');",
+                  "        pm.expect(jsonData.data).to.have.property('today_new');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/records/stats?time_range=all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "records",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "all",
+                  "description": "Time range: today/7days/30days/all"
+                }
+              ]
+            },
+            "description": "获取IP注册记录统计"
+          },
+          "response": []
+        },
+        {
+          "name": "获取IP详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/detail?ip_address=127.0.0.1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "detail"
+              ],
+              "query": [
+                {
+                  "key": "ip_address",
+                  "value": "127.0.0.1",
+                  "description": "IP address"
+                }
+              ]
+            },
+            "description": "获取IP详情"
+          },
+          "response": []
+        },
+        {
+          "name": "获取IP黑名单列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/blacklist?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "blacklist"
+              ],
+              "query": [
+                {
+                  "key": "pagination.page",
+                  "value": "1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "ip_address",
+                  "value": "",
+                  "description": "Search IP address",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取IP黑名单列表"
+          },
+          "response": []
+        },
+        {
+          "name": "获取IP黑名单统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_count');",
+                  "        pm.expect(jsonData.data).to.have.property('today_added');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/blacklist/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "blacklist",
+                "stats"
+              ]
+            },
+            "description": "获取IP黑名单统计"
+          },
+          "response": []
+        },
+        {
+          "name": "添加IP到黑名单",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ip_address\": \"192.168.1.100\",\n    \"reason\": \"api_abuse\",\n    \"reason_text\": \"Excessive API requests\",\n    \"block_type\": \"api\",\n    \"operator_id\": \"admin_001\",\n    \"operator_name\": \"Admin User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/blacklist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "blacklist"
+              ]
+            },
+            "description": "添加IP到黑名单"
+          },
+          "response": []
+        },
+        {
+          "name": "从黑名单移除IP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/blacklist?ip_address=192.168.1.100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "blacklist"
+              ],
+              "query": [
+                {
+                  "key": "ip_address",
+                  "value": "192.168.1.100",
+                  "description": "IP address to remove"
+                }
+              ]
+            },
+            "description": "从黑名单移除IP"
+          },
+          "response": []
+        },
+        {
+          "name": "批量添加IP到黑名单",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ip_addresses\": [\"192.168.1.100\", \"192.168.1.101\"],\n    \"reason\": \"batch_register\",\n    \"reason_text\": \"Batch registration detected\",\n    \"block_type\": \"all\",\n    \"operator_id\": \"admin_001\",\n    \"operator_name\": \"Admin User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/blacklist/batch",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "blacklist",
+                "batch"
+              ]
+            },
+            "description": "批量添加IP到黑名单"
+          },
+          "response": []
+        },
+        {
+          "name": "批量从黑名单移除IP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ip_addresses\": [\"192.168.1.100\", \"192.168.1.101\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/blacklist/batch-remove",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "blacklist",
+                "batch-remove"
+              ]
+            },
+            "description": "批量从黑名单移除IP"
+          },
+          "response": []
+        },
+        {
+          "name": "获取IP请求监控",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/monitor?time_range=24h",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "monitor"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "24h",
+                  "description": "Time range: 1h/6h/24h/7d"
+                },
+                {
+                  "key": "ip_address",
+                  "value": "",
+                  "description": "Search IP address",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取IP请求监控数据"
+          },
+          "response": []
+        },
+        {
+          "name": "获取IP限流配置",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/config",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "config"
+              ]
+            },
+            "description": "获取IP限流配置"
+          },
+          "response": []
+        },
+        {
+          "name": "编辑IP限流配置",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ip_per_minute\": 100,\n    \"ip_per_hour\": 5000,\n    \"block_type\": \"api\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/config",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "config"
+              ]
+            },
+            "description": "编辑IP限流配置"
+          },
+          "response": []
+        },
+        {
+          "name": "导出IP列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has CSV data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('csv_data');",
+                  "        pm.expect(jsonData.data).to.have.property('type');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/ip/export?type=records&time_range=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "ip",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "records",
+                  "description": "Export type: records/blacklist/monitor"
+                },
+                {
+                  "key": "time_range",
+                  "value": "",
+                  "description": "Time range for monitor type: 1h/6h/24h/7d",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "导出IP列表为CSV格式"
+          },
+          "response": []
+        }
+      ],
+      "description": "IP management endpoints for admin"
+    },
+    {
+      "name": "管理接口 - 邮箱黑名单管理",
+      "item": [
+        {
+          "name": "获取邮箱黑名单列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist"
+              ],
+              "query": [
+                {
+                  "key": "pagination.page",
+                  "value": "1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "domain",
+                  "value": "",
+                  "description": "Search domain",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Status: active/disabled",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取邮箱黑名单列表"
+          },
+          "response": []
+        },
+        {
+          "name": "获取邮箱黑名单统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_count');",
+                  "        pm.expect(jsonData.data).to.have.property('active_count');",
+                  "        pm.expect(jsonData.data).to.have.property('disabled_count');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist",
+                "stats"
+              ]
+            },
+            "description": "获取邮箱黑名单统计"
+          },
+          "response": []
+        },
+        {
+          "name": "添加邮箱域名",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"domain\": \"example.com\",\n    \"status\": \"active\",\n    \"note\": \"Spam domain\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist"
+              ]
+            },
+            "description": "添加邮箱域名到黑名单"
+          },
+          "response": []
+        },
+        {
+          "name": "编辑邮箱域名",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1,\n    \"status\": \"disabled\",\n    \"note\": \"Updated note\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist"
+              ]
+            },
+            "description": "编辑邮箱域名"
+          },
+          "response": []
+        },
+        {
+          "name": "删除邮箱域名",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist?id=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Domain ID to delete"
+                }
+              ]
+            },
+            "description": "从黑名单删除邮箱域名"
+          },
+          "response": []
+        },
+        {
+          "name": "批量导入邮箱域名",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"domains\": [\"spam1.com\", \"spam2.com\", \"spam3.com\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist/batch-import",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist",
+                "batch-import"
+              ]
+            },
+            "description": "批量导入邮箱域名"
+          },
+          "response": []
+        },
+        {
+          "name": "预览导入邮箱域名",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has preview data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total');",
+                  "        pm.expect(jsonData.data).to.have.property('valid');",
+                  "        pm.expect(jsonData.data).to.have.property('invalid');",
+                  "        pm.expect(jsonData.data).to.have.property('duplicate');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"domains\": [\"example.com\", \"test.com\", \"invalid-domain\", \"example.com\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist/preview-import",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist",
+                "preview-import"
+              ]
+            },
+            "description": "预览批量导入邮箱域名（验证格式但不导入）"
+          },
+          "response": []
+        },
+        {
+          "name": "切换邮箱域名状态",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist/toggle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist",
+                "toggle"
+              ]
+            },
+            "description": "切换邮箱域名状态（启用/禁用）"
+          },
+          "response": []
+        },
+        {
+          "name": "批量删除邮箱域名",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has delete result\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('deleted');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ids\": [1, 2, 3]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/email/blacklist/batch-delete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "email",
+                "blacklist",
+                "batch-delete"
+              ]
+            },
+            "description": "批量删除邮箱域名"
+          },
+          "response": []
+        }
+      ],
+      "description": "Email blacklist management endpoints for admin"
+    },
+    {
+      "name": "管理接口 - 使用统计",
+      "item": [
+        {
+          "name": "获取使用错误列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has errors data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('errors');",
+                  "        pm.expect(jsonData.data).to.have.property('pagination');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/errors?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "errors"
+              ],
+              "query": [
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                },
+                {
+                  "key": "status_code",
+                  "value": "",
+                  "description": "Filter by status code (e.g., 400, 500)",
+                  "disabled": true
+                },
+                {
+                  "key": "time_range",
+                  "value": "",
+                  "description": "Time range: today/7days/30days/all",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取错误请求列表（状态码 >= 400）"
+          },
+          "response": []
+        }
+      ],
+      "description": "Usage statistics endpoints for admin"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "test_user_123",
+      "type": "string"
+    },
+    {
+      "key": "api_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tx_hash",
+      "value": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "type": "string"
+    },
+    {
+      "key": "account_address",
+      "value": "inj1...",
+      "type": "string"
+    }
+  ]
 }

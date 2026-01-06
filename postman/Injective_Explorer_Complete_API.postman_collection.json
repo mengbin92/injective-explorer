@@ -8,10 +8,10 @@
 	},
 	"item": [
 		{
-			"name": "Health Check",
+			"name": "健康检查",
 			"item": [
 				{
-					"name": "Check Health",
+					"name": "健康检查",
 					"event": [
 						{
 							"listen": "test",
@@ -51,17 +51,17 @@
 								}
 							]
 						},
-						"description": "Health check endpoint for gRPC-Web"
+						"description": "gRPC-Web健康检查接口"
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Block APIs",
+			"name": "区块接口",
 			"item": [
 				{
-					"name": "Get Latest Blocks",
+					"name": "获取最新区块列表",
 					"event": [
 						{
 							"listen": "test",
@@ -105,27 +105,27 @@
 								{
 									"key": "page",
 									"value": "1",
-									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
+									"description": "页码，从1开始，默认1"
 								},
 								{
 									"key": "page_size",
 									"value": "20",
-									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
+									"description": "每页大小，默认20，最大100"
 								},
 								{
 									"key": "cursor",
 									"value": "",
-									"description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
+									"description": "游标（基于游标的分页，优先级高于 page）",
 									"disabled": true
 								}
 							]
 						},
-						"description": "Get latest blocks with pagination"
+						"description": "分页获取最新区块列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Block By Height",
+					"name": "根据区块高度获取区块详情",
 					"event": [
 						{
 							"listen": "test",
@@ -166,12 +166,12 @@
 								}
 							]
 						},
-						"description": "Get block information by block height"
+						"description": "根据区块高度获取区块详情"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Latest Block Height",
+					"name": "获取最新区块高度",
 					"event": [
 						{
 							"listen": "test",
@@ -214,12 +214,12 @@
 								"latest-height"
 							]
 						},
-						"description": "Get the latest block height"
+						"description": "获取最新区块高度"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Block Gas Utilization",
+					"name": "获取区块Gas利用率",
 					"event": [
 						{
 							"listen": "test",
@@ -260,17 +260,17 @@
 								"gas-utilization"
 							]
 						},
-						"description": "Get block gas utilization for the latest 10 blocks"
+						"description": "获取最近10个区块的Gas利用率"
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Transaction APIs",
+			"name": "交易接口",
 			"item": [
 				{
-					"name": "Get Latest Transactions",
+					"name": "获取最新交易列表",
 					"event": [
 						{
 							"listen": "test",
@@ -318,27 +318,27 @@
 								{
 									"key": "page",
 									"value": "1",
-									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
+									"description": "页码，从1开始，默认1"
 								},
 								{
 									"key": "page_size",
 									"value": "20",
-									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
+									"description": "每页大小，默认20，最大100"
 								},
 								{
 									"key": "cursor",
 									"value": "",
-									"description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
+									"description": "游标（基于游标的分页，优先级高于 page）",
 									"disabled": true
 								}
 							]
 						},
-						"description": "Get latest transactions with pagination"
+						"description": "分页获取最新交易列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Transaction By Hash",
+					"name": "根据交易哈希获取交易详情",
 					"event": [
 						{
 							"listen": "test",
@@ -386,12 +386,12 @@
 								}
 							]
 						},
-						"description": "Get transaction details by hash"
+						"description": "根据交易哈希获取交易详情"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Transaction Stats",
+					"name": "获取交易统计",
 					"event": [
 						{
 							"listen": "test",
@@ -432,12 +432,12 @@
 								"stats"
 							]
 						},
-						"description": "Get transaction volume statistics"
+						"description": "获取交易量统计"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Failed Transactions (24h)",
+					"name": "获取24小时内失败交易列表",
 					"event": [
 						{
 							"listen": "test",
@@ -474,27 +474,27 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
+									"description": "页码，从1开始，默认1"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
+									"description": "每页大小，默认20，最大100"
 								},
 								{
 									"key": "pagination.cursor",
 									"value": "",
-									"description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
+									"description": "游标（基于游标的分页，优先级高于 page）",
 									"disabled": true
 								}
 							]
 						},
-						"description": "Get failed transactions in the last 24 hours with failure reasons"
+						"description": "获取过去24小时内的失败交易列表（包含失败原因）"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Failed Transactions (Latest 1000)",
+					"name": "获取最近1000笔失败交易统计",
 					"event": [
 						{
 							"listen": "test",
@@ -528,17 +528,17 @@
 								"failed-1000"
 							]
 						},
-						"description": "Get failure statistics for the latest 1000 transactions"
+						"description": "获取最近1000笔交易的失败统计"
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Account APIs",
+			"name": "账户接口",
 			"item": [
 				{
-					"name": "Get Account Info",
+					"name": "获取账户详情",
 					"event": [
 						{
 							"listen": "test",
@@ -586,12 +586,12 @@
 								}
 							]
 						},
-						"description": "Get account information"
+						"description": "获取账户详情"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Account Transactions",
+					"name": "获取账户交易列表",
 					"event": [
 						{
 							"listen": "test",
@@ -633,12 +633,12 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
+									"description": "页码，从1开始，默认1"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
+									"description": "每页大小，默认20，最大100"
 								},
 								{
 									"key": "tx_types",
@@ -648,12 +648,12 @@
 								}
 							]
 						},
-						"description": "Get account transactions with optional type filtering"
+						"description": "获取账户交易列表（支持按类型过滤）"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Account Balances",
+					"name": "获取账户余额",
 					"event": [
 						{
 							"listen": "test",
@@ -701,17 +701,17 @@
 								}
 							]
 						},
-						"description": "Get account balances"
+						"description": "获取账户余额"
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "EVM APIs",
+			"name": "EVM接口",
 			"item": [
 				{
-					"name": "Get EVM Transaction",
+					"name": "获取EVM交易详情",
 					"event": [
 						{
 							"listen": "test",
@@ -759,12 +759,12 @@
 								}
 							]
 						},
-						"description": "Get EVM transaction by hash"
+						"description": "根据哈希获取EVM交易详情"
 					},
 					"response": []
 				},
 				{
-					"name": "Get EVM Transactions",
+					"name": "获取EVM交易列表",
 					"event": [
 						{
 							"listen": "test",
@@ -816,12 +816,12 @@
 								}
 							]
 						},
-						"description": "Get EVM transactions list"
+						"description": "获取EVM交易列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Get EVM Account Transactions",
+					"name": "获取EVM账户交易列表",
 					"event": [
 						{
 							"listen": "test",
@@ -879,17 +879,17 @@
 								}
 							]
 						},
-						"description": "Get EVM account transactions (supports 0x and inj1 format)"
+						"description": "获取EVM账户交易列表（支持0x和inj1格式）"
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Token Price APIs",
+			"name": "代币价格接口",
 			"item": [
 				{
-					"name": "Get Token Price and Market Cap",
+					"name": "获取代币价格和市值",
 					"event": [
 						{
 							"listen": "test",
@@ -938,17 +938,17 @@
 								}
 							]
 						},
-						"description": "Get token price and market cap (supports multiple tokens). If token symbol is not specified, uses the default token from configuration."
+						"description": "获取代币价格和市值（支持多种代币）。如果未指定代币符号，则使用配置中的默认代币。"
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Contract Info APIs",
+			"name": "合约信息接口",
 			"item": [
 				{
-					"name": "Create Contract Info",
+					"name": "创建合约信息",
 					"event": [
 						{
 							"listen": "test",
@@ -995,12 +995,12 @@
 								"info"
 							]
 						},
-						"description": "Create a new contract information"
+						"description": "创建合约信息"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Contract Info By Address",
+					"name": "根据地址获取合约详情",
 					"event": [
 						{
 							"listen": "test",
@@ -1047,12 +1047,12 @@
 								}
 							]
 						},
-						"description": "Retrieve contract information by address"
+						"description": "根据地址获取合约详情"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Contracts By Symbol",
+					"name": "根据代币符号获取合约列表",
 					"event": [
 						{
 							"listen": "test",
@@ -1106,21 +1106,21 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
+									"description": "页码，从1开始，默认1"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
+									"description": "每页大小，默认20，最大100"
 								}
 							]
 						},
-						"description": "Retrieve contracts by symbol (supports one-to-many relationship). Primarily used for token contracts."
+						"description": "根据代币符号获取合约列表（支持一对多关系）。主要用于代币合约。"
 					},
 					"response": []
 				},
 				{
-					"name": "List Contract Infos",
+					"name": "获取合约信息列表",
 					"event": [
 						{
 							"listen": "test",
@@ -1188,21 +1188,21 @@
 								{
 									"key": "pagination.page",
 									"value": "1",
-									"description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
+									"description": "页码，从1开始，默认1"
 								},
 								{
 									"key": "pagination.page_size",
 									"value": "20",
-									"description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
+									"description": "每页大小，默认20，最大100"
 								}
 							]
 						},
-						"description": "List contract information with various filter conditions"
+						"description": "获取合约信息列表（支持多种过滤条件）"
 					},
 					"response": []
 				},
 				{
-					"name": "Update Contract Info",
+					"name": "编辑合约信息",
 					"event": [
 						{
 							"listen": "test",
@@ -1249,12 +1249,12 @@
 								"info"
 							]
 						},
-						"description": "Update contract information"
+						"description": "编辑合约信息"
 					},
 					"response": []
 				},
 				{
-					"name": "Delete Contract Info",
+					"name": "删除合约信息",
 					"event": [
 						{
 							"listen": "test",
@@ -1300,12 +1300,12 @@
 								}
 							]
 						},
-						"description": "Delete contract information (soft delete)"
+						"description": "删除合约信息（软删除）"
 					},
 					"response": []
 				},
 				{
-					"name": "Add Contract Tag",
+					"name": "添加合约标签",
 					"event": [
 						{
 							"listen": "test",
@@ -1353,12 +1353,12 @@
 								"tag"
 							]
 						},
-						"description": "Add a tag to a contract"
+						"description": "添加合约标签"
 					},
 					"response": []
 				},
 				{
-					"name": "Remove Contract Tag",
+					"name": "删除合约标签",
 					"event": [
 						{
 							"listen": "test",
@@ -1410,12 +1410,12 @@
 								}
 							]
 						},
-						"description": "Remove a tag from a contract"
+						"description": "删除合约标签"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Contract Tags",
+					"name": "获取合约标签列表",
 					"event": [
 						{
 							"listen": "test",
@@ -1462,17 +1462,17 @@
 								}
 							]
 						},
-						"description": "Retrieve all tags for a contract"
+						"description": "获取合约标签列表"
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "API Token Management",
+			"name": "API令牌管理",
 			"item": [
 				{
-					"name": "Create Token",
+					"name": "创建API令牌",
 					"event": [
 						{
 							"listen": "test",
@@ -1538,12 +1538,12 @@
 								"tokens"
 							]
 						},
-						"description": "Create a new API token. The full token is only shown once in the response."
+						"description": "创建API令牌。完整令牌仅在响应中显示一次。"
 					},
 					"response": []
 				},
 				{
-					"name": "List Tokens",
+					"name": "获取API令牌列表",
 					"event": [
 						{
 							"listen": "test",
@@ -1591,12 +1591,12 @@
 								"tokens"
 							]
 						},
-						"description": "List all API tokens for the authenticated user."
+						"description": "获取已认证用户的所有API令牌列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Token Usage",
+					"name": "获取令牌使用详情",
 					"event": [
 						{
 							"listen": "test",
@@ -1646,12 +1646,12 @@
 								"usage"
 							]
 						},
-						"description": "Get usage statistics for a specific token."
+						"description": "获取指定令牌的使用详情"
 					},
 					"response": []
 				},
 				{
-					"name": "Delete Token",
+					"name": "删除API令牌",
 					"event": [
 						{
 							"listen": "test",
@@ -1705,7 +1705,7 @@
 								}
 							]
 						},
-						"description": "Delete an API token. Only tokens owned by the authenticated user can be deleted."
+						"description": "删除API令牌。只能删除属于已认证用户的令牌。"
 					},
 					"response": []
 				}
@@ -1713,10 +1713,10 @@
 			"description": "Token management endpoints require X-User-ID header for authentication."
 		},
 		{
-			"name": "Streaming APIs",
+			"name": "流式接口",
 			"item": [
 				{
-					"name": "Stream Latest Blocks",
+					"name": "流式获取最新区块",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -1744,12 +1744,12 @@
 								}
 							]
 						},
-						"description": "Stream latest blocks as they are added to the chain. Note: This is a streaming endpoint and may not work properly in Postman. Use a proper streaming client for testing."
+						"description": "流式获取最新区块（当区块添加到链上时）。注意：这是一个流式接口，在Postman中可能无法正常工作。请使用合适的流式客户端进行测试。"
 					},
 					"response": []
 				},
 				{
-					"name": "Stream Latest Transactions",
+					"name": "流式获取最新交易",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -1778,12 +1778,12 @@
 								}
 							]
 						},
-						"description": "Stream latest transactions as they are added to the chain. Note: This is a streaming endpoint and may not work properly in Postman. Use a proper streaming client for testing."
+						"description": "流式获取最新交易（当交易添加到链上时）。注意：这是一个流式接口，在Postman中可能无法正常工作。请使用合适的流式客户端进行测试。"
 					},
 					"response": []
 				},
 				{
-					"name": "Stream Account Updates",
+					"name": "流式获取账户更新",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -1816,7 +1816,7 @@
 								}
 							]
 						},
-						"description": "Stream account updates (balance changes, new transactions, etc.). Note: This is a streaming endpoint and may not work properly in Postman. Use a proper streaming client for testing."
+						"description": "流式获取账户更新（余额变化、新交易等）。注意：这是一个流式接口，在Postman中可能无法正常工作。请使用合适的流式客户端进行测试。"
 					},
 					"response": []
 				}
@@ -1824,10 +1824,10 @@
 			"description": "Streaming RPCs for real-time updates. Note: These endpoints use server-sent events (SSE) or similar streaming protocols and may not work properly in Postman. Use a proper streaming client or browser for testing."
 		},
 		{
-			"name": "API Token Management (Extended)",
+			"name": "API令牌管理（扩展）",
 			"item": [
 				{
-					"name": "Get Dashboard Stats",
+					"name": "获取仪表盘统计",
 					"event": [
 						{
 							"listen": "test",
@@ -1876,12 +1876,12 @@
 								}
 							]
 						},
-						"description": "Get dashboard statistics for a user"
+						"description": "获取用户仪表盘统计"
 					},
 					"response": []
 				},
 				{
-					"name": "Export Usage Logs",
+					"name": "导出使用日志",
 					"event": [
 						{
 							"listen": "test",
@@ -1932,7 +1932,7 @@
 								}
 							]
 						},
-						"description": "Export usage logs to CSV format (returns CSV data in JSON response)"
+						"description": "导出使用日志为CSV格式（在JSON响应中返回CSV数据）"
 					},
 					"response": []
 				}
@@ -1940,10 +1940,10 @@
 			"description": "Extended API token management endpoints"
 		},
 		{
-			"name": "Webhook APIs",
+			"name": "Webhook接口",
 			"item": [
 				{
-					"name": "Create Webhook",
+					"name": "创建Webhook",
 					"event": [
 						{
 							"listen": "test",
@@ -1998,12 +1998,12 @@
 								"webhooks"
 							]
 						},
-						"description": "Create a webhook configuration (for paid tokens only)"
+						"description": "创建Webhook配置（仅限付费令牌）"
 					},
 					"response": []
 				},
 				{
-					"name": "List Webhooks",
+					"name": "获取Webhook列表",
 					"event": [
 						{
 							"listen": "test",
@@ -2045,12 +2045,12 @@
 								"webhooks"
 							]
 						},
-						"description": "List webhook configurations"
+						"description": "获取Webhook列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Update Webhook",
+					"name": "编辑Webhook",
 					"event": [
 						{
 							"listen": "test",
@@ -2097,12 +2097,12 @@
 								"webhooks"
 							]
 						},
-						"description": "Update webhook configuration"
+						"description": "编辑Webhook配置"
 					},
 					"response": []
 				},
 				{
-					"name": "Delete Webhook",
+					"name": "删除Webhook",
 					"event": [
 						{
 							"listen": "test",
@@ -2143,7 +2143,7 @@
 								}
 							]
 						},
-						"description": "Delete a webhook"
+						"description": "删除Webhook"
 					},
 					"response": []
 				}
@@ -2151,10 +2151,10 @@
 			"description": "Webhook management endpoints (for paid tokens only). Reserved for future implementation."
 		},
 		{
-			"name": "Admin APIs - Plan Management",
+			"name": "管理接口 - 套餐管理",
 			"item": [
 				{
-					"name": "Get Plan",
+					"name": "获取套餐详情",
 					"event": [
 						{
 							"listen": "test",
@@ -2195,12 +2195,12 @@
 								}
 							]
 						},
-						"description": "Get a plan by ID"
+						"description": "根据ID获取套餐详情"
 					},
 					"response": []
 				},
 				{
-					"name": "List Plans",
+					"name": "获取套餐列表",
 					"event": [
 						{
 							"listen": "test",
@@ -2258,12 +2258,12 @@
 								}
 							]
 						},
-						"description": "List all plans"
+						"description": "获取套餐列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Create Plan",
+					"name": "创建套餐",
 					"event": [
 						{
 							"listen": "test",
@@ -2330,12 +2330,12 @@
 								"plans"
 							]
 						},
-						"description": "Create a new plan. Required fields: name (unique), plan_type (free/paid), monthly_limit, rate_limit_per_second, max_tokens. Optional fields: description, enable_webhook (default: false), price (default: 0.00), status (default: active)."
+						"description": "创建套餐。必填字段：name（唯一）、plan_type（free/paid）、monthly_limit、rate_limit_per_second、max_tokens。可选字段：description、enable_webhook（默认：false）、price（默认：0.00）、status（默认：active）。"
 					},
 					"response": []
 				},
 				{
-					"name": "Update Plan",
+					"name": "编辑套餐",
 					"event": [
 						{
 							"listen": "test",
@@ -2382,12 +2382,12 @@
 								"plans"
 							]
 						},
-						"description": "Update a plan configuration. Fields: id (required), description (optional), monthly_limit (optional), rate_limit_per_second (optional), max_tokens (optional)."
+						"description": "编辑套餐配置。字段：id（必填）、description（可选）、monthly_limit（可选）、rate_limit_per_second（可选）、max_tokens（可选）。"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Plan Stats",
+					"name": "获取套餐统计",
 					"event": [
 						{
 							"listen": "test",
@@ -2429,7 +2429,7 @@
 								}
 							]
 						},
-						"description": "Get plan usage statistics"
+						"description": "获取套餐使用统计"
 					},
 					"response": []
 				}
@@ -2437,10 +2437,10 @@
 			"description": "Plan management endpoints for admin"
 		},
 		{
-			"name": "Admin APIs - IP Management",
+			"name": "管理接口 - IP管理",
 			"item": [
 				{
-					"name": "List IP Registration Records",
+					"name": "获取IP注册记录列表",
 					"event": [
 						{
 							"listen": "test",
@@ -2509,12 +2509,12 @@
 								}
 							]
 						},
-						"description": "List IP registration records"
+						"description": "获取IP注册记录列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Get IP Records Stats",
+					"name": "获取IP注册记录统计",
 					"event": [
 						{
 							"listen": "test",
@@ -2567,12 +2567,12 @@
 								}
 							]
 						},
-						"description": "Get IP registration records statistics"
+						"description": "获取IP注册记录统计"
 					},
 					"response": []
 				},
 				{
-					"name": "Get IP Detail",
+					"name": "获取IP详情",
 					"event": [
 						{
 							"listen": "test",
@@ -2614,12 +2614,12 @@
 								}
 							]
 						},
-						"description": "Get IP detail information"
+						"description": "获取IP详情"
 					},
 					"response": []
 				},
 				{
-					"name": "List IP Blacklist",
+					"name": "获取IP黑名单列表",
 					"event": [
 						{
 							"listen": "test",
@@ -2670,12 +2670,12 @@
 								}
 							]
 						},
-						"description": "List IP blacklist"
+						"description": "获取IP黑名单列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Get IP Blacklist Stats",
+					"name": "获取IP黑名单统计",
 					"event": [
 						{
 							"listen": "test",
@@ -2721,12 +2721,12 @@
 								"stats"
 							]
 						},
-						"description": "Get IP blacklist statistics"
+						"description": "获取IP黑名单统计"
 					},
 					"response": []
 				},
 				{
-					"name": "Add IP to Blacklist",
+					"name": "添加IP到黑名单",
 					"event": [
 						{
 							"listen": "test",
@@ -2774,12 +2774,12 @@
 								"blacklist"
 							]
 						},
-						"description": "Add an IP to blacklist"
+						"description": "添加IP到黑名单"
 					},
 					"response": []
 				},
 				{
-					"name": "Remove IP from Blacklist",
+					"name": "从黑名单移除IP",
 					"event": [
 						{
 							"listen": "test",
@@ -2821,12 +2821,12 @@
 								}
 							]
 						},
-						"description": "Remove an IP from blacklist"
+						"description": "从黑名单移除IP"
 					},
 					"response": []
 				},
 				{
-					"name": "Batch Add IPs to Blacklist",
+					"name": "批量添加IP到黑名单",
 					"event": [
 						{
 							"listen": "test",
@@ -2875,12 +2875,12 @@
 								"batch"
 							]
 						},
-						"description": "Batch add IPs to blacklist"
+						"description": "批量添加IP到黑名单"
 					},
 					"response": []
 				},
 				{
-					"name": "Batch Remove IPs from Blacklist",
+					"name": "批量从黑名单移除IP",
 					"event": [
 						{
 							"listen": "test",
@@ -2929,12 +2929,12 @@
 								"batch-remove"
 							]
 						},
-						"description": "Batch remove IPs from blacklist"
+						"description": "批量从黑名单移除IP"
 					},
 					"response": []
 				},
 				{
-					"name": "Get IP Request Monitor",
+					"name": "获取IP请求监控",
 					"event": [
 						{
 							"listen": "test",
@@ -2982,12 +2982,12 @@
 								}
 							]
 						},
-						"description": "Get IP request monitoring data"
+						"description": "获取IP请求监控数据"
 					},
 					"response": []
 				},
 				{
-					"name": "Get IP Rate Limit Config",
+					"name": "获取IP限流配置",
 					"event": [
 						{
 							"listen": "test",
@@ -3022,12 +3022,12 @@
 								"config"
 							]
 						},
-						"description": "Get IP rate limit configuration"
+						"description": "获取IP限流配置"
 					},
 					"response": []
 				},
 				{
-					"name": "Update IP Rate Limit Config",
+					"name": "编辑IP限流配置",
 					"event": [
 						{
 							"listen": "test",
@@ -3075,12 +3075,12 @@
 								"config"
 							]
 						},
-						"description": "Update IP rate limit configuration"
+						"description": "编辑IP限流配置"
 					},
 					"response": []
 				},
 				{
-					"name": "Export IP List",
+					"name": "导出IP列表",
 					"event": [
 						{
 							"listen": "test",
@@ -3138,7 +3138,7 @@
 								}
 							]
 						},
-						"description": "Export IP list to CSV format"
+						"description": "导出IP列表为CSV格式"
 					},
 					"response": []
 				}
@@ -3146,10 +3146,10 @@
 			"description": "IP management endpoints for admin"
 		},
 		{
-			"name": "Admin APIs - Email Blacklist Management",
+			"name": "管理接口 - 邮箱黑名单管理",
 			"item": [
 				{
-					"name": "List Email Blacklist",
+					"name": "获取邮箱黑名单列表",
 					"event": [
 						{
 							"listen": "test",
@@ -3206,12 +3206,12 @@
 								}
 							]
 						},
-						"description": "List email blacklist domains"
+						"description": "获取邮箱黑名单列表"
 					},
 					"response": []
 				},
 				{
-					"name": "Get Email Blacklist Stats",
+					"name": "获取邮箱黑名单统计",
 					"event": [
 						{
 							"listen": "test",
@@ -3258,12 +3258,12 @@
 								"stats"
 							]
 						},
-						"description": "Get email blacklist statistics"
+						"description": "获取邮箱黑名单统计"
 					},
 					"response": []
 				},
 				{
-					"name": "Add Email Domain",
+					"name": "添加邮箱域名",
 					"event": [
 						{
 							"listen": "test",
@@ -3311,12 +3311,12 @@
 								"blacklist"
 							]
 						},
-						"description": "Add an email domain to blacklist"
+						"description": "添加邮箱域名到黑名单"
 					},
 					"response": []
 				},
 				{
-					"name": "Update Email Domain",
+					"name": "编辑邮箱域名",
 					"event": [
 						{
 							"listen": "test",
@@ -3364,12 +3364,12 @@
 								"blacklist"
 							]
 						},
-						"description": "Update an email domain"
+						"description": "编辑邮箱域名"
 					},
 					"response": []
 				},
 				{
-					"name": "Delete Email Domain",
+					"name": "删除邮箱域名",
 					"event": [
 						{
 							"listen": "test",
@@ -3411,12 +3411,12 @@
 								}
 							]
 						},
-						"description": "Delete an email domain from blacklist"
+						"description": "从黑名单删除邮箱域名"
 					},
 					"response": []
 				},
 				{
-					"name": "Batch Import Email Domains",
+					"name": "批量导入邮箱域名",
 					"event": [
 						{
 							"listen": "test",
@@ -3465,12 +3465,12 @@
 								"batch-import"
 							]
 						},
-						"description": "Batch import email domains"
+						"description": "批量导入邮箱域名"
 					},
 					"response": []
 				},
 				{
-					"name": "Preview Import Email Domains",
+					"name": "预览导入邮箱域名",
 					"event": [
 						{
 							"listen": "test",
@@ -3531,12 +3531,12 @@
 								"preview-import"
 							]
 						},
-						"description": "Preview batch import email domains (validate format without importing)"
+						"description": "预览批量导入邮箱域名（验证格式但不导入）"
 					},
 					"response": []
 				},
 				{
-					"name": "Toggle Email Domain Status",
+					"name": "切换邮箱域名状态",
 					"event": [
 						{
 							"listen": "test",
@@ -3585,12 +3585,12 @@
 								"toggle"
 							]
 						},
-						"description": "Toggle email domain status (active/disabled)"
+						"description": "切换邮箱域名状态（启用/禁用）"
 					},
 					"response": []
 				},
 				{
-					"name": "Batch Delete Email Domains",
+					"name": "批量删除邮箱域名",
 					"event": [
 						{
 							"listen": "test",
@@ -3648,7 +3648,7 @@
 								"batch-delete"
 							]
 						},
-						"description": "Batch delete email domains"
+						"description": "批量删除邮箱域名"
 					},
 					"response": []
 				}
@@ -3656,10 +3656,10 @@
 			"description": "Email blacklist management endpoints for admin"
 		},
 		{
-			"name": "Admin APIs - Usage Statistics",
+			"name": "管理接口 - 使用统计",
 			"item": [
 				{
-					"name": "Get Usage Errors",
+					"name": "获取使用错误列表",
 					"event": [
 						{
 							"listen": "test",
@@ -3728,7 +3728,7 @@
 								}
 							]
 						},
-						"description": "Get error request list (status code >= 400)"
+						"description": "获取错误请求列表（状态码 >= 400）"
 					},
 					"response": []
 				}
@@ -3736,10 +3736,10 @@
 			"description": "Usage statistics endpoints for admin"
 		},
 		{
-			"name": "Rate Limit & Auth Tests",
+			"name": "限流和认证测试",
 			"item": [
 				{
-					"name": "Test IP Rate Limit",
+					"name": "测试IP限流",
 					"event": [
 						{
 							"listen": "test",
@@ -3784,7 +3784,7 @@
 					"response": []
 				},
 				{
-					"name": "Test Token Rate Limit",
+					"name": "测试令牌限流",
 					"event": [
 						{
 							"listen": "test",
@@ -3830,7 +3830,7 @@
 					"response": []
 				},
 				{
-					"name": "Test Invalid Token",
+					"name": "测试无效令牌",
 					"event": [
 						{
 							"listen": "test",
@@ -3874,7 +3874,7 @@
 					"response": []
 				},
 				{
-					"name": "Test Missing Token",
+					"name": "测试缺失令牌",
 					"event": [
 						{
 							"listen": "test",
