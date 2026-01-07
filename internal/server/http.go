@@ -32,23 +32,10 @@ var (
 )
 
 // NewHTTPServer creates and configures a new HTTP server instance.
-// It sets up middleware, network configuration, address, and timeout from the provided configuration.
-// The server registers the explorer service HTTP handler.
-//
-// Parameters:
-//   - c: Server configuration containing HTTP settings
-//   - logger: Logger instance for server logging
-//
-// Returns:
-//   - *khttp.Server: A configured HTTP server ready to accept connections
 func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap) *khttp.Server {
-	// Initialize rate limiter
 	rateLimiter := middleware.NewRateLimiter()
-
-	// Initialize usage stats service
 	statsService := service.NewUsageStatsService()
 
-	// Initialize IP location service (optional, can be nil if not configured)
 	var ipLocationService *service.IPLocationService
 	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.IpLocation != nil {
 		dbPath := bootstrap.ApiManagement.IpLocation.GeoipDbPath
@@ -63,7 +50,6 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 		}
 	}
 
-	// Initialize IP whitelist checker (optional, can be nil if not configured)
 	var ipWhitelistChecker *middleware.IPWhitelistChecker
 	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.IpWhitelist != nil {
 		whitelistIPs := bootstrap.ApiManagement.IpWhitelist.Ips
@@ -73,23 +59,16 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 		}
 	}
 
-	// Start log processor in background
 	ctx := context.Background()
 	statsService.StartLogProcessor(ctx)
 
-	// Initialize archive service for API logs
 	archiveService := service.NewArchiveUsageService()
-
-	// Initialize scheduler for background tasks
 	scheduler := service.NewScheduler(statsService, archiveService)
 	scheduler.Start(ctx)
 	log.NewHelper(logger).Info("Background scheduler started")
 
-	// Initialize server options with recovery middleware
-	// Token auth, rate limit, and stats middleware are applied selectively
-	// Test mode can be enabled via configuration to bypass all restrictions for testing
 	testMode := false
-	if bootstrap.ApiManagement.GetTestMode() {
+	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.GetTestMode() {
 		log.NewHelper(logger).Warn("WARNING: Test mode is enabled! All authentication and rate limiting restrictions are disabled.")
 		testMode = bootstrap.ApiManagement.GetTestMode()
 	}
@@ -101,16 +80,13 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 		),
 	}
 
-	// Configure CORS if enabled
 	enableCors := c.GetEnableCors()
 	corsMiddleware := configureCORS(enableCors)
 
-	// Add CORS filter if enabled
 	if enableCors && corsMiddleware != nil {
 		opts = append(opts, khttp.Filter(createCORSFilter(corsMiddleware)))
 	}
 
-	// Configure server network, address, and timeout
 	if c.Http.Network != "" {
 		opts = append(opts, khttp.Network(c.Http.Network))
 	}
@@ -121,51 +97,32 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 		opts = append(opts, khttp.Timeout(c.Http.Timeout.AsDuration()))
 	}
 
-	// Create server instance
 	srv := khttp.NewServer(opts...)
 
-	// Optimize HTTP server for high TPS performance
-	// Access the underlying http.Server to configure connection pool and timeouts
 	if httpSrv := srv.Server; httpSrv != nil {
-		// Configure connection pool and timeouts for better performance
-		httpSrv.ReadTimeout = 30 * time.Second      // Maximum duration for reading the entire request
-		httpSrv.WriteTimeout = 30 * time.Second     // Maximum duration before timing out writes
-		httpSrv.IdleTimeout = 120 * time.Second     // Maximum amount of time to wait for the next request
-		httpSrv.ReadHeaderTimeout = 5 * time.Second // Maximum amount of time to read request headers
+		httpSrv.ReadTimeout = 30 * time.Second      
+		httpSrv.WriteTimeout = 30 * time.Second     
+		httpSrv.IdleTimeout = 120 * time.Second     
+		httpSrv.ReadHeaderTimeout = 5 * time.Second 
 
-		// Configure TCP keep-alive for better connection reuse
-		// This is done via the Listener, so we need to set it when the server starts
-		// For now, we'll configure the server to use keep-alive
 		httpSrv.SetKeepAlivesEnabled(true)
-		httpSrv.MaxHeaderBytes = 1 << 20 // 1MB max header size
-
-		// Optimize connection handling
-		// Note: These settings are applied to the underlying http.Server
-		// The actual connection pool is managed by Go's net/http package
+		httpSrv.MaxHeaderBytes = 1 << 20 
 	}
 
-	// Register explorer service (auth and rate limiting applied via middleware)
 	explorerService := service.NewExplorerService()
 	v1.RegisterExplorerHTTPServer(srv, explorerService)
 
-	// Register contract info service (auth and rate limiting applied via middleware)
 	contractInfoService := service.NewContractInfoService()
 	v1.RegisterContractInfoServiceHTTPServer(srv, contractInfoService)
 
-	// Register API token service
-	// Note: User authentication is handled within the service (from X-User-ID header)
-	// In production, this should be replaced with proper JWT/session validation
 	apiTokenService := service.NewAPITokenService()
 	v1.RegisterAPITokenServiceHTTPServer(srv, apiTokenService)
 
-	// Register admin service (auth and rate limiting applied via middleware)
 	adminService := service.NewAdminService()
 	v1.RegisterAdminServiceHTTPServer(srv, adminService)
 
-	// Register custom HTTP routes for file downloads
 	registerExportRoutes(srv, apiTokenService, logger)
 
-	// Register Swagger routes if enabled
 	if c.EnableSwagger {
 		registerSwaggerUI(srv, logger, corsMiddleware, enableCors)
 		registerSwaggerRoutes(srv, logger)
