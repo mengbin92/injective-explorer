@@ -15,22 +15,29 @@ import (
 // and statistics recording to all routes except token management endpoints (/api/v1/tokens).
 // Token management endpoints use user authentication (handled in service).
 // Whitelisted IPs bypass token authentication and rate limiting.
+// When testMode is true, all auth, rate limiting, and stats are bypassed for testing purposes.
 //
 // Parameters:
 //   - rateLimiter: The rate limiter instance
 //   - statsService: The usage stats service instance
 //   - ipLocationService: Optional IP location service for geolocation (can be nil)
 //   - ipWhitelistChecker: Optional IP whitelist checker (can be nil if no whitelist is configured)
+//   - testMode: When true, bypasses all auth, rate limiting, and stats for testing
 //
 // Returns:
 //   - middleware.Middleware: A middleware function that selectively applies auth, rate limiting, and stats
-func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService *service.UsageStatsService, ipLocationService *service.IPLocationService, ipWhitelistChecker *IPWhitelistChecker) middleware.Middleware {
+func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService *service.UsageStatsService, ipLocationService *service.IPLocationService, ipWhitelistChecker *IPWhitelistChecker, testMode bool) middleware.Middleware {
 	authMiddleware := AuthMiddleware()
 	rateLimitMiddleware := RateLimitMiddleware(rateLimiter)
 	statsMiddleware := StatsMiddleware(statsService, ipLocationService)
 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
+			// Test mode: bypass all auth, rate limiting, and stats for testing purposes
+			if testMode {
+				return handler(ctx, req)
+			}
+
 			if request, ok := khttp.RequestFromServerContext(ctx); ok {
 				path := request.URL.Path
 				

@@ -87,10 +87,17 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 
 	// Initialize server options with recovery middleware
 	// Token auth, rate limit, and stats middleware are applied selectively
+	// Test mode can be enabled via configuration to bypass all restrictions for testing
+	testMode := false
+	if bootstrap.ApiManagement.GetTestMode() {
+		log.NewHelper(logger).Warn("WARNING: Test mode is enabled! All authentication and rate limiting restrictions are disabled.")
+		testMode = bootstrap.ApiManagement.GetTestMode()
+	}
+
 	opts := []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
-			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService, ipWhitelistChecker),
+			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService, ipWhitelistChecker, testMode),
 		),
 	}
 

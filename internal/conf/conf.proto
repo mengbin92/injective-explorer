@@ -224,6 +224,7 @@ message APIManagement {
   IPLocation ip_location = 3;
   ArchiveUsage archive_usage = 4;
   IPWhitelist ip_whitelist = 5; // IP whitelist configuration
+  bool test_mode = 6; // Test mode: bypasses authentication and rate limiting for testing
 
   message RateLimit {
     int32 ip_per_minute = 1;         // IP rate limit per minute
