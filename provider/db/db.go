@@ -104,8 +104,11 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 	//
 	// CRITICAL: If you see "Too many connections" error, reduce MaxOpenConns to 60% of MySQL max_connections
 	// Example: If MySQL max_connections = 151, set MaxOpenConns = 90 (151 * 0.6)
-	sqlDB.SetMaxIdleConns(15)                  // 15% of MaxOpenConns for efficiency (100 * 0.15)
-	sqlDB.SetMaxOpenConns(50)                  // Safe value: 50 (well below default MySQL limit of 151)
+	//
+	// Performance optimization: Increased pool size for better concurrency
+	// Ensure MySQL max_connections >= 150 (recommended: 200)
+	sqlDB.SetMaxIdleConns(30)                  // 30% of MaxOpenConns for efficiency (100 * 0.3)
+	sqlDB.SetMaxOpenConns(100)                 // Increased from 50 to 100 for better concurrency
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)  // Reduced from 1 hour to 5 minutes for faster recycling
 	sqlDB.SetConnMaxIdleTime(3 * time.Minute)  // Close idle connections after 3 minutes to free resources
 

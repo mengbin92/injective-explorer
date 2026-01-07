@@ -5,12 +5,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
 	"injective-explorer/internal/models"
+	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
+	"github.com/bytedance/sonic"
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/middleware"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
@@ -82,6 +85,7 @@ func AuthMiddleware() middleware.Middleware {
 }
 
 // validateToken validates a token by hashing it and querying the database.
+// It uses Redis cache to reduce database queries for better performance.
 //
 // Parameters:
 //   - ctx: Context for the operation
@@ -95,7 +99,23 @@ func validateToken(ctx context.Context, token string) (*models.APIToken, error) 
 	hash := sha256.Sum256([]byte(token))
 	tokenHash := hex.EncodeToString(hash[:])
 
-	// Query from database
+	// 1. Try Redis cache first (performance optimization)
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		cacheKey := fmt.Sprintf("token:hash:%s", tokenHash)
+		cachedData, err := redisClient.Get(ctx, cacheKey).Result()
+		if err == nil && cachedData != "" {
+			// Cache hit, unmarshal token info
+			var tokenInfo models.APIToken
+			if err := sonic.Unmarshal([]byte(cachedData), &tokenInfo); err == nil {
+				return &tokenInfo, nil
+			}
+			// If unmarshal fails, continue to database query
+		}
+		// If cache miss or error, continue to database query (graceful degradation)
+	}
+
+	// 2. Cache miss or Redis unavailable, query database
 	var tokenInfo models.APIToken
 	err := db.Get().Where("token_hash = ?", tokenHash).First(&tokenInfo).Error
 	if err == gorm.ErrRecordNotFound {
@@ -103,6 +123,19 @@ func validateToken(ctx context.Context, token string) (*models.APIToken, error) 
 	}
 	if err != nil {
 		return nil, errors.New(500, "DATABASE_ERROR", "Failed to validate token")
+	}
+
+	// 3. Write to cache asynchronously (non-blocking)
+	// Only cache active tokens to avoid caching disabled tokens
+	if redisClient != nil && tokenInfo.Status == "active" {
+		go func() {
+			cacheKey := fmt.Sprintf("token:hash:%s", tokenHash)
+			tokenJSON, err := sonic.Marshal(tokenInfo)
+			if err == nil {
+				// Cache for 5 minutes
+				redisClient.Set(context.Background(), cacheKey, tokenJSON, 5*time.Minute)
+			}
+		}()
 	}
 
 	return &tokenInfo, nil

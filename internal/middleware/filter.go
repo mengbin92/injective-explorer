@@ -32,8 +32,14 @@ func SelectiveAuthAndRateLimitMiddleware(rateLimiter *RateLimiter, statsService 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
 			if request, ok := khttp.RequestFromServerContext(ctx); ok {
-				// Check if this is a token management endpoint
 				path := request.URL.Path
+				
+				// Health check endpoint: skip all middleware for maximum performance
+				if path == "/api/v1/health" {
+					return handler(ctx, req)
+				}
+				
+				// Check if this is a token management endpoint
 				if strings.HasPrefix(path, "/api/v1/tokens") {
 					// Token management endpoints use user auth (handled in service)
 					// Skip token auth, rate limiting, and stats
