@@ -99,7 +99,7 @@ const (
 const (
 	defaultTxHashQueueKey             = "tx:hash:queue"        // Redis key name for transaction hash queue
 	defaultTxHashProcessingQueueKey   = "tx:hash:processing"   // Redis key name for transaction hash processing queue
-	defaultBlockPollInterval          = 5 * time.Second        // Block polling interval
+	defaultBlockPollInterval          = 500 * time.Millisecond // Block polling interval (0.5s)
 	defaultTxProcessInterval          = 500 * time.Millisecond // Transaction processing interval
 	defaultHistoricalSyncInterval     = 10 * time.Second       // Historical block sync interval
 	defaultHistoricalBatchDelay       = 1 * time.Second        // Delay between historical block sync batches
@@ -124,6 +124,7 @@ const (
 	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
 	defaultEVMDetailsProcessInterval  = 2 * time.Second        // EVM details process interval
 	defaultEVMDetailsTimeout          = 30 * time.Second       // EVM details timeout
+	defaultEnableStreamBlocks         = false                  // Enable WebSocket stream for blocks (WSS)
 )
 
 // SyncConfig holds the sync service configuration with default values.
@@ -149,6 +150,7 @@ type SyncConfig struct {
 	MaxRetryAttempts           int
 	RetryDelay                 time.Duration
 	EarliestBlockHeight        uint64
+	EnableStreamBlocks         bool // Enable WebSocket stream for real-time block monitoring
 }
 
 // LoadSyncConfig loads sync configuration from Bootstrap config with default values.
@@ -261,6 +263,11 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 	// Blocks
 	if sync.Blocks != nil && sync.Blocks.EarliestHeight > 0 {
 		cfg.EarliestBlockHeight = sync.Blocks.EarliestHeight
+	}
+
+	// Streaming
+	if sync.GetEnableStreamBlocks() {
+		cfg.EnableStreamBlocks = sync.GetEnableStreamBlocks()
 	}
 
 	return cfg

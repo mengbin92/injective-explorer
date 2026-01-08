@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# 告警规则（可选）
+rule_files:
+  # - "rules/*.yml"
+
+# 抓取配置
+scrape_configs:
+  # Prometheus 自身
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Injective Explorer - 区块同步服务
+  - job_name: 'injective-explorer-sync'
+    static_configs:
+      - targets: ['injective-explorer:9090']
+    scrape_interval: 5s  # 每5秒抓取一次（用于实时监控）
+    metrics_path: '/metrics'
+    params:
+      format: ['prometheus']
+
+  # Node Exporter（可选，用于监控主机）
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+
+# 告警配置（可选）
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093

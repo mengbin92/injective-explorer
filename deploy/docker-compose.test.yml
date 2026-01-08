@@ -1,0 +1,137 @@
+# Docker Compose 配置 - 测试环境
+# Block Sync Optimization Test Environment
+
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: injective-postgres-test
+    environment:
+      POSTGRES_USER: injective
+      POSTGRES_PASSWORD: injective_test_password
+      POSTGRES_DB: injective_test
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_test:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U injective"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: injective-redis-test
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_test:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Injective Explorer - 优化版本
+  injective-explorer:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: injective-explorer-test
+    environment:
+      # 环境变量配置
+      ENV: test
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: injective
+      DB_PASSWORD: injective_test_password
+      DB_NAME: injective_test
+      DB_MAX_OPEN_CONNECTIONS: 50
+      DB_MAX_IDLE_CONNECTIONS: 10
+      DB_CONN_MAX_LIFETIME: 5m
+
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+
+      # 区块同步优化配置（关键）
+      ENABLE_SYNC: "true"
+      SYNC_ENABLE_STREAM_BLOCKS: "true"  # 启用 WebSocket 流式监听
+      SYNC_BLOCK_POLL_INTERVAL: 500ms
+      SYNC_BACKWARD_SYNC_WORKERS: 5
+      SYNC_CONCURRENT_TX_PROCESSORS: 10
+      SYNC_EVM_WORKERS: 3
+      SYNC_BACKWARD_SYNC_BATCH_SIZE: 20
+      SYNC_HISTORICAL_SYNC_BATCH_SIZE: 10
+      SYNC_TX_BATCH_SIZE: 50
+
+      # 监控和调试
+      ENABLE_METRICS: "true"
+      METRICS_PORT: 9090
+      PPROF_ENABLED: "true"
+      LOG_LEVEL: debug
+      LOG_FORMAT: json
+
+      # 起始区块（可以根据测试需求调整）
+      SYNC_EARLIEST_BLOCK_HEIGHT: 1
+    ports:
+      - "8000:8000"
+      - "9090:9090"  # Metrics
+      - "6060:6060"  # Pprof
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config/sync.test.yaml:/app/config/sync.test.yaml:ro
+    command: ["./injective-explorer", "server", "--config=/app/config/sync.test.yaml"]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Prometheus（监控）
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: injective-prometheus-test
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.test.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - injective-explorer
+
+  # Grafana（可视化）
+  grafana:
+    image: grafana/grafana:latest
+    container_name: injective-grafana-test
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data_test:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data_test:
+  redis_data_test:
+  grafana_data_test:

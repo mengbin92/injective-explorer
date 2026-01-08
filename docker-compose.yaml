@@ -81,7 +81,7 @@ services:
       - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
     volumes:
       - injective-explorer-mysql:/var/lib/mysql
-      - ./scripts/init_database.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/init_database.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - injective-explorer-network
     healthcheck:

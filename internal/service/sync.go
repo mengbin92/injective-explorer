@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"injective-explorer/internal/global"
@@ -29,6 +30,13 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
+
+// processResult 用于收集worker处理结果
+type processResult struct {
+	height   uint64
+	err      error
+	duration time.Duration
+}
 
 // SyncService handles blockchain synchronization tasks.
 // It monitors new blocks, stores block data, processes transactions,
@@ -62,6 +70,13 @@ type SyncService struct {
 	syncLockKey     string
 	syncLockValue   string
 	syncLockRenewal *sync.WaitGroup
+
+	// 监控指标
+	metrics struct {
+		blockProcessingCount    atomic.Uint64
+		blockProcessingErrors   atomic.Uint64
+		totalProcessingDuration atomic.Int64 // nanoseconds
+	}
 }
 
 // NewSyncService creates a new instance of SyncService.
@@ -228,7 +243,13 @@ func (s *SyncService) Start() error {
 	s.wg.Add(1)
 	go s.initializeAndSync()
 
-	// Start block monitoring goroutine
+	// Start block streaming (real-time) if enabled, otherwise use polling
+	// Streaming is the preferred method for lower latency
+	s.wg.Add(1)
+	go s.blockStream()
+
+	// Start block monitoring (polling) as fallback/backup
+	// This runs in parallel with streaming for redundancy
 	s.wg.Add(1)
 	go s.blockMonitor()
 
@@ -260,7 +281,12 @@ func (s *SyncService) Start() error {
 		evmDetailsSyncService.Start()
 	}
 
-	global.Logger.Infof("blockchain sync service started, initialization in progress, %d transaction processors", s.config.ConcurrentTxProcessors)
+	streamMode := "polling"
+	if s.config.EnableStreamBlocks {
+		streamMode = "streaming + polling (redundant)"
+	}
+	global.Logger.Infof("blockchain sync service started, initialization in progress, mode=%s, %d transaction processors",
+		streamMode, s.config.ConcurrentTxProcessors)
 	return nil
 }
 
@@ -636,7 +662,7 @@ func (s *SyncService) blockMonitor() {
 	}
 }
 
-// processNewBlocks processes all new blocks since the last processed height.
+// processNewBlocks processes all new blocks since the last processed height using concurrent processing.
 func (s *SyncService) processNewBlocks() error {
 	currentHeight := s.getCurrentHeight()
 	latestHeight, err := s.getLatestBlockHeight()
@@ -649,32 +675,192 @@ func (s *SyncService) processNewBlocks() error {
 		return nil
 	}
 
-	global.Logger.Infof("processing blocks from %d to %d", currentHeight+1, latestHeight)
+	totalBlocks := latestHeight - currentHeight
+	global.Logger.Infof("concurrent processing blocks from %d to %d (total: %d)",
+		currentHeight+1, latestHeight, totalBlocks)
 
-	// Process blocks one by one
+	// Collect heights to process
+	heights := make([]uint64, 0, totalBlocks)
 	for height := currentHeight + 1; height <= latestHeight; height++ {
-		// Check if context is cancelled before processing each block
-		select {
-		case <-s.ctx.Done():
-			global.Logger.Infof("context cancelled, stopping block processing at height %d", height-1)
-			return s.ctx.Err()
-		default:
-		}
+		heights = append(heights, height)
+	}
 
-		if err := s.processBlock(height); err != nil {
-			// Check if error is due to context cancellation
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				global.Logger.Infof("context cancelled or timeout while processing block %d, stopping", height)
-				return err
-			}
-			global.Logger.Errorf("error processing block %d: %v", height, err)
-			// Continue processing next block even if one fails
-			continue
+	// Batch check which blocks already exist to avoid unnecessary processing
+	existingMap, err := s.batchCheckBlockExistence(heights)
+	if err != nil {
+		global.Logger.Warnf("failed to batch check block existence: %v, processing all blocks", err)
+		existingMap = make(map[uint64]bool)
+	}
+
+	// Filter out existing blocks
+	newHeights := make([]uint64, 0)
+	for _, height := range heights {
+		if !existingMap[height] {
+			newHeights = append(newHeights, height)
 		}
-		s.setCurrentHeight(height)
+	}
+
+	if len(newHeights) == 0 {
+		global.Logger.Debugf("all %d blocks already exist, updating height to %d", len(heights), latestHeight)
+		s.setCurrentHeight(latestHeight)
+		return nil
+	}
+
+	global.Logger.Debugf("filtered %d existing blocks, processing %d new blocks",
+		len(heights)-len(newHeights), len(newHeights))
+
+	// Create task channel
+	taskChan := make(chan uint64, len(newHeights))
+	for _, height := range newHeights {
+		taskChan <- height
+	}
+	close(taskChan)
+
+	// Create result channel
+	resultChan := make(chan processResult, len(newHeights))
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	workerCount := s.config.BackwardSyncWorkers
+	if workerCount <= 0 {
+		workerCount = 5 // Default value
+	}
+
+	global.Logger.Debugf("starting %d workers for block processing", workerCount)
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go s.blockWorker(i, taskChan, resultChan, &wg)
+	}
+
+	// Wait for all workers to complete and close result channel
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results and statistics
+	successCount := 0
+	errorCount := 0
+	totalDuration := time.Duration(0)
+	maxHeightProcessed := currentHeight
+
+	for result := range resultChan {
+		if result.err != nil {
+			errorCount++
+			global.Logger.Errorf("error processing block %d: %v", result.height, result.err)
+			s.metrics.blockProcessingErrors.Add(1)
+		} else {
+			successCount++
+			totalDuration += result.duration
+			s.metrics.totalProcessingDuration.Add(result.duration.Nanoseconds())
+
+			// Update maximum processed height
+			if result.height > maxHeightProcessed {
+				maxHeightProcessed = result.height
+			}
+		}
+	}
+
+	// Update current height to the maximum processed height
+	if maxHeightProcessed > currentHeight {
+		s.setCurrentHeight(maxHeightProcessed)
+		global.Logger.Infof("updated current height to %d", maxHeightProcessed)
+	}
+
+	// Record statistics
+	if successCount > 0 {
+		avgDuration := totalDuration / time.Duration(successCount)
+		global.Logger.Infof("processed %d blocks, %d errors, avg: %v/block, max height: %d",
+			successCount, errorCount, avgDuration, maxHeightProcessed)
+
+		s.metrics.blockProcessingCount.Add(uint64(successCount))
+	} else if errorCount > 0 {
+		global.Logger.Warnf("failed to process all %d blocks", errorCount)
 	}
 
 	return nil
+}
+
+// batchCheckBlockExistence 批量检查区块是否存在
+func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]bool, error) {
+	result := make(map[uint64]bool)
+
+	if len(heights) == 0 {
+		return result, nil
+	}
+
+	start := time.Now()
+
+	// 使用 IN 查询批量检查
+	var existingBlocks []struct {
+		Height uint64 `gorm:"column:height"`
+	}
+
+	// 分批查询避免SQL参数过多（每批1000个）
+	batchSize := 1000
+	for i := 0; i < len(heights); i += batchSize {
+		end := i + batchSize
+		if end > len(heights) {
+			end = len(heights)
+		}
+
+		batch := heights[i:end]
+		err := db.Get().Model(&models.Block{}).
+			Where("height IN ?", batch).
+			Select("height").
+			Find(&existingBlocks).Error
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to batch check block existence")
+		}
+	}
+
+	// 构建结果map
+	for _, block := range existingBlocks {
+		result[block.Height] = true
+	}
+
+	duration := time.Since(start)
+	global.Logger.Debugf("batch checked %d blocks, found %d existing, took %v",
+		len(heights), len(existingBlocks), duration)
+
+	return result, nil
+}
+
+// blockWorker 处理区块的worker函数
+func (s *SyncService) blockWorker(id int, taskChan <-chan uint64, resultChan chan<- processResult, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	global.Logger.Debugf("block worker %d started", id)
+	processedCount := 0
+
+	for height := range taskChan {
+		select {
+		case <-s.ctx.Done():
+			global.Logger.Debugf("block worker %d stopped by context, processed: %d", id, processedCount)
+			return
+		default:
+			start := time.Now()
+			err := s.processBlock(height)
+			duration := time.Since(start)
+
+			resultChan <- processResult{
+				height:   height,
+				err:      err,
+				duration: duration,
+			}
+
+			processedCount++
+
+			// 每处理10个区块打印一次进度
+			if processedCount%10 == 0 {
+				global.Logger.Debugf("block worker %d processed %d blocks", id, processedCount)
+			}
+		}
+	}
+
+	global.Logger.Debugf("block worker %d finished, total processed: %d", id, processedCount)
 }
 
 // processBlock processes a single block at the given height.
@@ -2869,5 +3055,137 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		global.Logger.Warnf("failed to cache transaction to Redis: %v", err)
+	}
+}
+
+// blockStream uses gRPC streaming to receive new blocks in real-time from Injective.
+// This is an alternative to polling that provides lower latency and better efficiency.
+// Falls back to blockMonitor if streaming fails or is not enabled.
+func (s *SyncService) blockStream() {
+	defer s.wg.Done()
+
+	if !s.config.EnableStreamBlocks {
+		global.Logger.Info("block streaming disabled, skipping blockStream")
+		return
+	}
+
+	global.Logger.Info("starting real-time block stream (WSS)")
+
+	// Initial delay to allow clients to initialize
+	// This prevents trying to stream before the connection is ready
+	select {
+	case <-s.ctx.Done():
+		return
+	case <-time.After(5 * time.Second):
+		// Continue after initial delay
+	}
+
+	// Retry loop for stream connection
+	retryDelay := 5 * time.Second
+	maxRetryDelay := 60 * time.Second
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			global.Logger.Info("block stream shutting down by context")
+			return
+		default:
+			// Start the stream
+			if err := s.startBlockStream(); err != nil {
+				global.Logger.Errorf("block stream error: %v, retrying in %v", err, retryDelay)
+
+				// Exponential backoff with cap
+				select {
+				case <-s.ctx.Done():
+					return
+				case <-time.After(retryDelay):
+					retryDelay *= 2
+					if retryDelay > maxRetryDelay {
+						retryDelay = maxRetryDelay
+					}
+				}
+			} else {
+				// Stream completed normally, reset retry delay
+				retryDelay = 5 * time.Second
+			}
+
+			// Small delay before reconnecting
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-time.After(1 * time.Second):
+				// Continue to retry
+			}
+		}
+	}
+}
+
+// startBlockStream establishes and processes the gRPC stream for new blocks.
+// Returns when the stream ends or encounters an error.
+func (s *SyncService) startBlockStream() error {
+	// Create stream context with timeout
+	streamCtx, cancel := context.WithTimeout(s.ctx, 24*time.Hour) // Long timeout for persistent connection
+	defer cancel()
+
+	// Create the stream
+	stream, err := s.explorerClient.StreamBlocks(streamCtx)
+	if err != nil {
+		return errors.Wrap(err, "failed to create block stream")
+	}
+
+	global.Logger.Info("block stream connected, listening for new blocks")
+
+	// Process incoming blocks
+	for {
+		select {
+		case <-s.ctx.Done():
+			return errors.New("context canceled")
+		default:
+			// Receive next block from stream
+			blockResp, err := stream.Recv()
+			if err != nil {
+				global.Logger.Errorf("block stream recv error: %v", err)
+				return errors.Wrap(err, "stream receive error")
+			}
+
+			if blockResp == nil {
+				global.Logger.Warn("received nil block response from stream")
+				continue
+			}
+
+			// Extract block height
+			height := blockResp.GetHeight()
+			if height == 0 {
+				global.Logger.Warn("received block without height")
+				continue
+			}
+
+			currentHeight := s.getCurrentHeight()
+
+			// Skip if this block is not the next one (shouldn't happen with stream, but be safe)
+			if height <= currentHeight {
+				global.Logger.Debugf("block %d already processed or out of order, current: %d", height, currentHeight)
+				continue
+			}
+
+			// Log the new block
+			global.Logger.Infof("received block from stream: height=%d", height)
+
+			// Process this single block immediately for lowest latency
+			start := time.Now()
+			if err := s.processBlock(height); err != nil {
+				global.Logger.Errorf("error processing block %d from stream: %v", height, err)
+				s.metrics.blockProcessingErrors.Add(1)
+				continue
+			}
+
+			duration := time.Since(start)
+			s.metrics.blockProcessingCount.Add(1)
+			s.metrics.totalProcessingDuration.Add(duration.Nanoseconds())
+
+			// Update current height
+			s.setCurrentHeight(height)
+			global.Logger.Debugf("processed block %d from stream in %v", height, duration)
+		}
 	}
 }
