@@ -361,6 +361,8 @@ message BlockGasUtilizationResponse {
   int64 transaction_count = 5 [ json_name = "transaction_count" ];
   // Max gas per block (gas limit)
   int64 block_gas_limit = 6 [ json_name = "block_gas_limit" ];
+  // Current gas price (in inj or smallest denomination)
+  string gas_price = 7 [ json_name = "gas_price" ];
 }
 
 // TransactionStatsResponse contains transaction volume statistics

@@ -615,6 +615,51 @@ func (s *ExplorerService) GetLatestBlockHeight(ctx context.Context, req *emptypb
 	return MarshalAndReply(&pb.LatestBlockHeightResponse{Height: height}, "marshal height error")
 }
 
+// getCachedGasPrice retrieves the current gas price with caching.
+// Fetches the actual gas price from the chain using ChainClientV2.
+// Since Injective's gas price doesn't change frequently, we cache it for 5 minutes.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//
+// Returns:
+//   - string: Gas price as string (in smallest denomination)
+//   - error: Error if the operation fails
+func (s *ExplorerService) getCachedGasPrice(ctx context.Context) (string, error) {
+	redisClient := cache.GetRedisClient()
+
+	// Try to get from cache first
+	if redisClient != nil {
+		cachedPrice, err := redisClient.Get(ctx, CacheKeyGasPrice).Result()
+		if err == nil && cachedPrice != "" {
+			return cachedPrice, nil
+		}
+	}
+
+	// Get the chain client
+	chainClient, err := GetSharedChainClient()
+	if err != nil {
+		global.Logger.Warnf("failed to get chain client for gas price: %v", err)
+		return "500000000", nil // Fallback to default 0.5 INJ
+	}
+
+	// Query actual gas price from chain
+	gasPriceInt64 := chainClient.CurrentChainGasPrice(ctx)
+	gasPrice := fmt.Sprintf("%d", gasPriceInt64)
+
+	// Cache the result
+	if redisClient != nil {
+		go func() {
+			cacheCtx := context.Background()
+			if err := redisClient.Set(cacheCtx, CacheKeyGasPrice, gasPrice, CacheGasPriceTTL).Err(); err != nil {
+				global.Logger.Warnf("failed to cache gas price: %v", err)
+			}
+		}()
+	}
+
+	return gasPrice, nil
+}
+
 // GetBlockGasUtilization retrieves gas utilization statistics for the latest N blocks.
 // Formula: (Σgas_used / Σmax_gas) × 100%, where Σmax_gas = block_count × max_gas_per_block
 // Results are cached to improve response time.
@@ -656,6 +701,13 @@ func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *empty
 		return ErrorReply(http.StatusInternalServerError, "failed to calculate block gas utilization", err), err
 	}
 
+	// Get current gas price (with caching)
+	gasPrice, err := s.getCachedGasPrice(ctx)
+	if err != nil {
+		global.Logger.Warnf("failed to get gas price: %v, using default", err)
+		gasPrice = "500000000" // Default: 0.5 INJ
+	}
+
 	response := &pb.BlockGasUtilizationResponse{
 		GasUtilization:   gasUtilization,
 		TotalGasUsed:     totalGasUsed,
@@ -663,6 +715,7 @@ func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *empty
 		BlockCount:       blockCount,
 		TransactionCount: transactionCount,
 		BlockGasLimit:    maxGas,
+		GasPrice:         gasPrice,
 	}
 
 	// Cache the result

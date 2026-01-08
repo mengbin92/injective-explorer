@@ -85,6 +85,7 @@ const (
 	CacheKeyBlockGasUtilization   = "cache:block:gas:utilization"   // Block gas utilization cache key
 	CacheKeyEVMDetailsPrefix      = "evm:details:"                  // Cache key prefix for EVM transaction details
 	CacheKeyLatestBlockHeight     = "cache:latest:block:height"     // Latest block height cache key
+	CacheKeyGasPrice              = "cache:gas:price"               // Gas price cache key
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 1 * time.Hour                   // Single block cache expiration time (1 hour - increased from 5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
@@ -92,6 +93,7 @@ const (
 	CacheFailedTransactions24HTTL = 15 * time.Minute                // Failed transactions 24h count cache expiration time (15 minutes - increased from 2 minutes)
 	CacheBlockMaxGasTTL           = 10 * time.Minute                // Block max gas cache expiration time (10 minutes)
 	CacheBlockGasUtilizationTTL   = 1 * time.Minute                 // Block gas utilization cache expiration time (1 minute)
+	CacheGasPriceTTL              = 5 * time.Minute                 // Gas price cache expiration time (5 minutes - updated every 5 minutes)
 	CacheEVMDetailsTTL            = 24 * time.Hour                  // Cache TTL: 24 hours (EVM details are relatively static)
 )
 

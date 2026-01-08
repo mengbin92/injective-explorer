@@ -141,6 +141,8 @@ sync:
   # 区块配置
   blocks:
     earliest_height: 147347723 # 最早区块高度的默认值
+  
+  enable_stream_blocks: true # 启用 WebSocket 流式监听
 
 archive:
   # 是否启用自动归档（默认: false）
