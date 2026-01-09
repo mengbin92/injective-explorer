@@ -85,6 +85,23 @@ service ContractInfoService {
       get : "/api/v1/contract/info/tags"
     };
   }
+
+  // ExportContractInfos exports contract information in CSV or JSON format
+  // Returns Reply with data containing export result
+  rpc ExportContractInfos(ExportContractInfosRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/contract/info/export"
+    };
+  }
+
+  // ImportContractInfos imports contract information from CSV or JSON file
+  // Returns Reply with data containing import result
+  rpc ImportContractInfos(ImportContractInfosRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/contract/info/import"
+      body : "*"
+    };
+  }
 }
 
 // Request messages
@@ -159,6 +176,56 @@ message RemoveContractTagRequest {
 message GetContractTagsRequest {
   string contract_address = 1; // Contract address (required)
   string chain_id = 2;         // Chain ID (required)
+}
+
+// ExportContractInfosRequest is the request message for exporting contract
+// information
+message ExportContractInfosRequest {
+  // Export format: "csv" or "json" (required)
+  string format = 1;
+
+  // Filter conditions (optional)
+  string chain_id = 2 [ json_name = "chain_id" ]; // Filter by chain ID
+  string contract_type = 3
+      [ json_name = "contract_type" ]; // Filter by contract type
+  string verification_status = 4
+      [ json_name = "verification_status" ]; // Filter by verification status
+  string name = 5;   // Fuzzy match on name or token_name
+  string symbol = 6; // Fuzzy match on token_symbol
+
+  // Specific contract addresses to export (optional, if empty exports all
+  // matching filters)
+  repeated string contract_addresses = 7 [ json_name = "contract_addresses" ];
+
+  // Include tags in export (default: true)
+  bool include_tags = 8 [ json_name = "include_tags" ];
+
+  // Include metadata in export (default: true)
+  bool include_metadata = 9 [ json_name = "include_metadata" ];
+}
+
+// ImportContractInfosRequest is the request message for importing contract
+// information
+message ImportContractInfosRequest {
+  // Import format: "csv" or "json" (required)
+  string format = 1;
+
+  // File content as base64 encoded string
+  string file_content_base64 = 2 [ json_name = "file_content_base64" ];
+
+  // Import mode: "create" (only create new), "update" (only update existing),
+  // "upsert" (create or update) Default: "upsert"
+  string import_mode = 3 [ json_name = "import_mode" ];
+
+  // Skip validation errors and continue importing (default: false)
+  bool skip_errors = 4 [ json_name = "skip_errors" ];
+
+  // Default chain_id for contracts without chain_id specified (optional)
+  string default_chain_id = 5 [ json_name = "default_chain_id" ];
+
+  // Default contract_type for contracts without contract_type specified
+  // (optional)
+  string default_contract_type = 6 [ json_name = "default_contract_type" ];
 }
 
 // Response data messages (used in Reply.data as Struct)

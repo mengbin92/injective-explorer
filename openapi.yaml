@@ -983,6 +983,86 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/contract/info/export:
+        get:
+            tags:
+                - ContractInfoService
+            description: |-
+                ExportContractInfos exports contract information in CSV or JSON format
+                 Returns Reply with data containing export result
+            operationId: ContractInfoService_ExportContractInfos
+            parameters:
+                - name: format
+                  in: query
+                  description: 'Export format: "csv" or "json" (required)'
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  description: Filter conditions (optional)
+                  schema:
+                    type: string
+                - name: contract_type
+                  in: query
+                  schema:
+                    type: string
+                - name: verification_status
+                  in: query
+                  schema:
+                    type: string
+                - name: name
+                  in: query
+                  schema:
+                    type: string
+                - name: symbol
+                  in: query
+                  schema:
+                    type: string
+                - name: contract_addresses
+                  in: query
+                  description: Specific contract addresses to export (optional, if empty exports all matching filters)
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: include_tags
+                  in: query
+                  description: 'Include tags in export (default: true)'
+                  schema:
+                    type: boolean
+                - name: include_metadata
+                  in: query
+                  description: 'Include metadata in export (default: true)'
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/contract/info/import:
+        post:
+            tags:
+                - ContractInfoService
+            description: |-
+                ImportContractInfos imports contract information from CSV or JSON file
+                 Returns Reply with data containing import result
+            operationId: ContractInfoService_ImportContractInfos
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.ImportContractInfosRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/contract/info/list:
         get:
             tags:
@@ -1905,6 +1985,30 @@ components:
                     description: Optional latency in milliseconds
                     format: double
             description: HealthDetails contains detailed health information for each component
+        api.explorer.v1.ImportContractInfosRequest:
+            type: object
+            properties:
+                format:
+                    type: string
+                    description: 'Import format: "csv" or "json" (required)'
+                file_content_base64:
+                    type: string
+                    description: File content as base64 encoded string
+                import_mode:
+                    type: string
+                    description: |-
+                        Import mode: "create" (only create new), "update" (only update existing), "upsert" (create or update)
+                         Default: "upsert"
+                skip_errors:
+                    type: boolean
+                    description: 'Skip validation errors and continue importing (default: false)'
+                default_chain_id:
+                    type: string
+                    description: Default chain_id for contracts without chain_id specified (optional)
+                default_contract_type:
+                    type: string
+                    description: Default contract_type for contracts without contract_type specified (optional)
+            description: ImportContractInfosRequest is the request message for importing contract information
         api.explorer.v1.PreviewImportEmailDomainsRequest:
             type: object
             properties:
