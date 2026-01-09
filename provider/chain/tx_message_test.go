@@ -19,7 +19,6 @@ func TestGetTxMessage(t *testing.T) {
 
 	tx, err := explorerClient.GetTxByTxHash(context.Background(), "0xb59239ef3c2c0468b95593bfca718a84f95e5d2d9becf73177b1010d315deefa")
 	assert.NoError(t, err, "failed to get transaction by hash")
-	// fmt.Println(tx.String())
 
 	txMessage := tx.Data.GetMessages()
 

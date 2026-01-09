@@ -819,10 +819,6 @@ func (s *ArchiveSchedulerService) archiveScheduler() {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
-	// Execute immediately on start (optional, can be removed if you want to wait for first interval)
-	// Uncomment the following lines if you want immediate execution:
-	// s.executeArchive(archiveService)
-
 	global.Logger.Infof("archive scheduler running, next execution in %v", s.interval)
 
 	for {

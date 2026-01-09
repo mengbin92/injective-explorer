@@ -177,9 +177,6 @@ func TestEVMClient_GetTransactionByHash(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get latest block to find a transaction
-	// latestBlock, err := client.GetBlockNumber(ctx)
-	// require.NoError(t, err)
 	latestBlock := big.NewInt(147251781)
 
 	block, err := client.GetBlockByNumber(ctx, latestBlock)

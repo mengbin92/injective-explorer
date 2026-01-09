@@ -133,7 +133,6 @@ message Sync {
   BatchSize batch_size = 5;
   Retry retry = 6;
   Blocks blocks = 7;
-  bool enable_stream_blocks = 8; // Enable WebSocket streaming for real-time block monitoring
 
   message Redis {
     string queue_key = 1; // Redis queue key name

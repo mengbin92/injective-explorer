@@ -60,7 +60,6 @@ services:
 
       # 区块同步优化配置（关键）
       ENABLE_SYNC: "true"
-      SYNC_ENABLE_STREAM_BLOCKS: "true"  # 启用 WebSocket 流式监听
       SYNC_BLOCK_POLL_INTERVAL: 500ms
       SYNC_BACKWARD_SYNC_WORKERS: 5
       SYNC_CONCURRENT_TX_PROCESSORS: 10

@@ -102,28 +102,6 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		panic(err)
 	}
 
-	// Logger.Infof("database migrated")
-	// err = db.Get().AutoMigrate(
-	// 	&models.Block{},
-	// 	&models.Transaction{},
-	// 	&models.Account{},
-	// 	&models.AccountBalance{},
-	// 	&models.TransactionDataArchive{},
-	// 	&models.ContractInfo{},
-	// 	&models.ContractTag{},
-	// 	&models.AddressLabel{},
-	// 	// API management tables
-	// 	&models.APIToken{},
-	// 	&models.APIPlan{},
-	// 	&models.APIRequestLog{},
-	// 	&models.UserUsageStats{},
-	// 	&models.UsageDailyStats{},
-	// 	&models.Webhook{},
-	// )
-	// if err != nil {
-	// 	panic(err)
-	// }
-
 	err = cache.InitRedis(context.Background(), bc.Data.Redis, logger)
 	if err != nil {
 		panic(err)

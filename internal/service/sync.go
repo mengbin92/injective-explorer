@@ -1,6 +1,6 @@
 // Package service provides blockchain synchronization services.
-// It continuously monitors new blocks, stores block data, processes transactions,
-// and updates account information.
+// It uses WebSocket streaming to receive new blocks in real-time, stores block data,
+// processes transactions, and updates account information.
 package service
 
 import (
@@ -38,9 +38,9 @@ type processResult struct {
 	duration time.Duration
 }
 
-// SyncService handles blockchain synchronization tasks.
-// It monitors new blocks, stores block data, processes transactions,
-// and updates account information.
+// SyncService handles blockchain synchronization tasks using WebSocket streaming.
+// It receives new blocks in real-time via gRPC streaming, stores block data,
+// processes transactions, and updates account information.
 type SyncService struct {
 	// Configuration
 	config *SyncConfig
@@ -227,8 +227,8 @@ func (s *SyncService) renewSyncLock(ctx context.Context, ttl time.Duration) {
 }
 
 // Start starts the blockchain synchronization service.
-// It starts goroutines for block monitoring and transaction processing.
-// The initialization and backward sync operations are performed asynchronously
+// It starts goroutines for WebSocket block streaming and transaction processing.
+// The initialization operations are performed asynchronously
 // to avoid blocking service startup.
 func (s *SyncService) Start() error {
 	global.Logger.Infof("starting blockchain sync service")
@@ -238,20 +238,15 @@ func (s *SyncService) Start() error {
 		return errors.Wrap(err, "failed to initialize clients")
 	}
 
-	// Start initialization and backward sync in background goroutine
-	// This allows the service to start immediately without waiting for sync to complete
+	// Start initialization in background goroutine
+	// This allows the service to start immediately without waiting for initialization to complete
 	s.wg.Add(1)
 	go s.initializeAndSync()
 
-	// Start block streaming (real-time) if enabled, otherwise use polling
-	// Streaming is the preferred method for lower latency
+	// Start block streaming (real-time) via WebSocket
+	// This is the only method for block synchronization
 	s.wg.Add(1)
 	go s.blockStream()
-
-	// Start block monitoring (polling) as fallback/backup
-	// This runs in parallel with streaming for redundancy
-	s.wg.Add(1)
-	go s.blockMonitor()
 
 	// Start multiple transaction processing goroutines for better performance
 	for i := 0; i < s.config.ConcurrentTxProcessors; i++ {
@@ -281,24 +276,21 @@ func (s *SyncService) Start() error {
 		evmDetailsSyncService.Start()
 	}
 
-	streamMode := "polling"
-	if s.config.EnableStreamBlocks {
-		streamMode = "streaming + polling (redundant)"
-	}
-	global.Logger.Infof("blockchain sync service started, initialization in progress, mode=%s, %d transaction processors",
-		streamMode, s.config.ConcurrentTxProcessors)
+	global.Logger.Infof("blockchain sync service started, initialization in progress, mode=websocket streaming, %d transaction processors",
+		s.config.ConcurrentTxProcessors)
 	return nil
 }
 
-// initializeAndSync performs initialization and backward sync operations asynchronously.
-// This allows the service to start immediately while sync happens in the background.
+// initializeAndSync performs initialization operations asynchronously.
+// This allows the service to start immediately while initialization happens in the background.
+// Note: Backward sync has been removed - only WebSocket streaming is used for block synchronization.
 func (s *SyncService) initializeAndSync() {
 	defer s.wg.Done()
 
-	global.Logger.Infof("starting async initialization and sync")
+	global.Logger.Infof("starting async initialization")
 
-	// Initialize current height from database and verify chain continuity
-	// Then sync backwards from latest block to ensure we have the most recent blocks
+	// Initialize current height from database
+	// We only initialize the height, no backward sync - WebSocket streaming will handle new blocks
 	if err := s.initCurrentHeightWithVerification(); err != nil {
 		global.Logger.Warnf("failed to initialize current height with verification: %v, starting from latest", err)
 		// If failed, start from latest block
@@ -309,15 +301,9 @@ func (s *SyncService) initializeAndSync() {
 		}
 		s.setCurrentHeight(latestHeight)
 		global.Logger.Infof("initialized current height to latest: %d", latestHeight)
-	} else {
-		// Sync backwards from latest block to current height
-		if err := s.syncBackwardsFromLatest(); err != nil {
-			global.Logger.Warnf("failed to sync backwards from latest: %v", err)
-			// Continue anyway, will sync forwards in the normal flow
-		}
 	}
 
-	global.Logger.Infof("async initialization and sync completed, current height: %d", s.getCurrentHeight())
+	global.Logger.Infof("async initialization completed, current height: %d", s.getCurrentHeight())
 }
 
 // Stop stops the blockchain synchronization service.
@@ -533,6 +519,9 @@ func (s *SyncService) findCommonBlockHeight(knownHash string) (uint64, error) {
 
 // syncBackwardsFromLatest syncs backwards from the latest block to the current height.
 // This ensures we have all the most recent blocks before continuing with forward sync.
+// DEPRECATED: This function has been disabled. Only WebSocket streaming is used for block synchronization.
+// Kept for reference in case backward sync is needed in the future.
+/*
 func (s *SyncService) syncBackwardsFromLatest() error {
 	currentHeight := s.getCurrentHeight()
 	latestHeight, err := s.getLatestBlockHeight()
@@ -615,6 +604,7 @@ func (s *SyncService) syncBackwardsFromLatest() error {
 	global.Logger.Infof("backward sync completed from height %d to %d", latestHeight, currentHeight)
 	return nil
 }
+*/
 
 // getCurrentHeight returns the current processed block height.
 func (s *SyncService) getCurrentHeight() uint64 {
@@ -644,6 +634,9 @@ func (s *SyncService) getLatestBlockHeight() (uint64, error) {
 }
 
 // blockMonitor continuously monitors new blocks and processes them.
+// DEPRECATED: This function has been disabled. Only WebSocket streaming is used for block synchronization.
+// Kept for reference in case polling mode is needed in the future.
+/*
 func (s *SyncService) blockMonitor() {
 	defer s.wg.Done()
 
@@ -661,8 +654,12 @@ func (s *SyncService) blockMonitor() {
 		}
 	}
 }
+*/
 
 // processNewBlocks processes all new blocks since the last processed height using concurrent processing.
+// DEPRECATED: This function is only used by the deprecated blockMonitor() polling mechanism.
+// Kept for reference in case polling mode is needed in the future.
+/*
 func (s *SyncService) processNewBlocks() error {
 	currentHeight := s.getCurrentHeight()
 	latestHeight, err := s.getLatestBlockHeight()
@@ -781,6 +778,7 @@ func (s *SyncService) processNewBlocks() error {
 
 	return nil
 }
+*/
 
 // batchCheckBlockExistence 批量检查区块是否存在
 func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]bool, error) {
@@ -3059,15 +3057,9 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 }
 
 // blockStream uses gRPC streaming to receive new blocks in real-time from Injective.
-// This is an alternative to polling that provides lower latency and better efficiency.
-// Falls back to blockMonitor if streaming fails or is not enabled.
+// This is the primary and only method for block synchronization, providing lower latency and better efficiency.
 func (s *SyncService) blockStream() {
 	defer s.wg.Done()
-
-	if !s.config.EnableStreamBlocks {
-		global.Logger.Info("block streaming disabled, skipping blockStream")
-		return
-	}
 
 	global.Logger.Info("starting real-time block stream (WSS)")
 
@@ -3123,12 +3115,9 @@ func (s *SyncService) blockStream() {
 // startBlockStream establishes and processes the gRPC stream for new blocks.
 // Returns when the stream ends or encounters an error.
 func (s *SyncService) startBlockStream() error {
-	// Create stream context with timeout
-	streamCtx, cancel := context.WithTimeout(s.ctx, 24*time.Hour) // Long timeout for persistent connection
-	defer cancel()
-
-	// Create the stream
-	stream, err := s.explorerClient.StreamBlocks(streamCtx)
+	// Create the stream using the service context
+	// No timeout needed - the stream will run until service stops or connection error occurs
+	stream, err := s.explorerClient.StreamBlocks(s.ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to create block stream")
 	}
