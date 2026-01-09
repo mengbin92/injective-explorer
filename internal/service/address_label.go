@@ -16,7 +16,6 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"gorm.io/gorm"
 )
 
@@ -204,24 +203,24 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 //   - req: Request containing address, chain ID, and label type
 //
 // Returns:
-//   - *emptypb.Empty: Empty response on success
+//   - *pb.Reply: Response indicating success
 //   - error: Error if the operation fails
-func (s *AddressLabelService) DeleteAddressLabel(ctx context.Context, req *pb.DeleteAddressLabelRequest) (*emptypb.Empty, error) {
+func (s *AddressLabelService) DeleteAddressLabel(ctx context.Context, req *pb.DeleteAddressLabelRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return nil, errors.New("request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.Address == "" {
-		return nil, errors.New("address is required")
+		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
 	}
 
 	if req.ChainId == "" {
-		return nil, errors.New("chain_id is required")
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
 	if req.LabelType == "" {
-		return nil, errors.New("label_type is required")
+		return ErrorReply(http.StatusBadRequest, "label_type is required", errors.New("label_type is required")), errors.New("label_type is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -237,13 +236,17 @@ func (s *AddressLabelService) DeleteAddressLabel(ctx context.Context, req *pb.De
 
 	if err != nil {
 		global.Logger.Errorf("failed to delete address label: %v", err)
-		return nil, errors.Wrap(err, "failed to delete address label")
+		return ErrorReply(http.StatusInternalServerError, "failed to delete address label", err), err
 	}
 
 	// Clear cache
 	s.clearAddressLabelCache(ctx, req.ChainId, address)
 
-	return &emptypb.Empty{}, nil
+	// Return success response
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+	}, nil
 }
 
 // GetAddressLabels retrieves all labels for an address.
@@ -280,7 +283,8 @@ func (s *AddressLabelService) GetAddressLabels(ctx context.Context, req *pb.GetA
 	if err == nil && cachedLabels != nil {
 		global.Logger.Debugf("address labels found in cache: address=%s", address)
 		labelDTOs := models.ToAddressLabelDTOs(cachedLabels)
-		return MarshalAndReply(labelDTOs, "marshal labels error")
+		result := map[string]interface{}{"labels": labelDTOs}
+		return MarshalAndReply(result, "marshal labels error")
 	}
 
 	// Query from database
@@ -299,7 +303,8 @@ func (s *AddressLabelService) GetAddressLabels(ctx context.Context, req *pb.GetA
 
 	// Convert to response
 	labelDTOs := models.ToAddressLabelDTOs(labels)
-	return MarshalAndReply(labelDTOs, "marshal labels error")
+	result := map[string]interface{}{"labels": labelDTOs}
+	return MarshalAndReply(result, "marshal labels error")
 }
 
 // ListAddressLabels lists address labels with filter conditions.

@@ -16,7 +16,6 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"gorm.io/gorm"
 )
 
@@ -534,20 +533,20 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 //   - req: Request containing contract address and chain ID
 //
 // Returns:
-//   - *emptypb.Empty: Empty response on success
+//   - *pb.Reply: Response indicating success
 //   - error: Error if the operation fails
-func (s *ContractInfoService) DeleteContractInfo(ctx context.Context, req *pb.DeleteContractInfoRequest) (*emptypb.Empty, error) {
+func (s *ContractInfoService) DeleteContractInfo(ctx context.Context, req *pb.DeleteContractInfoRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return nil, errors.New("request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.ContractAddress == "" {
-		return nil, errors.New("contract_address is required")
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
 	}
 
 	if req.ChainId == "" {
-		return nil, errors.New("chain_id is required")
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -563,13 +562,17 @@ func (s *ContractInfoService) DeleteContractInfo(ctx context.Context, req *pb.De
 
 	if err != nil {
 		global.Logger.Errorf("failed to delete contract info: %v", err)
-		return nil, errors.Wrap(err, "failed to delete contract info")
+		return ErrorReply(http.StatusInternalServerError, "failed to delete contract info", err), err
 	}
 
 	// Clear cache
 	s.clearContractCache(ctx, req.ChainId, contractAddress)
 
-	return &emptypb.Empty{}, nil
+	// Return success response
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+	}, nil
 }
 
 // AddContractTag adds a tag to a contract.
@@ -641,24 +644,24 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 //   - req: Request containing contract address, chain ID, and tag type
 //
 // Returns:
-//   - *emptypb.Empty: Empty response on success
+//   - *pb.Reply: Response indicating success
 //   - error: Error if the operation fails
-func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.RemoveContractTagRequest) (*emptypb.Empty, error) {
+func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.RemoveContractTagRequest) (*pb.Reply, error) {
 	// Input validation
 	if req == nil {
-		return nil, errors.New("request cannot be nil")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	if req.ContractAddress == "" {
-		return nil, errors.New("contract_address is required")
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
 	}
 
 	if req.ChainId == "" {
-		return nil, errors.New("chain_id is required")
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
 	if req.TagType == "" {
-		return nil, errors.New("tag_type is required")
+		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -674,13 +677,17 @@ func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.Rem
 
 	if err != nil {
 		global.Logger.Errorf("failed to remove contract tag: %v", err)
-		return nil, errors.Wrap(err, "failed to remove contract tag")
+		return ErrorReply(http.StatusInternalServerError, "failed to remove contract tag", err), err
 	}
 
 	// Clear cache
 	s.clearContractCache(ctx, req.ChainId, contractAddress)
 
-	return &emptypb.Empty{}, nil
+	// Return success response
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+	}, nil
 }
 
 // GetContractTags retrieves all tags for a contract.

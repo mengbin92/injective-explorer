@@ -4,7 +4,6 @@ package api.explorer.v1;
 
 import "explorer/v1/common.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 
 option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
@@ -30,7 +29,7 @@ service AddressLabelService {
   }
 
   // DeleteAddressLabel deletes an address label.
-  rpc DeleteAddressLabel(DeleteAddressLabelRequest) returns (google.protobuf.Empty) {
+  rpc DeleteAddressLabel(DeleteAddressLabelRequest) returns (Reply) {
     option (google.api.http) = {
       delete: "/api/v1/address/label"
     };

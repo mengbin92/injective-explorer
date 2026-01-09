@@ -4,7 +4,6 @@ package api.explorer.v1;
 
 import "explorer/v1/common.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 
 option go_package = "injective-explorer/api/explorer/v1;v1";
 option java_multiple_files = true;
@@ -56,8 +55,7 @@ service ContractInfoService {
   }
 
   // DeleteContractInfo deletes contract information (soft delete).
-  rpc DeleteContractInfo(DeleteContractInfoRequest)
-      returns (google.protobuf.Empty) {
+  rpc DeleteContractInfo(DeleteContractInfoRequest) returns (Reply) {
     option (google.api.http) = {
       delete : "/api/v1/contract/info"
     };
@@ -72,8 +70,7 @@ service ContractInfoService {
   }
 
   // RemoveContractTag removes a tag from a contract.
-  rpc RemoveContractTag(RemoveContractTagRequest)
-      returns (google.protobuf.Empty) {
+  rpc RemoveContractTag(RemoveContractTagRequest) returns (Reply) {
     option (google.api.http) = {
       delete : "/api/v1/contract/info/tag"
     };

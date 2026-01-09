@@ -35,7 +35,7 @@ type ContractInfo struct {
 	VerifiedBy         string     `json:"verified_by" gorm:"column:verified_by;size:128"`
 
 	// Extended fields (JSON format for storing additional information)
-	Metadata map[string]interface{} `json:"metadata" gorm:"column:metadata;type:json"`
+	Metadata map[string]interface{} `json:"metadata" gorm:"column:metadata;serializer:json"`
 
 	// Relationships
 	Tags []ContractTag `json:"tags" gorm:"foreignKey:ContractAddress,ChainID;references:ContractAddress,ChainID"`
