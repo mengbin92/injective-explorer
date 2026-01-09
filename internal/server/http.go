@@ -121,6 +121,9 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	adminService := service.NewAdminService()
 	v1.RegisterAdminServiceHTTPServer(srv, adminService)
 
+	addressLabelService := service.NewAddressLabelService()
+	v1.RegisterAddressLabelServiceHTTPServer(srv, addressLabelService)
+
 	registerExportRoutes(srv, apiTokenService, logger)
 
 	if c.EnableSwagger {

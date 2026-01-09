@@ -111,6 +111,7 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	// 	&models.TransactionDataArchive{},
 	// 	&models.ContractInfo{},
 	// 	&models.ContractTag{},
+	// 	&models.AddressLabel{},
 	// 	// API management tables
 	// 	&models.APIToken{},
 	// 	&models.APIPlan{},

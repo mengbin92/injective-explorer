@@ -36,6 +36,30 @@ CREATE TABLE `account_balances` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
+-- Table structure for address_labels
+-- ----------------------------
+DROP TABLE IF EXISTS `address_labels`;
+CREATE TABLE `address_labels` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `address` varchar(128) NOT NULL COMMENT '地址（统一存储为以太坊格式0x...）',
+  `chain_id` varchar(50) NOT NULL COMMENT '链ID',
+  `label_type` varchar(50) NOT NULL COMMENT '标签类型: exchange, project, personal, scam, verified, custom等',
+  `label_value` varchar(255) DEFAULT NULL COMMENT '标签值（标签的具体内容）',
+  `label_color` varchar(20) DEFAULT NULL COMMENT '标签颜色（用于前端显示，如#FF5733）',
+  `description` text COMMENT '标签描述',
+  `created_by` varchar(128) DEFAULT NULL COMMENT '创建者地址或用户名',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_address_label` (`chain_id`,`address`,`label_type`),
+  KEY `idx_address_labels_deleted_at` (`deleted_at`),
+  KEY `idx_address_labels_address` (`chain_id`,`address`),
+  KEY `idx_address_labels_label_type` (`label_type`),
+  KEY `idx_address_labels_created_by` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
 -- Table structure for accounts
 -- ----------------------------
 DROP TABLE IF EXISTS `accounts`;
@@ -514,6 +538,18 @@ ALTER TABLE contract_infos ADD FULLTEXT INDEX idx_contract_name_fulltext (name, 
 CREATE INDEX idx_contract_filters ON contract_infos(chain_id, contract_type, verification_status);
 
 -- ============================================================================
+-- ADDRESS LABEL TABLE ADDITIONAL INDEXES
+-- ============================================================================
+
+-- Index for label_value LIKE queries
+-- Query: WHERE label_value LIKE ?
+CREATE INDEX idx_address_label_value_prefix ON address_labels(label_value(50));
+
+-- Composite index for list queries with filters
+-- Query: WHERE chain_id = ? AND label_type = ? ORDER BY id DESC
+CREATE INDEX idx_address_label_list ON address_labels(chain_id, label_type, id DESC);
+
+-- ============================================================================
 -- VERIFICATION AND COMPLETION
 -- ============================================================================
 
@@ -530,7 +566,7 @@ SELECT
     INDEX_TYPE
 FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
-AND TABLE_NAME IN ('transactions', 'blocks', 'account_balances', 'transaction_data_archives', 'contract_infos')
+AND TABLE_NAME IN ('transactions', 'blocks', 'account_balances', 'transaction_data_archives', 'contract_infos', 'address_labels')
 AND INDEX_NAME LIKE 'idx_%'
 GROUP BY TABLE_NAME, INDEX_NAME, CARDINALITY, INDEX_TYPE
 ORDER BY TABLE_NAME, INDEX_NAME;

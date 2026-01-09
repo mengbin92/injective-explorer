@@ -50,5 +50,8 @@ func NewGRPCServer(c *conf.Server, logger log.Logger) *grpc.Server {
 	adminService := service.NewAdminService()
 	v1.RegisterAdminServiceServer(srv, adminService)
 
+	addressLabelService := service.NewAddressLabelService()
+	v1.RegisterAddressLabelServiceServer(srv, addressLabelService)
+
 	return srv
 }

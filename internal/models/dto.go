@@ -310,6 +310,48 @@ func ToContractTagInfoDTOs(tags []ContractTag) []*pb.ContractTagInfoDTO {
 	return dtos
 }
 
+// ToAddressLabelDTO converts an AddressLabel model to AddressLabelDTO proto message.
+func ToAddressLabelDTO(label *AddressLabel) *pb.AddressLabelDTO {
+	if label == nil {
+		return nil
+	}
+
+	var createdAt string
+	if !label.CreatedAt.IsZero() {
+		createdAt = label.CreatedAt.Format(time.RFC3339)
+	}
+
+	var updatedAt string
+	if !label.UpdatedAt.IsZero() {
+		updatedAt = label.UpdatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.AddressLabelDTO{
+		Id:          uint64(label.ID),
+		Address:     label.Address,
+		ChainId:     label.ChainID,
+		LabelType:   label.LabelType,
+		LabelValue:  label.LabelValue,
+		LabelColor:  label.LabelColor,
+		Description: label.Description,
+		CreatedBy:   label.CreatedBy,
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
+	}
+}
+
+// ToAddressLabelDTOs converts a slice of AddressLabel models to proto AddressLabelDTOs.
+func ToAddressLabelDTOs(labels []AddressLabel) []*pb.AddressLabelDTO {
+	if labels == nil {
+		return nil
+	}
+	dtos := make([]*pb.AddressLabelDTO, 0, len(labels))
+	for _, label := range labels {
+		dtos = append(dtos, ToAddressLabelDTO(&label))
+	}
+	return dtos
+}
+
 // ToContractInfoDTO converts a ContractInfo model to ContractInfoDTO proto message.
 func ToContractInfoDTO(contract *ContractInfo) *pb.ContractInfoDTO {
 	if contract == nil {

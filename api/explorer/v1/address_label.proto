@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// AddressLabelService provides address label management services.
+// This service allows users to add, edit, delete, and query labels for blockchain addresses.
+service AddressLabelService {
+  // CreateAddressLabel creates a new address label.
+  rpc CreateAddressLabel(CreateAddressLabelRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/address/label"
+      body: "*"
+    };
+  }
+
+  // UpdateAddressLabel updates an existing address label.
+  rpc UpdateAddressLabel(UpdateAddressLabelRequest) returns (Reply) {
+    option (google.api.http) = {
+      put: "/api/v1/address/label"
+      body: "*"
+    };
+  }
+
+  // DeleteAddressLabel deletes an address label.
+  rpc DeleteAddressLabel(DeleteAddressLabelRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/address/label"
+    };
+  }
+
+  // GetAddressLabels retrieves all labels for an address.
+  rpc GetAddressLabels(GetAddressLabelsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/address/labels"
+    };
+  }
+
+  // ListAddressLabels lists address labels with filter conditions.
+  rpc ListAddressLabels(ListAddressLabelsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/address/label/list"
+    };
+  }
+}
+
+// Request messages
+
+// CreateAddressLabelRequest is the request message for creating an address label.
+message CreateAddressLabelRequest {
+  string address = 1;        // Address (required, supports inj1... or 0x... format)
+  string chain_id = 2 [json_name = "chain_id"];      // Chain ID (required)
+  string label_type = 3 [json_name = "label_type"];    // Label type (required)
+  string label_value = 4 [json_name = "label_value"];   // Label value (optional)
+  string label_color = 5 [json_name = "label_color"];   // Label color (optional, e.g., #FF5733)
+  string description = 6;   // Description (optional)
+  string created_by = 7 [json_name = "created_by"];    // Creator (optional)
+}
+
+// UpdateAddressLabelRequest is the request message for updating an address label.
+message UpdateAddressLabelRequest {
+  string address = 1;        // Address (required)
+  string chain_id = 2 [json_name = "chain_id"];      // Chain ID (required)
+  string label_type = 3 [json_name = "label_type"];    // Label type (required)
+  string label_value = 4 [json_name = "label_value"];   // Label value (optional)
+  string label_color = 5 [json_name = "label_color"];   // Label color (optional)
+  string description = 6;   // Description (optional)
+}
+
+// DeleteAddressLabelRequest is the request message for deleting an address label.
+message DeleteAddressLabelRequest {
+  string address = 1;        // Address (required)
+  string chain_id = 2 [json_name = "chain_id"];      // Chain ID (required)
+  string label_type = 3 [json_name = "label_type"];    // Label type (required)
+}
+
+// GetAddressLabelsRequest is the request message for getting all labels of an address.
+message GetAddressLabelsRequest {
+  string address = 1;       // Address (required)
+  string chain_id = 2 [json_name = "chain_id"];      // Chain ID (required)
+}
+
+// ListAddressLabelsRequest is the request message for listing address labels with filters.
+message ListAddressLabelsRequest {
+  string chain_id = 1 [json_name = "chain_id"];           // Chain ID (optional)
+  string label_type = 2 [json_name = "label_type"];         // Label type (optional)
+  string address = 3;            // Address (optional, fuzzy match)
+  string label_value = 4 [json_name = "label_value"];         // Label value (optional, fuzzy match)
+  PaginationRequest pagination = 5; // Pagination parameters
+}
+
+// Response data messages (used in Reply.data as Struct)
+
+// AddressLabelDTO represents address label information in the response.
+message AddressLabelDTO {
+  uint64 id = 1;
+  string address = 2;
+  string chain_id = 3 [json_name = "chain_id"];
+  string label_type = 4 [json_name = "label_type"];
+  string label_value = 5 [json_name = "label_value"];
+  string label_color = 6 [json_name = "label_color"];
+  string description = 7;
+  string created_by = 8 [json_name = "created_by"];
+  string created_at = 9 [json_name = "created_at"];  // ISO 8601 format timestamp
+  string updated_at = 10 [json_name = "updated_at"];  // ISO 8601 format timestamp
+}
