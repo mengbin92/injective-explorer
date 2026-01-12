@@ -126,6 +126,9 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 
 	registerExportRoutes(srv, apiTokenService, logger)
 
+	// Register Prometheus metrics endpoint
+	RegisterMetricsEndpoint(srv, logger)
+
 	if c.EnableSwagger {
 		registerSwaggerUI(srv, logger, corsMiddleware, enableCors)
 		registerSwaggerRoutes(srv, logger)

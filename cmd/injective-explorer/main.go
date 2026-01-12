@@ -12,6 +12,7 @@ import (
 	"injective-explorer/internal/conf"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/service"
+	"injective-explorer/internal/service/metrics"
 	"injective-explorer/provider/logger"
 
 	"github.com/go-kratos/kratos/v2"
@@ -203,6 +204,15 @@ func main() {
 		os.Exit(1)
 	}
 	defer cleanup()
+
+	// Start metrics collection goroutine to periodically update runtime metrics
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			metrics.RecordRuntimeMetrics()
+		}
+	}()
 
 	// Start and wait for stop signal
 	if err := app.Run(); err != nil {
