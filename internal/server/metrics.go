@@ -38,6 +38,7 @@ func init() {
 	_ = metrics.SyncOperations
 	_ = metrics.DatabaseQueryDuration
 	_ = metrics.DatabaseConnections
+	_ = metrics.DatabaseConnectionStats
 	_ = metrics.CacheHits
 	_ = metrics.CacheMisses
 	_ = metrics.CacheHitRate
@@ -51,4 +52,8 @@ func init() {
 	_ = metrics.HTTPRequestDuration
 	_ = metrics.HTTPRequestTotal
 	_ = metrics.HTTPRequestErrors
+	_ = metrics.AppGoroutines
+	_ = metrics.AppMemoryBytes
+	_ = metrics.AppGCStats
+	_ = metrics.RedisConnections
 }

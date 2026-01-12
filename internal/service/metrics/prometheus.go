@@ -202,6 +202,24 @@ var (
 		},
 		[]string{"type"},
 	)
+
+	// DatabaseConnectionStats tracks database connection pool statistics.
+	DatabaseConnectionStats = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "database_connection_stats",
+			Help: "Database connection pool statistics",
+		},
+		[]string{"stat_type"},
+	)
+
+	// RedisConnections tracks Redis connection pool metrics.
+	RedisConnections = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redis_connections",
+			Help: "Redis connection pool metrics",
+		},
+		[]string{"state"},
+	)
 )
 
 // RecordHTTPRequestDuration records the duration of an HTTP request.
@@ -309,4 +327,14 @@ func RecordRuntimeMetrics() {
 	// GC stats
 	AppGCStats.WithLabelValues("num_gc").Set(float64(m.NumGC))
 	AppGCStats.WithLabelValues("pause_total_ns").Set(float64(m.PauseTotalNs))
+}
+
+// SetDatabaseConnectionStats sets database connection pool statistics.
+func SetDatabaseConnectionStats(statType string, value float64) {
+	DatabaseConnectionStats.WithLabelValues(statType).Set(value)
+}
+
+// SetRedisConnections sets Redis connection pool metrics.
+func SetRedisConnections(state string, count float64) {
+	RedisConnections.WithLabelValues(state).Set(count)
 }

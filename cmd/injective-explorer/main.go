@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/service"
 	"injective-explorer/internal/service/metrics"
+	"injective-explorer/provider/cache"
+	"injective-explorer/provider/db"
 	"injective-explorer/provider/logger"
 
 	"github.com/go-kratos/kratos/v2"
@@ -205,14 +208,18 @@ func main() {
 	}
 	defer cleanup()
 
-	// Start metrics collection goroutine to periodically update runtime metrics
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			metrics.RecordRuntimeMetrics()
-		}
-	}()
+	// Initialize metrics collector with proper context cancellation
+	// This replaces the old metrics goroutine to prevent goroutine leaks
+	var sqlDB *sql.DB
+	if gdb := db.Get(); gdb != nil {
+		sqlDB, _ = gdb.DB()
+	}
+	redisClient := cache.GetRedisClient()
+
+	// Initialize global metrics collector with database and Redis clients
+	// Default interval: 15 seconds (same as before)
+	metrics.InitGlobalCollector(sqlDB, redisClient, 15*time.Second)
+	defer metrics.StopGlobalCollector()
 
 	// Start and wait for stop signal
 	if err := app.Run(); err != nil {
