@@ -511,6 +511,45 @@ CREATE INDEX idx_message_types_prefix ON transactions(message_types(255));
 CREATE INDEX idx_evm_from_timestamp ON transactions(evm_from_address, block_unix_timestamp DESC, tx_number DESC);
 CREATE INDEX idx_evm_to_timestamp ON transactions(evm_to_address, block_unix_timestamp DESC, tx_number DESC);
 
+-- Performance optimization indexes (added for performance requirements)
+-- Query: SELECT * FROM transactions WHERE signer = ? AND archived = 0 ORDER BY block_unix_timestamp DESC LIMIT 20
+-- Note: MySQL doesn't support partial indexes (WHERE clause), so we create full index
+-- The application should filter archived = 0 in WHERE clause
+CREATE INDEX idx_transactions_signer_timestamp ON transactions(signer, block_unix_timestamp DESC);
+
+-- Query: SELECT * FROM transactions WHERE evm_hash = ?
+-- Note: MySQL doesn't support partial indexes, so we create full index
+-- The application should filter evm_hash != '' AND archived = 0 in WHERE clause
+CREATE INDEX idx_transactions_evm_hash ON transactions(evm_hash);
+
+-- Query: SELECT * FROM transactions WHERE block_number = ? AND code = ?
+-- Note: MySQL doesn't support partial indexes, so we create full index
+-- The application should filter archived = 0 in WHERE clause
+CREATE INDEX idx_transactions_block_code ON transactions(block_number, code);
+
+-- Query: SELECT * FROM transactions WHERE (signer = ? OR to = ?) AND archived = 0 ORDER BY block_unix_timestamp DESC
+-- Note: idx_transactions_signer_timestamp already covers signer queries
+-- This index covers 'to' field queries
+CREATE INDEX idx_transactions_to_timestamp ON transactions(`to`, block_unix_timestamp DESC);
+
+-- Query: SELECT * FROM transactions WHERE code != 0 AND archived = 0 ORDER BY block_unix_timestamp DESC
+-- Note: MySQL doesn't support partial indexes, so we create full index
+-- The application should filter code != 0 AND archived = 0 in WHERE clause
+CREATE INDEX idx_transactions_code_timestamp ON transactions(code, block_unix_timestamp DESC);
+
+-- Query: Statistics queries - SELECT * FROM transactions WHERE archived = 0 ORDER BY block_unix_timestamp DESC
+-- Note: idx_timestamp_tx already exists in table creation (line 313) which covers this query pattern
+
+-- ============================================================================
+-- BLOCKS TABLE ADDITIONAL INDEXES
+-- ============================================================================
+
+-- Performance optimization indexes (added for performance requirements)
+-- Query: SELECT * FROM blocks ORDER BY height DESC LIMIT 20
+-- Note: idx_height_desc already exists in table creation (line 188)
+-- Query: SELECT * FROM blocks WHERE height >= ? AND height <= ?
+-- Note: idx_height already exists in table creation (line 187)
+
 -- ============================================================================
 -- ACCOUNT BALANCE TABLE ADDITIONAL INDEXES
 -- ============================================================================
@@ -518,6 +557,8 @@ CREATE INDEX idx_evm_to_timestamp ON transactions(evm_to_address, block_unix_tim
 -- Composite index for address + denom queries
 -- Query: WHERE address = ? AND denom = ?
 CREATE INDEX idx_account_balance_address_denom ON account_balances(address, denom);
+
+-- Note: idx_account_balances_address already exists in table creation (line 34)
 
 -- ============================================================================
 -- CONTRACT INFO TABLE ADDITIONAL INDEXES

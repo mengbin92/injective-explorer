@@ -13,6 +13,7 @@ import (
 
 // RateLimitMiddleware applies rate limiting to requests.
 // It checks IP rate limit, token rate limit, and user monthly limit.
+// Page requests (non-API) use 3000 req/min, API requests use 100 req/min.
 //
 // Parameters:
 //   - limiter: The rate limiter instance
@@ -23,9 +24,19 @@ func RateLimitMiddleware(limiter *RateLimiter) middleware.Middleware {
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
 			if request, ok := khttp.RequestFromServerContext(ctx); ok {
-				// 1. Check IP rate limit (100 requests per minute)
+				// 1. Check IP rate limit with different limits for page vs API requests
 				ip := getClientIP(request)
-				allowed, err := limiter.CheckIPRateLimit(ctx, ip, 100)
+				// Distinguish page requests from API requests
+				isAPIRequest := strings.HasPrefix(request.URL.Path, "/api/")
+				var ipLimit int
+				if isAPIRequest {
+					// API requests: strict limit 100 req/min
+					ipLimit = 100
+				} else {
+					// Page requests: relaxed limit 3000 req/min (50 req/s)
+					ipLimit = 3000
+				}
+				allowed, err := limiter.CheckIPRateLimit(ctx, ip, ipLimit)
 				if err != nil {
 					return nil, errors.New(500, "RATE_LIMIT_ERROR", "Rate limit check failed")
 				}

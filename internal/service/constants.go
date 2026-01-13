@@ -18,7 +18,7 @@ const (
 	GRPCTimeout       = 60 * time.Second
 	CountQueryTimeout = 2 * time.Second
 	BlockQueryTimeout = 30 * time.Second
-	DBQueryTimeout    = 10 * time.Second // Database query timeout
+	DBQueryTimeout    = 5 * time.Second  // Database query timeout (reduced from 10s to 5s for faster failure)
 
 	// Approximate count constants
 	ApproximateCountThreshold  = 10000
@@ -89,11 +89,11 @@ const (
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 1 * time.Hour                   // Single block cache expiration time (1 hour - increased from 5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
-	CacheTransactionStatsTTL      = 5 * time.Minute                 // Transaction statistics cache expiration time (5 minutes)
+	CacheTransactionStatsTTL      = 10 * time.Second                // Transaction statistics cache expiration time (10 seconds - optimized for real-time requirement)
 	CacheFailedTransactions24HTTL = 15 * time.Minute                // Failed transactions 24h count cache expiration time (15 minutes - increased from 2 minutes)
 	CacheBlockMaxGasTTL           = 10 * time.Minute                // Block max gas cache expiration time (10 minutes)
-	CacheBlockGasUtilizationTTL   = 1 * time.Minute                 // Block gas utilization cache expiration time (1 minute)
-	CacheGasPriceTTL              = 5 * time.Minute                 // Gas price cache expiration time (5 minutes - updated every 5 minutes)
+	CacheBlockGasUtilizationTTL   = 10 * time.Second                // Block gas utilization cache expiration time (10 seconds - optimized for real-time requirement)
+	CacheGasPriceTTL              = 10 * time.Second                // Gas price cache expiration time (10 seconds - optimized for real-time requirement)
 	CacheEVMDetailsTTL            = 24 * time.Hour                  // Cache TTL: 24 hours (EVM details are relatively static)
 )
 
@@ -108,9 +108,9 @@ const (
 	defaultBlockQueryTimeout          = 30 * time.Second       // Block query timeout
 	defaultBackwardSyncLogInterval    = 10 * time.Second       // Backward sync progress log interval
 	defaultRpcStatusRetryDelay        = 5 * time.Second        // Retry delay after RPC node status fetch failure
-	defaultConcurrentTxProcessors     = 5                      // Number of concurrent transaction processors
-	defaultBackwardSyncWorkers        = 5                      // Number of backward sync worker threads
-	defaultHistoricalSyncWorkers      = 2                      // Number of historical sync worker threads
+	defaultConcurrentTxProcessors     = 20                     // Number of concurrent transaction processors (increased from 5 to 20 for better parallelism)
+	defaultBackwardSyncWorkers        = 10                     // Number of backward sync worker threads (increased from 5 to 10)
+	defaultHistoricalSyncWorkers      = 5                      // Number of historical sync worker threads (increased from 2 to 5)
 	defaultBackwardSyncBatchSize      = 10                     // Backward sync batch size
 	defaultHistoricalSyncBatchSize    = 5                      // Historical sync batch size
 	defaultMissingBlockCheckBatchSize = 100                    // Batch size for finding missing blocks
@@ -120,7 +120,7 @@ const (
 	defaultRetryDelay                 = 2 * time.Second        // Initial retry delay
 	defaultEarliestBlockHeight        = uint64(1)              // Earliest block height
 	defaultEVMDetailsQueueKey         = "evm:details:queue"    // Redis key name for EVM details queue
-	defaultEVMDetailsWorkerCount      = 3                      // Number of EVM details sync workers
+	defaultEVMDetailsWorkerCount      = 10                     // Number of EVM details sync workers (increased from 3 to 10 for better parallelism)
 	defaultEVMDetailsBatchSize        = 10                     // EVM details batch size
 	defaultEVMDetailsRetryDelay       = 5 * time.Second        // EVM details retry delay
 	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details

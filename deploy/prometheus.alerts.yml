@@ -1,0 +1,83 @@
+groups:
+  - name: api_performance
+    interval: 30s
+    rules:
+      # API错误率告警
+      - alert: HighAPIErrorRate
+        expr: |
+          sum(rate(http_request_errors_total[5m])) /
+          sum(rate(http_request_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API错误率过高"
+          description: "API错误率超过1% (当前值: {{ $value | humanizePercentage }})"
+
+      # API响应时间告警
+      - alert: HighAPILatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API响应时间过长"
+          description: "API P95响应时间超过1秒 (当前值: {{ $value }}s)"
+
+      # 数据库连接池告警
+      - alert: DatabaseConnectionPoolHigh
+        expr: database_connections{state="in_use"} / database_connections{state="open"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库连接池使用率过高"
+          description: "数据库连接池使用率超过80%"
+
+      # Redis连接池告警
+      - alert: RedisConnectionPoolHigh
+        expr: redis_connections{state="idle_conns"} < 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis空闲连接不足"
+          description: "Redis空闲连接少于2个"
+
+  - name: system_resources
+    interval: 30s
+    rules:
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.7
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU使用率过高"
+          description: "CPU使用率持续10分钟超过70%"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: |
+          (app_memory_bytes{type="heap_alloc"} /
+           app_memory_bytes{type="sys_total"}) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "内存使用率过高"
+          description: "内存使用率持续10分钟超过80%"
+
+      # Goroutine数量告警
+      - alert: HighGoroutineCount
+        expr: app_goroutines > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Goroutine数量过多"
+          description: "Goroutine数量超过10000个 (可能存在泄漏)"

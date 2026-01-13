@@ -39,6 +39,21 @@ service Explorer {
     };
   }
 
+  // Batch query interfaces for better performance
+  rpc GetTransactionsBatch(GetTransactionsBatchRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/transactions/batch"
+      body : "*"
+    };
+  }
+
+  rpc GetBlocksBatch(GetBlocksBatchRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/blocks/batch"
+      body : "*"
+    };
+  }
+
   rpc GetAccountInfo(GetAccountInfoRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/account/info"
@@ -153,6 +168,15 @@ service Explorer {
 message GetBlockByHeightRequest { int64 height = 1; }
 
 message GetTransactionByHashRequest { string hash = 1; }
+
+// Batch query request messages
+message GetTransactionsBatchRequest {
+  repeated string hashes = 1; // Transaction hash list
+}
+
+message GetBlocksBatchRequest {
+  repeated uint64 heights = 1; // Block height list
+}
 
 message GetAccountInfoRequest { string address = 1; }
 

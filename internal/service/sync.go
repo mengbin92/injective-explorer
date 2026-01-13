@@ -31,7 +31,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// processResult 用于收集worker处理结果
+// processResult collects worker processing results.
 type processResult struct {
 	height   uint64
 	err      error
@@ -71,7 +71,7 @@ type SyncService struct {
 	syncLockValue   string
 	syncLockRenewal *sync.WaitGroup
 
-	// 监控指标
+	// Monitoring metrics
 	metrics struct {
 		blockProcessingCount    atomic.Uint64
 		blockProcessingErrors   atomic.Uint64
@@ -780,7 +780,7 @@ func (s *SyncService) processNewBlocks() error {
 }
 */
 
-// batchCheckBlockExistence 批量检查区块是否存在
+// batchCheckBlockExistence checks if blocks exist in batch.
 func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]bool, error) {
 	result := make(map[uint64]bool)
 
@@ -790,12 +790,12 @@ func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]boo
 
 	start := time.Now()
 
-	// 使用 IN 查询批量检查
+	// Use IN query for batch check
 	var existingBlocks []struct {
 		Height uint64 `gorm:"column:height"`
 	}
 
-	// 分批查询避免SQL参数过多（每批1000个）
+	// Batch query to avoid too many SQL parameters (1000 per batch)
 	batchSize := 1000
 	for i := 0; i < len(heights); i += batchSize {
 		end := i + batchSize
@@ -814,7 +814,7 @@ func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]boo
 		}
 	}
 
-	// 构建结果map
+	// Build result map
 	for _, block := range existingBlocks {
 		result[block.Height] = true
 	}
@@ -826,7 +826,7 @@ func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]boo
 	return result, nil
 }
 
-// blockWorker 处理区块的worker函数
+// blockWorker processes blocks in worker goroutines.
 func (s *SyncService) blockWorker(id int, taskChan <-chan uint64, resultChan chan<- processResult, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -851,7 +851,7 @@ func (s *SyncService) blockWorker(id int, taskChan <-chan uint64, resultChan cha
 
 			processedCount++
 
-			// 每处理10个区块打印一次进度
+			// Print progress every 10 blocks processed
 			if processedCount%10 == 0 {
 				global.Logger.Debugf("block worker %d processed %d blocks", id, processedCount)
 			}

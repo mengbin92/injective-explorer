@@ -991,6 +991,24 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/blocks/batch:
+        post:
+            tags:
+                - Explorer
+            operationId: Explorer_GetBlocksBatch
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.GetBlocksBatchRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/contract/info:
         put:
             tags:
@@ -1730,6 +1748,25 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/transactions/batch:
+        post:
+            tags:
+                - Explorer
+            description: Batch query interfaces for better performance
+            operationId: Explorer_GetTransactionsBatch
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.GetTransactionsBatchRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/webhooks:
         get:
             tags:
@@ -2131,6 +2168,21 @@ components:
                 is_contract_create:
                     type: boolean
             description: EVMTransactionDTO represents an EVM transaction in Etherscan-like format
+        api.explorer.v1.GetBlocksBatchRequest:
+            type: object
+            properties:
+                heights:
+                    type: array
+                    items:
+                        type: string
+        api.explorer.v1.GetTransactionsBatchRequest:
+            type: object
+            properties:
+                hashes:
+                    type: array
+                    items:
+                        type: string
+            description: Batch query request messages
         api.explorer.v1.HealthDetails:
             type: object
             properties:

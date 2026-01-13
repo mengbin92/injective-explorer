@@ -100,9 +100,9 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	srv := khttp.NewServer(opts...)
 
 	if httpSrv := srv.Server; httpSrv != nil {
-		httpSrv.ReadTimeout = 30 * time.Second      
-		httpSrv.WriteTimeout = 30 * time.Second     
-		httpSrv.IdleTimeout = 120 * time.Second     
+		httpSrv.ReadTimeout = 15 * time.Second      // Reduced from 30s to 15s for faster failure
+		httpSrv.WriteTimeout = 15 * time.Second     // Reduced from 30s to 15s for faster failure
+		httpSrv.IdleTimeout = 60 * time.Second     // Reduced from 120s to 60s
 		httpSrv.ReadHeaderTimeout = 5 * time.Second 
 
 		httpSrv.SetKeepAlivesEnabled(true)
