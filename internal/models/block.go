@@ -2,7 +2,15 @@
 package models
 
 import (
+	"injective-explorer/internal/global"
+	"injective-explorer/provider/db"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"time"
+
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
@@ -15,16 +23,16 @@ import (
 type Block struct {
 	gorm.Model
 
-	Height             uint64   `json:"height" gorm:"column:height"`               // Height is the block height on the blockchain
-	Proposer           string   `json:"proposer" gorm:"column:proposer"`                                                  // Proposer is the address of the block proposer
-	Moniker            string   `json:"moniker" gorm:"column:moniker"`                                                    // Moniker is the moniker (name) of the block proposer
-	BlockHash          string   `json:"block_hash" gorm:"column:block_hash"`                                        // BlockHash is the hash of the current block
-	ParentHash         string   `json:"parent_hash" gorm:"column:parent_hash"`                                            // ParentHash is the hash of the parent block
-	NumPrecommits      int64    `json:"num_precommits" gorm:"column:num_precommits"`                                      // NumPrecommits is the number of precommits for this block
-	NumTxs             int64    `json:"num_txs" gorm:"column:num_txs"`                                                    // NumTxs is the number of transactions in this block
-	TotalTxs           int64    `json:"total_txs" gorm:"column:total_txs"`                                                // TotalTxs is the total number of transactions in the blockchain up to this block
-	Txs                []string `json:"txs" gorm:"column:txs;serializer:json"`                                            // Txs is a list of transactions in this block (not stored in database)
-	Timestamp          string   `json:"timestamp" gorm:"column:timestamp"`                                                // Timestamp is the human-readable timestamp of the block
+	Height             uint64   `json:"height" gorm:"column:height"`                             // Height is the block height on the blockchain
+	Proposer           string   `json:"proposer" gorm:"column:proposer"`                         // Proposer is the address of the block proposer
+	Moniker            string   `json:"moniker" gorm:"column:moniker"`                           // Moniker is the moniker (name) of the block proposer
+	BlockHash          string   `json:"block_hash" gorm:"column:block_hash"`                     // BlockHash is the hash of the current block
+	ParentHash         string   `json:"parent_hash" gorm:"column:parent_hash"`                   // ParentHash is the hash of the parent block
+	NumPrecommits      int64    `json:"num_precommits" gorm:"column:num_precommits"`             // NumPrecommits is the number of precommits for this block
+	NumTxs             int64    `json:"num_txs" gorm:"column:num_txs"`                           // NumTxs is the number of transactions in this block
+	TotalTxs           int64    `json:"total_txs" gorm:"column:total_txs"`                       // TotalTxs is the total number of transactions in the blockchain up to this block
+	Txs                []string `json:"txs" gorm:"column:txs;serializer:json"`                   // Txs is a list of transactions in this block (not stored in database)
+	Timestamp          string   `json:"timestamp" gorm:"column:timestamp"`                       // Timestamp is the human-readable timestamp of the block
 	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp"` // BlockUnixTimestamp is the Unix timestamp of the block
 }
 
@@ -138,4 +146,48 @@ func BlockToProto(block *Block) *injective_explorer_rpcpb.BlockDetailInfo {
 		BlockUnixTimestamp: block.BlockUnixTimestamp,
 		Txs:                txs,
 	}
+}
+
+type proposerInfo struct {
+	Moniker         string `json:"moniker"`
+	OperatorAddress string `json:"operator_address"`
+}
+
+func BlockFromTM(block *coretypes.ResultBlock) *Block {
+	txs := make([]string, 0, len(block.Block.Data.Txs))
+	for _, tx := range block.Block.Data.Txs {
+		txs = append(txs, hex.EncodeToString(tx.Hash()))
+	}
+
+	var proposerInfo proposerInfo
+	// Convert proposer address from hex to injvalcons format for database lookup
+	proposerHex := block.Block.Header.ProposerAddress.String()
+	if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerHex).First(&proposerInfo).Error; err != nil {
+		global.Logger.Errorf("failed to get moniker by consensus address: %v", err)
+	}
+	if proposerInfo.OperatorAddress == "" {
+		proposerInfo.OperatorAddress = proposerHex
+	}
+
+	return &Block{
+		Height:             uint64(block.Block.Height),
+		BlockHash:          fmt.Sprintf("0x%s", strings.ToLower(block.BlockID.Hash.String())),
+		ParentHash:         fmt.Sprintf("0x%s", strings.ToLower(block.Block.LastBlockID.Hash.String())),
+		NumPrecommits:      int64(len(block.Block.LastCommit.Signatures)),
+		NumTxs:             int64(len(block.Block.Data.Txs)),
+		TotalTxs:           int64(len(block.Block.Data.Txs)),
+		Timestamp:          block.Block.Time.Format(time.RFC3339),
+		BlockUnixTimestamp: uint64(block.Block.Time.Unix()),
+		Proposer:           proposerInfo.OperatorAddress,
+		Txs:                txs,
+		Moniker:            proposerInfo.Moniker,
+	}
+}
+
+func BlockFromTMWithPool(detail *coretypes.ResultBlock, poolBlock *Block) *Block {
+	if detail == nil {
+		return nil
+	}
+
+	return BlockFromTM(detail)
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/InjectiveLabs/sdk-go/client"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
 	"github.com/InjectiveLabs/sdk-go/client/common"
-	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/pkg/errors"
@@ -17,9 +16,8 @@ import (
 
 var (
 	// Shared client instances (initialized once, reused across services)
-	sharedExplorerClient explorerclient.ExplorerClient
-	sharedChainClient    chainclient.ChainClientV2
-	sharedTmClient       tmclient.TendermintClient
+	sharedChainClient chainclient.ChainClientV2
+	sharedTmClient    tmclient.TendermintClient
 
 	// Mutexes for thread-safe initialization
 	sharedExplorerClientOnce sync.Once
@@ -30,23 +28,6 @@ var (
 	sharedExplorerClientErr error
 	sharedChainClientErr    error
 )
-
-// GetSharedExplorerClient returns a shared explorer client instance.
-// This client is initialized once and reused across all services.
-func GetSharedExplorerClient() (explorerclient.ExplorerClient, error) {
-	sharedExplorerClientOnce.Do(func() {
-		client, err := explorerclient.NewExplorerClient(global.ChainConfig)
-		if err != nil {
-			sharedExplorerClientErr = errors.Wrap(err, "create explorer client error")
-			return
-		}
-		sharedExplorerClient = client
-	})
-	if sharedExplorerClientErr != nil {
-		return nil, sharedExplorerClientErr
-	}
-	return sharedExplorerClient, nil
-}
 
 // GetSharedChainClient returns a shared chain client instance.
 // This client is initialized once and reused across all services.
@@ -81,8 +62,9 @@ func GetSharedTmClient() tmclient.TendermintClient {
 //   - chainclient.ChainClientV2: A configured chain client
 //   - error: Error if client creation fails
 func buildChainClientV2Query() (chainclient.ChainClientV2, error) {
-	// Create Tendermint RPC client
-	tmClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
+	// Create Tendermint RPC client with extended timeout for slow endpoints
+	// Using 30 second timeout to handle high latency RPC nodes
+	tmClient, err := rpchttp.NewWithTimeout(global.ChainConfig.TmEndpoint, 30)
 	if err != nil {
 		return nil, errors.Wrap(err, "create tm client error")
 	}

@@ -334,3 +334,41 @@ func InjToEthAddress(injAddr string) (string, error) {
 	// 3. bytes → hex with 0x prefix (lowercase for consistency)
 	return fmt.Sprintf("0x%s", strings.ToLower(hex.EncodeToString(conv))), nil
 }
+
+// HexToValconsAddress converts a hex string address to Cosmos validator consensus address (injvalcons1...).
+// This is used to convert Tendermint proposer addresses to the bech32 format.
+//
+// Parameters:
+//   - hexAddr: The hex string address (e.g., "29F697D164538C3BDF7969F238E2097FE745D73C")
+//
+// Returns:
+//   - string: The validator consensus address in bech32 format (e.g., "injvalcons1eh644nvhkvdxwe3t6zltcee7td064mqy2p2d2n")
+//   - error: Error if conversion fails
+func HexToValconsAddress(hexAddr string) (string, error) {
+	if hexAddr == "" {
+		return "", fmt.Errorf("%w: empty address", ErrInvalidAddress)
+	}
+
+	// Remove any 0x prefix if present
+	hexStr := strings.TrimPrefix(strings.ToLower(hexAddr), "0x")
+
+	// Convert hex string to bytes
+	addrBytes, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to decode hex string: %v", ErrConversion, err)
+	}
+
+	// 8-bit → 5-bit conversion for bech32
+	conv, err := bech32.ConvertBits(addrBytes, 8, 5, true)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to convert bits: %v", ErrConversion, err)
+	}
+
+	// Encode as bech32 with "injvalcons" prefix
+	valconsAddr, err := bech32.Encode("injvalcons", conv)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
+	}
+
+	return valconsAddr, nil
+}

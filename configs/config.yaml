@@ -66,22 +66,23 @@ data:
 
 log:
   # 支持debug(-1)、info(0)、warn(1)、error(2)、dpanic(3)、panic(4)、fatal(5)
-  level: 2
+  level: ${LOG_LEVEL:-1}
   # json or console
-  format: console
+  format: ${LOG_FORMAT:console}
 
 chain:
-  network: mainnet
-  lcd_endpoint: https://sentry.lcd.injective.network
-  tm_endpoint: https://sentry.tm.injective.network:443
-  chain_grpc_endpoint: sentry.chain.grpc.injective.network:443
-  chain_stream_grpc_endpoint: sentry.chain.stream.injective.network:443
-  exchange_grpc_endpoint: sentry.exchange.grpc.injective.network:443
-  explorer_grpc_endpoint: sentry.explorer.grpc.injective.network:443
-  chain_id: injective-1
-  fee_denom: inj
-  name: mainnet
-  official_tokens_list_url: https://github.com/InjectiveLabs/injective-lists/raw/master/json/tokens/testnet.json
+  network: ${CHAIN_NETWORK:mainnet}
+  lcd_endpoint: ${CHAIN_LCD_ENDPOINT:https://sentry.lcd.injective.network}
+  tm_endpoint: ${CHAIN_TM_ENDPOINT:https://sentry.tm.injective.network:443}
+  chain_grpc_endpoint: ${CHAIN_GRPC_ENDPOINT:sentry.chain.grpc.injective.network:443}
+  chain_stream_grpc_endpoint: ${CHAIN_STREAM_GRPC_ENDPOINT:sentry.chain.stream.injective.network:443}
+  exchange_grpc_endpoint: ${CHAIN_EXCHANGE_GRPC_ENDPOINT:sentry.exchange.grpc.injective.network:443}
+  explorer_grpc_endpoint: ${CHAIN_EXPLORER_GRPC_ENDPOINT:sentry.explorer.grpc.injective.network:443}
+  chain_id: ${CHAIN_ID:injective-1}
+  fee_denom: ${CHAIN_FEE_DENOM:inj}
+  name: ${CHAIN_NAME:mainnet}
+  official_tokens_list_url: ${CHAIN_OFFICIAL_TOKENS_LIST_URL:https://github.com/InjectiveLabs/injective-lists/raw/master/json/tokens/testnet.json}
+
   # EVM RPC 配置
   evm:
     enabled: true

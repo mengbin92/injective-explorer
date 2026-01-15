@@ -19,10 +19,8 @@ import (
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
-	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
-	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -35,7 +33,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ExplorerService implements the explorer API 
+// ExplorerService implements the explorer API
 // It provides methods to query blockchain data including blocks, transactions, and account information.
 //
 // The service maintains client connections for better performance,
@@ -170,53 +168,10 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbBlocks))
 			return MarshalAndReply(blocksResp, "marshal blocks error")
 		}
-	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		// Database error (not just record not found), log and continue to query from chain
-		global.Logger.Warnf("database query error (not record not found), querying from chain: error=%v", err)
 	}
-
-	// Not found in database or conversion failed, query from chain
-	global.Logger.Debugf("blocks not found in database or conversion failed, querying from chain")
-	client, err := GetSharedExplorerClient()
-	if err != nil {
-		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
-	}
-
-	// Use independent context for RPC calls to avoid HTTP timeout issues
-	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
-	defer cancel()
-
-	blocks, err := client.GetBlocks(callCtx)
-	if err != nil {
-		global.Logger.Errorf("get blocks error: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "get blocks error", err), err
-	}
-
-	// Save to database and build response with pagination
-	dbBlocks = dbBlocks[:0] // Reset slice
-	for _, block := range blocks.Data {
-		blockDetail, err := client.GetBlock(callCtx, fmt.Sprintf("%d", block.Height))
-		if err != nil {
-			global.Logger.Errorf("get block error: %v", err)
-			continue
-		}
-
-		dbBlock := models.BlockFromProto(blockDetail.Data)
-		saveToDB(dbBlock, "create block error")
-		// Cache the block
-		cacheBlock(callCtx, dbBlock)
-		dbBlocks = append(dbBlocks, *dbBlock)
-	}
-
-	// Apply pagination to results
-	if len(dbBlocks) > int(pageSize) {
-		dbBlocks = dbBlocks[:pageSize]
-	}
-
-	nextCursor := calculateNextCursor(useCursor, cursorValue, dbBlocks, func(b models.Block) uint64 { return b.Height })
-	blockDTOs := models.ToBlockDTOs(dbBlocks)
-	blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, int64(len(dbBlocks)), true, useCursor, cursorValue, nextCursor, len(dbBlocks))
-	return MarshalAndReply(blocksResp, "marshal blocks error")
+	// Database error (not just record not found), log and continue to query from chain
+	global.Logger.Warnf("database query error (not record not found), querying from chain: error=%v", err)
+	return ErrorReply(http.StatusNotFound, "database query error", err), err
 }
 
 // GetBlockByHeight retrieves a specific block by its height.
@@ -307,46 +262,9 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 		global.Logger.Debugf("block not found in database: height=%d, query_time=%v", req.Height, queryDuration)
 	}
 
-	// Not found in database or conversion failed, query from chain
-	// Only query from chain if block is reasonably recent (within last N blocks)
-	// For very old blocks, return error instead of waiting for slow chain query
-	global.Logger.Debugf("block not found in database, querying from chain: height=%d", req.Height)
-	client, err := GetSharedExplorerClient()
-	if err != nil {
-		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
-	}
-
-	// Use independent context for RPC calls to avoid HTTP timeout issues
-	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
-	defer cancel()
-
-	block, err := client.GetBlock(callCtx, fmt.Sprintf("%d", req.Height))
-	if err != nil {
-		global.Logger.Errorf("get block error: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "get block error", err), err
-	}
-
-	// Save to database for future queries
-	blockModel := models.BlockFromProto(block.Data)
-	saveToDB(blockModel, "create block error")
-
-	// Cache the block
-	cacheBlock(callCtx, blockModel)
-
-	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
-
-	// For chain blocks, enhance transactions based on count
-	// Skip enhancement for blocks with >50 transactions to avoid timeout
-	if len(blockDTO.Txs) <= 50 {
-		// Enhance synchronously for small blocks
-		enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
-		return MarshalAndReply(enhancedBlockDTO, "marshal block error")
-	} else {
-		// Return block without enhancement for large blocks
-		global.Logger.Debugf("skipping transaction enhancement for chain block %d with %d transactions (too many)",
-			req.Height, len(blockDTO.Txs))
-		return MarshalAndReply(blockDTO, "marshal block error")
-	}
+	// Not found in database or conversion failed, return error
+	global.Logger.Debugf("block not found in database: height=%d", req.Height)
+	return ErrorReply(http.StatusNotFound, "block not found", errors.New("block not found")), errors.New("block not found")
 }
 
 // enhanceBlockDTOWithTransactions enhances BlockDTO with transaction signer, to, and value information.
@@ -383,6 +301,8 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 	if err != nil {
 		global.Logger.Warnf("failed to query transactions for block %d: %v", blockHeight, err)
 		// Continue to fetch from chain if database query fails
+	} else {
+		global.Logger.Debugf("found %d transactions in database for block %d", len(dbTxs), blockHeight)
 	}
 
 	// Create a map of transaction hash to transaction info for quick lookup
@@ -440,6 +360,11 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 		}
 	}
 
+	if len(missingHashes) > 0 {
+		global.Logger.Debugf("found %d missing transactions for block %d (total txs in block: %d, found in DB: %d)",
+			len(missingHashes), blockHeight, len(blockDTO.Txs), len(dbTxs))
+	}
+
 	// Fetch missing transactions from chain and save to database
 	if len(missingHashes) > 0 {
 		// Limit the number of transactions to fetch to avoid excessive delays
@@ -451,7 +376,7 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 		}
 
 		global.Logger.Debugf("fetching %d missing transactions from chain for block %d", len(missingHashes), blockHeight)
-		client, err := GetSharedExplorerClient()
+		chainClient, err := GetSharedChainClient()
 		if err == nil {
 			// Use shorter timeout for individual transaction fetches (5 seconds instead of 60)
 			// This prevents one slow transaction from blocking the entire block response
@@ -476,28 +401,42 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 					// Fetch transaction from chain
 					// Sanitize hash to ensure correct format (remove 0x prefix if present)
 					hashToFetch := SanitizeHash(txHash)
-					transaction, err := client.GetTxByTxHash(callCtx, hashToFetch)
+					txResp, err := chainClient.GetTx(callCtx, hashToFetch)
 					if err != nil {
 						// Log but don't fail - missing transactions are acceptable
 						global.Logger.Debugf("failed to fetch transaction %s from chain: %v", txHash, err)
 						return
 					}
 
-					if transaction == nil || transaction.Data == nil {
+					if txResp == nil || txResp.TxResponse == nil {
 						global.Logger.Debugf("transaction %s response is nil", txHash)
 						return
 					}
 
+					// Convert GetTxResponse to TxDetailData
+					txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+					if txDetailData == nil {
+						global.Logger.Warnf("failed to convert transaction %s response to detail data", txHash)
+						return
+					}
+
 					// Convert to model and save to database
-					txModel := models.TransactionFromProto(transaction.Data, storageThreshold)
+					txModel := models.TransactionFromProto(txDetailData, storageThreshold)
 					if txModel == nil {
 						global.Logger.Warnf("failed to convert transaction %s to model", txHash)
 						return
 					}
 
+					// Ensure block_number is set correctly
+					if txModel.BlockNumber == 0 {
+						txModel.BlockNumber = blockHeight
+						global.Logger.Debugf("set block_number to %d for transaction %s", blockHeight, txHash)
+					}
+
 					// Save to database asynchronously to avoid blocking
 					go func(model *models.Transaction) {
 						saveToDB(model, fmt.Sprintf("create transaction %s error", txHash))
+						global.Logger.Debugf("saved transaction %s to database (block_number: %d)", txHash, model.BlockNumber)
 					}(txModel)
 
 					// Add to txMap for use below
@@ -830,58 +769,22 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	err := query.Find(&dbTxs).Error
 	queryDuration := time.Since(startTime)
 
-	if err == nil && len(dbTxs) > 0 {
-		// Found in database, convert to DTO and return
+	if err != nil {
+		// Database error
+		global.Logger.Errorf("database query error: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
+	}
+
+	// Found in database or no results, convert to DTO and return
+	if len(dbTxs) > 0 {
 		global.Logger.Debugf("transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
-
-		if len(dbTxs) > 0 {
-			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-			txDTOs := models.ToTransactionDTOs(dbTxs)
-			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-			return MarshalAndReply(txsResp, "marshal transactions error")
-		}
-	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		// Database error (not just record not found), log and continue to query from chain
-		global.Logger.Warnf("database query error (not record not found), querying from chain: error=%v", err)
-	}
-
-	// Not found in database or conversion failed, query from chain
-	global.Logger.Debugf("transactions not found in database or conversion failed, querying from chain")
-	client, err := GetSharedExplorerClient()
-	if err != nil {
-		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
-	}
-
-	// Use independent context for RPC calls to avoid HTTP timeout issues
-	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
-	defer cancel()
-
-	transactions, err := client.GetTxs(callCtx, &injective_explorer_rpcpb.GetTxsRequest{Limit: pageSize})
-	if err != nil {
-		global.Logger.Errorf("get transactions error: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "get transactions error", err), err
-	}
-
-	// Save to database and build response with pagination
-	dbTxs = dbTxs[:0] // Reset slice
-	for _, tx := range transactions.Data {
-		transaction, err := client.GetTxByTxHash(callCtx, tx.Hash)
-		if err != nil {
-			global.Logger.Errorf("get transaction error: %v", err)
-			continue
-		}
-		// Get storage threshold from config
-		storageThreshold := getStorageThresholdForSync()
-		dbTx := models.TransactionFromProto(transaction.Data, storageThreshold)
-		saveToDB(dbTx, "create transaction error")
-		// Cache the transaction
-		cacheTransaction(callCtx, dbTx)
-		dbTxs = append(dbTxs, *dbTx)
+	} else {
+		global.Logger.Debugf("no transactions found in database")
 	}
 
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 	txDTOs := models.ToTransactionDTOs(dbTxs)
-	txsResp := buildPaginatedResponse(txDTOs, page, pageSize, int64(len(dbTxs)), true, useCursor, cursorValue, nextCursor, len(dbTxs))
+	txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
 	return MarshalAndReply(txsResp, "marshal transactions error")
 }
 
@@ -969,26 +872,40 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 
 	// Not found in database or conversion failed, query from chain
 	global.Logger.Debugf("transaction not found in database or conversion failed, querying from chain: hash=%s", hash)
-	client, err := GetSharedExplorerClient()
-	if err != nil {
-		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
-	}
 
 	// Use independent context for RPC calls to avoid HTTP timeout issues
 	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
 	defer cancel()
 
-	transaction, err := client.GetTxByTxHash(callCtx, hash)
+	chainClient, err := GetSharedChainClient()
+	if err != nil {
+		global.Logger.Errorf("get chain client error: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "get chain client error", err), err
+	}
+
+	txResp, err := chainClient.GetTx(callCtx, hash)
 	if err != nil {
 		global.Logger.Errorf("get transaction error: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "get transaction error", err), err
+	}
+
+	if txResp == nil || txResp.TxResponse == nil {
+		global.Logger.Errorf("transaction response is nil for hash %s", hash)
+		return ErrorReply(http.StatusInternalServerError, "transaction response is nil", errors.New("transaction response is nil")), errors.New("transaction response is nil")
+	}
+
+	// Convert GetTxResponse to TxDetailData
+	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+	if txDetailData == nil {
+		global.Logger.Errorf("failed to convert transaction response to detail data for hash %s", hash)
+		return ErrorReply(http.StatusInternalServerError, "failed to convert transaction", errors.New("failed to convert transaction")), errors.New("failed to convert transaction")
 	}
 
 	// Save to database for future queries
 	// Get storage threshold from config
 	storageThreshold := getStorageThresholdForSync()
 
-	transactionModel := models.TransactionFromProto(transaction.Data, storageThreshold)
+	transactionModel := models.TransactionFromProto(txDetailData, storageThreshold)
 	saveToDB(transactionModel, "create transaction error")
 
 	// Cache the transaction
@@ -1255,97 +1172,21 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 			return MarshalAndReply(txsResp, "marshal transactions error")
 		}
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		// Database error (not just record not found), log and continue to query from chain
-		global.Logger.Warnf("database query error (not record not found), querying from chain: address=%s, error=%v", address, err)
+		// Database error
+		global.Logger.Errorf("database query error: address=%s, error=%v", address, err)
+		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 	}
 
-	// Not found in database, query from chain using explorer client
-	// For chain queries, we need Injective format
-	client, err := GetSharedChainClient()
-	if err != nil {
-		return ErrorReply(http.StatusInternalServerError, "build chain client error", err), err
+	// No transactions found or empty result set
+	if len(dbTxs) == 0 {
+		global.Logger.Debugf("no account transactions found in database: address=%s", address)
+		return ErrorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
 	}
 
-	chainQueryAddress, err := s.convertToQueryAddress(ctx, address, client, true)
-	if err != nil {
-		return ErrorReply(http.StatusInternalServerError, "failed to convert address for chain query", err), err
-	}
-
-	global.Logger.Debugf("account transactions not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
-	explorerClient, err := GetSharedExplorerClient()
-	if err != nil {
-		return ErrorReply(http.StatusInternalServerError, "create explorer client error", err), err
-	}
-
-	// Use independent context for RPC calls to avoid HTTP timeout issues
-	callCtx, cancel := context.WithTimeout(context.Background(), GRPCTimeout)
-	defer cancel()
-
-	transactions, err := explorerClient.GetAccountTxs(callCtx, &injective_explorer_rpcpb.GetAccountTxsRequest{
-		Address: chainQueryAddress,
-		Limit:   pageSize,
-	})
-	if err != nil {
-		global.Logger.Errorf("get account transactions error: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "get account transactions error", err), err
-	}
-
-	// Save to database for future queries
-	if transactions != nil && transactions.Data != nil {
-		// Get storage threshold from config
-		storageThreshold := getStorageThresholdForSync()
-		for _, transaction := range transactions.Data {
-			// Filter by message types if specified
-			if hasTxTypeFilter {
-				// Extract message types from transaction
-				messageTypes := make([]string, 0)
-				if len(transaction.Messages) > 0 {
-					txBody := &cosmostxpb.TxBody{}
-					if err := txBody.Unmarshal(transaction.Messages); err == nil {
-						for _, msgAny := range txBody.Messages {
-							if msgAny != nil && msgAny.TypeUrl != "" {
-								messageTypes = append(messageTypes, msgAny.TypeUrl)
-							}
-						}
-					}
-				}
-
-				// Check if any message type matches the requested types
-				matches := false
-				for _, msgType := range messageTypes {
-					for _, requestedType := range req.TxTypes {
-						// Support both full type URL (e.g., "/cosmos.bank.v1beta1.MsgSend")
-						// and short type name (e.g., "MsgSend")
-						if msgType == requestedType || strings.HasSuffix(msgType, "."+requestedType) {
-							matches = true
-							break
-						}
-					}
-					if matches {
-						break
-					}
-				}
-				if !matches {
-					continue // Skip transactions that don't match the filter
-				}
-			}
-
-			dbTx := models.TransactionFromProto(transaction, storageThreshold)
-			saveToDB(dbTx, "create transaction error")
-			dbTxs = append(dbTxs, *dbTx)
-		}
-
-		// If no transactions match the filter, return not found
-		if len(dbTxs) == 0 {
-			return ErrorReply(http.StatusNotFound, "no transactions found matching the specified message types", errors.New("no transactions found matching the specified message types")), errors.New("no transactions found matching the specified message types")
-		}
-
-		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-		txDTOs := models.ToTransactionDTOs(dbTxs)
-		transactionsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-		return MarshalAndReply(transactionsResp, "marshal transactions error")
-	}
-	return ErrorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
+	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+	txDTOs := models.ToTransactionDTOs(dbTxs)
+	transactionsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
+	return MarshalAndReply(transactionsResp, "marshal transactions error")
 }
 
 // GetAccountBalances retrieves account balances for a given address.
@@ -1878,17 +1719,37 @@ func calculateNextCursor[T any](useCursor bool, cursorValue uint64, items []T, g
 
 // saveToDB saves a model to database and logs errors without failing the operation.
 // This is useful when we already have the data and just want to cache it.
+// For Transaction models, it uses FirstOrCreate to handle duplicates gracefully.
 //
 // Parameters:
 //   - model: The model to save
 //   - errorMsg: Error message prefix for logging
 func saveToDB(model interface{}, errorMsg string) {
-	if err := db.Get().Create(model).Error; err != nil {
+	var err error
+
+	// For Transaction models, use FirstOrCreate to handle duplicates
+	if tx, ok := model.(*models.Transaction); ok {
+		// Use FirstOrCreate to avoid duplicate key errors
+		err = db.Get().Where("hash = ?", tx.Hash).FirstOrCreate(tx).Error
+	} else if validator, ok := model.(*models.Validator); ok {
+		// For Validator models, use upsert (Create or Update) to handle duplicates
+		err = db.Get().Where("consensus_address = ?", validator.ConsensusAddress).
+			Assign(validator).
+			FirstOrCreate(validator).Error
+	} else {
+		// For other models, use Create
+		err = db.Get().Create(model).Error
+	}
+
+	if err != nil {
 		// Check if it's a "Too many connections" error
 		if isTooManyConnectionsError(err) {
 			global.Logger.Warnf("Database connection temporarily exhausted, will retry in background: %s: %v", errorMsg, err)
 			// Retry in background with exponential backoff
 			go retrySaveToDB(model, errorMsg, 3, time.Second)
+		} else if isDuplicateKeyError(err) {
+			// Duplicate key error is expected and can be ignored
+			global.Logger.Debugf("transaction already exists (duplicate key): %s", errorMsg)
 		} else {
 			global.Logger.Errorf("%s: %v", errorMsg, err)
 		}
@@ -1907,15 +1768,39 @@ func isTooManyConnectionsError(err error) bool {
 		strings.Contains(errMsg, "max_connections")
 }
 
+// isDuplicateKeyError checks if the error is a duplicate key error
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "Duplicate entry") ||
+		strings.Contains(errMsg, "1062") ||
+		strings.Contains(errMsg, "UNIQUE constraint") ||
+		strings.Contains(errMsg, "duplicate key")
+}
+
 // retrySaveToDB retries saving to database with exponential backoff
 func retrySaveToDB(model interface{}, errorMsg string, maxRetries int, initialDelay time.Duration) {
 	var err error
 	delay := initialDelay
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		err = db.Get().Create(model).Error
+		// Use FirstOrCreate for Transaction models, Create for others
+		if tx, ok := model.(*models.Transaction); ok {
+			err = db.Get().Where("hash = ?", tx.Hash).FirstOrCreate(tx).Error
+		} else {
+			err = db.Get().Create(model).Error
+		}
+
 		if err == nil {
 			global.Logger.Debugf("Retry successful for: %s (attempt %d)", errorMsg, attempt)
+			return
+		}
+
+		// If it's a duplicate key error, we can ignore it
+		if isDuplicateKeyError(err) {
+			global.Logger.Debugf("Transaction already exists (duplicate key) during retry: %s", errorMsg)
 			return
 		}
 
@@ -2749,27 +2634,7 @@ type transactionStatsData struct {
 
 // getTotalTransactionCount retrieves the total transaction count from chain using GetTxs.
 func getTotalTransactionCount(ctx context.Context) (int64, error) {
-	client, err := GetSharedExplorerClient()
-	if err != nil {
-		global.Logger.Warnf("failed to get explorer client: %v, fallback to DB", err)
-		return getTotalTransactionCountFromDB(ctx)
-	}
-
-	// Use GetTxs with limit=1 to get total count from paging info
-	transactions, err := client.GetTxs(ctx, &injective_explorer_rpcpb.GetTxsRequest{
-		Limit: 1,
-	})
-	if err != nil {
-		global.Logger.Warnf("failed to get total transaction count from chain: %v, fallback to DB", err)
-		return getTotalTransactionCountFromDB(ctx)
-	}
-
-	// Get total from paging info if available
-	if transactions != nil && transactions.Paging != nil {
-		return int64(transactions.Paging.Total), nil
-	}
-
-	global.Logger.Warnf("paging info not available in GetTxs response, fallback to DB")
+	// Query total transaction count from database
 	return getTotalTransactionCountFromDB(ctx)
 }
 
@@ -3076,7 +2941,8 @@ func GetBlockMaxGas(ctx context.Context) (int64, error) {
 		}
 	}
 
-	tmClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
+	// Create RPC client with extended timeout for slow endpoints
+	tmClient, err := rpchttp.NewWithTimeout(global.ChainConfig.TmEndpoint, 30)
 	if err != nil {
 		global.Logger.Warnf("failed to create Tendermint RPC client for consensus params: %v, using default gas limit", err)
 		return BlockGasLimit, nil

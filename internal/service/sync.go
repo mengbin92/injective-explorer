@@ -21,11 +21,13 @@ import (
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
-	explorerclient "github.com/InjectiveLabs/sdk-go/client/explorer"
 	tmclient "github.com/InjectiveLabs/sdk-go/client/tm"
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
+	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	github_com_cosmos_cosmos_sdk_types "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -46,9 +48,11 @@ type SyncService struct {
 	config *SyncConfig
 
 	// Clients for blockchain interactions
-	explorerClient explorerclient.ExplorerClient
-	chainClient    chainclient.ChainClientV2
-	tmClient       tmclient.TendermintClient
+	// explorerClient explorerclient.ExplorerClient
+	chainClient chainclient.ChainClientV2
+	tmClient    tmclient.TendermintClient
+
+	rpcClient *rpchttp.HTTP
 
 	// EVM details sync service
 	evmDetailsSyncService *EVMDetailsSyncService
@@ -246,7 +250,20 @@ func (s *SyncService) Start() error {
 	// Start block streaming (real-time) via WebSocket
 	// This is the only method for block synchronization
 	s.wg.Add(1)
-	go s.blockStream()
+	go s.tmStreamBlocks(s.ctx)
+
+	// Start validator sync (initial sync)
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		if err := s.getAllValidators(s.ctx); err != nil {
+			global.Logger.Errorf("failed to sync validators: %v", err)
+		}
+	}()
+
+	// Start periodic validator update (every 10 minutes)
+	s.wg.Add(1)
+	go s.periodicValidatorUpdate(s.ctx)
 
 	// Start multiple transaction processing goroutines for better performance
 	for i := 0; i < s.config.ConcurrentTxProcessors; i++ {
@@ -327,6 +344,10 @@ func (s *SyncService) Stop() error {
 		close(done)
 	}()
 
+	if s.rpcClient != nil {
+		s.rpcClient.Stop()
+	}
+
 	select {
 	case <-done:
 		global.Logger.Infof("blockchain sync service stopped gracefully")
@@ -340,13 +361,6 @@ func (s *SyncService) Stop() error {
 // initClients initializes all blockchain clients.
 // Uses shared client instances for better resource utilization.
 func (s *SyncService) initClients() error {
-	// Initialize explorer client (shared)
-	client, err := GetSharedExplorerClient()
-	if err != nil {
-		return err
-	}
-	s.explorerClient = client
-
 	// Initialize chain client (shared)
 	chainClient, err := GetSharedChainClient()
 	if err != nil {
@@ -356,6 +370,19 @@ func (s *SyncService) initClients() error {
 
 	// Initialize Tendermint client (shared)
 	s.tmClient = GetSharedTmClient()
+
+	// Create RPC client with extended timeout for slow endpoints
+	// Using 30 second timeout to handle high latency RPC nodes
+	rpcClient, err := rpchttp.NewWithTimeout(global.ChainConfig.TmEndpoint, 30)
+	if err != nil {
+		return errors.Wrap(err, "failed to create RPC client")
+	}
+	s.rpcClient = rpcClient
+
+	err = rpcClient.Start()
+	if err != nil {
+		return errors.Wrap(err, "failed to start RPC client")
+	}
 
 	return nil
 }
@@ -407,7 +434,7 @@ func (s *SyncService) initCurrentHeightWithVerification() error {
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
 	defer cancel()
 
-	blockResp, err := s.explorerClient.GetBlock(ctx, fmt.Sprintf("%d", maxHeight))
+	blockResp, err := s.tmProcessBlock(ctx, int64(maxHeight))
 	if err != nil {
 		// If we can't get the block, it might be from a different chain
 		// Log warning and start from latest
@@ -420,7 +447,7 @@ func (s *SyncService) initCurrentHeightWithVerification() error {
 		return nil
 	}
 
-	if blockResp == nil || blockResp.Data == nil {
+	if blockResp == nil {
 		global.Logger.Warnf("block response is nil at height %d, starting from latest", maxHeight)
 		latestHeight, err := s.getLatestBlockHeight()
 		if err != nil {
@@ -430,13 +457,12 @@ func (s *SyncService) initCurrentHeightWithVerification() error {
 		return nil
 	}
 
-	chainBlock := blockResp.Data
-
+	chainHash := fmt.Sprintf("0x%s", strings.ToLower(blockResp.BlockID.Hash.String()))
 	// Compare block hashes
-	if maxBlock.BlockHash != chainBlock.BlockHash {
+	if maxBlock.BlockHash != chainHash {
 		// Block hash doesn't match, this might be a different chain
 		global.Logger.Warnf("block hash mismatch at height %d: database=%s, chain=%s, starting from latest",
-			maxHeight, maxBlock.BlockHash, chainBlock.BlockHash)
+			maxHeight, maxBlock.BlockHash, chainHash)
 
 		// Check if we can find a matching block at a lower height
 		// Try to find the last common block by checking parent hash
@@ -496,19 +522,19 @@ func (s *SyncService) findCommonBlockHeight(knownHash string) (uint64, error) {
 		}
 
 		// Get the same block from chain
-		blockResp, err := s.explorerClient.GetBlock(ctx, fmt.Sprintf("%d", height))
+		blockResp, err := s.tmProcessBlock(ctx, int64(height))
 		if err != nil {
 			continue
 		}
 
-		if blockResp == nil || blockResp.Data == nil {
+		if blockResp == nil {
 			continue
 		}
 
-		chainBlock := blockResp.Data
+		chainHash := fmt.Sprintf("0x%s", strings.ToLower(blockResp.BlockID.Hash.String()))
 
 		// If hash matches, this is a common block
-		if dbBlock.BlockHash == chainBlock.BlockHash {
+		if dbBlock.BlockHash == chainHash {
 			return height, nil
 		}
 	}
@@ -867,12 +893,12 @@ func (s *SyncService) processBlock(height uint64) error {
 	defer cancel()
 
 	// Get block information with retry logic
-	var blockResp *injective_explorer_rpcpb.GetBlockResponse
+	var blockResp *coretypes.ResultBlock
 
 	delay := s.config.RetryDelay
 	var err error
 	for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
-		blockResp, err = s.explorerClient.GetBlock(ctx, fmt.Sprintf("%d", height))
+		blockResp, err = s.tmProcessBlock(ctx, int64(height))
 		if err == nil {
 			break
 		}
@@ -903,14 +929,12 @@ func (s *SyncService) processBlock(height uint64) error {
 		return errors.Wrapf(err, "failed to get block at height %d after %d attempts", height, s.config.MaxRetryAttempts)
 	}
 
-	if blockResp == nil || blockResp.Data == nil {
+	if blockResp == nil {
 		return errors.Errorf("block response is nil for height %d", height)
 	}
 
-	block := blockResp.Data
-
 	// Save block to database using transaction for atomicity
-	blockModel := models.BlockFromProto(block)
+	blockModel := models.BlockFromTM(blockResp)
 	if blockModel == nil {
 		return errors.Errorf("failed to convert block at height %d", height)
 	}
@@ -942,12 +966,12 @@ func (s *SyncService) processBlock(height uint64) error {
 		// Extract transaction hashes and push to Redis queue
 		// Note: Redis operations are outside the database transaction
 		// If Redis push fails, the block is still saved (eventual consistency)
-		if len(block.Txs) > 0 {
+		if len(blockResp.Block.Data.Txs) > 0 {
 			redisClient := cache.GetRedisClient()
 			if redisClient != nil {
 				// Use Pipeline for batch operations to reduce network round trips
 				pipe := redisClient.Pipeline()
-				for _, txHash := range block.Txs {
+				for _, txHash := range blockResp.Block.Data.Txs {
 					pipe.LPush(ctx, s.config.TxHashQueueKey, txHash.Hash)
 				}
 				_, err := pipe.Exec(ctx)
@@ -1047,20 +1071,20 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 			sem <- struct{}{}        // Acquire semaphore
 			defer func() { <-sem }() // Release semaphore
 
-			blockResp, err := s.explorerClient.GetBlock(ctx, fmt.Sprintf("%d", h))
+			blockResp, err := s.tmProcessBlock(ctx, int64(h))
 			if err != nil {
 				results <- blockResult{height: h, err: err}
 				return
 			}
 
-			if blockResp == nil || blockResp.Data == nil {
+			if blockResp == nil {
 				results <- blockResult{height: h, err: errors.Errorf("block response is nil for height %d", h)}
 				return
 			}
 
 			// Use object pool to reduce allocations
 			poolBlock := GetBlockFromPool()
-			blockModel := models.BlockFromProtoWithPool(blockResp.Data, poolBlock)
+			blockModel := models.BlockFromTMWithPool(blockResp, poolBlock)
 			if blockModel == nil {
 				PutBlockToPool(poolBlock) // Return to pool if conversion failed
 				results <- blockResult{height: h, err: errors.Errorf("failed to convert block at height %d", h)}
@@ -1237,12 +1261,12 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 	defer cancel()
 
 	// Get block information with retry logic
-	var blockResp *injective_explorer_rpcpb.GetBlockResponse
+	var blockResp *coretypes.ResultBlock
 
 	delay := s.config.RetryDelay
 	var err error
 	for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
-		blockResp, err = s.explorerClient.GetBlock(ctx, fmt.Sprintf("%d", height))
+		blockResp, err = s.tmProcessBlock(ctx, int64(height))
 		if err == nil {
 			break
 		}
@@ -1271,14 +1295,12 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 		return errors.Wrapf(err, "failed to get block at height %d after %d attempts", height, s.config.MaxRetryAttempts)
 	}
 
-	if blockResp == nil || blockResp.Data == nil {
+	if blockResp == nil {
 		return errors.Errorf("block response is nil for height %d", height)
 	}
 
-	block := blockResp.Data
-
 	// Save block to database using transaction for atomicity
-	blockModel := models.BlockFromProto(block)
+	blockModel := models.BlockFromTM(blockResp)
 	if blockModel == nil {
 		return errors.Errorf("failed to convert block at height %d", height)
 	}
@@ -1325,12 +1347,12 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 	})
 
 	// Extract transaction hashes and push to Redis queue (batch push for better performance)
-	if len(block.Txs) > 0 {
+	if len(blockResp.Block.Data.Txs) > 0 {
 		redisClient := cache.GetRedisClient()
 		if redisClient != nil {
 			// Batch push to Redis for better performance
-			txHashes := make([]interface{}, 0, len(block.Txs))
-			for _, txHash := range block.Txs {
+			txHashes := make([]interface{}, 0, len(blockResp.Block.Data.Txs))
+			for _, txHash := range blockResp.Block.Data.Txs {
 				txHashes = append(txHashes, txHash.Hash)
 			}
 			// Use pipeline for batch operations
@@ -1407,8 +1429,11 @@ var errQueueEmpty = errors.New("queue is empty")
 
 // processTransactionBatch processes a batch of transactions from the Redis queue for better performance.
 // This matches the batch processing approach used for blocks to maintain consistent sync speed.
+// Uses a detached context to allow batch operations to complete even during graceful shutdown.
 func (s *SyncService) processTransactionBatch(redisClient *redis.Client) (int, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
+	// Use context.Background() as parent to allow batch operations to complete
+	// even if the service is shutting down (graceful shutdown with in-flight operations)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.BlockQueryTimeout)
 	defer cancel()
 
 	// Collect a batch of transaction hashes from the queue
@@ -1477,7 +1502,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	// Step 1: Fetch transaction details concurrently
 	type txResult struct {
 		hash    string
-		txResp  *injective_explorer_rpcpb.GetTxByTxHashResponse
+		txResp  *tx.GetTxResponse
 		err     error
 		retries int
 	}
@@ -1497,7 +1522,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			delay := s.config.RetryDelay
 
 			for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
-				result.txResp, result.err = s.explorerClient.GetTxByTxHash(ctx, hash)
+				result.txResp, result.err = s.chainClient.GetTx(ctx, hash)
 				if result.err == nil {
 					break
 				}
@@ -1535,7 +1560,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	type txModelData struct {
 		hash    string
 		txModel *models.Transaction
-		txData  *injective_explorer_rpcpb.TxDetailData
+		txData  *tx.GetTxResponse
 		err     error
 	}
 
@@ -1546,13 +1571,13 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			continue
 		}
 
-		if result.txResp == nil || result.txResp.Data == nil {
+		if result.txResp == nil {
 			global.Logger.Warnf("transaction response is nil for hash %s", result.hash)
 			continue
 		}
 
 		poolTx := GetTransactionFromPool()
-		txModel := models.TransactionFromProtoWithPool(result.txResp.Data, storageThreshold, poolTx)
+		txModel := models.TransactionFromGetTxResponse(result.txResp, storageThreshold)
 		if txModel == nil {
 			PutTransactionToPool(poolTx)
 			global.Logger.Errorf("failed to convert transaction %s to model", result.hash)
@@ -1560,54 +1585,58 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		}
 
 		// Check if this is an EVM transaction and extract EVM hash
-		if IsEVMTransaction(result.txResp.Data) {
-			evmHash := ExtractEVMHash(result.txResp.Data)
+		// Convert GetTxResponse to TxDetailData for EVM check
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(result.txResp)
+		if txDetailData != nil {
+			if IsEVMTransaction(txDetailData) {
+				evmHash := ExtractEVMHash(txDetailData)
 
-			// If hash not found in explorer data, try to get from chainClient (abci.Event)
-			// This is synchronous to ensure data consistency in batch processing
-			if evmHash == "" && s.chainClient != nil {
-				evmCtx, evmCancel := context.WithTimeout(ctx, 10*time.Second)
-				txResp, err := s.chainClient.GetTx(evmCtx, txModel.Hash)
-				evmCancel()
+				// If hash not found in explorer data, try to get from chainClient (abci.Event)
+				// This is synchronous to ensure data consistency in batch processing
+				if evmHash == "" && s.chainClient != nil {
+					evmCtx, evmCancel := context.WithTimeout(ctx, 10*time.Second)
+					txResp, err := s.chainClient.GetTx(evmCtx, txModel.Hash)
+					evmCancel()
 
-				if err == nil && txResp != nil && txResp.TxResponse != nil {
-					evmHash = ExtractEVMHashFromABCIEvents(txResp.TxResponse.Events)
-					if evmHash != "" {
-						global.Logger.Debugf("extracted EVM hash %s from abci events for transaction %s", evmHash, txModel.Hash)
-					}
-				} else if err != nil {
-					global.Logger.Debugf("failed to get tx from chainClient for EVM hash extraction: %v", err)
-				}
-			}
-
-			if evmHash != "" {
-				txModel.EVMHash = evmHash
-				txModel.EVMDetailsSynced = false
-				global.Logger.Debugf("extracted EVM hash %s for transaction %s", evmHash, txModel.Hash)
-
-				// Push to EVM details queue for async processing
-				go func(cosmosHash, evmHash string) {
-					evmCtx, evmCancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer evmCancel()
-
-					// Push to Redis queue
-					redisClient := cache.GetRedisClient()
-					if redisClient != nil {
-						taskStr := fmt.Sprintf("%s:%s", cosmosHash, evmHash)
-						if err := redisClient.LPush(evmCtx, s.config.EVMDetailsQueueKey, taskStr).Err(); err != nil {
-							global.Logger.Warnf("failed to push EVM details task to queue: %v", err)
+					if err == nil && txResp != nil && txResp.TxResponse != nil {
+						evmHash = ExtractEVMHashFromABCIEvents(txResp.TxResponse.Events)
+						if evmHash != "" {
+							global.Logger.Debugf("extracted EVM hash %s from abci events for transaction %s", evmHash, txModel.Hash)
 						}
+					} else if err != nil {
+						global.Logger.Debugf("failed to get tx from chainClient for EVM hash extraction: %v", err)
 					}
-				}(txModel.Hash, evmHash)
-			} else {
-				global.Logger.Debugf("EVM transaction detected but hash not found for transaction %s", txModel.Hash)
+				}
+
+				if evmHash != "" {
+					txModel.EVMHash = evmHash
+					txModel.EVMDetailsSynced = false
+					global.Logger.Debugf("extracted EVM hash %s for transaction %s", evmHash, txModel.Hash)
+
+					// Push to EVM details queue for async processing
+					go func(cosmosHash, evmHash string) {
+						evmCtx, evmCancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer evmCancel()
+
+						// Push to Redis queue
+						redisClient := cache.GetRedisClient()
+						if redisClient != nil {
+							taskStr := fmt.Sprintf("%s:%s", cosmosHash, evmHash)
+							if err := redisClient.LPush(evmCtx, s.config.EVMDetailsQueueKey, taskStr).Err(); err != nil {
+								global.Logger.Warnf("failed to push EVM details task to queue: %v", err)
+							}
+						}
+					}(txModel.Hash, evmHash)
+				} else {
+					global.Logger.Debugf("EVM transaction detected but hash not found for transaction %s", txModel.Hash)
+				}
 			}
 		}
 
 		txModels = append(txModels, txModelData{
 			hash:    result.hash,
 			txModel: txModel,
-			txData:  result.txResp.Data,
+			txData:  result.txResp,
 		})
 		// Note: We keep the original hash for queue cleanup, but use txModel.Hash for database operations
 	}
@@ -1649,7 +1678,11 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	txDataMap := make(map[string]*injective_explorer_rpcpb.TxDetailData, len(txModels))
 
 	for _, tm := range txModels {
-		txDataMap[tm.txModel.Hash] = tm.txData
+		// Convert GetTxResponse to TxDetailData for txDataMap
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData)
+		if txDetailData != nil {
+			txDataMap[tm.txModel.Hash] = txDetailData
+		}
 		// Use hash to check existence (hash is the unique identifier)
 		if id, exists := existingTxMap[tm.txModel.Hash]; exists {
 			tm.txModel.ID = id
@@ -1790,8 +1823,12 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		accountCtx, accountCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer accountCancel()
 		for _, tm := range txModels {
-			if err := s.updateAccountsFromTransaction(accountCtx, tm.txData); err != nil {
-				global.Logger.Warnf("failed to update accounts from transaction %s: %v", tm.hash, err)
+			// Convert GetTxResponse to TxDetailData for account extraction
+			txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData)
+			if txDetailData != nil {
+				if err := s.updateAccountsFromTransaction(accountCtx, txDetailData); err != nil {
+					global.Logger.Warnf("failed to update accounts from transaction %s: %v", tm.hash, err)
+				}
 			}
 		}
 	}()
@@ -1821,14 +1858,18 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		})
 
 		// Publish account events
-		addresses := s.extractAddressesFromTransaction(tm.txData)
-		for address := range addresses {
-			if address != "" && utils.IsValidAddress(address) {
-				eventBus.PublishAccount(address, &AccountEvent{
-					Address: address,
-					Type:    EventTypeAccountUpdate,
-					Data:    map[string]interface{}{"transaction": tm.txModel, "type": "update"},
-				})
+		// Convert GetTxResponse to TxDetailData for address extraction
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData)
+		if txDetailData != nil {
+			addresses := s.extractAddressesFromTransaction(txDetailData)
+			for address := range addresses {
+				if address != "" && utils.IsValidAddress(address) {
+					eventBus.PublishAccount(address, &AccountEvent{
+						Address: address,
+						Type:    EventTypeAccountUpdate,
+						Data:    map[string]interface{}{"transaction": tm.txModel, "type": "update"},
+					})
+				}
 			}
 		}
 
@@ -1879,11 +1920,11 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	}
 
 	// Get transaction information with retry logic
-	var txResp *injective_explorer_rpcpb.GetTxByTxHashResponse
+	var txResp *tx.GetTxResponse
 
 	delay := s.config.RetryDelay
 	for attempt := 0; attempt < s.config.MaxRetryAttempts; attempt++ {
-		txResp, err = s.explorerClient.GetTxByTxHash(ctx, txHash)
+		txResp, err = s.chainClient.GetTx(ctx, txHash)
 		if err == nil {
 			break
 		}
@@ -1917,12 +1958,10 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 		return nil
 	}
 
-	if txResp == nil || txResp.Data == nil {
+	if txResp == nil || txResp.TxResponse == nil {
 		global.Logger.Warnf("transaction response is nil for hash %s", txHash)
 		return nil
 	}
-
-	txData := txResp.Data
 
 	// Save transaction to database using transaction for atomicity
 	// Get storage threshold from config
@@ -1930,7 +1969,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Use object pool to reduce allocations
 	poolTx := GetTransactionFromPool()
-	txModel := models.TransactionFromProtoWithPool(txData, storageThreshold, poolTx)
+	txModel := models.TransactionFromGetTxResponse(txResp, storageThreshold)
 	if txModel == nil {
 		// If conversion fails, return transaction to pool and put the transaction hash back to the queue
 		PutTransactionToPool(poolTx)
@@ -1969,10 +2008,14 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 		// Extract and update account information from transaction
 		// Note: Account updates are done within the same transaction
-		if err := s.updateAccountsFromTransactionWithTx(ctx, tx, txData); err != nil {
-			global.Logger.Warnf("failed to update accounts from transaction %s: %v", txHash, err)
-			// Don't fail the transaction processing if account update fails
-			// But log it for debugging
+		// Convert GetTxResponse to TxDetailData for account extraction
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+		if txDetailData != nil {
+			if err := s.updateAccountsFromTransactionWithTx(ctx, tx, txDetailData); err != nil {
+				global.Logger.Warnf("failed to update accounts from transaction %s: %v", txHash, err)
+				// Don't fail the transaction processing if account update fails
+				// But log it for debugging
+			}
 		}
 
 		return nil
@@ -2020,14 +2063,18 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	})
 
 	// Publish account events for addresses involved in the transaction
-	addresses := s.extractAddressesFromTransaction(txData)
-	for address := range addresses {
-		if address != "" && utils.IsValidAddress(address) {
-			eventBus.PublishAccount(address, &AccountEvent{
-				Address: address,
-				Type:    EventTypeAccountUpdate,
-				Data:    map[string]interface{}{"transaction": txModel, "type": "update"},
-			})
+	// Convert GetTxResponse to TxDetailData for address extraction
+	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+	if txDetailData != nil {
+		addresses := s.extractAddressesFromTransaction(txDetailData)
+		for address := range addresses {
+			if address != "" && utils.IsValidAddress(address) {
+				eventBus.PublishAccount(address, &AccountEvent{
+					Address: address,
+					Type:    EventTypeAccountUpdate,
+					Data:    map[string]interface{}{"transaction": txModel, "type": "update"},
+				})
+			}
 		}
 	}
 
@@ -2661,11 +2708,19 @@ func (s *SyncService) historicalBlockSync() {
 				continue
 			}
 
-			// Determine target height (sync up to min height in database, but not beyond current height)
-			// Don't sync below earliest block height
-			targetHeight := dbMinHeight - 1
-			if targetHeight < earliestBlockHeight {
-				targetHeight = earliestBlockHeight
+			// Determine target height based on database state
+			var targetHeight uint64
+			if dbMinHeight == earliestBlockHeight {
+				// Database is empty or only has blocks from earliest height
+				// We need to sync from earliest height up to current height
+				targetHeight = currentHeight
+				global.Logger.Debugf("historical block sync: database is empty, will sync up to current height %d", targetHeight)
+			} else {
+				// Database has some blocks, sync gaps below dbMinHeight
+				targetHeight = dbMinHeight - 1
+				if targetHeight < earliestBlockHeight {
+					targetHeight = earliestBlockHeight
+				}
 			}
 
 			// If we've reached the target, check if we need to continue
@@ -3053,128 +3108,5 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		global.Logger.Warnf("failed to cache transaction to Redis: %v", err)
-	}
-}
-
-// blockStream uses gRPC streaming to receive new blocks in real-time from Injective.
-// This is the primary and only method for block synchronization, providing lower latency and better efficiency.
-func (s *SyncService) blockStream() {
-	defer s.wg.Done()
-
-	global.Logger.Info("starting real-time block stream (WSS)")
-
-	// Initial delay to allow clients to initialize
-	// This prevents trying to stream before the connection is ready
-	select {
-	case <-s.ctx.Done():
-		return
-	case <-time.After(5 * time.Second):
-		// Continue after initial delay
-	}
-
-	// Retry loop for stream connection
-	retryDelay := 5 * time.Second
-	maxRetryDelay := 60 * time.Second
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			global.Logger.Info("block stream shutting down by context")
-			return
-		default:
-			// Start the stream
-			if err := s.startBlockStream(); err != nil {
-				global.Logger.Errorf("block stream error: %v, retrying in %v", err, retryDelay)
-
-				// Exponential backoff with cap
-				select {
-				case <-s.ctx.Done():
-					return
-				case <-time.After(retryDelay):
-					retryDelay *= 2
-					if retryDelay > maxRetryDelay {
-						retryDelay = maxRetryDelay
-					}
-				}
-			} else {
-				// Stream completed normally, reset retry delay
-				retryDelay = 5 * time.Second
-			}
-
-			// Small delay before reconnecting
-			select {
-			case <-s.ctx.Done():
-				return
-			case <-time.After(1 * time.Second):
-				// Continue to retry
-			}
-		}
-	}
-}
-
-// startBlockStream establishes and processes the gRPC stream for new blocks.
-// Returns when the stream ends or encounters an error.
-func (s *SyncService) startBlockStream() error {
-	// Create the stream using the service context
-	// No timeout needed - the stream will run until service stops or connection error occurs
-	stream, err := s.explorerClient.StreamBlocks(s.ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to create block stream")
-	}
-
-	global.Logger.Info("block stream connected, listening for new blocks")
-
-	// Process incoming blocks
-	for {
-		select {
-		case <-s.ctx.Done():
-			return errors.New("context canceled")
-		default:
-			// Receive next block from stream
-			blockResp, err := stream.Recv()
-			if err != nil {
-				global.Logger.Errorf("block stream recv error: %v", err)
-				return errors.Wrap(err, "stream receive error")
-			}
-
-			if blockResp == nil {
-				global.Logger.Warn("received nil block response from stream")
-				continue
-			}
-
-			// Extract block height
-			height := blockResp.GetHeight()
-			if height == 0 {
-				global.Logger.Warn("received block without height")
-				continue
-			}
-
-			currentHeight := s.getCurrentHeight()
-
-			// Skip if this block is not the next one (shouldn't happen with stream, but be safe)
-			if height <= currentHeight {
-				global.Logger.Debugf("block %d already processed or out of order, current: %d", height, currentHeight)
-				continue
-			}
-
-			// Log the new block
-			global.Logger.Infof("received block from stream: height=%d", height)
-
-			// Process this single block immediately for lowest latency
-			start := time.Now()
-			if err := s.processBlock(height); err != nil {
-				global.Logger.Errorf("error processing block %d from stream: %v", height, err)
-				s.metrics.blockProcessingErrors.Add(1)
-				continue
-			}
-
-			duration := time.Since(start)
-			s.metrics.blockProcessingCount.Add(1)
-			s.metrics.totalProcessingDuration.Add(duration.Nanoseconds())
-
-			// Update current height
-			s.setCurrentHeight(height)
-			global.Logger.Debugf("processed block %d from stream in %v", height, duration)
-		}
 	}
 }

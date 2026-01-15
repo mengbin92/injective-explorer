@@ -463,6 +463,48 @@ ON DUPLICATE KEY UPDATE `domain`=`domain`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- ----------------------------
+-- Table structure for validators
+-- ----------------------------
+DROP TABLE IF EXISTS `validators`;
+CREATE TABLE `validators` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `validator_id` varchar(128) DEFAULT NULL COMMENT 'Validator unique identifier',
+  `moniker` varchar(256) DEFAULT NULL COMMENT 'Validator display name',
+  `operator_address` varchar(128) DEFAULT NULL COMMENT 'Validator operator address',
+  `consensus_address` varchar(128) DEFAULT NULL COMMENT 'Validator consensus address',
+  `jailed` tinyint(1) DEFAULT '0' COMMENT 'Whether the validator is jailed',
+  `status` int DEFAULT NULL COMMENT 'Validator status code',
+  `tokens` varchar(128) DEFAULT NULL COMMENT 'Amount of tokens delegated',
+  `delegator_shares` varchar(128) DEFAULT NULL COMMENT 'Total delegator shares',
+  `description` text COMMENT 'Validator description (JSON format)',
+  `unbonding_height` bigint DEFAULT NULL COMMENT 'Height at which unbonding started',
+  `unbonding_time` varchar(128) DEFAULT NULL COMMENT 'Time when unbonding completes',
+  `commission_rate` varchar(128) DEFAULT NULL COMMENT 'Current commission rate',
+  `commission_max_rate` varchar(128) DEFAULT NULL COMMENT 'Maximum commission rate',
+  `commission_max_change_rate` varchar(128) DEFAULT NULL COMMENT 'Maximum change rate per period',
+  `commission_update_time` varchar(128) DEFAULT NULL COMMENT 'Last commission update time',
+  `proposed` bigint unsigned DEFAULT NULL COMMENT 'Number of blocks proposed',
+  `signed` bigint unsigned DEFAULT NULL COMMENT 'Number of blocks signed',
+  `missed` bigint unsigned DEFAULT NULL COMMENT 'Number of blocks missed',
+  `timestamp` varchar(128) DEFAULT NULL COMMENT 'Last update timestamp',
+  `uptimes` json DEFAULT NULL COMMENT 'Validator uptime information (JSON array)',
+  `slashing_events` json DEFAULT NULL COMMENT 'Slashing event information (JSON array)',
+  `uptime_percentage` double DEFAULT NULL COMMENT 'Validator uptime percentage',
+  `image_url` varchar(512) DEFAULT NULL COMMENT 'Validator image URL',
+  `registration_time` bigint DEFAULT NULL COMMENT 'Registration timestamp (first block time)',
+  `wallet_address` varchar(128) DEFAULT NULL COMMENT 'Validator wallet address',
+  PRIMARY KEY (`id`),
+  KEY `idx_validators_deleted_at` (`deleted_at`),
+  KEY `idx_validators_operator_address` (`operator_address`),
+  KEY `idx_validators_status` (`status`),
+  KEY `idx_validators_jailed` (`jailed`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Validator information table';
+
+
 -- ============================================================================
 -- ADDITIONAL INDEXES FOR QUERY OPTIMIZATION
 -- ============================================================================

@@ -5,6 +5,7 @@ go 1.25.3
 require (
 	cosmossdk.io/errors v1.0.1
 	github.com/InjectiveLabs/sdk-go v1.59.0
+	github.com/InjectiveLabs/suplog v1.3.3
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.5
@@ -14,6 +15,8 @@ require (
 	github.com/bytedance/sonic v1.14.2
 	github.com/cometbft/cometbft v1.0.1
 	github.com/cosmos/cosmos-sdk v0.50.12
+	github.com/cosmos/gogoproto v1.7.0
+	github.com/dgraph-io/ristretto/v2 v2.1.0
 	github.com/ethereum/go-ethereum v1.15.7
 	github.com/fatih/color v1.18.0
 	github.com/go-kratos/kratos/v2 v2.8.0
@@ -69,7 +72,6 @@ require (
 	github.com/DataDog/sketches-go v1.4.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/InjectiveLabs/metrics v0.0.10 // indirect
-	github.com/InjectiveLabs/suplog v1.3.3 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
@@ -121,7 +123,6 @@ require (
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5 // indirect
 	github.com/cosmos/go-bip39 v1.0.0 // indirect
 	github.com/cosmos/gogogateway v1.2.0 // indirect
-	github.com/cosmos/gogoproto v1.7.0 // indirect
 	github.com/cosmos/iavl v1.2.6 // indirect
 	github.com/cosmos/ibc-go/modules/capability v1.0.1 // indirect
 	github.com/cosmos/ibc-go/v8 v8.6.1 // indirect
@@ -135,7 +136,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
 	github.com/dgraph-io/badger/v4 v4.6.0 // indirect
-	github.com/dgraph-io/ristretto/v2 v2.1.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
