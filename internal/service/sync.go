@@ -1565,14 +1565,19 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	}
 
 	txModels := make([]txModelData, 0, len(txHashes))
+
+	// Track failure reasons for better diagnostics
+	var fetchErrors, nilResponseErrors, convertErrors []string
 	for _, result := range txResults {
 		if result.err != nil {
 			global.Logger.Warnf("failed to get transaction %s after %d attempts: %v", result.hash, result.retries, result.err)
+			fetchErrors = append(fetchErrors, result.hash)
 			continue
 		}
 
 		if result.txResp == nil {
 			global.Logger.Warnf("transaction response is nil for hash %s", result.hash)
+			nilResponseErrors = append(nilResponseErrors, result.hash)
 			continue
 		}
 
@@ -1581,6 +1586,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		if txModel == nil {
 			PutTransactionToPool(poolTx)
 			global.Logger.Errorf("failed to convert transaction %s to model", result.hash)
+			convertErrors = append(convertErrors, result.hash)
 			continue
 		}
 
@@ -1648,7 +1654,37 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			pipe.LRem(ctx, s.config.TxHashProcessingQueueKey, 0, hash)
 		}
 		pipe.Exec(ctx)
-		return 0, errors.New("all transactions in batch failed to fetch or convert")
+
+		// Build detailed error message with failure breakdown
+		errMsg := fmt.Sprintf("all transactions in batch failed to fetch or convert (total: %d): ", len(txHashes))
+		var parts []string
+		if len(fetchErrors) > 0 {
+			sample := fetchErrors
+			if len(sample) > 3 {
+				sample = append([]string(nil), sample[:3]...)
+				sample = append(sample, fmt.Sprintf("...and %d more", len(fetchErrors)-3))
+			}
+			parts = append(parts, fmt.Sprintf("fetch errors=%d (samples: %v)", len(fetchErrors), sample))
+		}
+		if len(nilResponseErrors) > 0 {
+			sample := nilResponseErrors
+			if len(sample) > 3 {
+				sample = append([]string(nil), sample[:3]...)
+				sample = append(sample, fmt.Sprintf("...and %d more", len(nilResponseErrors)-3))
+			}
+			parts = append(parts, fmt.Sprintf("nil responses=%d (samples: %v)", len(nilResponseErrors), sample))
+		}
+		if len(convertErrors) > 0 {
+			sample := convertErrors
+			if len(sample) > 3 {
+				sample = append([]string(nil), sample[:3]...)
+				sample = append(sample, fmt.Sprintf("...and %d more", len(convertErrors)-3))
+			}
+			parts = append(parts, fmt.Sprintf("conversion errors=%d (samples: %v)", len(convertErrors), sample))
+		}
+		errMsg += strings.Join(parts, "; ")
+
+		return 0, errors.New(errMsg)
 	}
 
 	// Step 3: Batch check which transactions already exist
@@ -2671,12 +2707,12 @@ func (s *SyncService) historicalBlockSync() {
 			global.Logger.Infof("historical block sync stopped by context")
 			return
 		case <-ticker.C:
-			// Check RPC node status before syncing
-			status, err := s.tmClient.GetStatus(s.ctx)
-			if err != nil {
-				global.Logger.Warnf("failed to get RPC node status: %v, skipping historical sync", err)
-				continue
-			}
+			// // Check RPC node status before syncing
+			// status, err := s.tmClient.GetStatus(s.ctx)
+			// if err != nil {
+			// 	global.Logger.Warnf("failed to get RPC node status: %v, skipping historical sync", err)
+			// 	continue
+			// }
 
 			// Check if RPC node is syncing (not caught up)
 			if status != nil && status.SyncInfo.CatchingUp {
