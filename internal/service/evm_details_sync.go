@@ -3,10 +3,13 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"math/big"
 	"strings"
 	"sync"
 	"time"
 
+	"injective-explorer/internal/conf"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/cache"
@@ -47,22 +50,36 @@ type EVMDetailsSyncConfig struct {
 // Parameters:
 //   - ctx: Context for cancellation
 //   - config: EVM details sync configuration
+//   - bc: Bootstrap configuration (optional, can be nil)
 //
 // Returns:
 //   - *EVMDetailsSyncService: A new EVM details sync service instance
 //   - error: Error if the service cannot be created
-func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig) (*EVMDetailsSyncService, error) {
+func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig, bc *conf.Bootstrap) (*EVMDetailsSyncService, error) {
 	serviceCtx, cancel := context.WithCancel(ctx)
 
 	// Create EVM client
-	networkName := global.NetworkName
-	if networkName == "" {
-		networkName = "mainnet" // Default to mainnet
-	}
-	evmClient, err := chain.NewEVMClient(networkName)
-	if err != nil {
-		cancel()
-		return nil, errors.Wrap(err, "failed to create EVM client")
+	var evmClient *chain.EVMClient
+	var err error
+
+	if bc != nil && bc.Chain != nil && bc.Chain.Evm != nil && bc.Chain.Evm.Enabled {
+		// Use custom EVM configuration from config file
+		evmClient, err = createEVMClientFromConfig(bc.Chain.Evm)
+		if err != nil {
+			cancel()
+			return nil, errors.Wrap(err, "failed to create EVM client from config")
+		}
+	} else {
+		// Use default EVM client with network name from global config
+		networkName := global.NetworkName
+		if networkName == "" {
+			networkName = "mainnet" // Default to mainnet
+		}
+		evmClient, err = chain.NewEVMClient(networkName)
+		if err != nil {
+			cancel()
+			return nil, errors.Wrap(err, "failed to create EVM client")
+		}
 	}
 
 	redisClient := cache.GetRedisClient()
@@ -202,14 +219,18 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 	// Fetch EVM transaction details
 	details, err := s.fetchEVMDetails(ctx, evmHash)
 	if err != nil {
-		global.Logger.Warnf("worker %d: failed to fetch EVM details for %s (evm: %s): %v",
-			workerID, cosmosHash, evmHash, err)
+		// Categorize and enhance error message
+		errorType := categorizeError(err)
+		enhancedErrMsg := fmt.Sprintf("[%s] %v", errorType, err)
+
+		global.Logger.Warnf("worker %d: failed to fetch EVM details for %s (evm: %s): %s",
+			workerID, cosmosHash, evmHash, enhancedErrMsg)
 
 		// Update error information
-		s.updateSyncError(ctx, cosmosHash, err.Error())
+		s.updateSyncError(ctx, cosmosHash, enhancedErrMsg)
 
 		// Retry if should retry
-		if s.shouldRetry(&tx) {
+		if s.shouldRetry(&tx, err) {
 			s.retryTask(ctx, taskStr)
 		}
 		return
@@ -314,30 +335,130 @@ func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash 
 		})
 }
 
-// shouldRetry checks if a task should be retried.
+// shouldRetry checks if a task should be retried based on the error type.
 //
 // Parameters:
 //   - tx: Transaction model
+//   - err: Error that occurred (for error type checking)
 //
 // Returns:
 //   - bool: true if should retry, false otherwise
-func (s *EVMDetailsSyncService) shouldRetry(tx *models.Transaction) bool {
-	// Simple retry logic: always retry if not synced
-	// In production, you might want to check retry count or error type
-	return !tx.EVMDetailsSynced
+func (s *EVMDetailsSyncService) shouldRetry(tx *models.Transaction, err error) bool {
+	if tx.EVMDetailsSynced {
+		return false
+	}
+
+	// Don't retry for these error types
+	errorType := categorizeError(err)
+	nonRetryableErrors := []string{
+		"NOT_FOUND",
+		"PENDING",
+		"CIRCUIT_BREAKER_OPEN",
+	}
+
+	for _, nonRetryable := range nonRetryableErrors {
+		if errorType == nonRetryable {
+			return false
+		}
+	}
+
+	// Retry for network errors, context canceled, JSON parse errors, etc.
+	return true
 }
 
-// retryTask retries a task by pushing it back to the queue.
+// retryTask retries a task by pushing it back to the queue with exponential backoff.
 //
 // Parameters:
 //   - ctx: Context for cancellation
 //   - taskStr: Task string
 func (s *EVMDetailsSyncService) retryTask(ctx context.Context, taskStr string) {
-	// Retry after delay
+	// Get current retry count from database if available
+	// For now, we'll use a simple exponential backoff strategy
+	maxRetries := s.config.MaxRetryAttempts
+	baseDelay := s.config.RetryDelay
+
 	go func() {
-		time.Sleep(s.config.RetryDelay)
-		if err := s.redisClient.LPush(ctx, s.config.QueueKey, taskStr).Err(); err != nil {
-			global.Logger.Warnf("failed to retry task %s: %v", taskStr, err)
+		// Simple exponential backoff: 5s, 10s, 20s, 40s
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			delay := time.Duration(1<<uint(attempt)) * baseDelay
+			time.Sleep(delay)
+
+			// Try to push the task back to the queue
+			err := s.redisClient.LPush(ctx, s.config.QueueKey, taskStr).Err()
+			if err == nil {
+				global.Logger.Infof("Task %s successfully queued for retry (attempt %d)", taskStr, attempt+1)
+				return
+			}
+
+			global.Logger.Warnf("Failed to retry task %s (attempt %d/%d): %v", taskStr, attempt+1, maxRetries, err)
 		}
+
+		// All retries exhausted
+		global.Logger.Errorf("Failed to retry task %s after %d attempts, giving up", taskStr, maxRetries)
 	}()
+}
+
+// categorizeError categorizes errors into types for better debugging
+func categorizeError(err error) string {
+	if err == nil {
+		return "UNKNOWN"
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// JSON parse errors
+	if strings.Contains(errStr, "parse error") || strings.Contains(errStr, "invalid json") {
+		return "JSON_PARSE_ERROR"
+	}
+
+	// Context canceled errors
+	if strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context deadline exceeded") {
+		return "CONTEXT_CANCELED"
+	}
+
+	// Network/RPC errors
+	if strings.Contains(errStr, "connection refused") ||
+	   strings.Contains(errStr, "network error") ||
+	   strings.Contains(errStr, "temporary failure") ||
+	   strings.Contains(errStr, "timeout") {
+		return "NETWORK_ERROR"
+	}
+
+	// Circuit breaker errors
+	if strings.Contains(errStr, "circuit breaker is open") {
+		return "CIRCUIT_BREAKER_OPEN"
+	}
+
+	// Transaction not found
+	if strings.Contains(errStr, "not found") {
+		return "NOT_FOUND"
+	}
+
+	// Pending transaction
+	if strings.Contains(errStr, "pending") {
+		return "PENDING"
+	}
+
+	// Unknown error
+	return "UNKNOWN_ERROR"
+}
+
+// createEVMClientFromConfig creates an EVM client from configuration
+func createEVMClientFromConfig(evmConfig *conf.Chain_EVM) (*chain.EVMClient, error) {
+	if evmConfig == nil {
+		return nil, errors.New("EVM config cannot be nil")
+	}
+
+	if evmConfig.RpcEndpoint == "" {
+		return nil, errors.New("EVM RPC endpoint cannot be empty")
+	}
+
+	chainID := big.NewInt(evmConfig.ChainId)
+
+	return chain.NewEVMClientWithConfig(&chain.EVMConfig{
+		RPCURL:  evmConfig.RpcEndpoint,
+		ChainID: chainID,
+		Network: global.NetworkName,
+		Timeout: evmConfig.Timeout.AsDuration(),
+	})
 }

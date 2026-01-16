@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -13,15 +15,63 @@ import (
 	"github.com/pkg/errors"
 )
 
-// EVMClient wraps go-ethereum ethclient for Injective EVM queries
-type EVMClient struct {
-	client  *ethclient.Client
-	rpcURL  string
-	chainID *big.Int
-	network string
+// CircuitBreaker implements a circuit breaker pattern for RPC calls
+type CircuitBreaker struct {
+	failures        int
+	lastFailureTime time.Time
+	state           string // "closed", "open", "half-open"
+	mu              sync.Mutex
+	failureThreshold int
+	recoveryTimeout  time.Duration
 }
 
-// NewEVMClient creates a new EVM client for Injective network
+// EVMConfig holds EVM client configuration
+type EVMConfig struct {
+	RPCURL    string
+	ChainID   *big.Int
+	Network   string
+	Timeout   time.Duration
+}
+
+// EVMClient wraps go-ethereum ethclient for Injective EVM queries
+type EVMClient struct {
+	client          *ethclient.Client
+	rpcURL         string
+	chainID        *big.Int
+	network        string
+	circuitBreaker *CircuitBreaker
+}
+
+// NewEVMClientWithConfig creates a new EVM client with custom configuration
+func NewEVMClientWithConfig(config *EVMConfig) (*EVMClient, error) {
+	if config == nil {
+		return nil, errors.New("EVMConfig cannot be nil")
+	}
+
+	if config.RPCURL == "" {
+		return nil, errors.New("RPCURL cannot be empty")
+	}
+
+	if config.ChainID == nil {
+		return nil, errors.New("ChainID cannot be nil")
+	}
+
+	client, err := ethclient.Dial(config.RPCURL)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to connect to Injective EVM RPC: %s", config.RPCURL)
+	}
+
+	return &EVMClient{
+		client:          client,
+		rpcURL:          config.RPCURL,
+		chainID:         config.ChainID,
+		network:         config.Network,
+		circuitBreaker:  newCircuitBreaker(5, 30*time.Second),
+	}, nil
+}
+
+// NewEVMClient creates a new EVM client for Injective network with default settings
+// This is a convenience function for backward compatibility
 // network: "mainnet" or "testnet"
 func NewEVMClient(network string) (*EVMClient, error) {
 	var rpcURL string
@@ -38,17 +88,12 @@ func NewEVMClient(network string) (*EVMClient, error) {
 		return nil, fmt.Errorf("unsupported network: %s (must be 'mainnet' or 'testnet')", network)
 	}
 
-	client, err := ethclient.Dial(rpcURL)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to connect to Injective EVM RPC: %s", rpcURL)
-	}
-
-	return &EVMClient{
-		client:  client,
-		rpcURL:  rpcURL,
-		chainID: chainID,
-		network: network,
-	}, nil
+	return NewEVMClientWithConfig(&EVMConfig{
+		RPCURL:  rpcURL,
+		ChainID: chainID,
+		Network: network,
+		Timeout: 30 * time.Second,
+	})
 }
 
 // Close closes the underlying client connection
@@ -337,4 +382,53 @@ func (c *EVMClient) GetKnownContracts() map[string]common.Address {
 	}
 
 	return contracts
+}
+
+// newCircuitBreaker creates a new circuit breaker with default settings
+func newCircuitBreaker(failureThreshold int, recoveryTimeout time.Duration) *CircuitBreaker {
+	return &CircuitBreaker{
+		failures:         0,
+		state:            "closed",
+		failureThreshold: failureThreshold,
+		recoveryTimeout:  recoveryTimeout,
+	}
+}
+
+// Execute executes a function through the circuit breaker
+func (cb *CircuitBreaker) Execute(fn func() error) error {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	// Check if circuit breaker is in open state
+	if cb.state == "open" {
+		// Check if we should transition to half-open
+		if time.Since(cb.lastFailureTime) > cb.recoveryTimeout {
+			cb.state = "half-open"
+		} else {
+			return errors.New("circuit breaker is open")
+		}
+	}
+
+	// Execute the function
+	err := fn()
+
+	if err != nil {
+		// Record failure
+		cb.failures++
+		cb.lastFailureTime = time.Now()
+
+		// Check if we should open the circuit
+		if cb.failures >= cb.failureThreshold {
+			cb.state = "open"
+		}
+		return err
+	}
+
+	// Success - reset failure count and close circuit if in half-open
+	cb.failures = 0
+	if cb.state == "half-open" {
+		cb.state = "closed"
+	}
+
+	return nil
 }

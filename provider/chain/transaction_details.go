@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -61,10 +62,89 @@ type LogInfo struct {
 	Removed bool     `json:"removed"`
 }
 
-// GetTransactionDetails gets complete transaction details.
-// This is an example implementation using TransactionByHash and TransactionReceipt
-// for Blockscout page display.
+// retryableRPCError checks if an error is retryable
+func retryableRPCError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Retryable errors
+	retryableErrors := []string{
+		"context canceled",
+		"context deadline exceeded",
+		"parse error",
+		"invalid json",
+		"connection refused",
+		"timeout",
+		"temporary failure",
+		"network error",
+	}
+
+	for _, retryableErr := range retryableErrors {
+		if strings.Contains(errStr, retryableErr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetTransactionDetails gets complete transaction details with retry logic.
+// This implementation uses TransactionByHash and TransactionReceipt with
+// exponential backoff retry and circuit breaker pattern.
 func (c *EVMClient) GetTransactionDetails(ctx context.Context, txHash common.Hash) (*TransactionDetails, error) {
+	var details *TransactionDetails
+	var lastErr error
+
+	maxRetries := 3
+	initialDelay := 1 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 1s, 2s, 4s
+			delay := time.Duration(1<<uint(attempt-1)) * initialDelay
+			time.Sleep(delay)
+		}
+
+		// Use circuit breaker to execute the RPC call
+		err := c.circuitBreaker.Execute(func() error {
+			var innerErr error
+			details, innerErr = c.getTransactionDetailsInternal(ctx, txHash)
+			return innerErr
+		})
+
+		if err == nil {
+			// Success
+			return details, nil
+		}
+
+		lastErr = err
+
+		// Check if error is retryable
+		if !retryableRPCError(err) {
+			// Non-retryable error, return immediately
+			return nil, errors.Wrapf(err, "failed to get transaction details (non-retryable error)")
+		}
+
+		// If this is the last attempt, don't continue
+		if attempt == maxRetries-1 {
+			break
+		}
+
+		// Log the retry attempt
+		delay := time.Duration(1<<uint(attempt)) * initialDelay
+		fmt.Printf("Retrying transaction details fetch for %s in %v (attempt %d/%d): %v\n",
+			txHash.Hex(), delay, attempt+1, maxRetries, err)
+	}
+
+	// All retries exhausted
+	return nil, errors.Wrapf(lastErr, "failed to get transaction details after %d attempts", maxRetries)
+}
+
+// getTransactionDetailsInternal performs the actual RPC calls to fetch transaction details
+func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash common.Hash) (*TransactionDetails, error) {
 	// 1. Get transaction
 	tx, isPending, err := c.client.TransactionByHash(ctx, txHash)
 	if err != nil {

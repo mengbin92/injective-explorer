@@ -85,9 +85,9 @@ chain:
   # EVM RPC 配置
   evm:
     enabled: true
-    rpc_endpoint: https://sentry.evm-rpc.injective.network
-    ws_endpoint: wss://sentry.evm-ws.injective.network
-    chain_id: 801
+    rpc_endpoint: ${CHAIN_EVM_RPC_ENDPOINT:https://sentry.evm-rpc.injective.network/}
+    ws_endpoint: ${CHAIN_EVM_WS_ENDPOINT:wss://sentry.evm-ws.injective.network}
+    chain_id: ${CHAIN_EVM_CHAIN_ID:1776}
     timeout: 10s
     # API 查询超时（默认: 15s，比 RPC timeout 长以适应详情查询）
     api_timeout: 15s

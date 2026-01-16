@@ -158,7 +158,7 @@ func main() {
 	enableSync := os.Getenv("ENABLE_SYNC")
 	if enableSync == "" || enableSync == "true" {
 		syncConfig := service.LoadSyncConfig(&bc)
-		syncService := service.NewSyncService(syncConfig)
+		syncService := service.NewSyncService(syncConfig, &bc)
 		
 		// Try to acquire distributed lock for sync service
 		// This ensures only one instance runs sync even if multiple instances have ENABLE_SYNC=true

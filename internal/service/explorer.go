@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -46,6 +47,31 @@ type ExplorerService struct {
 var (
 	statsUpdateOnceGlobal sync.Once // Global once for stats update goroutine
 )
+
+// createEVMClient creates an EVM client with custom configuration
+// It uses global.EVMConfig if available, then falls back to defaults
+func createEVMClient() (*chain.EVMClient, error) {
+	// Check if custom EVM RPC endpoint is configured via global config
+	if global.EVMConfig != nil && global.EVMConfig.Enabled && global.EVMConfig.RpcEndpoint != "" {
+		chainID := new(big.Int)
+		chainID.SetInt64(global.EVMConfig.ChainId)
+
+		timeout := global.EVMConfig.Timeout.AsDuration()
+		if timeout == 0 {
+			timeout = 30 * time.Second
+		}
+
+		return chain.NewEVMClientWithConfig(&chain.EVMConfig{
+			RPCURL:  global.EVMConfig.RpcEndpoint,
+			ChainID: chainID,
+			Network: global.NetworkName,
+			Timeout: timeout,
+		})
+	}
+
+	// Fall back to default network configuration
+	return chain.NewEVMClient(global.NetworkName)
+}
 
 // NewExplorerService creates a new instance of ExplorerService.
 //
@@ -4583,7 +4609,7 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 
 	// If details not synced yet, try to fetch from EVM RPC (reduced timeout: 15s)
 	if evmDetails == nil {
-		evmClient, err := chain.NewEVMClient(global.NetworkName)
+		evmClient, err := createEVMClient()
 		if err != nil {
 			return ErrorReply(http.StatusInternalServerError, "failed to create EVM client", err), err
 		}
@@ -4718,7 +4744,7 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 	// If some details are not loaded, try to fetch from EVM RPC (async, don't block response)
 	if len(evmDTOs) < len(dbTxs) {
 		go func() {
-			evmClient, err := chain.NewEVMClient(global.NetworkName)
+			evmClient, err := createEVMClient()
 			if err != nil {
 				global.Logger.Warnf("failed to create EVM client for async fetch: %v", err)
 				return

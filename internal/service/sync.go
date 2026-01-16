@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"injective-explorer/internal/conf"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/utils"
@@ -46,6 +47,9 @@ type processResult struct {
 type SyncService struct {
 	// Configuration
 	config *SyncConfig
+
+	// Bootstrap configuration (for EVM details sync)
+	bc *conf.Bootstrap
 
 	// Clients for blockchain interactions
 	// explorerClient explorerclient.ExplorerClient
@@ -87,10 +91,11 @@ type SyncService struct {
 //
 // Parameters:
 //   - config: Sync service configuration (can be nil to use defaults)
+//   - bc: Bootstrap configuration (can be nil)
 //
 // Returns:
 //   - *SyncService: A new sync service instance
-func NewSyncService(config *SyncConfig) *SyncService {
+func NewSyncService(config *SyncConfig, bc *conf.Bootstrap) *SyncService {
 	if config == nil {
 		config = LoadSyncConfig(nil)
 	}
@@ -102,6 +107,7 @@ func NewSyncService(config *SyncConfig) *SyncService {
 
 	return &SyncService{
 		config:          config,
+		bc:              bc,
 		ctx:             ctx,
 		cancel:          cancel,
 		syncLockKey:     "sync:lock:blockchain",
@@ -284,7 +290,7 @@ func (s *SyncService) Start() error {
 	// Start EVM details sync service
 	evmConfig := LoadEVMDetailsSyncConfig(nil)
 	evmConfig.QueueKey = s.config.EVMDetailsQueueKey
-	evmDetailsSyncService, err := NewEVMDetailsSyncService(s.ctx, evmConfig)
+	evmDetailsSyncService, err := NewEVMDetailsSyncService(s.ctx, evmConfig, s.bc)
 	if err != nil {
 		global.Logger.Warnf("failed to create EVM details sync service: %v", err)
 		// Continue without EVM details sync

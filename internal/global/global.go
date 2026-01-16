@@ -28,6 +28,9 @@ var (
 	// TokenPriceConfig is the global token price service configuration.
 	// It is set during initialization and can be used to access token price configuration.
 	TokenPriceConfig *conf.TokenPrice
+	// EVMConfig is the global EVM RPC configuration.
+	// It is set during initialization and can be used to access EVM configuration values.
+	EVMConfig *conf.Chain_EVM
 )
 
 // Init initializes global variables including the logger, chain configuration, and archive configuration.
@@ -52,6 +55,9 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 
 	// Save token price config globally for later use
 	TokenPriceConfig = bc.GetTokenPrice()
+
+	// Save EVM config globally for later use
+	EVMConfig = bc.Chain.Evm
 
 	Logger = log.NewHelper(logger)
 	Logger.Infof("logger initialized: %v", bc.Log)

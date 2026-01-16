@@ -125,7 +125,7 @@ const (
 	defaultEVMDetailsRetryDelay       = 5 * time.Second        // EVM details retry delay
 	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
 	defaultEVMDetailsProcessInterval  = 2 * time.Second        // EVM details process interval
-	defaultEVMDetailsTimeout          = 30 * time.Second       // EVM details timeout
+	defaultEVMDetailsTimeout          = 90 * time.Second       // EVM details timeout
 )
 
 // SyncConfig holds the sync service configuration with default values.
