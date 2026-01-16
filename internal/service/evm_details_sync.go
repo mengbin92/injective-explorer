@@ -266,6 +266,7 @@ func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash str
 
 // saveEVMDetails saves EVM transaction details to database or object storage.
 // It also updates the EVM from/to addresses for optimized account queries.
+// Additionally, it updates the Signatures field with the EVM transaction signer address.
 //
 // Parameters:
 //   - ctx: Context for cancellation
@@ -295,6 +296,21 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 		}
 	}
 
+	// Construct signature JSON from EVM transaction From address
+	// Signature format should match the protobuf Signature structure: {"address": "0x..."}
+	var signatures []string
+	if details.From != "" {
+		signatureData := map[string]string{
+			"address": details.From,
+		}
+		signatureJSON, err := sonic.Marshal(signatureData)
+		if err == nil {
+			signatures = []string{string(signatureJSON)}
+		} else {
+			global.Logger.Warnf("failed to marshal signature for transaction %s: %v", tx.Hash, err)
+		}
+	}
+
 	// Update database with EVM details and addresses for optimized account queries
 	now := time.Now()
 	updates := map[string]interface{}{
@@ -303,6 +319,28 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 		"evm_details_sync_error": "",
 		"evm_from_address":       details.From,
 		"evm_to_address":         details.To,
+	}
+
+	// Update signatures if we have a valid From address
+	// Only update if signatures are empty or need to be updated with EVM signer info
+	if len(signatures) > 0 {
+		// Check if current signatures are empty or don't contain the EVM address
+		shouldUpdateSignatures := len(tx.Signatures) == 0
+		if !shouldUpdateSignatures {
+			// Check if any signature contains the EVM address
+			found := false
+			for _, sigStr := range tx.Signatures {
+				if sigStr != "" && strings.Contains(sigStr, details.From) {
+					found = true
+					break
+				}
+			}
+			shouldUpdateSignatures = !found
+		}
+
+		if shouldUpdateSignatures {
+			updates["signatures"] = signatures
+		}
 	}
 
 	if storageKey != "" {

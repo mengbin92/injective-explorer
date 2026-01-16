@@ -770,6 +770,40 @@ func TransactionFromGetTxResponse(getTxResp *cosmostxpb.GetTxResponse, storageTh
 	return TransactionFromProto(txDetailData, storageThreshold)
 }
 
+// extractSignerFromEvents attempts to extract signer address from transaction events.
+// Common event types that may contain signer information include:
+// - "message" event with "sender" attribute
+// - "tx" event with "acc_seq" or "signer" attribute
+func extractSignerFromEvents(events []*injective_explorer_rpcpb.Event) string {
+	if len(events) == 0 {
+		return ""
+	}
+
+	// Look for "message" event with "sender" attribute
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		if event.Type == "message" {
+			if attrs := event.GetAttributes(); attrs != nil {
+				if sender, ok := attrs["sender"]; ok && sender != "" {
+					return sender
+				}
+			}
+		}
+		// Also check for "tx" event
+		if event.Type == "tx" {
+			if attrs := event.GetAttributes(); attrs != nil {
+				if signer, ok := attrs["signer"]; ok && signer != "" {
+					return signer
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
 // ConvertGetTxResponseToTxDetailData converts *tx.GetTxResponse to *injective_explorer_rpcpb.TxDetailData.
 // This extracts data from GetTxResponse.Tx and GetTxResponse.TxResponse fields.
 //
@@ -811,19 +845,13 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 		// Extract signatures
 		if len(getTxResp.Tx.Signatures) > 0 {
 			signatures = make([]*injective_explorer_rpcpb.Signature, 0, len(getTxResp.Tx.Signatures))
-			for i := range getTxResp.Tx.Signatures {
+			for range getTxResp.Tx.Signatures {
 				sigData := &injective_explorer_rpcpb.Signature{
-					Address: "", // Address will be extracted from public key if available
+					Address: "", // Address will be extracted from events as fallback
 				}
-				// Try to get address from AuthInfo if available
-				if getTxResp.Tx.AuthInfo != nil && i < len(getTxResp.Tx.AuthInfo.SignerInfos) {
-					signerInfo := getTxResp.Tx.AuthInfo.SignerInfos[i]
-					if signerInfo.PublicKey != nil {
-						// Try to extract address from public key
-						// This is a simplified version - extracting address requires crypto operations
-						// The address can be extracted later if needed
-					}
-				}
+				// Note: Extracting address from public key requires codec and crypto operations
+				// which are not available in this context. We will extract signer address
+				// from events as a fallback after events are processed.
 				signatures = append(signatures, sigData)
 			}
 		}
@@ -841,6 +869,19 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 				Type:       event.Type,
 				Attributes: attrs,
 			})
+		}
+	}
+
+	// Try to extract signer address from events as fallback
+	signerFromEvents := extractSignerFromEvents(events)
+
+	// Update signatures with address from events if not already set
+	if signerFromEvents != "" && len(signatures) > 0 {
+		for _, sig := range signatures {
+			if sig != nil && sig.Address == "" {
+				sig.Address = signerFromEvents
+				break // Only set the first signature's address
+			}
 		}
 	}
 
