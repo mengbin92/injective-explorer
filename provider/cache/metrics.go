@@ -273,8 +273,23 @@ func (m *MetricsMiddleware) AfterProcess(ctx context.Context, cmd redis.Cmder) e
 
 		// Record based on command type
 		switch cmd.Name() {
-		case "get", "mget":
+		case "get":
 			hit := cmd.Err() == nil && cmd.(*redis.StringCmd).Val() != ""
+			RecordGet(hit, latency, cmd.Err())
+		case "mget":
+			sliceCmd := cmd.(*redis.SliceCmd)
+			values := sliceCmd.Val()
+			hit := cmd.Err() == nil && len(values) > 0
+			if hit {
+				// Check if any value is non-empty
+				for _, v := range values {
+					if v != nil && v != "" {
+						hit = true
+						break
+					}
+					hit = false
+				}
+			}
 			RecordGet(hit, latency, cmd.Err())
 		case "set", "mset":
 			RecordSet(latency, cmd.Err())
