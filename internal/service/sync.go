@@ -287,16 +287,21 @@ func (s *SyncService) Start() error {
 		// Continue anyway, will process them eventually
 	}
 
-	// Start EVM details sync service
-	evmConfig := LoadEVMDetailsSyncConfig(nil)
-	evmConfig.QueueKey = s.config.EVMDetailsQueueKey
-	evmDetailsSyncService, err := NewEVMDetailsSyncService(s.ctx, evmConfig, s.bc)
-	if err != nil {
-		global.Logger.Warnf("failed to create EVM details sync service: %v", err)
-		// Continue without EVM details sync
+	// Start EVM details sync service (only if EVM is enabled in config)
+	if s.bc != nil && s.bc.Chain != nil && s.bc.Chain.Evm != nil && s.bc.Chain.Evm.Enabled {
+		evmConfig := LoadEVMDetailsSyncConfig(nil)
+		evmConfig.QueueKey = s.config.EVMDetailsQueueKey
+		evmDetailsSyncService, err := NewEVMDetailsSyncService(s.ctx, evmConfig, s.bc)
+		if err != nil {
+			global.Logger.Warnf("failed to create EVM details sync service: %v", err)
+			// Continue without EVM details sync
+		} else {
+			s.evmDetailsSyncService = evmDetailsSyncService
+			evmDetailsSyncService.Start()
+			global.Logger.Infof("EVM details sync service started (enabled)")
+		}
 	} else {
-		s.evmDetailsSyncService = evmDetailsSyncService
-		evmDetailsSyncService.Start()
+		global.Logger.Infof("EVM details sync service is disabled (config: evm.enabled = false)")
 	}
 
 	global.Logger.Infof("blockchain sync service started, initialization in progress, mode=websocket streaming, %d transaction processors",
@@ -549,95 +554,6 @@ func (s *SyncService) findCommonBlockHeight(knownHash string) (uint64, error) {
 	return 0, errors.New("no common block found")
 }
 
-// syncBackwardsFromLatest syncs backwards from the latest block to the current height.
-// This ensures we have all the most recent blocks before continuing with forward sync.
-// DEPRECATED: This function has been disabled. Only WebSocket streaming is used for block synchronization.
-// Kept for reference in case backward sync is needed in the future.
-/*
-func (s *SyncService) syncBackwardsFromLatest() error {
-	currentHeight := s.getCurrentHeight()
-	latestHeight, err := s.getLatestBlockHeight()
-	if err != nil {
-		return errors.Wrap(err, "failed to get latest block height")
-	}
-
-	// If latest height is less than or equal to current height, nothing to sync
-	if latestHeight <= currentHeight {
-		global.Logger.Debugf("latest height %d is not greater than current height %d, no backward sync needed", latestHeight, currentHeight)
-		return nil
-	}
-
-	global.Logger.Infof("syncing backwards from latest height %d to current height %d", latestHeight, currentHeight)
-
-	totalBlocks := latestHeight - currentHeight
-	processedCount := uint64(0)
-
-	// Use batch processing for better performance
-	// Collect heights in batches and process them together
-	batchSize := s.config.BackwardSyncBatchSize
-	if batchSize <= 0 {
-		batchSize = 50 // Default batch size
-	}
-
-	heights := make([]uint64, 0, batchSize)
-	for height := latestHeight; height > currentHeight; height-- {
-		heights = append(heights, height)
-	}
-
-	// Process in batches
-	lastLogTime := time.Now()
-	for i := 0; i < len(heights); i += batchSize {
-		// Check if context is cancelled
-		select {
-		case <-s.ctx.Done():
-			global.Logger.Infof("context cancelled during backward sync")
-			return s.ctx.Err()
-		default:
-		}
-
-		end := i + batchSize
-		if end > len(heights) {
-			end = len(heights)
-		}
-		batch := heights[i:end]
-
-		// Process batch
-		if err := s.processBlocksBatch(batch, batchSize); err != nil {
-			// Check if error is due to context cancellation
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
-				strings.Contains(err.Error(), "context canceled") || strings.Contains(err.Error(), "context deadline exceeded") {
-				global.Logger.Infof("context cancelled during backward sync")
-				return err
-			}
-			global.Logger.Errorf("error processing batch during backward sync: %v", err)
-			// Continue with next batch
-		}
-
-		processedCount += uint64(len(batch))
-
-		// Update current height periodically
-		if processedCount%uint64(batchSize) == 0 {
-			latestProcessed := latestHeight - (processedCount - uint64(batchSize))
-			s.setCurrentHeight(latestProcessed)
-		}
-
-		// Log progress every N blocks or every configured interval
-		now := time.Now()
-		if processedCount%uint64(s.config.BackwardSyncLogBatchSize) == 0 || now.Sub(lastLogTime) >= s.config.BackwardSyncLogInterval {
-			global.Logger.Infof("backward sync progress: %d/%d blocks processed (%.2f%%)",
-				processedCount, totalBlocks, float64(processedCount)/float64(totalBlocks)*100)
-			lastLogTime = now
-		}
-	}
-
-	// Update to final height
-	s.setCurrentHeight(latestHeight)
-
-	global.Logger.Infof("backward sync completed from height %d to %d", latestHeight, currentHeight)
-	return nil
-}
-*/
-
 // getCurrentHeight returns the current processed block height.
 func (s *SyncService) getCurrentHeight() uint64 {
 	s.heightMutex.RLock()
@@ -664,153 +580,6 @@ func (s *SyncService) getLatestBlockHeight() (uint64, error) {
 	}
 	return uint64(height), nil
 }
-
-// blockMonitor continuously monitors new blocks and processes them.
-// DEPRECATED: This function has been disabled. Only WebSocket streaming is used for block synchronization.
-// Kept for reference in case polling mode is needed in the future.
-/*
-func (s *SyncService) blockMonitor() {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(s.config.BlockPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-ticker.C:
-			if err := s.processNewBlocks(); err != nil {
-				global.Logger.Errorf("error processing new blocks: %v", err)
-			}
-		}
-	}
-}
-*/
-
-// processNewBlocks processes all new blocks since the last processed height using concurrent processing.
-// DEPRECATED: This function is only used by the deprecated blockMonitor() polling mechanism.
-// Kept for reference in case polling mode is needed in the future.
-/*
-func (s *SyncService) processNewBlocks() error {
-	currentHeight := s.getCurrentHeight()
-	latestHeight, err := s.getLatestBlockHeight()
-	if err != nil {
-		return errors.Wrap(err, "failed to get latest block height")
-	}
-
-	if latestHeight <= currentHeight {
-		// No new blocks
-		return nil
-	}
-
-	totalBlocks := latestHeight - currentHeight
-	global.Logger.Infof("concurrent processing blocks from %d to %d (total: %d)",
-		currentHeight+1, latestHeight, totalBlocks)
-
-	// Collect heights to process
-	heights := make([]uint64, 0, totalBlocks)
-	for height := currentHeight + 1; height <= latestHeight; height++ {
-		heights = append(heights, height)
-	}
-
-	// Batch check which blocks already exist to avoid unnecessary processing
-	existingMap, err := s.batchCheckBlockExistence(heights)
-	if err != nil {
-		global.Logger.Warnf("failed to batch check block existence: %v, processing all blocks", err)
-		existingMap = make(map[uint64]bool)
-	}
-
-	// Filter out existing blocks
-	newHeights := make([]uint64, 0)
-	for _, height := range heights {
-		if !existingMap[height] {
-			newHeights = append(newHeights, height)
-		}
-	}
-
-	if len(newHeights) == 0 {
-		global.Logger.Debugf("all %d blocks already exist, updating height to %d", len(heights), latestHeight)
-		s.setCurrentHeight(latestHeight)
-		return nil
-	}
-
-	global.Logger.Debugf("filtered %d existing blocks, processing %d new blocks",
-		len(heights)-len(newHeights), len(newHeights))
-
-	// Create task channel
-	taskChan := make(chan uint64, len(newHeights))
-	for _, height := range newHeights {
-		taskChan <- height
-	}
-	close(taskChan)
-
-	// Create result channel
-	resultChan := make(chan processResult, len(newHeights))
-
-	// Start worker pool
-	var wg sync.WaitGroup
-	workerCount := s.config.BackwardSyncWorkers
-	if workerCount <= 0 {
-		workerCount = 5 // Default value
-	}
-
-	global.Logger.Debugf("starting %d workers for block processing", workerCount)
-
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go s.blockWorker(i, taskChan, resultChan, &wg)
-	}
-
-	// Wait for all workers to complete and close result channel
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	// Collect results and statistics
-	successCount := 0
-	errorCount := 0
-	totalDuration := time.Duration(0)
-	maxHeightProcessed := currentHeight
-
-	for result := range resultChan {
-		if result.err != nil {
-			errorCount++
-			global.Logger.Errorf("error processing block %d: %v", result.height, result.err)
-			s.metrics.blockProcessingErrors.Add(1)
-		} else {
-			successCount++
-			totalDuration += result.duration
-			s.metrics.totalProcessingDuration.Add(result.duration.Nanoseconds())
-
-			// Update maximum processed height
-			if result.height > maxHeightProcessed {
-				maxHeightProcessed = result.height
-			}
-		}
-	}
-
-	// Update current height to the maximum processed height
-	if maxHeightProcessed > currentHeight {
-		s.setCurrentHeight(maxHeightProcessed)
-		global.Logger.Infof("updated current height to %d", maxHeightProcessed)
-	}
-
-	// Record statistics
-	if successCount > 0 {
-		avgDuration := totalDuration / time.Duration(successCount)
-		global.Logger.Infof("processed %d blocks, %d errors, avg: %v/block, max height: %d",
-			successCount, errorCount, avgDuration, maxHeightProcessed)
-
-		s.metrics.blockProcessingCount.Add(uint64(successCount))
-	} else if errorCount > 0 {
-		global.Logger.Warnf("failed to process all %d blocks", errorCount)
-	}
-
-	return nil
-}
-*/
 
 // batchCheckBlockExistence checks if blocks exist in batch.
 func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]bool, error) {
@@ -1596,51 +1365,53 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			continue
 		}
 
-		// Check if this is an EVM transaction and extract EVM hash
+		// Check if this is an EVM transaction and extract EVM hash (only if EVM sync is enabled)
 		// Convert GetTxResponse to TxDetailData for EVM check
-		txDetailData := models.ConvertGetTxResponseToTxDetailData(result.txResp)
-		if txDetailData != nil {
-			if IsEVMTransaction(txDetailData) {
-				evmHash := ExtractEVMHash(txDetailData)
+		if s.bc != nil && s.bc.Chain != nil && s.bc.Chain.Evm != nil && s.bc.Chain.Evm.Enabled {
+			txDetailData := models.ConvertGetTxResponseToTxDetailData(result.txResp)
+			if txDetailData != nil {
+				if IsEVMTransaction(txDetailData) {
+					evmHash := ExtractEVMHash(txDetailData)
 
-				// If hash not found in explorer data, try to get from chainClient (abci.Event)
-				// This is synchronous to ensure data consistency in batch processing
-				if evmHash == "" && s.chainClient != nil {
-					evmCtx, evmCancel := context.WithTimeout(ctx, 10*time.Second)
-					txResp, err := s.chainClient.GetTx(evmCtx, txModel.Hash)
-					evmCancel()
+					// If hash not found in explorer data, try to get from chainClient (abci.Event)
+					// This is synchronous to ensure data consistency in batch processing
+					if evmHash == "" && s.chainClient != nil {
+						evmCtx, evmCancel := context.WithTimeout(ctx, 10*time.Second)
+						txResp, err := s.chainClient.GetTx(evmCtx, txModel.Hash)
+						evmCancel()
 
-					if err == nil && txResp != nil && txResp.TxResponse != nil {
-						evmHash = ExtractEVMHashFromABCIEvents(txResp.TxResponse.Events)
-						if evmHash != "" {
-							global.Logger.Debugf("extracted EVM hash %s from abci events for transaction %s", evmHash, txModel.Hash)
-						}
-					} else if err != nil {
-						global.Logger.Debugf("failed to get tx from chainClient for EVM hash extraction: %v", err)
-					}
-				}
-
-				if evmHash != "" {
-					txModel.EVMHash = evmHash
-					txModel.EVMDetailsSynced = false
-					global.Logger.Debugf("extracted EVM hash %s for transaction %s", evmHash, txModel.Hash)
-
-					// Push to EVM details queue for async processing
-					go func(cosmosHash, evmHash string) {
-						evmCtx, evmCancel := context.WithTimeout(context.Background(), 5*time.Second)
-						defer evmCancel()
-
-						// Push to Redis queue
-						redisClient := cache.GetRedisClient()
-						if redisClient != nil {
-							taskStr := fmt.Sprintf("%s:%s", cosmosHash, evmHash)
-							if err := redisClient.LPush(evmCtx, s.config.EVMDetailsQueueKey, taskStr).Err(); err != nil {
-								global.Logger.Warnf("failed to push EVM details task to queue: %v", err)
+						if err == nil && txResp != nil && txResp.TxResponse != nil {
+							evmHash = ExtractEVMHashFromABCIEvents(txResp.TxResponse.Events)
+							if evmHash != "" {
+								global.Logger.Debugf("extracted EVM hash %s from abci events for transaction %s", evmHash, txModel.Hash)
 							}
+						} else if err != nil {
+							global.Logger.Debugf("failed to get tx from chainClient for EVM hash extraction: %v", err)
 						}
-					}(txModel.Hash, evmHash)
-				} else {
-					global.Logger.Debugf("EVM transaction detected but hash not found for transaction %s", txModel.Hash)
+					}
+
+					if evmHash != "" {
+						txModel.EVMHash = evmHash
+						txModel.EVMDetailsSynced = false
+						global.Logger.Debugf("extracted EVM hash %s for transaction %s", evmHash, txModel.Hash)
+
+						// Push to EVM details queue for async processing
+						go func(cosmosHash, evmHash string) {
+							evmCtx, evmCancel := context.WithTimeout(context.Background(), 5*time.Second)
+							defer evmCancel()
+
+							// Push to Redis queue
+							redisClient := cache.GetRedisClient()
+							if redisClient != nil {
+								taskStr := fmt.Sprintf("%s:%s", cosmosHash, evmHash)
+								if err := redisClient.LPush(evmCtx, s.config.EVMDetailsQueueKey, taskStr).Err(); err != nil {
+									global.Logger.Warnf("failed to push EVM details task to queue: %v", err)
+								}
+							}
+						}(txModel.Hash, evmHash)
+					} else {
+						global.Logger.Debugf("EVM transaction detected but hash not found for transaction %s", txModel.Hash)
+					}
 				}
 			}
 		}
@@ -1701,7 +1472,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 	var existingTxs []models.Transaction
 	err := db.Get().WithContext(ctx).
-		Select("id, hash").
+		Select("id, hash, signatures, signer").
 		Where("hash IN ?", txHashesToCheck).
 		Find(&existingTxs).Error
 	if err != nil {
@@ -1710,8 +1481,11 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	}
 
 	existingTxMap := make(map[string]uint, len(existingTxs))
-	for _, tx := range existingTxs {
-		existingTxMap[tx.Hash] = tx.ID
+	// Also store the full transaction data for preserving signatures and signer
+	existingTxFullMap := make(map[string]*models.Transaction, len(existingTxs))
+	for i := range existingTxs {
+		existingTxMap[existingTxs[i].Hash] = existingTxs[i].ID
+		existingTxFullMap[existingTxs[i].Hash] = &existingTxs[i]
 	}
 
 	// Step 4: Separate into inserts and updates
@@ -1728,6 +1502,12 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		// Use hash to check existence (hash is the unique identifier)
 		if id, exists := existingTxMap[tm.txModel.Hash]; exists {
 			tm.txModel.ID = id
+			// Preserve existing signatures and signer from database
+			// This prevents empty values from GetTxResponse from overwriting good data
+			if existingTx, ok := existingTxFullMap[tm.txModel.Hash]; ok {
+				tm.txModel.Signatures = existingTx.Signatures
+				tm.txModel.Signer = existingTx.Signer
+			}
 			txsToUpdate = append(txsToUpdate, tm.txModel)
 		} else {
 			txsToInsert = append(txsToInsert, tm.txModel)
@@ -1789,7 +1569,8 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						serializedBatch[i].msgTypesJSON = string(msgTypesJSON)
 					}
 				}
-				// Serialize signatures
+				// Serialize signatures - only if non-nil and non-empty
+				// This prevents empty signature data from overwriting existing database records
 				if txModel.Signatures != nil {
 					sigsJSON, err := sonic.Marshal(txModel.Signatures)
 					if err != nil {
@@ -1811,8 +1592,9 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 			err = db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				for i, txModel := range batch {
-					// Use Select to explicitly specify fields to update, including EVMHash
-					// This ensures zero-value fields are updated correctly
+					// Explicitly select only the fields we want to update
+					// This ensures signatures and signer are NEVER touched during updates
+					// These fields should only be set when the transaction is first created
 					updateFields := map[string]interface{}{
 						"block_number":         txModel.BlockNumber,
 						"block_timestamp":      txModel.BlockTimestamp,
@@ -1823,18 +1605,16 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						"gas_used":             txModel.GasUsed,
 						"gas_fee":              txModel.GasFee,
 						"codespace":            txModel.Codespace,
-						"events":               serializedBatch[i].eventsJSON, // Use serialized data
+						"events":               serializedBatch[i].eventsJSON,
 						"tx_type":              txModel.TxType,
-						"message_types":        serializedBatch[i].msgTypesJSON, // Use serialized data
+						"message_types":        serializedBatch[i].msgTypesJSON,
 						"messages":             txModel.Messages,
-						"signatures":           serializedBatch[i].sigsJSON, // Use serialized data
 						"memo":                 txModel.Memo,
 						"tx_number":            txModel.TxNumber,
 						"block_unix_timestamp": txModel.BlockUnixTimestamp,
 						"error_log":            txModel.ErrorLog,
 						"logs":                 txModel.Logs,
-						"claim_ids":            serializedBatch[i].claimIdsJSON, // Use serialized data
-						"signer":               txModel.Signer,
+						"claim_ids":            serializedBatch[i].claimIdsJSON,
 						"to":                   txModel.To,
 						"value":                txModel.Value,
 						"archived":             txModel.Archived,
@@ -1844,7 +1624,19 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						"evm_hash":             txModel.EVMHash,
 						"evm_details_synced":   txModel.EVMDetailsSynced,
 					}
-					if err := tx.Model(txModel).Updates(updateFields).Error; err != nil {
+
+					// Use Select to explicitly specify which columns to update
+					// This is more explicit than Omit and ensures only the listed fields are updated
+					// signatures and signer are intentionally excluded from this list
+					if err := tx.Table("transactions").
+						Select("block_number", "block_timestamp", "code", "data", "info",
+							"gas_wanted", "gas_used", "gas_fee", "codespace", "events", "tx_type",
+							"message_types", "messages", "memo", "tx_number", "block_unix_timestamp",
+							"error_log", "logs", "claim_ids", "to", "value", "archived",
+							"data_storage_key", "messages_storage_key", "logs_storage_key",
+							"evm_hash", "evm_details_synced").
+						Where("hash = ?", txModel.Hash).
+						Updates(updateFields).Error; err != nil {
 						return errors.Wrapf(err, "failed to update transaction %s", txModel.Hash)
 					}
 				}
@@ -2033,8 +1825,62 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 		if err == nil {
 			// Transaction exists, update it
 			isTxUpdate = true
-			err = tx.Model(&existingTx).Updates(txModel).Error
-			if err != nil {
+			// Use raw SQL update to explicitly exclude signatures and signer fields
+			// This ensures these fields are never overwritten during updates
+			// Build the update map with all fields except signatures and signer
+			updateFields := map[string]interface{}{
+				"block_number":         txModel.BlockNumber,
+				"block_timestamp":      txModel.BlockTimestamp,
+				"code":                 txModel.Code,
+				"data":                 txModel.Data,
+				"info":                 txModel.Info,
+				"gas_wanted":           txModel.GasWanted,
+				"gas_used":             txModel.GasUsed,
+				"gas_fee":              txModel.GasFee,
+				"codespace":            txModel.Codespace,
+				"tx_type":              txModel.TxType,
+				"messages":             txModel.Messages,
+				"memo":                 txModel.Memo,
+				"tx_number":            txModel.TxNumber,
+				"block_unix_timestamp": txModel.BlockUnixTimestamp,
+				"error_log":            txModel.ErrorLog,
+				"logs":                 txModel.Logs,
+				"to":                   txModel.To,
+				"value":                txModel.Value,
+				"archived":             txModel.Archived,
+				"data_storage_key":     txModel.DataStorageKey,
+				"messages_storage_key": txModel.MessagesStorageKey,
+				"logs_storage_key":     txModel.LogsStorageKey,
+				"evm_hash":             txModel.EVMHash,
+				"evm_details_synced":   txModel.EVMDetailsSynced,
+			}
+			// Serialize JSON fields manually since we're not using the model directly
+			if txModel.Events != nil {
+				if eventsJSON, err := sonic.Marshal(txModel.Events); err == nil {
+					updateFields["events"] = string(eventsJSON)
+				}
+			}
+			if txModel.MessageTypes != nil {
+				if msgTypesJSON, err := sonic.Marshal(txModel.MessageTypes); err == nil {
+					updateFields["message_types"] = string(msgTypesJSON)
+				}
+			}
+			if txModel.ClaimIds != nil {
+				if claimIdsJSON, err := sonic.Marshal(txModel.ClaimIds); err == nil {
+					updateFields["claim_ids"] = string(claimIdsJSON)
+				}
+			}
+
+			// Use Table() with Select to explicitly exclude signatures and signer
+			if err := tx.Table("transactions").
+				Select("block_number", "block_timestamp", "code", "data", "info",
+					"gas_wanted", "gas_used", "gas_fee", "codespace", "events", "tx_type",
+					"message_types", "messages", "memo", "tx_number", "block_unix_timestamp",
+					"error_log", "logs", "claim_ids", "to", "value", "archived",
+					"data_storage_key", "messages_storage_key", "logs_storage_key",
+					"evm_hash", "evm_details_synced").
+				Where("hash = ?", txModel.Hash).
+				Updates(updateFields).Error; err != nil {
 				return errors.Wrapf(err, "failed to update transaction %s", txHash)
 			}
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {

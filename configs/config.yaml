@@ -108,11 +108,9 @@ sync:
 
   # 时间间隔配置
   intervals:
-    block_poll: 5s # 已弃用 - 现在使用WebSocket streaming实时接收区块
     tx_process: 1s # 交易处理器空闲检查间隔
     historical_sync: 10s # 历史区块同步间隔
     historical_batch_delay: 1s # 历史同步批次延迟
-    backward_sync_log: 10s # 已弃用 - 向后同步功能已禁用
     rpc_status_retry: 5s # RPC 状态获取失败重试延迟
 
   # 超时配置
@@ -122,15 +120,12 @@ sync:
   # 并发配置
   concurrency:
     tx_processors: 5 # 并发交易处理器数量
-    backward_sync_workers: 5 # 已弃用 - 向后同步功能已禁用
     historical_sync_workers: 2 # 历史同步工作线程数
 
   # 批次大小配置
   batch_size:
-    backward_sync: 10 # 已弃用 - 向后同步功能已禁用
     historical_sync: 5 # 历史同步批次大小
     missing_block_check: 100 # 查找缺失区块的批次大小
-    backward_sync_log: 100 # 已弃用 - 向后同步功能已禁用
     tx_batch: 50 # 交易批量处理批次大小（与区块同步速度保持一致）
 
   # 重试配置

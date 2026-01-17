@@ -265,8 +265,8 @@ func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash str
 }
 
 // saveEVMDetails saves EVM transaction details to database or object storage.
-// It also updates the EVM from/to addresses for optimized account queries.
-// Additionally, it updates the Signatures field with the EVM transaction signer address.
+// It updates EVM-related fields (evm_from_address, evm_to_address) for optimized account queries.
+// Note: Does NOT update signatures/signer fields as those are extracted from Cosmos transaction data.
 //
 // Parameters:
 //   - ctx: Context for cancellation
@@ -296,22 +296,11 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 		}
 	}
 
-	// Construct signature JSON from EVM transaction From address
-	// Signature format should match the protobuf Signature structure: {"address": "0x..."}
-	var signatures []string
-	if details.From != "" {
-		signatureData := map[string]string{
-			"address": details.From,
-		}
-		signatureJSON, err := sonic.Marshal(signatureData)
-		if err == nil {
-			signatures = []string{string(signatureJSON)}
-		} else {
-			global.Logger.Warnf("failed to marshal signature for transaction %s: %v", tx.Hash, err)
-		}
-	}
-
 	// Update database with EVM details and addresses for optimized account queries
+	// Note: We do NOT update signatures and signer fields here because:
+	// 1. These fields are extracted from Cosmos transaction data and should be preserved
+	// 2. EVM details sync should only update EVM-related fields (evm_from_address, evm_to_address, etc.)
+	// 3. The original signatures and signer data from the Cosmos transaction should remain intact
 	now := time.Now()
 	updates := map[string]interface{}{
 		"evm_details_synced":     true,
@@ -321,34 +310,17 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 		"evm_to_address":         details.To,
 	}
 
-	// Update signatures if we have a valid From address
-	// Only update if signatures are empty or need to be updated with EVM signer info
-	if len(signatures) > 0 {
-		// Check if current signatures are empty or don't contain the EVM address
-		shouldUpdateSignatures := len(tx.Signatures) == 0
-		if !shouldUpdateSignatures {
-			// Check if any signature contains the EVM address
-			found := false
-			for _, sigStr := range tx.Signatures {
-				if sigStr != "" && strings.Contains(sigStr, details.From) {
-					found = true
-					break
-				}
-			}
-			shouldUpdateSignatures = !found
-		}
-
-		if shouldUpdateSignatures {
-			updates["signatures"] = signatures
-		}
-	}
-
 	if storageKey != "" {
 		updates["evm_details_storage_key"] = storageKey
 	}
 
+	// Use Table() with Select() to explicitly specify which columns to update
+	// This ensures signatures and signer are never touched during EVM details sync
 	err = db.Get().WithContext(ctx).
-		Model(tx).
+		Table("transactions").
+		Select("evm_details_synced", "evm_details_sync_at", "evm_details_sync_error",
+			"evm_from_address", "evm_to_address", "evm_details_storage_key").
+		Where("hash = ?", tx.Hash).
 		Updates(updates).Error
 
 	if err != nil {
