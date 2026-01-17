@@ -842,13 +842,31 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 			}
 		}
 
-		// Extract signatures
-		if len(getTxResp.Tx.Signatures) > 0 {
-			signatures = make([]*injective_explorer_rpcpb.Signature, 0, len(getTxResp.Tx.Signatures))
-			for range getTxResp.Tx.Signatures {
-				sigData := &injective_explorer_rpcpb.Signature{
-					Address: "", // Address will be extracted from events as fallback
+		// Extract signatures from AuthInfo.SignerInfo and Signatures
+		// In cosmos-sdk Tx structure:
+		// - AuthInfo.SignerInfo contains public keys and sequence numbers
+		// - Signatures contains the raw signature bytes
+		if getTxResp.Tx.AuthInfo != nil && len(getTxResp.Tx.AuthInfo.SignerInfos) > 0 {
+			signatures = make([]*injective_explorer_rpcpb.Signature, 0, len(getTxResp.Tx.AuthInfo.SignerInfos))
+			for i, signerInfo := range getTxResp.Tx.AuthInfo.SignerInfos {
+				sigData := &injective_explorer_rpcpb.Signature{}
+
+				// Extract public key (if available)
+				if signerInfo.PublicKey != nil && len(signerInfo.PublicKey.Value) > 0 {
+					// Encode public key bytes to base64 string
+					sigData.Pubkey = base64.StdEncoding.EncodeToString(signerInfo.PublicKey.Value)
 				}
+
+				// Extract sequence number
+				sigData.Sequence = signerInfo.Sequence
+
+				// Extract signature data from Signatures slice (if available)
+				if i < len(getTxResp.Tx.Signatures) && len(getTxResp.Tx.Signatures[i]) > 0 {
+					// Encode signature bytes to base64 string
+					sigData.Signature = base64.StdEncoding.EncodeToString(getTxResp.Tx.Signatures[i])
+				}
+
+				// Address will be extracted from events as fallback
 				// Note: Extracting address from public key requires codec and crypto operations
 				// which are not available in this context. We will extract signer address
 				// from events as a fallback after events are processed.
