@@ -1391,16 +1391,45 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 					}
 
 					if evmHash != "" {
-						txModel.EVMHash = evmHash
-						txModel.EVMDetailsSynced = false
-						global.Logger.Debugf("extracted EVM hash %s for transaction %s", evmHash, txModel.Hash)
-
-						// Push to EVM details queue for async processing
+						// Store EVM information in separate table to avoid affecting transactions table
+						// This prevents signatures and signer fields from being cleared
 						go func(cosmosHash, evmHash string) {
 							evmCtx, evmCancel := context.WithTimeout(context.Background(), 5*time.Second)
 							defer evmCancel()
 
-							// Push to Redis queue
+							// Upsert EVM transaction (create if not exists, update evm_hash if exists)
+							evmTx := &models.EVMTransaction{}
+							err := db.Get().WithContext(evmCtx).
+								Where("transaction_hash = ?", cosmosHash).
+								First(evmTx).Error
+
+							if err != nil {
+								if errors.Is(err, gorm.ErrRecordNotFound) {
+									// Create new EVM transaction record
+									evmTx = &models.EVMTransaction{
+										TransactionHash:  cosmosHash,
+										EVMHash:          evmHash,
+										EVMDetailsSynced: false,
+									}
+									if err := db.Get().WithContext(evmCtx).Create(evmTx).Error; err != nil {
+										global.Logger.Warnf("failed to create EVM transaction %s (evm: %s): %v", cosmosHash, evmHash, err)
+									}
+								} else {
+									global.Logger.Warnf("failed to query EVM transaction %s: %v", cosmosHash, err)
+								}
+							} else {
+								// Update evm_hash if record exists
+								if err := db.Get().WithContext(evmCtx).
+									Model(evmTx).
+									Where("transaction_hash = ?", cosmosHash).
+									Update("evm_hash", evmHash).Error; err != nil {
+									global.Logger.Warnf("failed to update EVM transaction %s (evm: %s): %v", cosmosHash, evmHash, err)
+								}
+							}
+
+							global.Logger.Debugf("extracted EVM hash %s for transaction %s", evmHash, cosmosHash)
+
+							// Push to EVM details queue for async processing
 							redisClient := cache.GetRedisClient()
 							if redisClient != nil {
 								taskStr := fmt.Sprintf("%s:%s", cosmosHash, evmHash)
@@ -1504,9 +1533,17 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			tm.txModel.ID = id
 			// Preserve existing signatures and signer from database
 			// This prevents empty values from GetTxResponse from overwriting good data
+			// Only restore if database has non-empty values (protect against overwriting good data with empty values)
 			if existingTx, ok := existingTxFullMap[tm.txModel.Hash]; ok {
-				tm.txModel.Signatures = existingTx.Signatures
-				tm.txModel.Signer = existingTx.Signer
+				// Only restore signatures if database has non-empty value
+				// This protects against overwriting good data with empty values
+				if len(existingTx.Signatures) > 0 {
+					tm.txModel.Signatures = existingTx.Signatures
+				}
+				// Only restore signer if database has non-empty value
+				if existingTx.Signer != "" {
+					tm.txModel.Signer = existingTx.Signer
+				}
 			}
 			txsToUpdate = append(txsToUpdate, tm.txModel)
 		} else {
@@ -1621,20 +1658,16 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						"data_storage_key":     txModel.DataStorageKey,
 						"messages_storage_key": txModel.MessagesStorageKey,
 						"logs_storage_key":     txModel.LogsStorageKey,
-						"evm_hash":             txModel.EVMHash,
-						"evm_details_synced":   txModel.EVMDetailsSynced,
 					}
+					// EVM-related fields are now stored in evm_transactions table
+					// Do NOT update evm_hash, evm_from_address, evm_to_address, etc. in transactions table
 
-					// Use Select to explicitly specify which columns to update
-					// This is more explicit than Omit and ensures only the listed fields are updated
-					// signatures and signer are intentionally excluded from this list
+					// Use Omit to explicitly exclude signatures and signer fields from update
+					// This is more reliable than Select() because it explicitly excludes the fields we don't want to update
+					// This ensures signatures and signer are NEVER touched during updates
+					// These fields should only be set when the transaction is first created or when explicitly updating them
 					if err := tx.Table("transactions").
-						Select("block_number", "block_timestamp", "code", "data", "info",
-							"gas_wanted", "gas_used", "gas_fee", "codespace", "events", "tx_type",
-							"message_types", "messages", "memo", "tx_number", "block_unix_timestamp",
-							"error_log", "logs", "claim_ids", "to", "value", "archived",
-							"data_storage_key", "messages_storage_key", "logs_storage_key",
-							"evm_hash", "evm_details_synced").
+						Omit("signatures", "signer").
 						Where("hash = ?", txModel.Hash).
 						Updates(updateFields).Error; err != nil {
 						return errors.Wrapf(err, "failed to update transaction %s", txModel.Hash)
@@ -1851,9 +1884,9 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 				"data_storage_key":     txModel.DataStorageKey,
 				"messages_storage_key": txModel.MessagesStorageKey,
 				"logs_storage_key":     txModel.LogsStorageKey,
-				"evm_hash":             txModel.EVMHash,
-				"evm_details_synced":   txModel.EVMDetailsSynced,
 			}
+			// EVM-related fields are now stored in evm_transactions table
+			// Do NOT update evm_hash, evm_from_address, evm_to_address, etc. in transactions table
 			// Serialize JSON fields manually since we're not using the model directly
 			if txModel.Events != nil {
 				if eventsJSON, err := sonic.Marshal(txModel.Events); err == nil {
@@ -1871,14 +1904,11 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 				}
 			}
 
-			// Use Table() with Select to explicitly exclude signatures and signer
+			// Use Table() with Omit to explicitly exclude signatures and signer fields from update
+			// This is more reliable than Select() because it explicitly excludes the fields we don't want to update
+			// This ensures signatures and signer are NEVER touched during updates
 			if err := tx.Table("transactions").
-				Select("block_number", "block_timestamp", "code", "data", "info",
-					"gas_wanted", "gas_used", "gas_fee", "codespace", "events", "tx_type",
-					"message_types", "messages", "memo", "tx_number", "block_unix_timestamp",
-					"error_log", "logs", "claim_ids", "to", "value", "archived",
-					"data_storage_key", "messages_storage_key", "logs_storage_key",
-					"evm_hash", "evm_details_synced").
+				Omit("signatures", "signer").
 				Where("hash = ?", txModel.Hash).
 				Updates(updateFields).Error; err != nil {
 				return errors.Wrapf(err, "failed to update transaction %s", txHash)

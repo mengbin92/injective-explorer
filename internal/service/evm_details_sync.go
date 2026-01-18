@@ -194,25 +194,25 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 	cosmosHash := parts[0]
 	evmHash := parts[1]
 
-	// Check if transaction exists
-	var tx models.Transaction
+	// Check if EVM transaction exists in evm_transactions table
+	var evmTx models.EVMTransaction
 	err := db.Get().WithContext(ctx).
-		Where("hash = ?", cosmosHash).
-		First(&tx).Error
+		Where("transaction_hash = ?", cosmosHash).
+		First(&evmTx).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			global.Logger.Warnf("worker %d: transaction %s not found, skipping", workerID, cosmosHash)
+			global.Logger.Warnf("worker %d: EVM transaction %s not found in evm_transactions table, skipping", workerID, cosmosHash)
 			return
 		}
-		global.Logger.Errorf("worker %d: failed to query transaction %s: %v", workerID, cosmosHash, err)
+		global.Logger.Errorf("worker %d: failed to query EVM transaction %s: %v", workerID, cosmosHash, err)
 		// Retry task
 		s.retryTask(ctx, taskStr)
 		return
 	}
 
 	// Skip if already synced
-	if tx.EVMDetailsSynced {
+	if evmTx.EVMDetailsSynced {
 		return
 	}
 
@@ -230,14 +230,14 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 		s.updateSyncError(ctx, cosmosHash, enhancedErrMsg)
 
 		// Retry if should retry
-		if s.shouldRetry(&tx, err) {
+		if s.shouldRetryEVM(&evmTx, err) {
 			s.retryTask(ctx, taskStr)
 		}
 		return
 	}
 
-	// Save transaction details
-	if err := s.saveEVMDetails(ctx, &tx, details); err != nil {
+	// Save transaction details to evm_transactions table
+	if err := s.saveEVMDetails(ctx, &evmTx, details); err != nil {
 		global.Logger.Errorf("worker %d: failed to save EVM details for %s: %v", workerID, cosmosHash, err)
 		s.retryTask(ctx, taskStr)
 		return
@@ -264,18 +264,18 @@ func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash str
 	return details, nil
 }
 
-// saveEVMDetails saves EVM transaction details to database or object storage.
-// It updates EVM-related fields (evm_from_address, evm_to_address) for optimized account queries.
-// Note: Does NOT update signatures/signer fields as those are extracted from Cosmos transaction data.
+// saveEVMDetails saves EVM transaction details to evm_transactions table or object storage.
+// It updates EVM-related fields (evm_from_address, evm_to_address) in the evm_transactions table.
+// This avoids affecting the transactions table and prevents clearing signatures/signer fields.
 //
 // Parameters:
 //   - ctx: Context for cancellation
-//   - tx: Transaction model
+//   - evmTx: EVMTransaction model from evm_transactions table
 //   - details: EVM transaction details
 //
 // Returns:
 //   - error: Error if the operation fails
-func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.Transaction, details *chain.TransactionDetails) error {
+func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *models.EVMTransaction, details *chain.TransactionDetails) error {
 	// Marshal to JSON
 	detailsJSON, err := sonic.Marshal(details)
 	if err != nil {
@@ -287,20 +287,17 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 
 	if storage.IsEnabled() && len(detailsJSON) > 3*1024 { // 3KB threshold
 		storageClient := storage.Get()
-		storageKey = storage.BuildStorageKey("evm_details", tx.Hash)
+		storageKey = storage.BuildStorageKey("evm_details", evmTx.TransactionHash)
 
 		if err := storageClient.PutObject(ctx, storageKey, detailsJSON); err != nil {
-			global.Logger.Warnf("failed to upload EVM details to storage for %s: %v", tx.Hash, err)
+			global.Logger.Warnf("failed to upload EVM details to storage for %s: %v", evmTx.TransactionHash, err)
 			// Continue with database storage
 			storageKey = ""
 		}
 	}
 
-	// Update database with EVM details and addresses for optimized account queries
-	// Note: We do NOT update signatures and signer fields here because:
-	// 1. These fields are extracted from Cosmos transaction data and should be preserved
-	// 2. EVM details sync should only update EVM-related fields (evm_from_address, evm_to_address, etc.)
-	// 3. The original signatures and signer data from the Cosmos transaction should remain intact
+	// Update evm_transactions table with EVM details and addresses
+	// This table is separate from transactions table, so it won't affect signatures/signer fields
 	now := time.Now()
 	updates := map[string]interface{}{
 		"evm_details_synced":     true,
@@ -314,23 +311,20 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 		updates["evm_details_storage_key"] = storageKey
 	}
 
-	// Use Table() with Select() to explicitly specify which columns to update
-	// This ensures signatures and signer are never touched during EVM details sync
+	// Update evm_transactions table (separate from transactions table)
 	err = db.Get().WithContext(ctx).
-		Table("transactions").
-		Select("evm_details_synced", "evm_details_sync_at", "evm_details_sync_error",
-			"evm_from_address", "evm_to_address", "evm_details_storage_key").
-		Where("hash = ?", tx.Hash).
+		Model(evmTx).
+		Where("transaction_hash = ?", evmTx.TransactionHash).
 		Updates(updates).Error
 
 	if err != nil {
-		return errors.Wrapf(err, "failed to update transaction %s", tx.Hash)
+		return errors.Wrapf(err, "failed to update EVM transaction %s", evmTx.TransactionHash)
 	}
 
 	return nil
 }
 
-// updateSyncError updates the sync error information for a transaction.
+// updateSyncError updates the sync error information for an EVM transaction.
 //
 // Parameters:
 //   - ctx: Context for cancellation
@@ -338,23 +332,23 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, tx *models.T
 //   - errorMsg: Error message
 func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash string, errorMsg string) {
 	db.Get().WithContext(ctx).
-		Model(&models.Transaction{}).
-		Where("hash = ?", cosmosHash).
+		Model(&models.EVMTransaction{}).
+		Where("transaction_hash = ?", cosmosHash).
 		Updates(map[string]interface{}{
 			"evm_details_sync_error": errorMsg,
 		})
 }
 
-// shouldRetry checks if a task should be retried based on the error type.
+// shouldRetryEVM checks if a task should be retried based on the error type.
 //
 // Parameters:
-//   - tx: Transaction model
+//   - evmTx: EVMTransaction model
 //   - err: Error that occurred (for error type checking)
 //
 // Returns:
 //   - bool: true if should retry, false otherwise
-func (s *EVMDetailsSyncService) shouldRetry(tx *models.Transaction, err error) bool {
-	if tx.EVMDetailsSynced {
+func (s *EVMDetailsSyncService) shouldRetryEVM(evmTx *models.EVMTransaction, err error) bool {
+	if evmTx.EVMDetailsSynced {
 		return false
 	}
 

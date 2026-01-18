@@ -293,17 +293,17 @@ CREATE TABLE `transactions` (
   `signer` varchar(128) DEFAULT NULL,
   `to` varchar(128) DEFAULT NULL,
   `value` varchar(128) DEFAULT NULL,
-  `evm_from_address` varchar(128) DEFAULT NULL,
-  `evm_to_address` varchar(128) DEFAULT NULL,
+  `evm_from_address` varchar(128) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
+  `evm_to_address` varchar(128) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
   `archived` tinyint(1) DEFAULT '0',
   `data_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `messages_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `logs_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
-  `evm_hash` varchar(128) DEFAULT NULL,
-  `evm_details_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
-  `evm_details_synced` tinyint(1) DEFAULT '0',
-  `evm_details_sync_error` text,
-  `evm_details_sync_at` datetime(3) DEFAULT NULL,
+  `evm_hash` varchar(128) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
+  `evm_details_storage_key` varchar(255) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
+  `evm_details_synced` tinyint(1) DEFAULT '0' COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
+  `evm_details_sync_error` text COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
+  `evm_details_sync_at` datetime(3) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
   PRIMARY KEY (`id`),
   KEY `idx_transactions_deleted_at` (`deleted_at`),
   KEY `idx_block_tx` (`block_number`,`tx_number`),
@@ -313,11 +313,12 @@ CREATE TABLE `transactions` (
   KEY `idx_timestamp_tx` (`block_unix_timestamp`),
   KEY `idx_signer` (`signer`),
   KEY `idx_signer_timestamp` (`signer`),
-  KEY `idx_evm_from_address` (`evm_from_address`),
-  KEY `idx_evm_to_address` (`evm_to_address`),
+  -- DEPRECATED: EVM-related indexes removed, data migrated to evm_transactions table
+  -- KEY `idx_evm_from_address` (`evm_from_address`),
+  -- KEY `idx_evm_to_address` (`evm_to_address`),
   KEY `idx_transactions_archived` (`archived`),
-  KEY `idx_evm_hash` (`evm_hash`),
-  KEY `idx_evm_details_synced` (`evm_details_synced`),
+  -- KEY `idx_evm_hash` (`evm_hash`),
+  -- KEY `idx_evm_details_synced` (`evm_details_synced`),
   KEY `idx_timestamp_code_deleted` (`block_unix_timestamp`,`code`,`deleted_at`),
   -- Performance indexes for transaction pagination and query patterns (added after optimization analysis)
   KEY `idx_timestamp_tx_pagination` (`block_unix_timestamp` DESC,`tx_number` DESC,`id`),
@@ -325,6 +326,32 @@ CREATE TABLE `transactions` (
   -- Covering index for block transaction queries
   KEY `idx_block_tx_covering` (`block_number`,`tx_number`,`hash`,`signer`,`to`,`value`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for evm_transactions
+-- ----------------------------
+DROP TABLE IF EXISTS `evm_transactions`;
+CREATE TABLE `evm_transactions` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `transaction_hash` varchar(128) NOT NULL COMMENT 'Cosmos交易hash，关联transactions.hash',
+  `evm_hash` varchar(128) NOT NULL COMMENT 'EVM交易hash',
+  `evm_from_address` varchar(128) DEFAULT NULL COMMENT 'EVM交易发送地址',
+  `evm_to_address` varchar(128) DEFAULT NULL COMMENT 'EVM交易接收地址',
+  `evm_details_storage_key` varchar(255) DEFAULT NULL COMMENT 'EVM交易详情的对象存储key，格式: evm_details/{hash[:8]}/{hash}',
+  `evm_details_synced` tinyint(1) DEFAULT '0' COMMENT 'EVM交易详情是否已同步',
+  `evm_details_sync_error` text COMMENT 'EVM交易详情同步错误信息',
+  `evm_details_sync_at` datetime(3) DEFAULT NULL COMMENT 'EVM交易详情同步时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_transaction_hash` (`transaction_hash`),
+  KEY `idx_evm_transactions_deleted_at` (`deleted_at`),
+  KEY `idx_evm_hash` (`evm_hash`),
+  KEY `idx_evm_from_address` (`evm_from_address`),
+  KEY `idx_evm_to_address` (`evm_to_address`),
+  KEY `idx_evm_details_synced` (`evm_details_synced`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='EVM交易表';
 
 -- ----------------------------
 -- Table structure for usage_daily_stats
@@ -533,25 +560,28 @@ CREATE INDEX idx_timestamp_signer_distinct ON transactions(block_unix_timestamp,
 CREATE INDEX idx_data_storage_key ON transactions(data_storage_key);
 CREATE INDEX idx_messages_storage_key ON transactions(messages_storage_key);
 CREATE INDEX idx_logs_storage_key ON transactions(logs_storage_key);
-CREATE INDEX idx_evm_details_storage_key ON transactions(evm_details_storage_key);
+-- DEPRECATED: EVM details storage key index removed, data migrated to evm_transactions table
+-- CREATE INDEX idx_evm_details_storage_key ON transactions(evm_details_storage_key);
 
 -- Composite index for archived transactions queries
 -- Query: WHERE archived = ? ORDER BY block_unix_timestamp DESC, tx_number DESC
 CREATE INDEX idx_archived_timestamp_tx ON transactions(archived, block_unix_timestamp DESC, tx_number DESC);
 
+-- DEPRECATED: EVM-related indexes removed, data migrated to evm_transactions table
 -- Composite index for EVM transactions with synced status
 -- Query: WHERE evm_hash != '' AND evm_hash IS NOT NULL AND evm_details_synced = ?
-CREATE INDEX idx_evm_hash_synced ON transactions(evm_hash, evm_details_synced);
+-- CREATE INDEX idx_evm_hash_synced ON transactions(evm_hash, evm_details_synced);
 
 -- Index for message_types JSON queries (MySQL 5.7+)
 -- Query: WHERE message_types LIKE ? OR JSON_CONTAINS(message_types, ?)
 -- Use prefix index directly on JSON column (simpler, works for LIKE queries)
 CREATE INDEX idx_message_types_prefix ON transactions(message_types(255));
 
+-- DEPRECATED: EVM account transaction indexes removed, data migrated to evm_transactions table
 -- Composite index for EVM account transactions
 -- Query: WHERE (evm_from_address = ? OR evm_to_address = ?) ORDER BY block_unix_timestamp DESC
-CREATE INDEX idx_evm_from_timestamp ON transactions(evm_from_address, block_unix_timestamp DESC, tx_number DESC);
-CREATE INDEX idx_evm_to_timestamp ON transactions(evm_to_address, block_unix_timestamp DESC, tx_number DESC);
+-- CREATE INDEX idx_evm_from_timestamp ON transactions(evm_from_address, block_unix_timestamp DESC, tx_number DESC);
+-- CREATE INDEX idx_evm_to_timestamp ON transactions(evm_to_address, block_unix_timestamp DESC, tx_number DESC);
 
 -- Performance optimization indexes (added for performance requirements)
 -- Query: SELECT * FROM transactions WHERE signer = ? AND archived = 0 ORDER BY block_unix_timestamp DESC LIMIT 20
@@ -559,10 +589,10 @@ CREATE INDEX idx_evm_to_timestamp ON transactions(evm_to_address, block_unix_tim
 -- The application should filter archived = 0 in WHERE clause
 CREATE INDEX idx_transactions_signer_timestamp ON transactions(signer, block_unix_timestamp DESC);
 
+-- DEPRECATED: EVM hash index removed, data migrated to evm_transactions table
 -- Query: SELECT * FROM transactions WHERE evm_hash = ?
--- Note: MySQL doesn't support partial indexes, so we create full index
--- The application should filter evm_hash != '' AND archived = 0 in WHERE clause
-CREATE INDEX idx_transactions_evm_hash ON transactions(evm_hash);
+-- Note: EVM transactions should be queried from evm_transactions table instead
+-- CREATE INDEX idx_transactions_evm_hash ON transactions(evm_hash);
 
 -- Query: SELECT * FROM transactions WHERE block_number = ? AND code = ?
 -- Note: MySQL doesn't support partial indexes, so we create full index
@@ -581,6 +611,23 @@ CREATE INDEX idx_transactions_code_timestamp ON transactions(code, block_unix_ti
 
 -- Query: Statistics queries - SELECT * FROM transactions WHERE archived = 0 ORDER BY block_unix_timestamp DESC
 -- Note: idx_timestamp_tx already exists in table creation (line 313) which covers this query pattern
+
+-- ============================================================================
+-- EVM TRANSACTIONS TABLE ADDITIONAL INDEXES
+-- ============================================================================
+
+-- Composite index for EVM account transactions query
+-- Query: WHERE (evm_from_address = ? OR evm_to_address = ?) ORDER BY evm_details_sync_at DESC
+CREATE INDEX idx_evm_from_sync_at ON evm_transactions(evm_from_address, evm_details_sync_at DESC);
+CREATE INDEX idx_evm_to_sync_at ON evm_transactions(evm_to_address, evm_details_sync_at DESC);
+
+-- Composite index for EVM transactions sync status queries
+-- Query: WHERE evm_details_synced = ? AND evm_hash != ''
+CREATE INDEX idx_evm_synced_hash ON evm_transactions(evm_details_synced, evm_hash);
+
+-- Index for storage key queries
+-- Query: WHERE evm_details_storage_key IS NOT NULL AND evm_details_storage_key != ''
+CREATE INDEX idx_evm_details_storage_key ON evm_transactions(evm_details_storage_key);
 
 -- ============================================================================
 -- BLOCKS TABLE ADDITIONAL INDEXES
@@ -649,7 +696,7 @@ SELECT
     INDEX_TYPE
 FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
-AND TABLE_NAME IN ('transactions', 'blocks', 'account_balances', 'transaction_data_archives', 'contract_infos', 'address_labels')
+AND TABLE_NAME IN ('transactions', 'evm_transactions', 'blocks', 'account_balances', 'transaction_data_archives', 'contract_infos', 'address_labels')
 AND INDEX_NAME LIKE 'idx_%'
 GROUP BY TABLE_NAME, INDEX_NAME, CARDINALITY, INDEX_TYPE
 ORDER BY TABLE_NAME, INDEX_NAME;
