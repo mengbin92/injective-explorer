@@ -83,8 +83,8 @@ func TestTmWebsocket(t *testing.T) {
 
 			h := ev.Header
 
-			fmt.Printf(
-				"height=%d hash=%X time=%s proposer=%s\n",
+			t.Logf(
+				"height=%d hash=%X time=%s proposer=%s",
 				h.Height,
 				h.Hash(),
 				h.Time.Format(time.RFC3339),
@@ -117,7 +117,7 @@ func TestGetValidators(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to parse consensus pubkey: %v", err)
 		}
-		fmt.Println(consensusPubKey.Address().String())
+		t.Log(consensusPubKey.Address().String())
 	}
 
 }
@@ -155,5 +155,5 @@ func TestGetTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get tx: %v", err)
 	}
-	fmt.Println(txResp)
+	t.Log(txResp)
 }

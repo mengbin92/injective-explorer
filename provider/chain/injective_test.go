@@ -39,7 +39,7 @@ func TestInjectiveWithSDK(t *testing.T) {
 	tmBlock, err := tmClient.GetBlock(context.Background(), blockHeight)
 	assert.NoError(t, err, "failed to get block")
 	str, _ := sonic.MarshalIndent(tmBlock, "", "\t")
-	fmt.Print(string(str))
+	t.Log(string(str))
 
 	explorerClient, err := explorerclient.NewExplorerClient(network)
 	assert.NoError(t, err, "failed to create explorer client")
@@ -47,13 +47,13 @@ func TestInjectiveWithSDK(t *testing.T) {
 	ctx := context.Background()
 	res, err := explorerClient.GetBlock(ctx, fmt.Sprintf("%d", blockHeight))
 	if err != nil {
-		fmt.Println(err)
+		t.Log(err)
 	}
 
 	explorerClient.GetTxByTxHash(ctx, "0x1234567890abcdef")
 
 	str, _ = sonic.MarshalIndent(res, "", "\t")
-	fmt.Print(string(str))
+	t.Log(string(str))
 }
 
 func TestGetAccountBalances(t *testing.T) {
@@ -79,13 +79,13 @@ func TestGetAccountBalances(t *testing.T) {
 
 	balances, err := chainClient.GetBankBalances(context.Background(), "inj1jddhqk6egwcwrwzev5wjeneht0ykmlwhcehc4z")
 	assert.NoError(t, err, "failed to get bank balances")
-	fmt.Println(balances)
+	t.Log(balances)
 	injBalance := balances.Balances.AmountOf("inj")
-	fmt.Println(injBalance)
+	t.Log(injBalance)
 
 	block, err := chainClient.FetchBlockByHeight(context.Background(), 139454029)
 	assert.NoError(t, err, "failed to fetch block by height")
-	fmt.Println(block.String())
+	t.Log(block.String())
 
 	chainClient.FetchValidatorSetByHeight(context.Background(), 139454029, nil)
 }
@@ -99,7 +99,7 @@ func TestGetBlocks(t *testing.T) {
 	ctx := context.Background()
 	blocks, err := explorerClient.GetBlocks(ctx)
 	assert.NoError(t, err, "failed to get blocks")
-	fmt.Println(blocks.String())
+	t.Log(blocks.String())
 }
 
 func TestGetBlockByHeight(t *testing.T) {
@@ -110,7 +110,7 @@ func TestGetBlockByHeight(t *testing.T) {
 	ctx := context.Background()
 	blocks, err := explorerClient.GetBlock(ctx, "98688735")
 	assert.NoError(t, err, "failed to get block")
-	fmt.Println(blocks.String())
+	t.Log(blocks.String())
 }
 
 func TestGetLatestTransactions(t *testing.T) {
@@ -134,7 +134,7 @@ func TestGetLatestTransactions(t *testing.T) {
 	}
 
 	str, _ := sonic.Marshal(reply)
-	fmt.Println(string(str))
+	t.Log(string(str))
 }
 
 func TestGetAccountInfo(t *testing.T) {
@@ -169,7 +169,7 @@ func TestGetAccountInfo(t *testing.T) {
 	}
 
 	str, _ := sonic.Marshal(reply)
-	fmt.Println(string(str))
+	t.Log(string(str))
 }
 
 func TestGetValidators(t *testing.T) {
@@ -180,8 +180,8 @@ func TestGetValidators(t *testing.T) {
 	ctx := context.Background()
 	validators, err := explorerClient.FetchValidators(ctx)
 	assert.NoError(t, err, "failed to fetch validators")
-	fmt.Println(validators.String())
-	fmt.Println(len(validators.Data))
+	t.Log(validators.String())
+	t.Log(len(validators.Data))
 }
 
 func TestGetValidatorByValidatorAddress(t *testing.T) {
@@ -192,7 +192,7 @@ func TestGetValidatorByValidatorAddress(t *testing.T) {
 	ctx := context.Background()
 	validator, err := explorerClient.FetchValidator(ctx, "injvaloper13v0sulppc8pgtk4907p3vaqgq54vyl9yqmf7av")
 	assert.NoError(t, err, "failed to fetch validator")
-	fmt.Println(validator.String())
+	t.Log(validator.String())
 }
 
 func TestChainClientFetchValidator(t *testing.T) {
@@ -229,7 +229,7 @@ func TestChainClientFetchValidator(t *testing.T) {
 	validatorAddr := "injvaloper13v0sulppc8pgtk4907p3vaqgq54vyl9yqmf7av"
 	validator, err := chainClient.FetchValidatorDistributionInfo(context.Background(), validatorAddr)
 	assert.NoError(t, err, "failed to fetch validator distribution info")
-	fmt.Println(validator.String())
+	t.Log(validator.String())
 }
 
 func TestGetTransactionsByHash(t *testing.T) {
@@ -241,7 +241,7 @@ func TestGetTransactionsByHash(t *testing.T) {
 	transaction, err := explorerClient.GetTxByTxHash(ctx, "0xD129861AD54EEDB17E16C456524791258E098F75719C9CCA75C9936A65B692C3")
 	assert.NoError(t, err, "failed to get transaction by hash")
 
-	fmt.Println(transaction.Data.GetClaimIds())
+	t.Log(transaction.Data.GetClaimIds())
 }
 
 func toStruct(v interface{}) (*structpb.Struct, error) {
@@ -282,7 +282,7 @@ func TestGetGasPrice(t *testing.T) {
 	assert.NoError(t, err, "failed to create chain client")
 
 	gasPrice := chainClient.CurrentChainGasPrice(context.Background())
-	fmt.Println(gasPrice)
+	t.Log(gasPrice)
 }
 
 func TestGetTxsStats(t *testing.T) {
@@ -300,7 +300,7 @@ func TestGetTxsStats(t *testing.T) {
 		Limit: 1,
 	})
 	assert.NoError(t, err, "failed to get transactions (total)")
-	fmt.Println("total: ", transactions.Paging.Total)
+	t.Log("total: ", transactions.Paging.Total)
 
 	// 30d
 	transactions, err = explorerClient.GetTxs(context.Background(), &injective_explorer_rpcpb.GetTxsRequest{
@@ -309,7 +309,7 @@ func TestGetTxsStats(t *testing.T) {
 		EndTime:   now.UnixMilli(),
 	})
 	assert.NoError(t, err, "failed to get transactions (30d)")
-	fmt.Println("30d: ", transactions.Paging.Total)
+	t.Log("30d: ", transactions.Paging.Total)
 
 	// 24h
 	transactions, err = explorerClient.GetTxs(context.Background(), &injective_explorer_rpcpb.GetTxsRequest{
@@ -318,7 +318,7 @@ func TestGetTxsStats(t *testing.T) {
 		EndTime:   now.UnixMilli(),
 	})
 	assert.NoError(t, err, "failed to get transactions (24h)")
-	fmt.Println("24h: ", transactions.Paging.Total)
+	t.Log("24h: ", transactions.Paging.Total)
 }
 
 func TestAccountBalance(t *testing.T) {
@@ -344,11 +344,11 @@ func TestAccountBalance(t *testing.T) {
 
 	address, err := EthToInjAddress("0x71562b71999873db5b286df957af199ec94617f7")
 	assert.NoError(t, err, "failed to convert Ethereum address to Injective")
-	fmt.Println(address)
+	t.Log(address)
 
 	balances, err := chainClient.GetBankBalances(context.Background(), address)
 	assert.NoError(t, err, "failed to get bank balances")
-	fmt.Println(balances)
+	t.Log(balances)
 }
 
 func TestAddressConversion(t *testing.T) {
@@ -356,7 +356,7 @@ func TestAddressConversion(t *testing.T) {
 	ethAddr := "0x71562b71999873db5b286df957af199ec94617f7"
 	injAddr, err := EthToInjAddress(ethAddr)
 	assert.NoError(t, err, "failed to convert Ethereum address to Injective")
-	fmt.Printf("Ethereum address: %s -> Injective address: %s\n", ethAddr, injAddr)
+	t.Logf("Ethereum address: %s -> Injective address: %s", ethAddr, injAddr)
 
 	// Test Injective to Ethereum conversion (using the models package function)
 	// Note: This requires importing the models package
@@ -398,5 +398,5 @@ func TestGetBlockMaxGas(t *testing.T) {
 
 	consensusParams, err := tmClient.ConsensusParams(context.Background(), nil)
 	assert.NoError(t, err, "failed to get consensus params")
-	fmt.Println(consensusParams.ConsensusParams.Block.MaxGas)
+	t.Log(consensusParams.ConsensusParams.Block.MaxGas)
 }

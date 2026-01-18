@@ -293,17 +293,10 @@ CREATE TABLE `transactions` (
   `signer` varchar(128) DEFAULT NULL,
   `to` varchar(128) DEFAULT NULL,
   `value` varchar(128) DEFAULT NULL,
-  `evm_from_address` varchar(128) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
-  `evm_to_address` varchar(128) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
   `archived` tinyint(1) DEFAULT '0',
   `data_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `messages_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `logs_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
-  `evm_hash` varchar(128) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
-  `evm_details_storage_key` varchar(255) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
-  `evm_details_synced` tinyint(1) DEFAULT '0' COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
-  `evm_details_sync_error` text COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
-  `evm_details_sync_at` datetime(3) DEFAULT NULL COMMENT 'DEPRECATED: 已迁移到evm_transactions表，保留字段仅用于向后兼容',
   PRIMARY KEY (`id`),
   KEY `idx_transactions_deleted_at` (`deleted_at`),
   KEY `idx_block_tx` (`block_number`,`tx_number`),
@@ -313,12 +306,7 @@ CREATE TABLE `transactions` (
   KEY `idx_timestamp_tx` (`block_unix_timestamp`),
   KEY `idx_signer` (`signer`),
   KEY `idx_signer_timestamp` (`signer`),
-  -- DEPRECATED: EVM-related indexes removed, data migrated to evm_transactions table
-  -- KEY `idx_evm_from_address` (`evm_from_address`),
-  -- KEY `idx_evm_to_address` (`evm_to_address`),
   KEY `idx_transactions_archived` (`archived`),
-  -- KEY `idx_evm_hash` (`evm_hash`),
-  -- KEY `idx_evm_details_synced` (`evm_details_synced`),
   KEY `idx_timestamp_code_deleted` (`block_unix_timestamp`,`code`,`deleted_at`),
   -- Performance indexes for transaction pagination and query patterns (added after optimization analysis)
   KEY `idx_timestamp_tx_pagination` (`block_unix_timestamp` DESC,`tx_number` DESC,`id`),
@@ -344,6 +332,7 @@ CREATE TABLE `evm_transactions` (
   `evm_details_synced` tinyint(1) DEFAULT '0' COMMENT 'EVM交易详情是否已同步',
   `evm_details_sync_error` text COMMENT 'EVM交易详情同步错误信息',
   `evm_details_sync_at` datetime(3) DEFAULT NULL COMMENT 'EVM交易详情同步时间',
+  `raw_details_json` longtext COMMENT '原始EVM RPC响应JSON，用于解析失败时的降级存储',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_transaction_hash` (`transaction_hash`),
   KEY `idx_evm_transactions_deleted_at` (`deleted_at`),
@@ -560,39 +549,21 @@ CREATE INDEX idx_timestamp_signer_distinct ON transactions(block_unix_timestamp,
 CREATE INDEX idx_data_storage_key ON transactions(data_storage_key);
 CREATE INDEX idx_messages_storage_key ON transactions(messages_storage_key);
 CREATE INDEX idx_logs_storage_key ON transactions(logs_storage_key);
--- DEPRECATED: EVM details storage key index removed, data migrated to evm_transactions table
--- CREATE INDEX idx_evm_details_storage_key ON transactions(evm_details_storage_key);
 
 -- Composite index for archived transactions queries
 -- Query: WHERE archived = ? ORDER BY block_unix_timestamp DESC, tx_number DESC
 CREATE INDEX idx_archived_timestamp_tx ON transactions(archived, block_unix_timestamp DESC, tx_number DESC);
-
--- DEPRECATED: EVM-related indexes removed, data migrated to evm_transactions table
--- Composite index for EVM transactions with synced status
--- Query: WHERE evm_hash != '' AND evm_hash IS NOT NULL AND evm_details_synced = ?
--- CREATE INDEX idx_evm_hash_synced ON transactions(evm_hash, evm_details_synced);
 
 -- Index for message_types JSON queries (MySQL 5.7+)
 -- Query: WHERE message_types LIKE ? OR JSON_CONTAINS(message_types, ?)
 -- Use prefix index directly on JSON column (simpler, works for LIKE queries)
 CREATE INDEX idx_message_types_prefix ON transactions(message_types(255));
 
--- DEPRECATED: EVM account transaction indexes removed, data migrated to evm_transactions table
--- Composite index for EVM account transactions
--- Query: WHERE (evm_from_address = ? OR evm_to_address = ?) ORDER BY block_unix_timestamp DESC
--- CREATE INDEX idx_evm_from_timestamp ON transactions(evm_from_address, block_unix_timestamp DESC, tx_number DESC);
--- CREATE INDEX idx_evm_to_timestamp ON transactions(evm_to_address, block_unix_timestamp DESC, tx_number DESC);
-
 -- Performance optimization indexes (added for performance requirements)
 -- Query: SELECT * FROM transactions WHERE signer = ? AND archived = 0 ORDER BY block_unix_timestamp DESC LIMIT 20
 -- Note: MySQL doesn't support partial indexes (WHERE clause), so we create full index
 -- The application should filter archived = 0 in WHERE clause
 CREATE INDEX idx_transactions_signer_timestamp ON transactions(signer, block_unix_timestamp DESC);
-
--- DEPRECATED: EVM hash index removed, data migrated to evm_transactions table
--- Query: SELECT * FROM transactions WHERE evm_hash = ?
--- Note: EVM transactions should be queried from evm_transactions table instead
--- CREATE INDEX idx_transactions_evm_hash ON transactions(evm_hash);
 
 -- Query: SELECT * FROM transactions WHERE block_number = ? AND code = ?
 -- Note: MySQL doesn't support partial indexes, so we create full index

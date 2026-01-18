@@ -55,17 +55,10 @@ type Transaction struct {
 	Signer               string     `json:"signer" gorm:"type:varchar(128);column:signer"`                         // Signer is the transaction initiator address (first signer)
 	To                   string     `json:"to" gorm:"type:varchar(128);column:to"`                                 // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
 	Value                string     `json:"value" gorm:"type:varchar(128);column:value"`                           // Value is the transaction value for ethereum transactions (corresponds to 'value' field in ethereum tx)
-	EVMFromAddress       string     `json:"evm_from_address" gorm:"type:varchar(128);column:evm_from_address"`     // EVMFromAddress is the from address for EVM transactions
-	EVMToAddress         string     `json:"evm_to_address" gorm:"type:varchar(128);column:evm_to_address"`         // EVMToAddress is the to address for EVM transactions
 	Archived             bool       `json:"archived" gorm:"column:archived;default:0"`                             // Archived indicates whether this transaction has been archived
 	DataStorageKey       string     `json:"data_storage_key" gorm:"column:data_storage_key"`                       // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
 	MessagesStorageKey   string     `json:"messages_storage_key" gorm:"column:messages_storage_key"`               // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
 	LogsStorageKey       string     `json:"logs_storage_key" gorm:"column:logs_storage_key"`                       // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)
-	EVMHash              string     `json:"evm_hash" gorm:"type:varchar(128);column:evm_hash"`                     // EVMHash is the EVM transaction hash
-	EVMDetailsStorageKey string     `json:"evm_details_storage_key" gorm:"column:evm_details_storage_key"`         // EVMDetailsStorageKey is the object storage key for EVM transaction details (no index: only used in migration with IS NULL checks)
-	EVMDetailsSynced     bool       `json:"evm_details_synced" gorm:"column:evm_details_synced;default:0"`         // EVMDetailsSynced indicates whether EVM transaction details have been synced
-	EVMDetailsSyncError  string     `json:"evm_details_sync_error" gorm:"type:text;column:evm_details_sync_error"` // EVMDetailsSyncError contains error information if EVM details sync failed
-	EVMDetailsSyncAt     *time.Time `json:"evm_details_sync_at" gorm:"column:evm_details_sync_at"`                 // EVMDetailsSyncAt is the timestamp when EVM details were synced
 
 	// Composite index for performance optimization
 	// This field is not a real column, just used to define the composite index
@@ -76,96 +69,62 @@ type Transaction struct {
 type BlockEnhanceIndex struct{}
 
 // TransactionFromProto converts a protobuf TxDetailData to a Transaction model.
-// It compresses large fields (>1KB) and optionally uploads large fields to object storage.
+// Compresses large fields (>1KB) and optionally uploads large fields to object storage.
 //
-// Parameters:
-//   - detail: The protobuf transaction detail data
-//   - storageThreshold: Storage threshold in bytes for compressed data. If 0 or negative, uses default 3KB (3072 bytes)
-//     Note: The threshold is based on compressed data size (actual database storage size), not original data size.
-//     3KB is chosen to balance database performance (large TEXT fields >3KB can impact query performance)
-//     and storage costs (object storage is typically cheaper than database storage for large fields).
-//
-// Returns:
-//   - *Transaction: A new Transaction instance with data from the protobuf message
+// The storageThreshold parameter is based on compressed data size (actual database storage size).
+// If 0 or negative, uses default 3KB (3072 bytes). This threshold balances database performance
+// and storage costs (object storage is typically cheaper than database storage for large fields).
 //
 // Behavior:
 //   - Compresses Data, Messages, and Logs fields if they exceed 1KB
-//   - Uploads to object storage if enabled and compressed data size exceeds storageThreshold (default 3KB)
-//   - Decision is based on compressed data size to accurately reflect database storage needs
-//   - Uploads compressed data to object storage (binary gzip format) to save space and bandwidth
-//   - Sets storage keys and clears database fields after successful upload
-//   - Extracts signer (transaction initiator) from the first signature's address (Signatures[0].Address)
-//     Falls back to GasFee.Payer if no signature address is available
-//     Note: The signer may not be the same as the fee payer in Injective
+//   - Uploads to object storage if enabled and compressed data exceeds storageThreshold
+//   - Extracts signer from first signature's address, falls back to GasFee.Payer
+//   - Converts addresses to Ethereum format (0x...) for database storage
 func TransactionFromProto(detail *injective_explorer_rpcpb.TxDetailData, storageThreshold int) *Transaction {
 	return TransactionFromProtoWithPool(detail, storageThreshold, nil)
 }
 
 // TransactionFromProtoWithPool converts a protobuf TxDetailData to a Transaction model,
 // optionally reusing a Transaction from the object pool to reduce allocations.
-// It compresses large fields (>1KB) and optionally uploads large fields to object storage.
 //
 // Parameters:
 //   - detail: The protobuf transaction detail data
-//   - storageThreshold: Storage threshold in bytes for compressed data. If 0 or negative, uses default 3KB (3072 bytes)
+//   - storageThreshold: Storage threshold in bytes for compressed data (0 or negative uses default 3KB)
 //   - poolTx: Optional Transaction instance from object pool (can be nil)
 //
-// Returns:
-//   - *Transaction: A Transaction instance with data from the protobuf message
-//
-// Behavior:
-//   - Compresses Data, Messages, and Logs fields if they exceed 1KB
-//   - Uploads to object storage if enabled and compressed data size exceeds storageThreshold (default 3KB)
-//   - Decision is based on compressed data size to accurately reflect database storage needs
-//   - Uploads compressed data to object storage (binary gzip format) to save space and bandwidth
-//   - Sets storage keys and clears database fields after successful upload
-//   - Extracts signer (transaction initiator) from the first signature's address (Signatures[0].Address)
-//     Falls back to GasFee.Payer if no signature address is available
-//     Note: The signer may not be the same as the fee payer in Injective
+// Behavior is the same as TransactionFromProto, but reuses poolTx if provided to reduce allocations.
 func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData, storageThreshold int, poolTx *Transaction) *Transaction {
 	if detail == nil {
-		// If poolTx was provided but detail is nil, return it to pool
-		if poolTx != nil {
-			// Note: We can't call PutTransactionToPool here due to circular dependency
-			// The caller should handle this case
-		}
 		return nil
 	}
 
-	// Store events as JSON strings for reversible conversion
-	// Use shared utility function to eliminate code duplication
+	// Store events as JSON strings
 	eventMessages := make([]proto.Message, 0, len(detail.Events))
 	for _, event := range detail.Events {
 		eventMessages = append(eventMessages, event)
 	}
 	events, _ := MarshalProtoSliceToJSON(eventMessages)
 
-	// Store signatures as JSON strings for reversible conversion
-	// Use shared utility function to eliminate code duplication
+	// Store signatures as JSON strings
 	sigMessages := make([]proto.Message, 0, len(detail.Signatures))
 	for _, sig := range detail.Signatures {
 		sigMessages = append(sigMessages, sig)
 	}
 	signatures, _ := MarshalProtoSliceToJSON(sigMessages)
 
-	// Store GasFee as JSON string for reversible conversion
+	// Store GasFee as JSON string
 	gasFee := ""
 	signer := ""
 	if detail.GasFee != nil {
-		// Use shared utility function to eliminate code duplication
 		encoded, err := MarshalProtoToJSON(detail.GasFee)
 		if err == nil {
 			gasFee = encoded
 		} else {
-			// Fallback to empty string if marshaling fails
-			// In production, you might want to log this error
 			gasFee = ""
 		}
 	}
 
-	// Extract signer (transaction initiator) from the first signature in Signatures
-	// In Injective, the transaction initiator is the first signer
-	// Note: The signer may not be the same as the fee payer
+	// Extract signer (transaction initiator) from first signature
 	if len(detail.Signatures) > 0 && detail.Signatures[0] != nil {
 		if detail.Signatures[0].Address != "" {
 			signer = detail.Signatures[0].Address
@@ -173,33 +132,22 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	}
 
 	// Fallback to GasFee.Payer if no signature address found
-	// This is a compatibility fallback, though GasFee.Payer may be different from the signer
 	if signer == "" && detail.GasFee != nil {
 		signer = detail.GasFee.Payer
 	}
 
-	// Extract to and value from transaction using event-first extraction logic
-	// This uses a unified extractor that prefers events/logs and falls back to messages
+	// Extract to and value from transaction
 	to, value := extractToAndValueFromProto(detail.Messages, detail.Events, detail.Logs, detail.Signatures, detail.GasFee)
 
-	// Extract message types from Messages for efficient filtering
-	// Extract before compressing Messages to avoid decompression overhead
+	// Extract message types from Messages for efficient filtering (before compressing)
 	messageTypes := extractMessageTypesFromBytes(detail.Messages)
 	if len(messageTypes) == 0 && len(detail.Messages) > 0 {
-		// Log warning if Messages exist but no types extracted (for debugging)
 		log.Printf("WARN: failed to extract message types for transaction %s, messages length: %d", detail.Hash, len(detail.Messages))
 	}
 
-	// Compress binary data directly, then encode to base64 for safe storage
-	// This approach provides better compression ratio than compressing base64-encoded strings
-	// The CompressData function handles:
-	// - Compression of large data (>1KB)
-	// - Base64 encoding of compressed binary data for safe database storage
-	// - Base64 encoding of small binary data
-	// - Plain text for small text data
+	// Compress and encode data for storage
 	dataStr, err := CompressData(detail.Data)
 	if err != nil {
-		// If compression fails, fallback to base64 encoding for safety
 		dataStr = encodeBinaryData(detail.Data)
 	}
 
@@ -215,12 +163,9 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 
 	var tx *Transaction
 	if poolTx != nil {
-		// Reuse transaction from pool
 		tx = poolTx
-		// Reset to zero values (pool transaction may contain old data)
 		*tx = Transaction{}
 	} else {
-		// Allocate new transaction
 		tx = &Transaction{}
 	}
 
@@ -247,25 +192,16 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	tx.ErrorLog = detail.ErrorLog
 	tx.Logs = logsStr
 	tx.ClaimIds = detail.ClaimIds
-	// Convert addresses to Ethereum format for storage
-	// Database stores addresses in Ethereum format (0x...) for consistency with browser display
+	// Convert addresses to Ethereum format for database storage
 	tx.Signer = ConvertAddressToEthForStorage(signer)
 	tx.To = ConvertAddressToEthForStorage(to)
 	tx.Value = value
 
 	// Upload large fields to object storage if enabled
-	// Only uploads and clears database fields if object storage is actually enabled (not NoOpStorage)
-	// Note: Decision is based on compressed data size (actual database storage size), not original data size
 	if storage.IsEnabled() {
-		// Calculate threshold: use provided value or default 3KB
+		// Calculate threshold (use provided value or default 3KB)
 		threshold := storageThreshold
 		if threshold <= 0 {
-			// Default threshold: 3KB (3072 bytes)
-			// Note: This matches DefaultStorageThreshold in service/constants.go
-			// We use hardcoded value here to avoid circular dependency (models cannot import service)
-			// This threshold is based on compressed data size to accurately reflect database storage needs.
-			// 3KB is chosen to balance database performance (large TEXT fields >3KB can impact query performance)
-			// and storage costs (object storage is typically cheaper than database storage for large fields).
 			threshold = 3 * 1024
 		}
 
@@ -275,19 +211,19 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 		// Process Data field
 		if storageKey := processLargeField(ctx, storageClient, "data", detail.Hash, detail.Data, dataStr, threshold); storageKey != "" {
 			tx.DataStorageKey = storageKey
-			tx.Data = "" // Clear compressed data field after successful upload
+			tx.Data = ""
 		}
 
 		// Process Messages field
 		if storageKey := processLargeField(ctx, storageClient, "messages", detail.Hash, detail.Messages, messagesStr, threshold); storageKey != "" {
 			tx.MessagesStorageKey = storageKey
-			tx.Messages = "" // Clear compressed data field after successful upload
+			tx.Messages = ""
 		}
 
 		// Process Logs field
 		if storageKey := processLargeField(ctx, storageClient, "logs", detail.Hash, detail.Logs, logsStr, threshold); storageKey != "" {
 			tx.LogsStorageKey = storageKey
-			tx.Logs = "" // Clear compressed data field after successful upload
+			tx.Logs = ""
 		}
 	}
 
@@ -404,21 +340,8 @@ func decodeBinaryData(dataStr string) []byte {
 }
 
 // TransactionToProto converts a Transaction model back to a protobuf TxDetailData.
-// It loads data from object storage if storage keys exist, otherwise uses database fields.
+// Loads data from object storage if storage keys exist, otherwise uses database fields.
 // Automatically decompresses compressed data and handles backward compatibility.
-//
-// Parameters:
-//   - tx: The Transaction model from database
-//
-// Returns:
-//   - *injective_explorer_rpcpb.TxDetailData: A new TxDetailData instance with data from the Transaction model
-//
-// Behavior:
-//   - First tries to load from object storage if storage keys exist
-//   - Automatically decompresses data from object storage (may be compressed binary gzip format)
-//   - Falls back to database fields if object storage fails or keys are empty
-//   - Automatically decompresses compressed data from database (supports both compressed and uncompressed formats)
-//   - Handles backward compatibility with old data formats (both uncompressed and compressed data in object storage)
 func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData {
 	if tx == nil {
 		return nil
@@ -431,28 +354,25 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	var dataBytes []byte
 	if tx.DataStorageKey != "" {
 		if storageData, err := storageClient.GetObject(ctx, tx.DataStorageKey); err == nil {
-			// Decompress data from object storage (may be compressed binary format)
 			var decompressErr error
 			dataBytes, decompressErr = DecompressDataFromBytes(storageData)
 			if decompressErr != nil {
-				// If decompression fails, assume it's uncompressed (backward compatibility)
+				// Decompression failed, assume uncompressed (backward compatibility)
 				dataBytes = storageData
 			}
 		} else {
-			// Fallback to database field if object storage fails
+			// Object storage failed, fall back to database field
 			dataBytes, _ = DecompressData(tx.Data)
 			if len(dataBytes) == 0 {
 				dataBytes = decodeBinaryData(tx.Data)
 			}
 		}
 	} else {
-		// Decompress and decode binary data fields
-		// The DecompressData function handles both compressed (with prefix) and uncompressed data
-		// For uncompressed data, it may be base64 encoded (old format) or plain text
+		// Decompress data from database field
 		var err error
 		dataBytes, err = DecompressData(tx.Data)
 		if err != nil {
-			// If decompression fails, try to decode as base64 (backward compatibility with old format)
+			// Decompression failed, try base64 decode (backward compatibility)
 			dataBytes = decodeBinaryData(tx.Data)
 		}
 	}
@@ -460,15 +380,14 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	var messagesBytes []byte
 	if tx.MessagesStorageKey != "" {
 		if storageMessages, err := storageClient.GetObject(ctx, tx.MessagesStorageKey); err == nil {
-			// Decompress data from object storage (may be compressed binary format)
 			var decompressErr error
 			messagesBytes, decompressErr = DecompressDataFromBytes(storageMessages)
 			if decompressErr != nil {
-				// If decompression fails, assume it's uncompressed (backward compatibility)
+				// Decompression failed, assume uncompressed (backward compatibility)
 				messagesBytes = storageMessages
 			}
 		} else {
-			// Fallback to database field if object storage fails
+			// Object storage failed, fall back to database field
 			messagesBytes, _ = DecompressData(tx.Messages)
 			if len(messagesBytes) == 0 {
 				messagesBytes = decodeBinaryData(tx.Messages)
@@ -485,15 +404,14 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	var logsBytes []byte
 	if tx.LogsStorageKey != "" {
 		if storageLogs, err := storageClient.GetObject(ctx, tx.LogsStorageKey); err == nil {
-			// Decompress data from object storage (may be compressed binary format)
 			var decompressErr error
 			logsBytes, decompressErr = DecompressDataFromBytes(storageLogs)
 			if decompressErr != nil {
-				// If decompression fails, assume it's uncompressed (backward compatibility)
+				// Decompression failed, assume uncompressed (backward compatibility)
 				logsBytes = storageLogs
 			}
 		} else {
-			// Fallback to database field if object storage fails
+			// Object storage failed, fall back to database field
 			logsBytes, _ = DecompressData(tx.Logs)
 			if len(logsBytes) == 0 {
 				logsBytes = decodeBinaryData(tx.Logs)
@@ -508,7 +426,6 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 	}
 
 	// Convert events from JSON strings back to protobuf format
-	// Use shared utility function to eliminate code duplication
 	events := make([]*injective_explorer_rpcpb.Event, 0, len(tx.Events))
 	for _, eventStr := range tx.Events {
 		if eventStr == "" {
@@ -521,14 +438,11 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 			continue
 		}
 
-		// If JSON unmarshal fails, the string might be in old format
-		// from old data. We'll create an empty Event to maintain compatibility
-		// Note: This is a fallback for backward compatibility with old data format
+		// JSON unmarshal failed, create empty Event for backward compatibility
 		events = append(events, &injective_explorer_rpcpb.Event{})
 	}
 
 	// Convert signatures from JSON strings back to protobuf format
-	// Use shared utility function to eliminate code duplication
 	signatures := make([]*injective_explorer_rpcpb.Signature, 0, len(tx.Signatures))
 	for _, sigStr := range tx.Signatures {
 		if sigStr == "" {
@@ -586,20 +500,13 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 }
 
 // ExtractMessageTypes extracts all message types (TypeUrl) from a Transaction's Messages field.
-// It decompresses and parses the Messages field to extract TypeUrl from each message.
-//
-// Parameters:
-//   - tx: The Transaction model
-//
-// Returns:
-//   - []string: List of message type URLs (e.g., ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit"])
-//     Returns empty slice if Messages field is empty or parsing fails
+// Decompresses and parses the Messages field to extract TypeUrl from each message.
 func ExtractMessageTypes(tx *Transaction) []string {
 	if tx == nil {
 		return nil
 	}
 
-	// Get messages bytes (similar to TransactionToProto)
+	// Get messages bytes
 	var messagesBytes []byte
 	storageClient := storage.Get()
 	ctx := context.Background()
@@ -629,33 +536,24 @@ func ExtractMessageTypes(tx *Transaction) []string {
 		return nil
 	}
 
-	// Use the same extraction logic as extractMessageTypesFromBytes
-	// which handles TxRaw, TxBody, and JSON formats
+	// Extract message types (handles TxRaw, TxBody, and JSON formats)
 	return extractMessageTypesFromBytes(messagesBytes)
 }
 
 // extractMessageTypesFromBytes extracts message types from Messages bytes.
 // Supports multiple formats:
-// 1. Protobuf-encoded TxRaw (contains BodyBytes which is TxBody)
-// 2. Protobuf-encoded TxBody directly
-// 3. JSON format (array of message objects with "type" field)
-// This is used during transaction creation to populate the MessageTypes field.
-//
-// Parameters:
-//   - messagesBytes: Protobuf-encoded TxRaw/TxBody messages bytes or JSON array
-//
-// Returns:
-//   - []string: List of message type URLs, empty slice if parsing fails
+//   - Protobuf-encoded TxRaw (contains BodyBytes which is TxBody)
+//   - Protobuf-encoded TxBody directly
+//   - JSON format (array of message objects with "type" field)
 func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 	if len(messagesBytes) == 0 {
 		return nil
 	}
 
 	// Try parsing as TxRaw first (most common format from explorer API)
-	// TxRaw contains BodyBytes which is the protobuf-encoded TxBody
 	var txRaw cosmostxpb.TxRaw
 	if err := txRaw.Unmarshal(messagesBytes); err == nil && len(txRaw.BodyBytes) > 0 {
-		// Successfully parsed as TxRaw, now parse BodyBytes as TxBody
+		// Successfully parsed as TxRaw, parse BodyBytes as TxBody
 		var txBody cosmostxpb.TxBody
 		if err := txBody.Unmarshal(txRaw.BodyBytes); err == nil {
 			if len(txBody.Messages) == 0 {
@@ -669,7 +567,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 				}
 			}
 
-			// Log if no message types were extracted (for debugging)
+			// Log warning if no message types extracted
 			if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
 				log.Printf("WARN: extracted 0 message types from %d messages in TxRaw->TxBody, all messages have empty TypeUrl", len(txBody.Messages))
 			}
@@ -681,7 +579,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 	// Try parsing as TxBody directly (fallback)
 	txBody := &cosmostxpb.TxBody{}
 	if err := txBody.Unmarshal(messagesBytes); err == nil {
-		// Successfully parsed as TxBody directly
+		// Successfully parsed as TxBody
 		if len(txBody.Messages) == 0 {
 			return nil
 		}
@@ -693,7 +591,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 			}
 		}
 
-		// Log if no message types were extracted (for debugging)
+		// Log warning if no message types extracted
 		if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
 			log.Printf("WARN: extracted 0 message types from %d protobuf messages, all messages have empty TypeUrl", len(txBody.Messages))
 		}
@@ -702,7 +600,6 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 	}
 
 	// Protobuf parsing failed, try JSON format
-	// Check if it looks like JSON (starts with '[' or '{')
 	if len(messagesBytes) > 0 && (messagesBytes[0] == '[' || messagesBytes[0] == '{') {
 		var jsonMessages []map[string]interface{}
 		if err := sonic.Unmarshal(messagesBytes, &jsonMessages); err == nil {
@@ -717,7 +614,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 				return messageTypes
 			}
 		} else {
-			// Try parsing as single JSON object instead of array
+			// Try parsing as single JSON object
 			var singleMsg map[string]interface{}
 			if err := sonic.Unmarshal(messagesBytes, &singleMsg); err == nil {
 				if msgType, ok := singleMsg["type"].(string); ok && msgType != "" {
@@ -741,20 +638,7 @@ func getFirstBytes(data []byte, n int) []byte {
 }
 
 // TransactionFromGetTxResponse converts a chainClient.GetTx response to a Transaction model.
-// This function converts *tx.GetTxResponse (from chainClient.GetTx) to *injective_explorer_rpcpb.TxDetailData,
-// then uses TransactionFromProto to create the Transaction model.
-//
-// Parameters:
-//   - getTxResp: The response from chainClient.GetTx(ctx, hash)
-//   - storageThreshold: Storage threshold in bytes for compressed data. If 0 or negative, uses default 3KB (3072 bytes)
-//
-// Returns:
-//   - *Transaction: A Transaction instance with data from the GetTxResponse
-//
-// Behavior:
-//   - Extracts data from GetTxResponse.Tx and GetTxResponse.TxResponse
-//   - Converts to TxDetailData format
-//   - Uses TransactionFromProto for final conversion
+// Converts GetTxResponse to TxDetailData format, then uses TransactionFromProto.
 func TransactionFromGetTxResponse(getTxResp *cosmostxpb.GetTxResponse, storageThreshold int) *Transaction {
 	if getTxResp == nil {
 		return nil
@@ -805,13 +689,7 @@ func extractSignerFromEvents(events []*injective_explorer_rpcpb.Event) string {
 }
 
 // ConvertGetTxResponseToTxDetailData converts *tx.GetTxResponse to *injective_explorer_rpcpb.TxDetailData.
-// This extracts data from GetTxResponse.Tx and GetTxResponse.TxResponse fields.
-//
-// Parameters:
-//   - getTxResp: The response from chainClient.GetTx
-//
-// Returns:
-//   - *injective_explorer_rpcpb.TxDetailData: Converted transaction detail data
+// Extracts data from GetTxResponse.Tx and GetTxResponse.TxResponse fields.
 func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *injective_explorer_rpcpb.TxDetailData {
 	if getTxResp == nil {
 		return nil
@@ -843,9 +721,6 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 		}
 
 		// Extract signatures from AuthInfo.SignerInfo and Signatures
-		// In cosmos-sdk Tx structure:
-		// - AuthInfo.SignerInfo contains public keys and sequence numbers
-		// - Signatures contains the raw signature bytes
 		if getTxResp.Tx.AuthInfo != nil && len(getTxResp.Tx.AuthInfo.SignerInfos) > 0 {
 			signatures = make([]*injective_explorer_rpcpb.Signature, 0, len(getTxResp.Tx.AuthInfo.SignerInfos))
 			for i, signerInfo := range getTxResp.Tx.AuthInfo.SignerInfos {
@@ -853,7 +728,6 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 
 				// Extract public key (if available)
 				if signerInfo.PublicKey != nil && len(signerInfo.PublicKey.Value) > 0 {
-					// Encode public key bytes to base64 string
 					sigData.Pubkey = base64.StdEncoding.EncodeToString(signerInfo.PublicKey.Value)
 				}
 
@@ -862,14 +736,10 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 
 				// Extract signature data from Signatures slice (if available)
 				if i < len(getTxResp.Tx.Signatures) && len(getTxResp.Tx.Signatures[i]) > 0 {
-					// Encode signature bytes to base64 string
 					sigData.Signature = base64.StdEncoding.EncodeToString(getTxResp.Tx.Signatures[i])
 				}
 
 				// Address will be extracted from events as fallback
-				// Note: Extracting address from public key requires codec and crypto operations
-				// which are not available in this context. We will extract signer address
-				// from events as a fallback after events are processed.
 				signatures = append(signatures, sigData)
 			}
 		}
@@ -890,7 +760,7 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 		}
 	}
 
-	// Try to extract signer address from events as fallback
+	// Extract signer address from events as fallback
 	signerFromEvents := extractSignerFromEvents(events)
 
 	// Update signatures with address from events if not already set
@@ -924,16 +794,16 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 		gasFee = &injective_explorer_rpcpb.GasFee{
 			Amount:   amounts,
 			GasLimit: fee.GasLimit,
-			Payer:    "", // Payer not directly available, may need to extract from events
+			Payer:    "",
 		}
 	}
 
-	// Extract block timestamp (convert from TxResponse timestamp if available)
+	// Extract block timestamp from TxResponse
 	var blockTimestamp string
 	var blockUnixTimestamp uint64
 	if txResp.Timestamp != "" {
 		blockTimestamp = txResp.Timestamp
-		// Try to parse timestamp to get unix timestamp
+		// Parse timestamp to get unix timestamp
 		if t, err := time.Parse(time.RFC3339, txResp.Timestamp); err == nil {
 			blockUnixTimestamp = uint64(t.Unix())
 		}
@@ -941,7 +811,7 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 
 	// Build TxDetailData
 	return &injective_explorer_rpcpb.TxDetailData{
-		Id:                 "", // Id not available in GetTxResponse
+		Id:                 "",
 		BlockNumber:        uint64(txResp.Height),
 		BlockTimestamp:     blockTimestamp,
 		Hash:               fmt.Sprintf("0x%s", strings.ToLower(txResp.TxHash)),
@@ -953,14 +823,14 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 		GasFee:             gasFee,
 		Codespace:          txResp.Codespace,
 		Events:             events,
-		TxType:             "", // TxType not directly available
+		TxType:             "",
 		Messages:           messagesBytes,
 		Signatures:         signatures,
 		Memo:               getTxResp.Tx.Body.Memo,
-		TxNumber:           0, // TxNumber not available in GetTxResponse
+		TxNumber:           0,
 		BlockUnixTimestamp: blockUnixTimestamp,
 		ErrorLog:           txResp.RawLog,
 		Logs:               logsBytes,
-		ClaimIds:           nil, // ClaimIds not available in GetTxResponse
+		ClaimIds:           nil,
 	}
 }

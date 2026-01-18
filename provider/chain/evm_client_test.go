@@ -2,7 +2,6 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -86,7 +85,7 @@ func TestEVMClient_GetBlockNumber(t *testing.T) {
 	assert.NotNil(t, blockNumber)
 	assert.Greater(t, blockNumber.Int64(), int64(0))
 
-	fmt.Printf("Current block number: %s\n", blockNumber.String())
+	t.Logf("Current block number: %s", blockNumber.String())
 }
 
 func TestEVMClient_GetBlockByNumber(t *testing.T) {
@@ -111,7 +110,7 @@ func TestEVMClient_GetBlockByNumber(t *testing.T) {
 	assert.NotNil(t, block)
 	assert.Equal(t, latestBlock.Uint64(), block.Number().Uint64())
 
-	fmt.Printf("Block %d: %d transactions, hash: %s\n",
+	t.Logf("Block %d: %d transactions, hash: %s",
 		block.Number().Uint64(),
 		len(block.Transactions()),
 		block.Hash().Hex())
@@ -138,7 +137,7 @@ func TestEVMClient_GetBalance(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, balance)
 
-	fmt.Printf("wINJ contract balance: %s wei\n", balance.String())
+	t.Logf("wINJ contract balance: %s wei", balance.String())
 }
 
 func TestEVMClient_IsContract(t *testing.T) {
@@ -162,7 +161,7 @@ func TestEVMClient_IsContract(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, isContract, "wINJ should be a contract")
 
-	fmt.Printf("wINJ is contract: %v\n", isContract)
+	t.Logf("wINJ is contract: %v", isContract)
 }
 
 func TestEVMClient_GetTransactionByHash(t *testing.T) {
@@ -199,7 +198,7 @@ func TestEVMClient_GetTransactionByHash(t *testing.T) {
 			toAddr = tx.To().Hex()
 		}
 
-		fmt.Printf("Transaction hash: %s, from: %s, to: %s\n",
+		t.Logf("Transaction hash: %s, from: %s, to: %s",
 			txHash.Hex(),
 			sender.Hex(),
 			toAddr)
@@ -249,7 +248,7 @@ func TestEVMClient_GetEVMHashFromCosmosHash(t *testing.T) {
 		} else {
 			assert.NotEmpty(t, evmHashFromCosmos)
 			assert.True(t, strings.HasPrefix(evmHashFromCosmos, "0x"))
-			fmt.Printf("Converted Cosmos hash %s to EVM hash: %s\n", cosmosHashWithPrefix, evmHashFromCosmos)
+			t.Logf("Converted Cosmos hash %s to EVM hash: %s", cosmosHashWithPrefix, evmHashFromCosmos)
 		}
 
 		// Test with Injscan format (uppercase, no 0x prefix)
@@ -260,7 +259,7 @@ func TestEVMClient_GetEVMHashFromCosmosHash(t *testing.T) {
 		} else {
 			assert.NotEmpty(t, evmHashFromInjscan)
 			assert.True(t, strings.HasPrefix(evmHashFromInjscan, "0x"))
-			fmt.Printf("Converted Injscan hash %s to EVM hash: %s\n", cosmosHashInjscan, evmHashFromInjscan)
+			t.Logf("Converted Injscan hash %s to EVM hash: %s", cosmosHashInjscan, evmHashFromInjscan)
 		}
 
 		// Test that we can use the EVM hash to get the transaction
@@ -269,7 +268,7 @@ func TestEVMClient_GetEVMHashFromCosmosHash(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, tx)
 		assert.False(t, isPending, "transaction should not be pending")
-		fmt.Printf("Successfully retrieved transaction using EVM hash: %s\n", evmHash)
+		t.Logf("Successfully retrieved transaction using EVM hash: %s", evmHash)
 	} else {
 		t.Skip("No transactions in latest block")
 	}
@@ -290,9 +289,9 @@ func TestEVMClient_GetKnownContracts(t *testing.T) {
 	assert.Contains(t, contracts, "wETH")
 	assert.Contains(t, contracts, "MultiCall")
 
-	fmt.Println("Mainnet contracts:")
+	t.Log("Mainnet contracts:")
 	for name, addr := range contracts {
-		fmt.Printf("  %s: %s\n", name, addr.Hex())
+		t.Logf("  %s: %s", name, addr.Hex())
 	}
 }
 
@@ -313,7 +312,7 @@ func TestEVMClient_GetGasPrice(t *testing.T) {
 	assert.NotNil(t, gasPrice)
 	assert.Greater(t, gasPrice.Int64(), int64(0))
 
-	fmt.Printf("Current gas price: %s wei\n", gasPrice.String())
+	t.Logf("Current gas price: %s wei", gasPrice.String())
 }
 
 func TestGetTransactionDetails(t *testing.T) {
@@ -331,5 +330,5 @@ func TestGetTransactionDetails(t *testing.T) {
 
 	detailsBytes, err := sonic.Marshal(details)
 	require.NoError(t, err)
-	fmt.Println(string(detailsBytes))
+	t.Log(string(detailsBytes))
 }

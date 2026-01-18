@@ -34,7 +34,6 @@ const (
 // - pb.ContractTagInfoDTO
 
 // ToAccountDTO converts an Account model to proto AccountDTO.
-// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
 func ToAccountDTO(account *Account) *pb.AccountDTO {
 	if account == nil {
 		return nil
@@ -48,7 +47,6 @@ func ToAccountDTO(account *Account) *pb.AccountDTO {
 }
 
 // ToAccountBalanceDTO converts an AccountBalance model to proto AccountBalanceDTO.
-// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
 func ToAccountBalanceDTO(balance *AccountBalance) *pb.AccountBalanceDTO {
 	if balance == nil {
 		return nil
@@ -74,8 +72,7 @@ func ToAccountBalanceDTOs(balances []AccountBalance) []*pb.AccountBalanceDTO {
 }
 
 // ToBlockDTO converts a Block model to proto BlockDTO.
-// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed.
-// Txs field is converted from JSON strings to JSON objects (google.protobuf.Struct) for frontend use.
+// The isDetail parameter controls whether to include all fields or only summary fields.
 func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 	if block == nil {
 		return nil
@@ -136,51 +133,47 @@ func ToBlockDTOs(blocks []Block) []*pb.BlockDTO {
 }
 
 // ToTransactionDTO converts a Transaction model to proto TransactionDTO.
-// It automatically decompresses compressed data fields before returning.
-// It also loads data from object storage if storage keys exist.
+// The isDetail parameter controls whether to include all fields or only summary fields.
+// Automatically decompresses compressed data and loads from object storage if available.
 func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 	if tx == nil {
 		return nil
 	}
 
-	// Helper function to load and decompress data from database or object storage
-	// Returns the decompressed data as a string (base64 for binary, plain text for text)
-	// This ensures that data stored in object storage or compressed data stored in the database
-	// is properly loaded and decompressed before returning to clients
+	// Helper function to load and decompress data from database or object storage.
 	loadAndDecompressForDTO := func(dbField, storageKey string) string {
-		// If storage key exists, try to load from object storage first
+		// Try object storage first if storage key exists
 		if storageKey != "" {
 			storageClient := storage.Get()
 			ctx := context.Background()
 			if storageData, err := storageClient.GetObject(ctx, storageKey); err == nil {
-				// Decompress data from object storage (may be compressed binary format)
+				// Try to decompress (may already be uncompressed for backward compatibility)
 				decompressed, decompErr := DecompressDataFromBytes(storageData)
 				if decompErr != nil {
-					// If decompression fails, assume it's uncompressed (backward compatibility)
+					// Decompression failed, assume uncompressed (backward compatibility)
 					decompressed = storageData
 				}
-				// Successfully decompressed, check if it's text or binary
+				// Check if data is text or binary
 				if isValidUTF8(decompressed) {
 					return string(decompressed)
 				}
-				// For binary data, encode to base64 for safe JSON transmission
+				// Binary data, encode to base64 for safe JSON transmission
 				return encodeBinaryData(decompressed)
 			}
-			// If object storage fails, fall back to database field
+			// Object storage failed or no storage key, try database field
 		}
 
-		// No storage key or object storage failed, decompress database field
+		// No storage key or object storage failed, use database field
 		if dbField == "" {
 			return ""
 		}
-		// Decompress the data (handles both compressed and uncompressed data)
+		// Decompress data (handles both compressed and uncompressed)
 		decompressed, err := DecompressData(dbField)
 		if err != nil {
-			// If decompression fails, the data might be in old format (uncompressed)
-			// Try to decode as base64 if it looks like base64, otherwise return as-is
+			// Decompression failed, might be old format (uncompressed or base64)
 			decoded := decodeBinaryData(dbField)
 			if len(decoded) > 0 && len(decoded) != len(dbField) {
-				// Successfully decoded as base64 (size changed), check if it's text or binary
+				// Successfully decoded as base64, check if text or binary
 				if isValidUTF8(decoded) {
 					return string(decoded)
 				}
@@ -190,23 +183,19 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			// Not base64 or same size, return as plain text (backward compatibility)
 			return dbField
 		}
-		// Successfully decompressed, check if it's text or binary
+		// Successfully decompressed, check if text or binary
 		if isValidUTF8(decompressed) {
-			// Return as plain text
 			return string(decompressed)
 		}
-		// For binary data, encode to base64 for safe JSON transmission
-		// This matches the original behavior for binary data
+		// Binary data, encode to base64 for safe JSON transmission
 		return encodeBinaryData(decompressed)
 	}
 
 	if isDetail {
-		// Load and decompress fields (checking object storage first)
+		// Load and decompress fields (object storage first, then database)
 		dataStr := loadAndDecompressForDTO(tx.Data, tx.DataStorageKey)
 		messagesStr := loadAndDecompressForDTO(tx.Messages, tx.MessagesStorageKey)
 		logsStr := loadAndDecompressForDTO(tx.Logs, tx.LogsStorageKey)
-
-		// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed
 		txDTO := &pb.TransactionDTO{
 			Id:                 tx.Id,
 			BlockNumber:        tx.BlockNumber,
@@ -234,21 +223,12 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			Value:              tx.Value,
 		}
 
-		// Load EVM transaction details if available
-		if tx.EVMHash != "" {
-			evmDetails, err := LoadEVMTransactionDetails(context.Background(), tx)
-			if err == nil && evmDetails != nil {
-				txDTO.EvmTransaction = ToEVMTransactionDTO(evmDetails, tx)
-			}
-		}
+		// Note: EVM transaction details are loaded separately by the service layer
 
 		return txDTO
 	} else {
-		// For non-detail mode, also decompress Messages if present
-		// Load from object storage if storage key exists, otherwise from database
+		// For non-detail mode, load and decompress Messages field
 		messagesStr := loadAndDecompressForDTO(tx.Messages, tx.MessagesStorageKey)
-
-		// Addresses are already stored in Ethereum format (0x...) in the database, so no conversion needed
 		return &pb.TransactionDTO{
 			BlockNumber:        tx.BlockNumber,
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
@@ -421,57 +401,6 @@ func ToContractInfoDTOs(contracts []ContractInfo) []*pb.ContractInfoDTO {
 		dtos = append(dtos, ToContractInfoDTO(&contract))
 	}
 	return dtos
-}
-
-// LoadEVMTransactionDetails loads EVM transaction details from cache, storage, or database.
-// The loading order is: Redis cache -> object storage -> database fallback.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - tx: Transaction model
-//
-// Returns:
-//   - *chain.TransactionDetails: EVM transaction details, or nil if not found or not synced
-//   - error: Error if the operation fails
-func LoadEVMTransactionDetails(ctx context.Context, tx *Transaction) (*chain.TransactionDetails, error) {
-	if tx == nil {
-		return nil, nil
-	}
-
-	// Check if EVM details are synced
-	if !tx.EVMDetailsSynced {
-		return nil, nil
-	}
-
-	evmHash := tx.EVMHash
-	if evmHash == "" {
-		return nil, nil
-	}
-
-	// Ensure EVM hash has 0x prefix for cache key
-	if len(evmHash) < 2 || evmHash[:2] != "0x" {
-		evmHash = "0x" + evmHash
-	}
-
-	// 1. Try to load from Redis cache first (fastest)
-	// Note: Import cycle prevention - we use evmcache package directly in services
-	// This function is called by services which can import both models and evmcache
-
-	// 2. Load from object storage if storage key exists
-	if tx.EVMDetailsStorageKey != "" {
-		storageClient := storage.Get()
-		if storageClient != nil {
-			detailsBytes, err := storageClient.GetObject(ctx, tx.EVMDetailsStorageKey)
-			if err == nil {
-				var details chain.TransactionDetails
-				if err := sonic.Unmarshal(detailsBytes, &details); err == nil {
-					return &details, nil
-				}
-			}
-		}
-	}
-
-	return nil, nil
 }
 
 // ToEVMTransactionDTO converts TransactionDetails to EVMTransactionDTO.

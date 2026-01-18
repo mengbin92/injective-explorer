@@ -46,15 +46,6 @@ type EVMDetailsSyncConfig struct {
 }
 
 // NewEVMDetailsSyncService creates a new instance of EVMDetailsSyncService.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - config: EVM details sync configuration
-//   - bc: Bootstrap configuration (optional, can be nil)
-//
-// Returns:
-//   - *EVMDetailsSyncService: A new EVM details sync service instance
-//   - error: Error if the service cannot be created
 func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig, bc *conf.Bootstrap) (*EVMDetailsSyncService, error) {
 	serviceCtx, cancel := context.WithCancel(ctx)
 
@@ -73,7 +64,7 @@ func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig,
 		// Use default EVM client with network name from global config
 		networkName := global.NetworkName
 		if networkName == "" {
-			networkName = "mainnet" // Default to mainnet
+			networkName = "mainnet"
 		}
 		evmClient, err = chain.NewEVMClient(networkName)
 		if err != nil {
@@ -119,9 +110,6 @@ func (s *EVMDetailsSyncService) Stop() {
 }
 
 // worker is a worker goroutine that processes EVM transaction details tasks.
-//
-// Parameters:
-//   - id: Worker ID for logging
 func (s *EVMDetailsSyncService) worker(id int) {
 	defer s.wg.Done()
 
@@ -139,9 +127,6 @@ func (s *EVMDetailsSyncService) worker(id int) {
 }
 
 // processBatch processes a batch of EVM transaction details tasks.
-//
-// Parameters:
-//   - workerID: Worker ID for logging
 func (s *EVMDetailsSyncService) processBatch(workerID int) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.Timeout)
 	defer cancel()
@@ -178,11 +163,6 @@ func (s *EVMDetailsSyncService) processBatch(workerID int) {
 }
 
 // processTask processes a single EVM transaction details task.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - taskStr: Task string in format "cosmosHash:evmHash"
-//   - workerID: Worker ID for logging
 func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string, workerID int) {
 	// Parse task: format is "cosmosHash:evmHash"
 	parts := strings.Split(taskStr, ":")
@@ -211,9 +191,34 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 		return
 	}
 
-	// Skip if already synced
+	// Skip if already synced and data exists
+	// Check if data actually exists: either in database (raw_details_json) or in object storage (evm_details_storage_key)
 	if evmTx.EVMDetailsSynced {
-		return
+		// Check if data exists in database or object storage
+		hasDataInDB := evmTx.RawDetailsJSON != ""
+		hasDataInStorage := evmTx.EVMDetailsStorageKey != ""
+
+		// Check object storage or database based on configuration
+		if storage.IsEnabled() {
+			if hasDataInStorage {
+				// Data exists in object storage, skip
+				return
+			}
+			// Data missing in object storage, need to re-sync
+			global.Logger.Infof("worker %d: EVM transaction %s marked as synced but data missing in object storage, re-syncing", workerID, cosmosHash)
+		} else {
+			if hasDataInDB {
+				// Data exists in database, skip
+				return
+			}
+			// Data missing in database, need to re-sync
+			global.Logger.Infof("worker %d: EVM transaction %s marked as synced but raw_details_json is empty (object storage disabled), re-syncing", workerID, cosmosHash)
+		}
+		// Reset sync status to allow re-sync
+		db.Get().WithContext(ctx).
+			Model(&evmTx).
+			Where("transaction_hash = ?", cosmosHash).
+			Update("evm_details_synced", false)
 	}
 
 	// Fetch EVM transaction details
@@ -247,14 +252,6 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 }
 
 // fetchEVMDetails fetches EVM transaction details from EVM RPC.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - evmHash: EVM transaction hash
-//
-// Returns:
-//   - *chain.TransactionDetails: Transaction details
-//   - error: Error if the operation fails
 func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash string) (*chain.TransactionDetails, error) {
 	hash := ethcommon.HexToHash(evmHash)
 	details, err := s.evmClient.GetTransactionDetails(ctx, hash)
@@ -265,16 +262,7 @@ func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash str
 }
 
 // saveEVMDetails saves EVM transaction details to evm_transactions table or object storage.
-// It updates EVM-related fields (evm_from_address, evm_to_address) in the evm_transactions table.
-// This avoids affecting the transactions table and prevents clearing signatures/signer fields.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - evmTx: EVMTransaction model from evm_transactions table
-//   - details: EVM transaction details
-//
-// Returns:
-//   - error: Error if the operation fails
+// Updates EVM-related fields (evm_from_address, evm_to_address) in the evm_transactions table.
 func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *models.EVMTransaction, details *chain.TransactionDetails) error {
 	// Marshal to JSON
 	detailsJSON, err := sonic.Marshal(details)
@@ -284,8 +272,9 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 
 	// Check if should store to object storage (if data is large)
 	storageKey := ""
+	storageThreshold := getStorageThresholdForSync()
 
-	if storage.IsEnabled() && len(detailsJSON) > 3*1024 { // 3KB threshold
+	if storage.IsEnabled() && len(detailsJSON) > storageThreshold {
 		storageClient := storage.Get()
 		storageKey = storage.BuildStorageKey("evm_details", evmTx.TransactionHash)
 
@@ -308,10 +297,41 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 	}
 
 	if storageKey != "" {
+		// Store in object storage, only save storage key to database
 		updates["evm_details_storage_key"] = storageKey
+		// Clear raw_details_json when using object storage (unless parsing failed)
+		if details.ParseStatus == "success" {
+			updates["raw_details_json"] = ""
+		}
+	} else {
+		// Object storage not enabled or upload failed, store JSON in database
+		updates["raw_details_json"] = string(detailsJSON)
+		// Clear storage key when using database storage
+		updates["evm_details_storage_key"] = ""
 	}
 
-	// Update evm_transactions table (separate from transactions table)
+	// Store raw JSON if parsing failed (fallback mechanism)
+	if details.ParseStatus != "success" {
+		// Build raw details JSON structure
+		rawDetailsMap := make(map[string]interface{})
+		if len(details.RawTransactionJSON) > 0 {
+			var txData interface{}
+			sonic.Unmarshal(details.RawTransactionJSON, &txData)
+			rawDetailsMap["transaction"] = txData
+		}
+		if len(details.RawReceiptJSON) > 0 {
+			var receiptData interface{}
+			sonic.Unmarshal(details.RawReceiptJSON, &receiptData)
+			rawDetailsMap["receipt"] = receiptData
+		}
+
+		rawDetailsJSON, _ := sonic.Marshal(rawDetailsMap)
+		updates["raw_details_json"] = string(rawDetailsJSON)
+
+		global.Logger.Infof("Stored raw JSON for %s (parse_status: %s)", evmTx.TransactionHash, details.ParseStatus)
+	}
+
+	// Update evm_transactions table
 	err = db.Get().WithContext(ctx).
 		Model(evmTx).
 		Where("transaction_hash = ?", evmTx.TransactionHash).
@@ -325,11 +345,6 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 }
 
 // updateSyncError updates the sync error information for an EVM transaction.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - cosmosHash: Cosmos transaction hash
-//   - errorMsg: Error message
 func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash string, errorMsg string) {
 	db.Get().WithContext(ctx).
 		Model(&models.EVMTransaction{}).
@@ -340,13 +355,6 @@ func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash 
 }
 
 // shouldRetryEVM checks if a task should be retried based on the error type.
-//
-// Parameters:
-//   - evmTx: EVMTransaction model
-//   - err: Error that occurred (for error type checking)
-//
-// Returns:
-//   - bool: true if should retry, false otherwise
 func (s *EVMDetailsSyncService) shouldRetryEVM(evmTx *models.EVMTransaction, err error) bool {
 	if evmTx.EVMDetailsSynced {
 		return false
@@ -371,18 +379,13 @@ func (s *EVMDetailsSyncService) shouldRetryEVM(evmTx *models.EVMTransaction, err
 }
 
 // retryTask retries a task by pushing it back to the queue with exponential backoff.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - taskStr: Task string
 func (s *EVMDetailsSyncService) retryTask(ctx context.Context, taskStr string) {
-	// Get current retry count from database if available
-	// For now, we'll use a simple exponential backoff strategy
+	// Use simple exponential backoff strategy
 	maxRetries := s.config.MaxRetryAttempts
 	baseDelay := s.config.RetryDelay
 
 	go func() {
-		// Simple exponential backoff: 5s, 10s, 20s, 40s
+		// Exponential backoff: 5s, 10s, 20s, 40s
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			delay := time.Duration(1<<uint(attempt)) * baseDelay
 			time.Sleep(delay)
@@ -422,9 +425,9 @@ func categorizeError(err error) string {
 
 	// Network/RPC errors
 	if strings.Contains(errStr, "connection refused") ||
-	   strings.Contains(errStr, "network error") ||
-	   strings.Contains(errStr, "temporary failure") ||
-	   strings.Contains(errStr, "timeout") {
+		strings.Contains(errStr, "network error") ||
+		strings.Contains(errStr, "temporary failure") ||
+		strings.Contains(errStr, "timeout") {
 		return "NETWORK_ERROR"
 	}
 

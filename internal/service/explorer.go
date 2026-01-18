@@ -4758,7 +4758,7 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 	evmDetailsList := make([]*chain.TransactionDetails, 0, len(evmTxs))
 	for _, evmTx := range evmTxs {
 		evmHash := evmTx.EVMHash
-		if evmHash != "" && len(evmHash) < 2 || evmHash[:2] != "0x" {
+		if evmHash != "" && (len(evmHash) < 2 || evmHash[:2] != "0x") {
 			evmHash = "0x" + evmHash
 		}
 		if details, ok := detailsMap[evmHash]; ok {
@@ -4870,7 +4870,7 @@ func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb
 	// Get approximate or exact count from evm_transactions table
 	baseQuery := db.Get().WithContext(queryCtx).Model(&models.EVMTransaction{}).
 		Where("(evm_from_address = ? OR evm_to_address = ?)", dbQueryAddress, dbQueryAddress)
-	
+
 	var countErr error
 	total, isExactCount, countErr = getApproximateCountWithError(baseQuery, &models.EVMTransaction{}, queryCtx)
 	if countErr != nil {
@@ -4978,18 +4978,8 @@ func (s *ExplorerService) loadEVMTransactionDetailsWithCacheFromEVMTx(ctx contex
 	if evmTx == nil {
 		return nil, nil
 	}
-
-	// Check if EVM details are synced
-	if !evmTx.EVMDetailsSynced {
-		return nil, nil
-	}
-
-	evmHash := evmTx.EVMHash
-	if evmHash == "" {
-		return nil, nil
-	}
-
 	// Ensure EVM hash has 0x prefix for consistency
+	evmHash := evmTx.EVMHash
 	cacheKey := evmHash
 	if len(cacheKey) < 2 || cacheKey[:2] != "0x" {
 		cacheKey = "0x" + cacheKey
@@ -5041,7 +5031,121 @@ func (s *ExplorerService) loadEVMTransactionDetailsWithCacheFromEVMTx(ctx contex
 		}
 	}
 
+	// 3. Fallback: Try to fetch from EVM RPC for unsynced transactions
+	if !evmTx.EVMDetailsSynced && evmHash != "" {
+		global.Logger.Debugf("EVM details not synced for %s, attempting RPC fallback", evmHash)
+		evmClient, err := createEVMClient()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create EVM client for RPC fallback")
+		}
+		defer evmClient.Close()
+
+		// Use short timeout for real-time fetch
+		evmCtx, evmCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer evmCancel()
+
+		details, err := evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(evmHash))
+		if err != nil {
+			global.Logger.Debugf("RPC fallback failed for %s: %v", evmHash, err)
+			return nil, nil
+		}
+
+		// Cache the result
+		if detailsJSON, jsonErr := sonic.Marshal(details); jsonErr == nil {
+			// Update database asynchronously
+			go s.updateEVMTransactionDetails(ctx, evmHash, details, detailsJSON)
+		}
+
+		return details, nil
+	}
+
 	return nil, nil
+}
+
+// updateEVMTransactionDetails updates EVM transaction details in database asynchronously.
+// This is used to cache fetched EVM details from RPC calls.
+//
+// Parameters:
+//   - ctx: Context for the database operation
+//   - evmHash: EVM transaction hash
+//   - details: EVM transaction details object
+//   - detailsJSON: JSON bytes of EVM transaction details
+func (s *ExplorerService) updateEVMTransactionDetails(ctx context.Context, evmHash string, details *chain.TransactionDetails, detailsJSON []byte) {
+	// Query evm_transactions table by evm_hash
+	var evmTx models.EVMTransaction
+	err := db.Get().WithContext(ctx).
+		Where("evm_hash = ?", evmHash).
+		First(&evmTx).Error
+	if err != nil {
+		global.Logger.Debugf("EVM transaction %s not found in evm_transactions table for update", evmHash)
+		return
+	}
+
+	// Update evm_transactions table
+	now := time.Now()
+	updates := map[string]interface{}{
+		"evm_details_synced":     true,
+		"evm_details_sync_at":    &now,
+		"evm_details_sync_error": "",
+		"evm_from_address":       details.From,
+		"evm_to_address":         details.To,
+	}
+
+	// Check if should store to object storage (if data is large)
+	storageKey := ""
+	if storage.IsEnabled() && len(detailsJSON) > getStorageThresholdForSync() { // 3KB threshold
+		storageClient := storage.Get()
+		storageKey = storage.BuildStorageKey("evm_details", evmHash)
+
+		if err := storageClient.PutObject(ctx, storageKey, detailsJSON); err == nil {
+			updates["evm_details_storage_key"] = storageKey
+			// Clear raw_details_json when using object storage (unless parsing failed)
+			if details.ParseStatus == "success" {
+				updates["raw_details_json"] = ""
+			}
+		} else {
+			global.Logger.Warnf("failed to upload EVM details to storage for %s: %v", evmHash, err)
+			// Continue with database storage
+			storageKey = ""
+		}
+	}
+
+	if storageKey == "" {
+		// Object storage not enabled or upload failed, store JSON in database
+		updates["raw_details_json"] = string(detailsJSON)
+		// Clear storage key when using database storage
+		updates["evm_details_storage_key"] = ""
+	}
+
+	// Store raw JSON if parsing failed (fallback mechanism)
+	if details.ParseStatus != "success" {
+		// Build raw details JSON structure
+		rawDetailsMap := make(map[string]interface{})
+		if len(details.RawTransactionJSON) > 0 {
+			var txData interface{}
+			sonic.Unmarshal(details.RawTransactionJSON, &txData)
+			rawDetailsMap["transaction"] = txData
+		}
+		if len(details.RawReceiptJSON) > 0 {
+			var receiptData interface{}
+			sonic.Unmarshal(details.RawReceiptJSON, &receiptData)
+			rawDetailsMap["receipt"] = receiptData
+		}
+
+		rawDetailsJSON, _ := sonic.Marshal(rawDetailsMap)
+		updates["raw_details_json"] = string(rawDetailsJSON)
+
+		global.Logger.Infof("Stored raw JSON for %s (parse_status: %s)", evmHash, details.ParseStatus)
+	}
+
+	// Update database
+	err = db.Get().WithContext(ctx).
+		Model(&evmTx).
+		Where("evm_hash = ?", evmHash).
+		Updates(updates).Error
+	if err != nil {
+		global.Logger.Warnf("failed to update EVM transaction details for %s: %v", evmHash, err)
+	}
 }
 
 // loadEVMTransactionDetailsWithCache loads EVM transaction details with Redis cache support.
@@ -5060,88 +5164,26 @@ func (s *ExplorerService) loadEVMTransactionDetailsWithCache(ctx context.Context
 		return nil, nil
 	}
 
-	// Try to load from evm_transactions table first
+	// Load from evm_transactions table
 	var evmTx models.EVMTransaction
 	err := db.Get().WithContext(ctx).
 		Where("transaction_hash = ?", tx.Hash).
 		First(&evmTx).Error
-	if err == nil {
-		// Use new method with evm_transactions table
-		return s.loadEVMTransactionDetailsWithCacheFromEVMTx(ctx, &evmTx, tx)
-	}
-
-	// Fallback to old method (for backward compatibility with old data)
-	// Check if EVM details are synced
-	if !tx.EVMDetailsSynced {
+	if err != nil {
+		// EVM transaction not found
 		return nil, nil
 	}
 
-	evmHash := tx.EVMHash
-	if evmHash == "" {
-		return nil, nil
-	}
-
-	// Ensure EVM hash has 0x prefix for consistency
-	cacheKey := evmHash
-	if len(cacheKey) < 2 || cacheKey[:2] != "0x" {
-		cacheKey = "0x" + cacheKey
-	}
-
-	// 1. Try to load from Redis cache first (fastest)
-	key := CacheKeyEVMDetailsPrefix + cacheKey
-	// Remove 0x prefix if present
-	if len(key) > 11 && key[11:13] == "0x" {
-		key = key[:11] + key[13:]
-	}
-	cached, err := cache.GetRedisClient().Get(ctx, key).Bytes()
-	if err == nil && cached != nil {
-		var details chain.TransactionDetails
-		if err := sonic.Unmarshal(cached, &details); err == nil {
-			return &details, nil
-		}
-	} else if err != nil && err != redis.Nil {
-		global.Logger.Warnf("failed to get cached EVM details: %v", err)
-	}
-
-	// 2. Load from object storage if storage key exists
-	if tx.EVMDetailsStorageKey != "" {
-		storageClient := storage.Get()
-		if storageClient != nil {
-			detailsBytes, err := storageClient.GetObject(ctx, tx.EVMDetailsStorageKey)
-			if err == nil {
-				var details chain.TransactionDetails
-				if err := sonic.Unmarshal(detailsBytes, &details); err == nil {
-					// Cache the result asynchronously
-					go func() {
-						redisClient := cache.GetRedisClient()
-						if redisClient != nil {
-							cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-							defer cancel()
-							key := CacheKeyEVMDetailsPrefix + cacheKey
-							// Remove 0x prefix if present
-							if len(key) > 11 && key[11:13] == "0x" {
-								key = key[:11] + key[13:]
-							}
-							if err := redisClient.Set(cacheCtx, key, detailsBytes, CacheEVMDetailsTTL).Err(); err != nil {
-								global.Logger.Warnf("failed to cache EVM details: %v", err)
-							}
-						}
-					}()
-					return &details, nil
-				}
-			}
-		}
-	}
-
-	return nil, nil
+	// Use EVMTransaction model
+	return s.loadEVMTransactionDetailsWithCacheFromEVMTx(ctx, &evmTx, tx)
 }
 
 // loadEVMDetailsBatchParallel loads EVM transaction details for multiple transactions in parallel.
-// It uses goroutines with WaitGroup for concurrent loading with Redis cache optimization.
+// It queries the evm_transactions table and uses goroutines with WaitGroup for concurrent loading with Redis cache optimization.
 //
 // Parameters:
 //   - ctx: Context for cancellation and timeout
-//   - txs: List of transactions to load details for
+//   - txs: List of Cosmos transactions to load EVM details for
 //
 // Returns:
 //   - map[string]*chain.TransactionDetails: Map of evmHash to transaction details
@@ -5151,135 +5193,22 @@ func (s *ExplorerService) loadEVMDetailsBatchParallel(ctx context.Context, txs [
 		return make(map[string]*chain.TransactionDetails), nil
 	}
 
-	// Collect unique EVM hashes that need details loaded
-	type pendingLoad struct {
-		tx      *models.Transaction
-		evmHash string
-	}
-
-	pending := make([]pendingLoad, 0, len(txs))
-	detailsMap := make(map[string]*chain.TransactionDetails)
-
+	// Query evm_transactions table for the given transaction hashes
+	txHashes := make([]string, len(txs))
 	for i := range txs {
-		tx := &txs[i]
-		if !tx.EVMDetailsSynced || tx.EVMHash == "" {
-			continue
-		}
-
-		evmHash := tx.EVMHash
-		if len(evmHash) < 2 || evmHash[:2] != "0x" {
-			evmHash = "0x" + evmHash
-		}
-
-		pending = append(pending, pendingLoad{tx: tx, evmHash: evmHash})
+		txHashes[i] = txs[i].Hash
 	}
 
-	if len(pending) == 0 {
-		return detailsMap, nil
+	var evmTxs []models.EVMTransaction
+	err := db.Get().WithContext(ctx).
+		Where("transaction_hash IN ?", txHashes).
+		Find(&evmTxs).Error
+	if err != nil {
+		return make(map[string]*chain.TransactionDetails), nil
 	}
 
-	// 1. Batch check Redis cache first
-	evmHashes := make([]string, len(pending))
-	for i, p := range pending {
-		evmHashes[i] = p.evmHash
-	}
-
-	// Batch get from Redis
-	var cachedResults map[string][]byte
-	redisClient := cache.GetRedisClient()
-	if redisClient != nil {
-		// Build keys
-		keys := make([]string, len(evmHashes))
-		for i, hash := range evmHashes {
-			key := CacheKeyEVMDetailsPrefix + hash
-			// Remove 0x prefix if present
-			if len(key) > 11 && key[11:13] == "0x" {
-				key = key[:11] + key[13:]
-			}
-			keys[i] = key
-		}
-
-		// Batch get
-		results, err := redisClient.MGet(ctx, keys...).Result()
-		if err != nil {
-			global.Logger.Warnf("failed to batch get cached EVM details: %v", err)
-		} else {
-			// Parse results
-			cachedResults = make(map[string][]byte)
-			for i, result := range results {
-				if result != nil {
-					if bytes, ok := result.([]byte); ok {
-						cachedResults[evmHashes[i]] = bytes
-					}
-				}
-			}
-		}
-	} else {
-		cachedResults = make(map[string][]byte)
-	}
-
-	// Parse cached results and identify what's still pending
-	stillPending := make([]pendingLoad, 0, len(pending))
-	for _, p := range pending {
-		if cached, ok := cachedResults[p.evmHash]; ok && cached != nil {
-			var details chain.TransactionDetails
-			if err := sonic.Unmarshal(cached, &details); err == nil {
-				detailsMap[p.evmHash] = &details
-				continue
-			}
-		}
-		stillPending = append(stillPending, p)
-	}
-
-	if len(stillPending) == 0 {
-		return detailsMap, nil
-	}
-
-	// 2. Load remaining from object storage/database in parallel with concurrency limit
-	// Limit concurrency to avoid overwhelming storage/RPC services
-	const maxConcurrency = 10
-	sem := make(chan struct{}, maxConcurrency)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(stillPending))
-
-	for i := range stillPending {
-		wg.Add(1)
-		go func(pl pendingLoad) {
-			defer wg.Done()
-
-			// Acquire semaphore to limit concurrent storage reads
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			details, err := s.loadEVMTransactionDetailsWithCache(ctx, pl.tx)
-			if err != nil {
-				select {
-				case errChan <- err:
-				default:
-				}
-				return
-			}
-
-			if details != nil {
-				mu.Lock()
-				detailsMap[pl.evmHash] = details
-				mu.Unlock()
-			}
-		}(stillPending[i])
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	// Collect errors (non-blocking)
-	for err := range errChan {
-		if err != nil {
-			return detailsMap, err
-		}
-	}
-
-	return detailsMap, nil
+	// Use the new function that works with EVMTransaction model
+	return s.loadEVMDetailsBatchParallelFromEVMTx(ctx, evmTxs, txs)
 }
 
 // loadEVMDetailsBatchParallelFromEVMTx loads EVM transaction details for multiple EVM transactions in parallel.
@@ -5301,8 +5230,8 @@ func (s *ExplorerService) loadEVMDetailsBatchParallelFromEVMTx(ctx context.Conte
 
 	// Collect unique EVM hashes that need details loaded
 	type pendingLoad struct {
-		evmTx  *models.EVMTransaction
-		tx     *models.Transaction
+		evmTx   *models.EVMTransaction
+		tx      *models.Transaction
 		evmHash string
 	}
 

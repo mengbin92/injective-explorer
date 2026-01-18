@@ -2,7 +2,6 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/InjectiveLabs/sdk-go/client/common"
@@ -22,15 +21,15 @@ func TestGetTxMessage(t *testing.T) {
 
 	txMessage := tx.Data.GetMessages()
 
-	fmt.Println(string(txMessage))
+	t.Log(string(txMessage))
 
-	fmt.Println("================================================")
+	t.Log("================================================")
 
 	txBody := &cosmostxpb.TxBody{}
 
 	err = txBody.Unmarshal(txMessage)
 	assert.NoError(t, err, "failed to unmarshal tx body")
-	fmt.Println(txBody.String())
+	t.Log(txBody.String())
 }
 
 func TestGetTxMessageTypes(t *testing.T) {
@@ -74,7 +73,7 @@ func TestGetTxMessageTypes(t *testing.T) {
 
 			if len(messageTypes) > 0 {
 				t.Logf("Extracted %d message types: %v", len(messageTypes), messageTypes)
-				fmt.Println("Message Types:", messageTypes)
+				t.Log("Message Types:", messageTypes)
 			} else {
 				t.Logf("No message types extracted from %d messages", len(txBody.Messages))
 			}
@@ -101,7 +100,7 @@ func TestGetTxMessageTypes(t *testing.T) {
 
 		if len(messageTypes) > 0 {
 			t.Logf("Extracted %d message types: %v", len(messageTypes), messageTypes)
-			fmt.Println("Message Types:", messageTypes)
+			t.Log("Message Types:", messageTypes)
 		}
 		return
 	}
@@ -125,7 +124,7 @@ func TestGetTxMessageTypes(t *testing.T) {
 
 			if len(messageTypes) > 0 {
 				t.Logf("Extracted %d message types from JSON: %v", len(messageTypes), messageTypes)
-				fmt.Println("Message Types (from JSON):", messageTypes)
+				t.Log("Message Types (from JSON):", messageTypes)
 			} else {
 				t.Logf("No message types extracted from JSON messages")
 			}

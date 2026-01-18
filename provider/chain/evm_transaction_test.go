@@ -2,7 +2,6 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -45,14 +44,14 @@ func TestGetEVMTransactionByCosmosHash(t *testing.T) {
 
 	var evmHash string
 	for i, event := range resp.TxResponse.Events {
-		fmt.Printf("Event %d: %s\n", i, event.Type)
+		t.Logf("Event %d: %s", i, event.Type)
 		for _, attribute := range event.Attributes {
-			fmt.Printf("\t%s: %s\n", attribute.Key, attribute.Value)
+			t.Logf("\t%s: %s", attribute.Key, attribute.Value)
 			if attribute.Key == evmtypes.AttributeKeyEthereumTxHash {
 				evmHash = attribute.Value
 			}
 		}
-		fmt.Println()
+		t.Log("")
 	}
 
 	// Check if EVM hash was found
@@ -72,5 +71,5 @@ func TestGetEVMTransactionByCosmosHash(t *testing.T) {
 
 	detailsBytes, err := sonic.Marshal(details)
 	assert.NoError(t, err)
-	fmt.Println(string(detailsBytes))
+	t.Log(string(detailsBytes))
 }
