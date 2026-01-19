@@ -63,9 +63,9 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 		case "today":
 			query = query.Where("created_at >= ?", time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 		case "7days":
-			query = query.Where("created_at >= ?", now.AddDate(0, 0, -7))
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -PeriodLast7Days))
 		case "30days":
-			query = query.Where("created_at >= ?", now.AddDate(0, 0, -30))
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -PeriodLast30Days))
 		}
 	}
 
@@ -711,9 +711,9 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 		case "today":
 			query = query.Where("created_at >= ?", time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 		case "7days":
-			query = query.Where("created_at >= ?", now.AddDate(0, 0, -7))
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -PeriodLast7Days))
 		case "30days":
-			query = query.Where("created_at >= ?", now.AddDate(0, 0, -30))
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -PeriodLast30Days))
 		}
 	}
 

@@ -32,6 +32,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ExplorerService implements the explorer API
@@ -233,10 +234,10 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 		blockDTO := models.ToBlockDTO(cachedBlock, models.DTOModeWithDetail)
 
 		// For cached blocks, enhance transactions asynchronously if the block is recent
-		if uint64(req.Height) > getLatestBlockHeight()-1000 {
+		if uint64(req.Height) > getLatestBlockHeight()-RecentBlockThreshold {
 			// Enhance in background without blocking the response
 			go func() {
-				enhanceCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				enhanceCtx, cancel := context.WithTimeout(context.Background(), AsyncEnhancementTimeout)
 				defer cancel()
 				s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.Height))
 			}()
@@ -262,7 +263,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 
 		// For database blocks, enhance transactions based on age and transaction count
 		// Skip enhancement for blocks with >100 transactions to avoid timeout
-		if uint64(req.Height) > getLatestBlockHeight()-1000 && len(blockDTO.Txs) <= 100 {
+		if uint64(req.Height) > getLatestBlockHeight() - RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
 			// Enhance synchronously for recent small blocks
 			enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
 			return MarshalAndReply(enhancedBlockDTO, "marshal block error")
@@ -274,7 +275,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 			} else {
 				// Enhance in background for older blocks
 				go func() {
-					enhanceCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					enhanceCtx, cancel := context.WithTimeout(context.Background(), AsyncEnhancementTimeout)
 					defer cancel()
 					s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.Height))
 				}()
@@ -288,9 +289,71 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 		global.Logger.Debugf("block not found in database: height=%d, query_time=%v", req.Height, queryDuration)
 	}
 
-	// Not found in database or conversion failed, return error
-	global.Logger.Debugf("block not found in database: height=%d", req.Height)
-	return ErrorReply(http.StatusNotFound, "block not found", errors.New("block not found")), errors.New("block not found")
+	// Not found in database, query from blockchain
+	global.Logger.Infof("block not found in database, querying from blockchain: height=%d", req.Height)
+
+	// Use independent context for RPC calls to avoid timeout issues
+	rpcCtx, rpcCancel := context.WithTimeout(context.Background(), AsyncEnhancementTimeout)
+	defer rpcCancel()
+
+	// Create RPC client
+	rpcClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
+	if err != nil {
+		global.Logger.Errorf("failed to create RPC client: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to create RPC client", err), err
+	}
+
+	// Fetch block from blockchain
+	height := int64(req.Height)
+	blockResp, err := rpcClient.Block(rpcCtx, &height)
+	if err != nil {
+		global.Logger.Errorf("failed to fetch block from blockchain: height=%d, error=%v", req.Height, err)
+		return ErrorReply(http.StatusInternalServerError, "failed to fetch block from blockchain", err), err
+	}
+
+	if blockResp == nil || blockResp.Block == nil {
+		global.Logger.Errorf("block response is nil for height %d", req.Height)
+		return ErrorReply(http.StatusInternalServerError, "block response is nil", errors.New("block response is nil")), errors.New("block response is nil")
+	}
+
+	// Convert to model
+	blockModel := models.BlockFromTM(blockResp)
+	if blockModel == nil {
+		global.Logger.Errorf("failed to convert block at height %d", req.Height)
+		return ErrorReply(http.StatusInternalServerError, "failed to convert block", errors.New("failed to convert block")), errors.New("failed to convert block")
+	}
+
+	// Save to database using upsert for future queries
+	err = db.Get().Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "height"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"proposer", "moniker", "block_hash", "parent_hash",
+			"num_precommits", "num_txs", "total_txs", "txs",
+			"timestamp", "block_unix_timestamp", "updated_at",
+		}),
+	}).Create(blockModel).Error
+
+	if err != nil {
+		global.Logger.Warnf("failed to save block to database (non-critical, returning fetched data): height=%d, error=%v", req.Height, err)
+		// Continue even if database save fails
+	} else {
+		global.Logger.Infof("saved block to database: height=%d", req.Height)
+	}
+
+	// Cache the block for future queries
+	cacheBlock(rpcCtx, blockModel)
+
+	// Convert to DTO and return
+	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
+
+	// Enhance transactions if the block is recent and has manageable transaction count
+	if uint64(req.Height) > getLatestBlockHeight() - RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
+		// Enhance synchronously for recent small blocks
+		enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
+		return MarshalAndReply(enhancedBlockDTO, "marshal block error")
+	}
+
+	return MarshalAndReply(blockDTO, "marshal block error")
 }
 
 // enhanceBlockDTOWithTransactions enhances BlockDTO with transaction signer, to, and value information.
@@ -310,9 +373,9 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 		return blockDTO
 	}
 
-	// Skip enhancement for very old blocks (> 10000 blocks) to avoid long delays
+	// Skip enhancement for very old blocks (> OldBlockThreshold blocks) to avoid long delays
 	// This is a performance optimization - old blocks are less likely to need enhancement
-	if blockHeight < getLatestBlockHeight()-10000 {
+	if blockHeight < getLatestBlockHeight()-OldBlockThreshold {
 		global.Logger.Debugf("skipping transaction enhancement for old block %d", blockHeight)
 		return blockDTO
 	}
@@ -5041,7 +5104,7 @@ func (s *ExplorerService) loadEVMTransactionDetailsWithCacheFromEVMTx(ctx contex
 		defer evmClient.Close()
 
 		// Use short timeout for real-time fetch
-		evmCtx, evmCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		evmCtx, evmCancel := context.WithTimeout(context.Background(), AsyncEnhancementTimeout)
 		defer evmCancel()
 
 		details, err := evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(evmHash))
@@ -5423,7 +5486,7 @@ func (s *ExplorerService) GetTransactionsBatch(ctx context.Context, req *pb.GetT
 	}
 
 	// Limit batch size to prevent abuse
-	maxBatchSize := 100
+	maxBatchSize := BlockBatchSizeLimit
 	if len(req.Hashes) > maxBatchSize {
 		return ErrorReply(http.StatusBadRequest, fmt.Sprintf("batch size exceeds maximum of %d", maxBatchSize), errors.New("batch size too large")), errors.New("batch size too large")
 	}
@@ -5502,7 +5565,7 @@ func (s *ExplorerService) GetBlocksBatch(ctx context.Context, req *pb.GetBlocksB
 	}
 
 	// Limit batch size to prevent abuse
-	maxBatchSize := 100
+	maxBatchSize := BlockBatchSizeLimit
 	if len(req.Heights) > maxBatchSize {
 		return ErrorReply(http.StatusBadRequest, fmt.Sprintf("batch size exceeds maximum of %d", maxBatchSize), errors.New("batch size too large")), errors.New("batch size too large")
 	}

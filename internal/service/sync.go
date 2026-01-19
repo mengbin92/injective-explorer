@@ -32,6 +32,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // processResult collects worker processing results.
@@ -714,28 +715,26 @@ func (s *SyncService) processBlock(height uint64) error {
 		return errors.Errorf("failed to convert block at height %d", height)
 	}
 
-	// Use transaction to ensure atomicity
+	// Use transaction to ensure atomicity with upsert for reduced database round trips
 	var isUpdate bool
 	err = db.Get().Transaction(func(tx *gorm.DB) error {
-		// Check if block already exists
+		// Check if block already exists (for event type determination)
 		var existingBlock models.Block
-		err := tx.Where("height = ?", height).First(&existingBlock).Error
-		if err == nil {
-			// Block exists, update it
-			isUpdate = true
-			err = tx.Model(&existingBlock).Updates(blockModel).Error
-			if err != nil {
-				return errors.Wrapf(err, "failed to update block at height %d", height)
-			}
-		} else if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Block doesn't exist, create it
-			isUpdate = false
-			err = tx.Create(blockModel).Error
-			if err != nil {
-				return errors.Wrapf(err, "failed to create block at height %d", height)
-			}
-		} else {
-			return errors.Wrapf(err, "failed to check block existence at height %d", height)
+		checkErr := tx.Where("height = ?", height).First(&existingBlock).Error
+		isUpdate = (checkErr == nil)
+
+		// Use upsert to reduce database round trips from 2 to 1
+		result := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "height"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"proposer", "moniker", "block_hash", "parent_hash",
+				"num_precommits", "num_txs", "total_txs", "txs",
+				"timestamp", "block_unix_timestamp", "updated_at",
+			}),
+		}).Create(blockModel)
+
+		if result.Error != nil {
+			return errors.Wrapf(result.Error, "failed to upsert block at height %d", height)
 		}
 
 		// Extract transaction hashes and push to Redis queue
@@ -947,39 +946,22 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 		}
 	}
 
-	// Batch insert new blocks
-	if len(blocksToInsert) > 0 {
-		// Use CreateInBatches for better performance
-		err := db.Get().CreateInBatches(blocksToInsert, batchSize).Error
+	// Unified batch upsert - merge all blocks and process in a single operation
+	allBlocks := append(blocksToInsert, blocksToUpdate...)
+	if len(allBlocks) > 0 {
+		err := db.Get().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "height"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"proposer", "moniker", "block_hash", "parent_hash",
+				"num_precommits", "num_txs", "total_txs", "txs",
+				"timestamp", "block_unix_timestamp", "updated_at",
+			}),
+		}).CreateInBatches(allBlocks, batchSize).Error
+
 		if err != nil {
-			return errors.Wrapf(err, "failed to batch insert %d blocks", len(blocksToInsert))
+			return errors.Wrapf(err, "failed to batch upsert %d blocks", len(allBlocks))
 		}
-		global.Logger.Debugf("batch inserted %d blocks", len(blocksToInsert))
-	}
-
-	// Batch update existing blocks
-	if len(blocksToUpdate) > 0 {
-		// Update in batches
-		for i := 0; i < len(blocksToUpdate); i += batchSize {
-			end := i + batchSize
-			if end > len(blocksToUpdate) {
-				end = len(blocksToUpdate)
-			}
-			batch := blocksToUpdate[i:end]
-
-			err := db.Get().Transaction(func(tx *gorm.DB) error {
-				for _, block := range batch {
-					if err := tx.Model(block).Updates(block).Error; err != nil {
-						return errors.Wrapf(err, "failed to update block at height %d", block.Height)
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				return errors.Wrapf(err, "failed to batch update blocks")
-			}
-		}
-		global.Logger.Debugf("batch updated %d blocks", len(blocksToUpdate))
+		global.Logger.Debugf("batch upserted %d blocks", len(allBlocks))
 	}
 
 	// Publish events and cache blocks
@@ -1080,29 +1062,28 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 		return errors.Errorf("failed to convert block at height %d", height)
 	}
 
-	// Use transaction to ensure atomicity
+	// Use transaction to ensure atomicity with upsert for reduced database round trips
 	var isUpdate bool
 	err = db.Get().Transaction(func(tx *gorm.DB) error {
-		// Check if block already exists (we already checked in batch, but double-check for safety)
+		// Check if block already exists (for event type determination)
 		var existingBlock models.Block
-		err := tx.Where("height = ?", height).First(&existingBlock).Error
-		if err == nil {
-			// Block exists, update it
-			isUpdate = true
-			err = tx.Model(&existingBlock).Updates(blockModel).Error
-			if err != nil {
-				return errors.Wrapf(err, "failed to update block at height %d", height)
-			}
-		} else if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Block doesn't exist, create it
-			isUpdate = false
-			err = tx.Create(blockModel).Error
-			if err != nil {
-				return errors.Wrapf(err, "failed to create block at height %d", height)
-			}
-		} else {
-			return errors.Wrapf(err, "failed to check block existence at height %d", height)
+		checkErr := tx.Where("height = ?", height).First(&existingBlock).Error
+		isUpdate = (checkErr == nil)
+
+		// Use upsert to reduce database round trips from 2 to 1
+		result := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "height"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"proposer", "moniker", "block_hash", "parent_hash",
+				"num_precommits", "num_txs", "total_txs", "txs",
+				"timestamp", "block_unix_timestamp", "updated_at",
+			}),
+		}).Create(blockModel)
+
+		if result.Error != nil {
+			return errors.Wrapf(result.Error, "failed to upsert block at height %d", height)
 		}
+
 		return nil
 	})
 

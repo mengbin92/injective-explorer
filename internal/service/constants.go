@@ -15,10 +15,12 @@ const (
 	MinPageSize     = 1
 
 	// Timeout constants
-	GRPCTimeout       = 60 * time.Second
-	CountQueryTimeout = 2 * time.Second
-	BlockQueryTimeout = 30 * time.Second
-	DBQueryTimeout    = 5 * time.Second  // Database query timeout (reduced from 10s to 5s for faster failure)
+	GRPCTimeout              = 60 * time.Second
+	CountQueryTimeout        = 2 * time.Second
+	BlockQueryTimeout        = 30 * time.Second
+	DBQueryTimeout           = 5 * time.Second // Database query timeout (reduced from 10s to 5s for faster failure)
+	AsyncEnhancementTimeout  = 10 * time.Second // Timeout for asynchronous block/transaction enhancement operations
+	ValidatorUpdateInterval  = 10 * time.Minute // Interval for periodic validator updates
 
 	// Approximate count constants
 	ApproximateCountThreshold  = 10000
@@ -57,6 +59,22 @@ const (
 
 	// Chain query constants
 	RecentBlockThreshold = 1000 // Block height threshold for querying from chain (within last N blocks)
+	OldBlockThreshold     = 10000 // Block height threshold for considering a block as "old" (skip enhancement for very old blocks)
+
+	// Transaction enhancement constants
+	MaxTxEnhancementCount = 100 // Maximum number of transactions to enhance synchronously (blocks with more txs are enhanced asynchronously)
+
+	// Batch size constants
+	BlockBatchSizeLimit = 100 // Maximum batch size for block queries
+	QueryBatchLimit      = 100 // Maximum batch size for generic queries
+
+	// API token constants
+	DefaultAPITokenMonthlyLimit = 100000 // Default monthly limit for API tokens
+
+	// Time period constants (in days)
+	PeriodLast7Days  = 7  // Last 7 days
+	PeriodLast30Days = 30 // Last 30 days
+	PeriodLast1Day   = 1  // Last 1 day
 
 	// Health check constants
 	HealthCheckTimeout = 2 * time.Second // Timeout for health check operations

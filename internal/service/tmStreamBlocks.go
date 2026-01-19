@@ -4,6 +4,7 @@ import (
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/cache"
+	"injective-explorer/provider/db"
 	"context"
 	"encoding/hex"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/pkg/errors"
+	"gorm.io/gorm/clause"
 )
 
 func (s *SyncService) tmStreamBlocks(ctx context.Context) {
@@ -44,9 +46,11 @@ func (s *SyncService) tmStreamBlocks(ctx context.Context) {
 				continue
 			}
 
-			// Save block to database
+			// Save block to database using upsert for optimal performance
 			blockModel := models.BlockFromTM(blockResp)
-			saveToDB(blockModel, "create block error")
+			if err := s.saveBlockToDB(blockModel); err != nil {
+				global.Logger.Errorf("failed to save block at height %d: %v", h.Height, err)
+			}
 
 			// Extract transaction hashes and push to Redis queue for processing
 			if len(blockResp.Block.Data.Txs) > 0 {
@@ -111,7 +115,7 @@ func (s *SyncService) getAllValidators(ctx context.Context) error {
 
 // periodicValidatorUpdate periodically updates validator information
 func (s *SyncService) periodicValidatorUpdate(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Minute) // Update validators every 10 minutes
+	ticker := time.NewTicker(ValidatorUpdateInterval) // Update validators periodically
 	defer ticker.Stop()
 
 	global.Logger.Infof("starting periodic validator update (interval: 10m)")
@@ -136,4 +140,37 @@ func (s *SyncService) getTx(ctx context.Context, hash string) (*tx.GetTxResponse
 		return nil, errors.Wrap(err, "failed to get tx from chain")
 	}
 	return txResp, nil
+}
+
+// saveBlockToDB saves a block to the database using upsert for optimal performance.
+// It uses clause.OnConflict to reduce database round trips from 2 to 1.
+func (s *SyncService) saveBlockToDB(blockModel *models.Block) error {
+	if blockModel == nil {
+		return errors.New("block model is nil")
+	}
+
+	err := db.Get().Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "height"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"proposer", "moniker", "block_hash", "parent_hash",
+			"num_precommits", "num_txs", "total_txs", "txs",
+			"timestamp", "block_unix_timestamp", "updated_at",
+		}),
+	}).Create(blockModel).Error
+
+	if err != nil {
+		return errors.Wrapf(err, "failed to upsert block at height %d", blockModel.Height)
+	}
+
+	// Publish block event for streaming
+	eventBus := GetEventBus()
+	eventBus.PublishBlock(&BlockEvent{
+		Block: blockModel,
+		Type:  EventTypeBlockNew,
+	})
+
+	// Cache block to Redis
+	cacheBlock(context.Background(), blockModel)
+
+	return nil
 }

@@ -425,7 +425,7 @@ func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDash
 	err = db.Get().WithContext(queryCtx).
 		Where("user_id = ?", userID).
 		First(&userStats).Error
-	monthlyLimit := uint64(100000) // Default limit
+	monthlyLimit := uint64(DefaultAPITokenMonthlyLimit) // Default limit
 	monthlyUsed := uint64(0)
 	if err == nil {
 		monthlyLimit = userStats.MonthlyLimit
@@ -504,9 +504,9 @@ func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsa
 		case "today":
 			query = query.Where("created_at >= ?", time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 		case "7days":
-			query = query.Where("created_at >= ?", now.AddDate(0, 0, -7))
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -PeriodLast7Days))
 		case "30days":
-			query = query.Where("created_at >= ?", now.AddDate(0, 0, -30))
+			query = query.Where("created_at >= ?", now.AddDate(0, 0, -PeriodLast30Days))
 		}
 	}
 
