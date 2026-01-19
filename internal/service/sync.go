@@ -1,6 +1,6 @@
 // Package service provides blockchain synchronization services.
-// It uses WebSocket streaming to receive new blocks in real-time, stores block data,
-// processes transactions, and updates account information.
+// It uses Tendermint RPC client subscription to receive new blocks, HTTP polling for
+// historical data, batch processing for efficiency, and updates account information.
 package service
 
 import (

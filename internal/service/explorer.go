@@ -1564,8 +1564,9 @@ func getApproximateCount(db *gorm.DB, model interface{}, ctx context.Context) (i
 }
 
 // getApproximateCountWithError gets an approximate count for large datasets and returns errors.
-// This function uses database statistics (information_schema/pg_class) for fast approximate counts
-// instead of scanning the entire table, which is much more efficient for large tables.
+// This function uses database statistics (information_schema for MySQL, pg_class for PostgreSQL)
+// for fast approximate counts instead of scanning the entire table, which is much more efficient
+// for large tables. Note: SQLite is not supported as it lacks statistics capabilities.
 //
 // Parameters:
 //   - db: The database connection

@@ -24,7 +24,7 @@ import (
 // via GORM's AutoMigrate for optimizing the enhanceBlockDTOWithTransactions function.
 // It embeds gorm.Model which provides ID, CreatedAt, UpdatedAt, and DeletedAt fields.
 //
-// The struct is designed to store transaction information from the Injective blockchain explorer,
+// The struct is designed to store transaction information from the injective chain explorer,
 // including transaction hash, block information, gas usage, events, messages, and execution status.
 type Transaction struct {
 	gorm.Model

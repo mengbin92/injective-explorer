@@ -58,7 +58,7 @@ type ArchiveConfig struct {
 	UseObjectStorage bool
 	// StorageThreshold is the minimum size in bytes to upload to object storage
 	// Fields smaller than this threshold are stored in database
-	// Default: DefaultStorageThreshold (10KB, 10240 bytes)
+	// Default: DefaultStorageThreshold (3KB, 3072 bytes)
 	StorageThreshold int
 	// ProgressCallback is an optional callback function called after each batch
 	// Parameters: processed, total, current batch size

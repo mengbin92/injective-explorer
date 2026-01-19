@@ -899,7 +899,7 @@ Returns a paginated list of failed transactions (code != 0) that occurred in the
       - `amount` (string): Amount as string
     - `gas_limit` (int64): Gas limit
     - `payer` (string): Fee payer address (optional)
-  - `tx_type` (string): Transaction type (e.g., "injective")
+  - `tx_type` (string): Transaction type (e.g., "injective chain")
 - `pagination` (object): Pagination information
   - `page` (int32): Current page number
   - `page_size` (int32): Number of items per page

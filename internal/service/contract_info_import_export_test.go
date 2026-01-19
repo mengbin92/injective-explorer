@@ -682,7 +682,7 @@ func TestValidateContractInfo(t *testing.T) {
 			errorCount: 1,
 		},
 		{
-			name:       "injective address format",
+			name:       "injective chain address format",
 			info:       injectiveAddressContract,
 			rowNumber:  1,
 			wantErrors: false,

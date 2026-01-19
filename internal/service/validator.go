@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	// injAddressRegex validates Injective addresses (inj1 followed by 38 base58 characters)
+	// injAddressRegex validates injective chain addresses (inj1 followed by 38 base58 characters)
 	injAddressRegex = regexp.MustCompile(`^inj1[0-9a-z]{38}$`)
 	// ethAddressRegex validates Ethereum addresses (0x followed by 40 hex characters)
 	ethAddressRegex = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)
@@ -17,7 +17,7 @@ var (
 )
 
 // ValidateAddress validates a blockchain address format.
-// It supports both Injective (inj1...) and Ethereum (0x...) addresses.
+// It supports both injective chain (inj1...) and Ethereum (0x...) addresses.
 //
 // Parameters:
 //   - address: The address string to validate
@@ -29,10 +29,10 @@ func ValidateAddress(address string) error {
 		return fmt.Errorf("address cannot be empty")
 	}
 
-	// Check Injective address format
+	// Check injective chain address format
 	if strings.HasPrefix(address, "inj1") {
 		if !injAddressRegex.MatchString(address) {
-			return fmt.Errorf("invalid Injective address format: %s", address)
+			return fmt.Errorf("invalid injective chain address format: %s", address)
 		}
 		return nil
 	}
