@@ -62,9 +62,8 @@ func GetSharedTmClient() tmclient.TendermintClient {
 //   - chainclient.ChainClientV2: A configured chain client
 //   - error: Error if client creation fails
 func buildChainClientV2Query() (chainclient.ChainClientV2, error) {
-	// Create Tendermint RPC client with extended timeout for slow endpoints
-	// Using 30 second timeout to handle high latency RPC nodes
-	tmClient, err := rpchttp.NewWithTimeout(global.ChainConfig.TmEndpoint, 30)
+	// Create Tendermint RPC client
+	tmClient, err := rpchttp.New(global.ChainConfig.TmEndpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "create tm client error")
 	}

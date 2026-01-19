@@ -8,11 +8,10 @@ import (
 	"injective-explorer/provider/db"
 	"injective-explorer/provider/storage"
 	"context"
-	"crypto/tls"
 
 	"github.com/InjectiveLabs/sdk-go/client/common"
 	"github.com/go-kratos/kratos/v2/log"
-	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -83,24 +82,23 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 			FeeDenom:                bc.Chain.FeeDenom,
 			Name:                    bc.Chain.Name,
 			OfficialTokensListURL:   bc.Chain.OfficialTokensListUrl,
-			ChainTLSCert:            credentials.NewServerTLSFromCert(&tls.Certificate{}),
-			ExchangeTLSCert:         credentials.NewServerTLSFromCert(&tls.Certificate{}),
-			ExplorerTLSCert:         credentials.NewServerTLSFromCert(&tls.Certificate{}),
+			ChainTLSCert:            insecure.NewCredentials(),
+			ExchangeTLSCert:         insecure.NewCredentials(),
+			ExplorerTLSCert:         insecure.NewCredentials(),
 			ChainCookieAssistant:    &common.BareMetalLoadBalancedCookieAssistant{},
 			ExchangeCookieAssistant: &common.BareMetalLoadBalancedCookieAssistant{},
 			ExplorerCookieAssistant: &common.BareMetalLoadBalancedCookieAssistant{},
 		}
 		// Infer network name from chain ID for custom networks
-		if bc.Chain.ChainId == "injective-1" {
+		switch bc.Chain.ChainId {
+		case "injective-1":
 			NetworkName = "mainnet"
-		} else if bc.Chain.ChainId == "injective-888" {
+		case "injective-888":
 			NetworkName = "testnet"
-		} else {
+		default:
 			NetworkName = bc.Chain.Network // Use configured network name
 		}
 	}
-
-	Logger.Infof("chain configuration initialized for network: %s", bc.Chain.Network)
 
 	Logger.Infof("database initialized")
 	err := db.Init(context.Background(), bc.Data.Database, logger)
