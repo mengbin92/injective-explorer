@@ -4,6 +4,7 @@ package models
 import (
 	"injective-explorer/internal/global"
 	"injective-explorer/provider/db"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -156,7 +157,7 @@ type proposerInfo struct {
 func BlockFromTM(block *coretypes.ResultBlock) *Block {
 	txs := make([]string, 0, len(block.Block.Data.Txs))
 	for _, tx := range block.Block.Data.Txs {
-		txs = append(txs, hex.EncodeToString(tx.Hash()))
+		txs = append(txs, base64.StdEncoding.EncodeToString(tx))
 	}
 
 	var proposerInfo proposerInfo
@@ -189,5 +190,56 @@ func BlockFromTMWithPool(detail *coretypes.ResultBlock, poolBlock *Block) *Block
 		return nil
 	}
 
+	// Actually use the pool block if provided
+	if poolBlock != nil {
+		// Reuse block from pool
+		block := poolBlock
+		// Reset to zero values (pool block may contain old data)
+		*block = Block{}
+
+		// Convert transactions
+		txs := make([]string, 0, len(detail.Block.Data.Txs))
+		for i, tx := range detail.Block.Data.Txs {
+			txHash := hex.EncodeToString(tx.Hash())
+			txs = append(txs, txHash)
+
+			// Detailed debugging
+			txHex := hex.EncodeToString(tx)
+			global.Logger.Infof("BlockFromTMWithPool: Block %d, Tx[%d/%d]: hash=%s, tx_len=%d, tx_prefix=%s",
+				detail.Block.Height, i, len(detail.Block.Data.Txs)-1,
+				txHash, len(tx), func() string {
+					if len(txHex) > 40 {
+						return txHex[:40]
+					}
+					return txHex
+				}())
+		}
+
+		var proposerInfo proposerInfo
+		proposerHex := detail.Block.Header.ProposerAddress.String()
+		if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerHex).First(&proposerInfo).Error; err != nil {
+			global.Logger.Errorf("failed to get moniker by consensus address: %v", err)
+		}
+		if proposerInfo.OperatorAddress == "" {
+			proposerInfo.OperatorAddress = proposerHex
+		}
+
+		// Populate block fields
+		block.Height = uint64(detail.Block.Height)
+		block.BlockHash = fmt.Sprintf("0x%s", strings.ToLower(detail.BlockID.Hash.String()))
+		block.ParentHash = fmt.Sprintf("0x%s", strings.ToLower(detail.Block.LastBlockID.Hash.String()))
+		block.NumPrecommits = int64(len(detail.Block.LastCommit.Signatures))
+		block.NumTxs = int64(len(detail.Block.Data.Txs))
+		block.TotalTxs = int64(len(detail.Block.Data.Txs))
+		block.Timestamp = detail.Block.Time.Format(time.RFC3339)
+		block.BlockUnixTimestamp = uint64(detail.Block.Time.Unix())
+		block.Proposer = proposerInfo.OperatorAddress
+		block.Txs = txs
+		block.Moniker = proposerInfo.Moniker
+
+		return block
+	}
+
+	// Fallback to creating new block if no pool block provided
 	return BlockFromTM(detail)
 }

@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"reflect"
@@ -725,7 +726,7 @@ func (s *SyncService) processBlock(height uint64) error {
 
 		// Use upsert to reduce database round trips from 2 to 1
 		result := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "height"}},
+			Columns: []clause.Column{{Name: "height"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"proposer", "moniker", "block_hash", "parent_hash",
 				"num_precommits", "num_txs", "total_txs", "txs",
@@ -745,8 +746,8 @@ func (s *SyncService) processBlock(height uint64) error {
 			if redisClient != nil {
 				// Use Pipeline for batch operations to reduce network round trips
 				pipe := redisClient.Pipeline()
-				for _, txHash := range blockResp.Block.Data.Txs {
-					pipe.LPush(ctx, s.config.TxHashQueueKey, txHash.Hash)
+				for _, tx := range blockResp.Block.Data.Txs {
+					pipe.LPush(ctx, s.config.TxHashQueueKey, hex.EncodeToString(tx.Hash()))
 				}
 				_, err := pipe.Exec(ctx)
 				if err != nil {
@@ -950,7 +951,7 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 	allBlocks := append(blocksToInsert, blocksToUpdate...)
 	if len(allBlocks) > 0 {
 		err := db.Get().Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "height"}},
+			Columns: []clause.Column{{Name: "height"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"proposer", "moniker", "block_hash", "parent_hash",
 				"num_precommits", "num_txs", "total_txs", "txs",
@@ -1072,7 +1073,7 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 
 		// Use upsert to reduce database round trips from 2 to 1
 		result := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "height"}},
+			Columns: []clause.Column{{Name: "height"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"proposer", "moniker", "block_hash", "parent_hash",
 				"num_precommits", "num_txs", "total_txs", "txs",
@@ -1105,11 +1106,11 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 	// Extract transaction hashes and push to Redis queue (batch push for better performance)
 	if len(blockResp.Block.Data.Txs) > 0 {
 		redisClient := cache.GetRedisClient()
-		if redisClient != nil {
+		if redisClient != nil {	
 			// Batch push to Redis for better performance
-			txHashes := make([]interface{}, 0, len(blockResp.Block.Data.Txs))
-			for _, txHash := range blockResp.Block.Data.Txs {
-				txHashes = append(txHashes, txHash.Hash)
+			txHashes := make([]string, 0, len(blockResp.Block.Data.Txs))
+			for _, tx := range blockResp.Block.Data.Txs {
+				txHashes = append(txHashes, hex.EncodeToString(tx.Hash()))
 			}
 			// Use pipeline for batch operations
 			pipe := redisClient.Pipeline()

@@ -58,8 +58,8 @@ func (s *SyncService) tmStreamBlocks(ctx context.Context) {
 				if redisClient != nil {
 					// Use Pipeline for batch operations to reduce network round trips
 					pipe := redisClient.Pipeline()
-					for _, txHash := range blockResp.Block.Data.Txs {
-						pipe.LPush(ctx, s.config.TxHashQueueKey, hex.EncodeToString(txHash.Hash()))
+					for _, tx := range blockResp.Block.Data.Txs {
+						pipe.LPush(ctx, s.config.TxHashQueueKey, hex.EncodeToString(tx.Hash()))
 					}
 					_, err := pipe.Exec(ctx)
 					if err != nil {
