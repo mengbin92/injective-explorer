@@ -315,19 +315,6 @@ func ValidatorFromStakingTypes(validator stakingtypes.Validator) *Validator {
 		unbondingTime = validator.UnbondingTime.Format(time.RFC3339)
 	}
 
-	// Convert status to int32
-	status := int32(0)
-	switch validator.Status {
-	case stakingtypes.Unspecified:
-		status = 0
-	case stakingtypes.Bonded:
-		status = 1
-	case stakingtypes.Unbonding:
-		status = 2
-	case stakingtypes.Unbonded:
-		status = 3
-	}
-
 	// Get consensus address from validator using GetConsAddr() method
 	consensusAddress := ""
 	if validator.ConsensusPubkey != nil {
@@ -348,7 +335,7 @@ func ValidatorFromStakingTypes(validator stakingtypes.Validator) *Validator {
 		OperatorAddress:         validator.OperatorAddress,
 		ConsensusAddress:        consensusAddress,
 		Jailed:                  validator.Jailed,
-		Status:                  status,
+		Status:                  int32(validator.Status),
 		Tokens:                  tokens,
 		DelegatorShares:         delegatorShares,
 		Description:             description,

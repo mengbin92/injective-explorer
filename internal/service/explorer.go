@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -2523,6 +2524,12 @@ func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) 
 		global.Logger.Warnf("all %d blocks failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
+	// Sort blocks by height descending to ensure correct order
+	// Redis list order is based on insertion time, not block height
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].Height > blocks[j].Height
+	})
+
 	return blocks, nil
 }
 
@@ -2829,9 +2836,9 @@ func calculateTPS(ctx context.Context) (float64, error) {
 	}
 
 	// Calculate average TPS: total transactions / time span in seconds
+	// Note: BlockUnixTimestamp is already in seconds (from time.Unix()), not milliseconds
 	if maxTimestamp > minTimestamp {
-		timeSpanMs := float64(maxTimestamp - minTimestamp)
-		timeSpanSeconds := timeSpanMs / MillisecondsPerSecond
+		timeSpanSeconds := float64(maxTimestamp - minTimestamp)
 		if timeSpanSeconds > 0 {
 			return float64(totalTxs) / timeSpanSeconds, nil
 		}
@@ -2994,8 +3001,8 @@ func calculateAverageBlockTimeFromDB(ctx context.Context) (float64, error) {
 		prevTimestamp := blocksForBlockTime[i-1].BlockUnixTimestamp
 
 		if currTimestamp > 0 && prevTimestamp > 0 && prevTimestamp > currTimestamp {
-			// Convert from milliseconds to seconds
-			timeDiff := float64(prevTimestamp-currTimestamp) / MillisecondsPerSecond
+			// Note: BlockUnixTimestamp is already in seconds (from time.Unix()), not milliseconds
+			timeDiff := float64(prevTimestamp - currTimestamp)
 			totalTimeDiff += timeDiff
 			validPairs++
 		}
@@ -4357,8 +4364,8 @@ func calculateAverageBlockTime(blocks []models.Block) float64 {
 		prevTimestamp := blocks[i-1].BlockUnixTimestamp
 
 		if currTimestamp > 0 && prevTimestamp > 0 && prevTimestamp > currTimestamp {
-			// Convert from milliseconds to seconds
-			timeDiff := float64(prevTimestamp-currTimestamp) / MillisecondsPerSecond
+			// Note: BlockUnixTimestamp is already in seconds (from time.Unix()), not milliseconds
+			timeDiff := float64(prevTimestamp - currTimestamp)
 			totalTimeDiff += timeDiff
 			validPairs++
 		}
