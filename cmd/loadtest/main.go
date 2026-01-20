@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -40,14 +41,26 @@ var (
 	timeout      time.Duration
 	verbose      bool
 	testEndpoint string
+	skipDataLoad bool // 是否跳过数据预加载
 
-	// 测试地址示例（用于需要address参数的接口）
-	testAddresses = []string{
+	// 动态测试数据
+	latestBlockHeight int64      // 最新区块高度
+	testAddresses     []string   // 真实测试地址
+	validBlockRange   BlockRange // 有效区块范围
+
+	// 默认测试地址（降级使用）
+	defaultAddresses = []string{
 		"0x935b705b5943b0e1b859651d2ccf375bc96dfdd7",
 		"0x9a0f5da660a8aabe5df86fbaa399f733bd461b1b",
 		"0xc989d91cc9fdc0c1c2868bfe6dc2b9413b56515e",
 	}
 )
+
+// BlockRange 区块范围
+type BlockRange struct {
+	Min int64
+	Max int64
+}
 
 // Stats 封装所有统计信息
 type Stats struct {
@@ -148,14 +161,16 @@ func init() {
 	flag.DurationVar(&timeout, "timeout", 30*time.Second, "请求超时时间")
 	flag.BoolVar(&verbose, "v", false, "详细输出")
 	flag.StringVar(&testEndpoint, "endpoint", "", "指定测试的接口路径（空表示测试所有接口）")
+	flag.BoolVar(&skipDataLoad, "skip-data-load", false, "跳过数据预加载，使用默认测试数据")
 }
 
 // EndpointConfig 接口配置
 type EndpointConfig struct {
-	Path   string
-	Method string
-	Params map[string]string
-	Name   string
+	Path         string
+	Method       string
+	Params       map[string]string
+	Name         string
+	ParamBuilder func(rng *rand.Rand) map[string]string // 动态参数构建函数
 }
 
 // 所有可测试的接口
@@ -173,30 +188,25 @@ var endpoints = []EndpointConfig{
 		Params: map[string]string{},
 	},
 	{
-		Name:   "最新区块列表",
-		Path:   "/api/v1/block/latest",
-		Method: "GET",
-		Params: map[string]string{
-			"pagination.page":      "1",
-			"pagination.page_size": "20",
-		},
+		Name:         "最新区块列表",
+		Path:         "/api/v1/block/latest",
+		Method:       "GET",
+		Params:       map[string]string{},
+		ParamBuilder: buildPaginationParams,
 	},
 	{
-		Name:   "按高度获取区块",
-		Path:   "/api/v1/block/by-height",
-		Method: "GET",
-		Params: map[string]string{
-			"height": "148025427",
-		},
+		Name:         "按高度获取区块",
+		Path:         "/api/v1/block/by-height",
+		Method:       "GET",
+		Params:       map[string]string{},
+		ParamBuilder: buildBlockHeightParams,
 	},
 	{
-		Name:   "最新交易列表",
-		Path:   "/api/v1/transaction/latest",
-		Method: "GET",
-		Params: map[string]string{
-			"pagination.page":      "1",
-			"pagination.page_size": "20",
-		},
+		Name:         "最新交易列表",
+		Path:         "/api/v1/transaction/latest",
+		Method:       "GET",
+		Params:       map[string]string{},
+		ParamBuilder: buildPaginationParams,
 	},
 	{
 		Name:   "交易统计",
@@ -205,40 +215,211 @@ var endpoints = []EndpointConfig{
 		Params: map[string]string{},
 	},
 	{
-		Name:   "24小时失败交易",
-		Path:   "/api/v1/transaction/failed-24h",
-		Method: "GET",
-		Params: map[string]string{
-			"pagination.page":      "1",
-			"pagination.page_size": "20",
-		},
+		Name:         "24小时失败交易",
+		Path:         "/api/v1/transaction/failed-24h",
+		Method:       "GET",
+		Params:       map[string]string{},
+		ParamBuilder: buildPaginationParams,
 	},
 	{
-		Name:   "账户信息",
-		Path:   "/api/v1/account/info",
-		Method: "GET",
-		Params: map[string]string{
-			"address": testAddresses[0],
-		},
+		Name:         "账户信息",
+		Path:         "/api/v1/account/info",
+		Method:       "GET",
+		Params:       map[string]string{},
+		ParamBuilder: buildAddressParams,
 	},
 	{
-		Name:   "账户余额",
-		Path:   "/api/v1/account/balances",
-		Method: "GET",
-		Params: map[string]string{
-			"address": testAddresses[0],
-		},
+		Name:         "账户余额",
+		Path:         "/api/v1/account/balances",
+		Method:       "GET",
+		Params:       map[string]string{},
+		ParamBuilder: buildAddressParams,
 	},
 	{
-		Name:   "账户交易",
-		Path:   "/api/v1/account/transactions",
-		Method: "GET",
-		Params: map[string]string{
-			"address":              testAddresses[0],
-			"pagination.page":      "1",
-			"pagination.page_size": "20",
-		},
+		Name:         "账户交易",
+		Path:         "/api/v1/account/transactions",
+		Method:       "GET",
+		Params:       map[string]string{},
+		ParamBuilder: buildAddressWithPaginationParams,
 	},
+}
+
+// buildPaginationParams 构建随机分页参数
+func buildPaginationParams(rng *rand.Rand) map[string]string {
+	pageSizes := []int{10, 20, 50, 100}
+	page := rng.Intn(10) + 1          // 1-10页
+	pageSize := pageSizes[rng.Intn(len(pageSizes))]
+	return map[string]string{
+		"pagination.page":      fmt.Sprintf("%d", page),
+		"pagination.page_size": fmt.Sprintf("%d", pageSize),
+	}
+}
+
+// buildBlockHeightParams 构建随机区块高度参数
+func buildBlockHeightParams(rng *rand.Rand) map[string]string {
+	height := int64(1)
+	if validBlockRange.Max > 0 {
+		// 从全部历史中随机选择区块高度
+		height = validBlockRange.Min + rng.Int63n(validBlockRange.Max-validBlockRange.Min+1)
+	}
+	return map[string]string{
+		"height": fmt.Sprintf("%d", height),
+	}
+}
+
+// buildAddressParams 构建随机地址参数
+func buildAddressParams(rng *rand.Rand) map[string]string {
+	addresses := testAddresses
+	if len(addresses) == 0 {
+		addresses = defaultAddresses
+	}
+	addr := addresses[rng.Intn(len(addresses))]
+	return map[string]string{
+		"address": addr,
+	}
+}
+
+// buildAddressWithPaginationParams 构建随机地址和分页参数
+func buildAddressWithPaginationParams(rng *rand.Rand) map[string]string {
+	params := buildAddressParams(rng)
+	paginationParams := buildPaginationParams(rng)
+	for k, v := range paginationParams {
+		params[k] = v
+	}
+	return params
+}
+
+// loadTestDataFromAPI 从API加载真实测试数据
+func loadTestDataFromAPI(client *http.Client) error {
+	color.Cyan("正在从API加载测试数据...\n")
+
+	// 1. 获取最新区块高度
+	if err := loadLatestBlockHeight(client); err != nil {
+		color.Yellow("警告: 获取最新区块高度失败: %v，将使用默认值\n", err)
+		// 使用默认值
+		validBlockRange = BlockRange{Min: 1, Max: 148025427}
+	} else {
+		color.Green("✓ 最新区块高度: %d\n", latestBlockHeight)
+	}
+
+	// 2. 从最新交易中提取真实地址
+	if err := loadRealAddresses(client); err != nil {
+		color.Yellow("警告: 获取真实地址失败: %v，将使用默认地址\n", err)
+		testAddresses = defaultAddresses
+	} else {
+		color.Green("✓ 获取到 %d 个真实地址\n", len(testAddresses))
+	}
+
+	fmt.Println()
+	return nil
+}
+
+// loadLatestBlockHeight 获取最新区块高度
+func loadLatestBlockHeight(client *http.Client) error {
+	u := baseURL + "/api/v1/block/latest-height"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	// 读取响应
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// 解析响应 (假设返回格式为 {"height": 123456})
+	// 这里简化处理，直接从响应中提取数字
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return err
+	}
+
+	if h, ok := result["height"].(float64); ok {
+		latestBlockHeight = int64(h)
+		validBlockRange = BlockRange{Min: 1, Max: latestBlockHeight}
+	}
+
+	return nil
+}
+
+// loadRealAddresses 从最新交易中提取真实地址
+func loadRealAddresses(client *http.Client) error {
+	u := baseURL + "/api/v1/transaction/latest?pagination.page=1&pagination.page_size=50"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// 解析响应,提取地址
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return err
+	}
+
+	// 提取所有唯一的地址
+	addressMap := make(map[string]bool)
+	if transactions, ok := result["transactions"].([]interface{}); ok {
+		for _, tx := range transactions {
+			if txMap, ok := tx.(map[string]interface{}); ok {
+				// 尝试提取from地址
+				if from, ok := txMap["from"].(string); ok && from != "" {
+					addressMap[from] = true
+				}
+				// 尝试提取to地址
+				if to, ok := txMap["to"].(string); ok && to != "" {
+					addressMap[to] = true
+				}
+				// 尝试提取signer地址
+				if signer, ok := txMap["signer"].(string); ok && signer != "" {
+					addressMap[signer] = true
+				}
+			}
+		}
+	}
+
+	// 转换为切片
+	if len(addressMap) > 0 {
+		testAddresses = make([]string, 0, len(addressMap))
+		for addr := range addressMap {
+			testAddresses = append(testAddresses, addr)
+		}
+	}
+
+	return nil
 }
 
 func main() {
@@ -298,6 +479,19 @@ func main() {
 		},
 	}
 
+	// 从API加载测试数据
+	if !skipDataLoad {
+		if err := loadTestDataFromAPI(client); err != nil {
+			color.Red("错误: 加载测试数据失败: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		color.Yellow("跳过数据预加载，使用默认测试数据\n")
+		testAddresses = defaultAddresses
+		validBlockRange = BlockRange{Min: 1, Max: 148025427}
+		fmt.Println()
+	}
+
 	// 启动测试
 	ctx, cancel := context.WithCancel(context.Background())
 	if duration > 0 {
@@ -348,14 +542,11 @@ func worker(ctx context.Context, client *http.Client, endpoints []EndpointConfig
 				return
 			}
 
-			// 随机选择一个接口进行测试（改进：使用真正的随机选择）
+			// 随机选择一个接口进行测试
 			ep := selectRandomEndpoint(endpoints, rng)
 
-			// 对于需要address的接口，随机选择地址
-			ep = randomizeAddressIfNeeded(ep, rng)
-
 			// 执行请求
-			if err := makeRequest(client, ep); err != nil {
+			if err := makeRequest(client, ep, rng); err != nil {
 				if verbose {
 					color.Red("[Worker %d] 请求失败: %v\n", workerID, err)
 				}
@@ -377,34 +568,9 @@ func selectRandomEndpoint(endpoints []EndpointConfig, rng *rand.Rand) EndpointCo
 	return endpoints[rng.Intn(len(endpoints))]
 }
 
-// randomizeAddressIfNeeded 如果需要，随机化地址参数
-func randomizeAddressIfNeeded(ep EndpointConfig, rng *rand.Rand) EndpointConfig {
-	addressEndpoints := map[string]bool{
-		"/api/v1/account/info":         true,
-		"/api/v1/account/balances":     true,
-		"/api/v1/account/transactions": true,
-	}
-
-	if !addressEndpoints[ep.Path] {
-		return ep
-	}
-
-	epCopy := ep
-	epCopy.Params = make(map[string]string)
-	for k, v := range ep.Params {
-		epCopy.Params[k] = v
-	}
-
-	if addr, ok := epCopy.Params["address"]; ok && addr == testAddresses[0] {
-		epCopy.Params["address"] = testAddresses[rng.Intn(len(testAddresses))]
-	}
-
-	return epCopy
-}
-
 // makeRequest 执行单个HTTP请求
 // 返回错误以便调用者可以处理
-func makeRequest(client *http.Client, ep EndpointConfig) error {
+func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand) error {
 	// 构建URL
 	u, err := url.Parse(baseURL + ep.Path)
 	if err != nil {
@@ -415,8 +581,16 @@ func makeRequest(client *http.Client, ep EndpointConfig) error {
 
 	// 添加查询参数
 	q := u.Query()
+	// 先添加静态参数
 	for k, v := range ep.Params {
 		q.Set(k, v)
+	}
+	// 如果有动态参数构建器，使用它构建动态参数
+	if ep.ParamBuilder != nil {
+		dynamicParams := ep.ParamBuilder(rng)
+		for k, v := range dynamicParams {
+			q.Set(k, v)
+		}
 	}
 	u.RawQuery = q.Encode()
 
