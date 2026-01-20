@@ -445,6 +445,14 @@ message BlockDTO {
   uint64 block_unix_timestamp = 11 [ json_name = "block_unix_timestamp" ];
 }
 
+// TransactionSignature represents a transaction signature with address information
+message TransactionSignature {
+  string pubkey = 1;     // Public key (base64 encoded)
+  string address = 2;    // Signer address (Ethereum format 0x...)
+  uint64 sequence = 3;   // Account sequence number
+  string signature = 4;  // Signature data (base64 encoded)
+}
+
 message TransactionDTO {
   string id = 1;
   uint64 block_number = 2 [ json_name = "block_number" ];
@@ -460,7 +468,7 @@ message TransactionDTO {
   repeated string events = 12;
   string tx_type = 13 [ json_name = "tx_type" ];
   string messages = 14;
-  repeated string signatures = 15;
+  repeated TransactionSignature signatures = 15;
   string memo = 16;
   uint64 tx_number = 17 [ json_name = "tx_number" ];
   uint64 block_unix_timestamp = 18 [ json_name = "block_unix_timestamp" ];

@@ -5,12 +5,14 @@ package models
 import (
 	"fmt"
 
-	"github.com/bytedance/sonic"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
 // MarshalProtoToJSON marshals a protobuf message to a JSON string.
 // This function provides a consistent way to serialize protobuf messages for storage.
+// It uses protojson with EmitUnpopulated option to ensure all fields are included,
+// even if they have zero/empty values.
 //
 // Parameters:
 //   - msg: The protobuf message to marshal (must implement proto.Message)
@@ -30,7 +32,13 @@ func MarshalProtoToJSON(msg proto.Message) (string, error) {
 		return "", fmt.Errorf("cannot marshal nil protobuf message")
 	}
 
-	data, err := sonic.Marshal(msg)
+	// Use protojson with EmitUnpopulated to ensure all fields are included
+	// This is important for Signature fields where sequence=0 or address="" should still be visible
+	marshaler := protojson.MarshalOptions{
+		EmitUnpopulated: true, // Include all fields, even zero/empty values
+	}
+
+	data, err := marshaler.Marshal(msg)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal protobuf message to JSON: %w", err)
 	}
@@ -40,6 +48,7 @@ func MarshalProtoToJSON(msg proto.Message) (string, error) {
 
 // UnmarshalProtoFromJSON unmarshals a JSON string back to a protobuf message.
 // This function provides a consistent way to deserialize protobuf messages from storage.
+// It uses protojson for consistency with MarshalProtoToJSON.
 //
 // Parameters:
 //   - jsonStr: The JSON string representation of the protobuf message
@@ -64,7 +73,12 @@ func UnmarshalProtoFromJSON(jsonStr string, msg proto.Message) error {
 		return fmt.Errorf("cannot unmarshal into nil protobuf message")
 	}
 
-	if err := sonic.Unmarshal([]byte(jsonStr), msg); err != nil {
+	// Use protojson for consistency with MarshalProtoToJSON
+	unmarshaler := protojson.UnmarshalOptions{
+		DiscardUnknown: false, // Keep unknown fields for safety
+	}
+
+	if err := unmarshaler.Unmarshal([]byte(jsonStr), msg); err != nil {
 		return fmt.Errorf("failed to unmarshal JSON to protobuf message: %w", err)
 	}
 

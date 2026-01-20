@@ -503,7 +503,7 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 					}
 
 					// Convert GetTxResponse to TxDetailData
-					txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+					txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec)
 					if txDetailData == nil {
 						global.Logger.Warnf("failed to convert transaction %s response to detail data", txHash)
 						return
@@ -984,7 +984,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 	}
 
 	// Convert GetTxResponse to TxDetailData
-	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec)
 	if txDetailData == nil {
 		global.Logger.Errorf("failed to convert transaction response to detail data for hash %s", hash)
 		return ErrorReply(http.StatusInternalServerError, "failed to convert transaction", errors.New("failed to convert transaction")), errors.New("failed to convert transaction")

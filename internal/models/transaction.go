@@ -14,6 +14,8 @@ import (
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
+	"github.com/cosmos/cosmos-sdk/codec"
+	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
@@ -639,13 +641,14 @@ func getFirstBytes(data []byte, n int) []byte {
 
 // TransactionFromGetTxResponse converts a chainClient.GetTx response to a Transaction model.
 // Converts GetTxResponse to TxDetailData format, then uses TransactionFromProto.
-func TransactionFromGetTxResponse(getTxResp *cosmostxpb.GetTxResponse, storageThreshold int) *Transaction {
+// The codec parameter is optional; if provided, it will be used to derive addresses from public keys.
+func TransactionFromGetTxResponse(getTxResp *cosmostxpb.GetTxResponse, storageThreshold int, codec codec.Codec) *Transaction {
 	if getTxResp == nil {
 		return nil
 	}
 
 	// Convert GetTxResponse to TxDetailData
-	txDetailData := ConvertGetTxResponseToTxDetailData(getTxResp)
+	txDetailData := ConvertGetTxResponseToTxDetailData(getTxResp, codec)
 	if txDetailData == nil {
 		return nil
 	}
@@ -690,7 +693,8 @@ func extractSignerFromEvents(events []*injective_explorer_rpcpb.Event) string {
 
 // ConvertGetTxResponseToTxDetailData converts *tx.GetTxResponse to *injective_explorer_rpcpb.TxDetailData.
 // Extracts data from GetTxResponse.Tx and GetTxResponse.TxResponse fields.
-func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *injective_explorer_rpcpb.TxDetailData {
+// The codec parameter is optional; if provided, it will be used to derive addresses from public keys.
+func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, codec codec.Codec) *injective_explorer_rpcpb.TxDetailData {
 	if getTxResp == nil {
 		return nil
 	}
@@ -726,9 +730,20 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 			for i, signerInfo := range getTxResp.Tx.AuthInfo.SignerInfos {
 				sigData := &injective_explorer_rpcpb.Signature{}
 
-				// Extract public key (if available)
+				// Extract public key and derive address from it (if available)
 				if signerInfo.PublicKey != nil && len(signerInfo.PublicKey.Value) > 0 {
 					sigData.Pubkey = base64.StdEncoding.EncodeToString(signerInfo.PublicKey.Value)
+
+					// Derive address from public key if codec is available
+					if codec != nil {
+						var pubKey cryptotypes.PubKey
+						if err := codec.UnpackAny(signerInfo.PublicKey, &pubKey); err == nil && pubKey != nil {
+							// Get address from public key and convert to Ethereum format
+							addrStr := pubKey.Address().String()
+							// Convert to lowercase Ethereum format (0x...)
+							sigData.Address = fmt.Sprintf("0x%s", strings.ToLower(addrStr))
+						}
+					}
 				}
 
 				// Extract sequence number
@@ -739,7 +754,6 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse) *in
 					sigData.Signature = base64.StdEncoding.EncodeToString(getTxResp.Tx.Signatures[i])
 				}
 
-				// Address will be extracted from events as fallback
 				signatures = append(signatures, sigData)
 			}
 		}

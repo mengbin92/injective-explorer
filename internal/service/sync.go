@@ -1338,7 +1338,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		}
 
 		poolTx := GetTransactionFromPool()
-		txModel := models.TransactionFromGetTxResponse(result.txResp, storageThreshold)
+		txModel := models.TransactionFromGetTxResponse(result.txResp, storageThreshold, s.chainClient.ClientContext().Codec)
 		if txModel == nil {
 			PutTransactionToPool(poolTx)
 			global.Logger.Errorf("failed to convert transaction %s to model", result.hash)
@@ -1349,7 +1349,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		// Check if this is an EVM transaction and extract EVM hash (only if EVM sync is enabled)
 		// Convert GetTxResponse to TxDetailData for EVM check
 		if s.bc != nil && s.bc.Chain != nil && s.bc.Chain.Evm != nil && s.bc.Chain.Evm.Enabled {
-			txDetailData := models.ConvertGetTxResponseToTxDetailData(result.txResp)
+			txDetailData := models.ConvertGetTxResponseToTxDetailData(result.txResp, s.chainClient.ClientContext().Codec)
 			if txDetailData != nil {
 				if IsEVMTransaction(txDetailData) {
 					evmHash := ExtractEVMHash(txDetailData)
@@ -1505,7 +1505,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 	for _, tm := range txModels {
 		// Convert GetTxResponse to TxDetailData for txDataMap
-		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData)
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec)
 		if txDetailData != nil {
 			txDataMap[tm.txModel.Hash] = txDetailData
 		}
@@ -1672,7 +1672,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		defer accountCancel()
 		for _, tm := range txModels {
 			// Convert GetTxResponse to TxDetailData for account extraction
-			txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData)
+			txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec)
 			if txDetailData != nil {
 				if err := s.updateAccountsFromTransaction(accountCtx, txDetailData); err != nil {
 					global.Logger.Warnf("failed to update accounts from transaction %s: %v", tm.hash, err)
@@ -1707,7 +1707,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 		// Publish account events
 		// Convert GetTxResponse to TxDetailData for address extraction
-		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData)
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec)
 		if txDetailData != nil {
 			addresses := s.extractAddressesFromTransaction(txDetailData)
 			for address := range addresses {
@@ -1817,7 +1817,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Use object pool to reduce allocations
 	poolTx := GetTransactionFromPool()
-	txModel := models.TransactionFromGetTxResponse(txResp, storageThreshold)
+	txModel := models.TransactionFromGetTxResponse(txResp, storageThreshold, s.chainClient.ClientContext().Codec)
 	if txModel == nil {
 		// If conversion fails, return transaction to pool and put the transaction hash back to the queue
 		PutTransactionToPool(poolTx)
@@ -1908,7 +1908,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 		// Extract and update account information from transaction
 		// Note: Account updates are done within the same transaction
 		// Convert GetTxResponse to TxDetailData for account extraction
-		txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, s.chainClient.ClientContext().Codec)
 		if txDetailData != nil {
 			if err := s.updateAccountsFromTransactionWithTx(ctx, tx, txDetailData); err != nil {
 				global.Logger.Warnf("failed to update accounts from transaction %s: %v", txHash, err)
@@ -1963,7 +1963,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Publish account events for addresses involved in the transaction
 	// Convert GetTxResponse to TxDetailData for address extraction
-	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp)
+	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, s.chainClient.ClientContext().Codec)
 	if txDetailData != nil {
 		addresses := s.extractAddressesFromTransaction(txDetailData)
 		for address := range addresses {

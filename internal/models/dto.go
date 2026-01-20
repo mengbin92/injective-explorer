@@ -25,6 +25,61 @@ const (
 	DTOModeWithoutDetail = false
 )
 
+// convertSignaturesToDTO converts database signature JSON strings to proto TransactionSignature objects
+func convertSignaturesToDTO(sigStrings []string) []*pb.TransactionSignature {
+	if len(sigStrings) == 0 {
+		return nil
+	}
+
+	signatures := make([]*pb.TransactionSignature, 0, len(sigStrings))
+	for _, sigStr := range sigStrings {
+		if sigStr == "" {
+			continue
+		}
+
+		// Try to parse as JSON object (new format with address)
+		var sigData map[string]interface{}
+		if err := sonic.Unmarshal([]byte(sigStr), &sigData); err == nil {
+			sig := &pb.TransactionSignature{}
+
+			// Extract pubkey
+			if v, ok := sigData["pubkey"].(string); ok {
+				sig.Pubkey = v
+			}
+
+			// Extract address
+			if v, ok := sigData["address"].(string); ok {
+				sig.Address = v
+			}
+
+			// Extract sequence
+			switch v := sigData["sequence"].(type) {
+			case float64:
+				sig.Sequence = uint64(v)
+			case int64:
+				sig.Sequence = uint64(v)
+			case uint64:
+				sig.Sequence = v
+			}
+
+			// Extract signature
+			if v, ok := sigData["signature"].(string); ok {
+				sig.Signature = v
+			}
+
+			// Only add if we have at least pubkey or signature
+			if sig.Pubkey != "" || sig.Signature != "" {
+				signatures = append(signatures, sig)
+			}
+		}
+	}
+
+	if len(signatures) == 0 {
+		return nil
+	}
+	return signatures
+}
+
 // DTO types are now defined in proto files:
 // - pb.AccountDTO
 // - pb.AccountBalanceDTO
@@ -211,7 +266,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			Events:             tx.Events,
 			TxType:             tx.TxType,
 			Messages:           messagesStr,
-			Signatures:         tx.Signatures,
+			Signatures:         convertSignaturesToDTO(tx.Signatures),
 			Memo:               tx.Memo,
 			TxNumber:           tx.TxNumber,
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
