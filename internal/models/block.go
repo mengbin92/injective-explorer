@@ -135,17 +135,17 @@ func BlockToProto(block *Block) *injective_explorer_rpcpb.BlockDetailInfo {
 	// Note: This is only needed if the protobuf expects Injective format
 	// For now, we'll use the stored Ethereum format as-is
 	return &injective_explorer_rpcpb.BlockDetailInfo{
-		Height:             block.Height,
-		Proposer:           block.Proposer,
-		Moniker:            block.Moniker,
-		BlockHash:          block.BlockHash,
-		ParentHash:         block.ParentHash,
-		NumPreCommits:      block.NumPrecommits,
-		NumTxs:             block.NumTxs,
-		TotalTxs:           block.TotalTxs,
-		Timestamp:          block.Timestamp,
+		Height:            block.Height,
+		Proposer:          block.Proposer,
+		Moniker:           block.Moniker,
+		BlockHash:         block.BlockHash,
+		ParentHash:        block.ParentHash,
+		NumPreCommits:     block.NumPrecommits,
+		NumTxs:            block.NumTxs,
+		TotalTxs:          block.TotalTxs,
+		Timestamp:         block.Timestamp,
 		BlockUnixTimestamp: block.BlockUnixTimestamp,
-		Txs:                txs,
+		Txs:               txs,
 	}
 }
 
@@ -171,17 +171,17 @@ func BlockFromTM(block *coretypes.ResultBlock) *Block {
 	}
 
 	return &Block{
-		Height:             uint64(block.Block.Height),
-		BlockHash:          fmt.Sprintf("0x%s", strings.ToLower(block.BlockID.Hash.String())),
-		ParentHash:         fmt.Sprintf("0x%s", strings.ToLower(block.Block.LastBlockID.Hash.String())),
-		NumPrecommits:      int64(len(block.Block.LastCommit.Signatures)),
-		NumTxs:             int64(len(block.Block.Data.Txs)),
-		TotalTxs:           int64(len(block.Block.Data.Txs)),
-		Timestamp:          block.Block.Time.Format(time.RFC3339),
+		Height:            uint64(block.Block.Height),
+		BlockHash:         fmt.Sprintf("0x%s", strings.ToLower(block.BlockID.Hash.String())),
+		ParentHash:        fmt.Sprintf("0x%s", strings.ToLower(block.Block.LastBlockID.Hash.String())),
+		NumPrecommits:     int64(len(block.Block.LastCommit.Signatures)),
+		NumTxs:            int64(len(block.Block.Data.Txs)),
+		TotalTxs:          int64(len(block.Block.Data.Txs)),
+		Timestamp:         block.Block.Time.Format(time.RFC3339),
 		BlockUnixTimestamp: uint64(block.Block.Time.Unix()),
-		Proposer:           proposerInfo.OperatorAddress,
-		Txs:                txs,
-		Moniker:            proposerInfo.Moniker,
+		Proposer:          proposerInfo.OperatorAddress,
+		Txs:               txs,
+		Moniker:           proposerInfo.Moniker,
 	}
 }
 
@@ -190,29 +190,22 @@ func BlockFromTMWithPool(detail *coretypes.ResultBlock, poolBlock *Block) *Block
 		return nil
 	}
 
-	// Actually use the pool block if provided
+	// If pool block is provided, reuse it instead of allocating a new one
+	// This reduces GC pressure and improves performance for high-throughput scenarios
 	if poolBlock != nil {
-		// Reuse block from pool
 		block := poolBlock
-		// Reset to zero values (pool block may contain old data)
-		*block = Block{}
+
+		// Reset slice fields to allow GC to reclaim old data
+		// Note: We don't reset the entire struct with *block = Block{}
+		// as that defeats the purpose of object pooling
+		block.Txs = nil
 
 		// Convert transactions
+		// Use hex.EncodeToString(tx.Hash()) for consistency with BlockFromTM
 		txs := make([]string, 0, len(detail.Block.Data.Txs))
-		for i, tx := range detail.Block.Data.Txs {
+		for _, tx := range detail.Block.Data.Txs {
 			txHash := hex.EncodeToString(tx.Hash())
 			txs = append(txs, txHash)
-
-			// Detailed debugging
-			txHex := hex.EncodeToString(tx)
-			global.Logger.Infof("BlockFromTMWithPool: Block %d, Tx[%d/%d]: hash=%s, tx_len=%d, tx_prefix=%s",
-				detail.Block.Height, i, len(detail.Block.Data.Txs)-1,
-				txHash, len(tx), func() string {
-					if len(txHex) > 40 {
-						return txHex[:40]
-					}
-					return txHex
-				}())
 		}
 
 		var proposerInfo proposerInfo

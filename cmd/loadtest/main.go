@@ -170,7 +170,7 @@ type EndpointConfig struct {
 	Method       string
 	Params       map[string]string
 	Name         string
-	ParamBuilder func(rng *rand.Rand) map[string]string // 动态参数构建函数
+	ParamBuilder func(rng *rand.Rand, addresses []string) map[string]string // 动态参数构建函数（使用 ParamBuilder 模式，避免对全局状态的静态依赖）
 }
 
 // 所有可测试的接口
@@ -245,7 +245,7 @@ var endpoints = []EndpointConfig{
 }
 
 // buildPaginationParams 构建随机分页参数
-func buildPaginationParams(rng *rand.Rand) map[string]string {
+func buildPaginationParams(rng *rand.Rand, _ []string) map[string]string {
 	pageSizes := []int{10, 20, 50, 100}
 	page := rng.Intn(10) + 1          // 1-10页
 	pageSize := pageSizes[rng.Intn(len(pageSizes))]
@@ -256,7 +256,7 @@ func buildPaginationParams(rng *rand.Rand) map[string]string {
 }
 
 // buildBlockHeightParams 构建随机区块高度参数
-func buildBlockHeightParams(rng *rand.Rand) map[string]string {
+func buildBlockHeightParams(rng *rand.Rand, _ []string) map[string]string {
 	height := int64(1)
 	if validBlockRange.Max > 0 {
 		// 从全部历史中随机选择区块高度
@@ -268,8 +268,8 @@ func buildBlockHeightParams(rng *rand.Rand) map[string]string {
 }
 
 // buildAddressParams 构建随机地址参数
-func buildAddressParams(rng *rand.Rand) map[string]string {
-	addresses := testAddresses
+// 使用 ParamBuilder 模式，动态生成测试参数，避免对全局状态的静态依赖
+func buildAddressParams(rng *rand.Rand, addresses []string) map[string]string {
 	if len(addresses) == 0 {
 		addresses = defaultAddresses
 	}
@@ -280,9 +280,10 @@ func buildAddressParams(rng *rand.Rand) map[string]string {
 }
 
 // buildAddressWithPaginationParams 构建随机地址和分页参数
-func buildAddressWithPaginationParams(rng *rand.Rand) map[string]string {
-	params := buildAddressParams(rng)
-	paginationParams := buildPaginationParams(rng)
+// 使用 ParamBuilder 模式，动态生成测试参数，避免对全局状态的静态依赖
+func buildAddressWithPaginationParams(rng *rand.Rand, addresses []string) map[string]string {
+	params := buildAddressParams(rng, addresses)
+	paginationParams := buildPaginationParams(rng, addresses)
 	for k, v := range paginationParams {
 		params[k] = v
 	}
@@ -470,12 +471,12 @@ func main() {
 	client := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			MaxIdleConns:        200,                    // 增加总连接数
+			MaxIdleConns:       200,                    // 增加总连接数
 			MaxIdleConnsPerHost: 100,                    // 增加每个host的连接数
-			IdleConnTimeout:     DefaultIdleConnTimeout,
-			DisableCompression:  false,                  // 启用压缩
+			IdleConnTimeout:    DefaultIdleConnTimeout,
+			DisableCompression: false,                  // 启用压缩
 			TLSHandshakeTimeout: DefaultTLSHandshakeTimeout,
-			ForceAttemptHTTP2:   true,                   // 尝试使用 HTTP/2（如果服务器支持）
+			ForceAttemptHTTP2:  true,                   // 尝试使用 HTTP/2（如果服务器支持）
 		},
 	}
 
@@ -507,7 +508,8 @@ func main() {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			worker(ctx, client, testEndpoints, workerID)
+			// 传递 testAddresses 避免 worker 依赖全局状态
+			worker(ctx, client, testEndpoints, workerID, testAddresses)
 		}(i)
 	}
 
@@ -528,7 +530,7 @@ func main() {
 }
 
 // worker 执行请求的worker函数
-func worker(ctx context.Context, client *http.Client, endpoints []EndpointConfig, workerID int) {
+func worker(ctx context.Context, client *http.Client, endpoints []EndpointConfig, workerID int, addresses []string) {
 	// 为每个worker创建独立的随机数生成器
 	rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(workerID)))
 
@@ -545,8 +547,8 @@ func worker(ctx context.Context, client *http.Client, endpoints []EndpointConfig
 			// 随机选择一个接口进行测试
 			ep := selectRandomEndpoint(endpoints, rng)
 
-			// 执行请求
-			if err := makeRequest(client, ep, rng); err != nil {
+			// 执行请求（传递 addresses 避免依赖全局状态）
+			if err := makeRequest(client, ep, rng, addresses); err != nil {
 				if verbose {
 					color.Red("[Worker %d] 请求失败: %v\n", workerID, err)
 				}
@@ -570,7 +572,7 @@ func selectRandomEndpoint(endpoints []EndpointConfig, rng *rand.Rand) EndpointCo
 
 // makeRequest 执行单个HTTP请求
 // 返回错误以便调用者可以处理
-func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand) error {
+func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand, addresses []string) error {
 	// 构建URL
 	u, err := url.Parse(baseURL + ep.Path)
 	if err != nil {
@@ -585,9 +587,9 @@ func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand) error {
 	for k, v := range ep.Params {
 		q.Set(k, v)
 	}
-	// 如果有动态参数构建器，使用它构建动态参数
+	// 如果有动态参数构建器，使用它构建动态参数（传递 addresses 避免依赖全局状态）
 	if ep.ParamBuilder != nil {
-		dynamicParams := ep.ParamBuilder(rng)
+		dynamicParams := ep.ParamBuilder(rng, addresses)
 		for k, v := range dynamicParams {
 			q.Set(k, v)
 		}

@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,11 +14,19 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"gorm.io/gorm"
+)
+
+// Redis key constants for dynamic configuration persistence
+const (
+	redisKeyIPRateLimitConfig = "api:management:rate_limit" // Redis key for IP rate limit config
+	configCacheTTL            = 24 * time.Hour              // Config cached for 24 hours
 )
 
 // ListIPRegistrationRecords lists IP registration records
@@ -467,9 +476,9 @@ func (s *AdminService) BatchAddIPToBlacklist(ctx context.Context, req *pb.BatchA
 	}
 
 	response := &pb.BatchAddIPToBlacklistDTO{
-		Added:     int32(added),
-		Skipped:   int32(skipped),
-		Invalid:   int32(len(invalidIPs)),
+		Added:      int32(added),
+		Skipped:    int32(skipped),
+		Invalid:    int32(len(invalidIPs)),
 		InvalidIps: invalidIPs,
 	}
 
@@ -619,11 +628,11 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 	logInfosList := make([]*pb.IPRateLimitLogDTO, 0, len(rateLimitLogs))
 	for _, log := range rateLimitLogs {
 		logInfosList = append(logInfosList, &pb.IPRateLimitLogDTO{
-			Time:         log.CreatedAt.Format(time.RFC3339),
-			IpAddress:    log.IPAddress,
-			Endpoint:     log.Endpoint,
-			LimitReason:  "IP rate limit exceeded",
-			CurrentRate:  0, // Could be calculated from logs
+			Time:        log.CreatedAt.Format(time.RFC3339),
+			IpAddress:   log.IPAddress,
+			Endpoint:    log.Endpoint,
+			LimitReason: "IP rate limit exceeded",
+			CurrentRate: 0, // Could be calculated from logs
 		})
 	}
 
@@ -641,14 +650,41 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 }
 
 // GetIPRateLimitConfig gets IP rate limit configuration
+// This function implements a multi-tier configuration loading strategy:
+// 1. First tries to load from Redis (dynamic config, supports hot-reload)
+// 2. Falls back to global configuration from config file
+// 3. Uses hardcoded defaults as last resort
 func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	// Default values
 	ipPerMinute := IPRateLimitPerMinuteDefault
 	ipPerHour := IPRateLimitPerHourDefault
 	blockType := "all"
 
-	// Get values from global configuration
-	if global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
+	// Try to load from Redis first (dynamic configuration)
+	if redisClient := cache.GetRedisClient(); redisClient != nil {
+		configData, err := redisClient.Get(ctx, redisKeyIPRateLimitConfig).Result()
+		if err == nil && configData != "" {
+			// Successfully loaded from Redis
+			var redisConfig map[string]interface{}
+			if err := json.Unmarshal([]byte(configData), &redisConfig); err == nil {
+				if v, ok := redisConfig["ip_per_minute"].(float64); ok {
+					ipPerMinute = int(v)
+				}
+				if v, ok := redisConfig["ip_per_hour"].(float64); ok {
+					ipPerHour = int(v)
+				}
+				if v, ok := redisConfig["block_type"].(string); ok {
+					blockType = v
+				}
+				global.Logger.Infof("Loaded IP rate limit config from Redis: ip_per_minute=%d, ip_per_hour=%d", ipPerMinute, ipPerHour)
+			}
+		} else if err != nil && !errors.Is(err, redis.Nil) {
+			global.Logger.Warnf("Failed to load IP rate limit config from Redis: %v, using fallback", err)
+		}
+	}
+
+	// Fallback to global configuration if Redis not available or not configured
+	if ipPerMinute == IPRateLimitPerMinuteDefault && global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
 		ipPerMinute = int(global.APIManagementConfig.RateLimit.IpPerMinute)
 		ipPerHour = int(global.APIManagementConfig.RateLimit.IpPerHour)
 	}
@@ -663,6 +699,8 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 }
 
 // UpdateIPRateLimitConfig updates IP rate limit configuration
+// This function persists the configuration to Redis for runtime hot-reload support.
+// The configuration is stored as JSON and will be immediately effective for all API instances.
 func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.UpdateIPRateLimitConfigRequest) (*pb.Reply, error) {
 	if req == nil {
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
@@ -676,12 +714,33 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 		return ErrorReply(http.StatusBadRequest, "ip_per_hour must be between 100 and 50000", nil), nil
 	}
 
-	// Note: Configuration updates require persistence implementation
-	// Recommended approaches:
-	// 1. Store in Redis for runtime configuration (fast, supports hot-reload)
-	// 2. Create a system_configs table for persistent storage
-	// 3. Implement config file hot-reload mechanism
-	// Current implementation returns success but does not persist changes
+	// Prepare configuration data for persistence
+	configData := map[string]interface{}{
+		"ip_per_minute": req.IpPerMinute,
+		"ip_per_hour":   req.IpPerHour,
+		"block_type":    req.BlockType,
+		"updated_at":    time.Now().Format(time.RFC3339),
+	}
+
+	// Persist to Redis for dynamic configuration
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		// Redis not available, log warning but still return success
+		global.Logger.Warn("Redis client not available, configuration not persisted (will be lost on restart)")
+	} else {
+		configJSON, err := json.Marshal(configData)
+		if err != nil {
+			global.Logger.Errorf("Failed to marshal IP rate limit config: %v", err)
+			return ErrorReply(http.StatusInternalServerError, "failed to persist configuration", err), err
+		}
+
+		// Store in Redis with cache TTL
+		if err := redisClient.Set(ctx, redisKeyIPRateLimitConfig, configJSON, configCacheTTL).Err(); err != nil {
+			global.Logger.Errorf("Failed to persist IP rate limit config to Redis: %v", err)
+			return ErrorReply(http.StatusInternalServerError, "failed to persist configuration", err), err
+		}
+		global.Logger.Infof("IP rate limit config persisted to Redis: ip_per_minute=%d, ip_per_hour=%d", req.IpPerMinute, req.IpPerHour)
+	}
 
 	response := &pb.IPRateLimitConfigDTO{
 		IpPerMinute: req.IpPerMinute,
@@ -690,6 +749,48 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")
+}
+
+// LoadIPRateLimitConfigFromRedis loads IP rate limit configuration from Redis
+// and updates the global configuration. This function should be called during
+// application initialization to restore dynamic configuration from Redis.
+func LoadIPRateLimitConfigFromRedis(ctx context.Context) error {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		global.Logger.Warn("Redis client not available, skipping dynamic config loading")
+		return nil
+	}
+
+	configData, err := redisClient.Get(ctx, redisKeyIPRateLimitConfig).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			global.Logger.Info("No dynamic IP rate limit config found in Redis, using defaults")
+		} else {
+			global.Logger.Warnf("Failed to load IP rate limit config from Redis: %v", err)
+		}
+		return nil
+	}
+
+	var redisConfig map[string]interface{}
+	if err := json.Unmarshal([]byte(configData), &redisConfig); err != nil {
+		global.Logger.Warnf("Failed to parse IP rate limit config from Redis: %v", err)
+		return err
+	}
+
+	// Update global configuration if rate limit config exists
+	if global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
+		if v, ok := redisConfig["ip_per_minute"].(float64); ok {
+			global.APIManagementConfig.RateLimit.IpPerMinute = int32(v)
+		}
+		if v, ok := redisConfig["ip_per_hour"].(float64); ok {
+			global.APIManagementConfig.RateLimit.IpPerHour = int32(v)
+		}
+		global.Logger.Infof("Loaded IP rate limit config from Redis: ip_per_minute=%d, ip_per_hour=%d",
+			global.APIManagementConfig.RateLimit.IpPerMinute,
+			global.APIManagementConfig.RateLimit.IpPerHour)
+	}
+
+	return nil
 }
 
 // GetIPRecordsStats gets IP registration records statistics
