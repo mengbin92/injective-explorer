@@ -30,6 +30,9 @@ var (
 	// EVMConfig is the global EVM RPC configuration.
 	// It is set during initialization and can be used to access EVM configuration values.
 	EVMConfig *conf.Chain_EVM
+	// APIManagementConfig is the global API management configuration.
+	// It is set during initialization and can be used to access API management settings.
+	APIManagementConfig *conf.APIManagement
 )
 
 // Init initializes global variables including the logger, chain configuration, and archive configuration.
@@ -57,6 +60,9 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 
 	// Save EVM config globally for later use
 	EVMConfig = bc.Chain.Evm
+
+	// Save API management config globally for later use
+	APIManagementConfig = bc.GetApiManagement()
 
 	Logger = log.NewHelper(logger)
 	Logger.Infof("logger initialized: %v", bc.Log)

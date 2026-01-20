@@ -91,7 +91,7 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 			}()
 			pubType = pubKey.Type()
 			pubValue = hex.EncodeToString(pubKey.Bytes())
-			// 预先计算小写地址，避免重复调用 ToLower
+			// Pre-calculate lowercase address to avoid repeated ToLower calls
 			addrStr := pubKey.Address().String()
 			lowerAddr := strings.ToLower(addrStr)
 			pubAddress = fmt.Sprintf("0x%s", lowerAddr)

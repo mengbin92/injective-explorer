@@ -645,7 +645,7 @@ func (s *ExplorerService) GetLatestBlockHeight(ctx context.Context, req *emptypb
 
 // getCachedGasPrice retrieves the current gas price with caching.
 // Fetches the actual gas price from the chain using ChainClientV2.
-// Since Injective's gas price doesn't change frequently, we cache it for 5 minutes.
+// Since gas price doesn't change frequently on the blockchain, we cache it for 5 minutes.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout

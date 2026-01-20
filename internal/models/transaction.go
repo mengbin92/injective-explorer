@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"injective-explorer/internal/global"
 	"injective-explorer/provider/storage"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
@@ -144,7 +144,7 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	// Extract message types from Messages for efficient filtering (before compressing)
 	messageTypes := extractMessageTypesFromBytes(detail.Messages)
 	if len(messageTypes) == 0 && len(detail.Messages) > 0 {
-		log.Printf("WARN: failed to extract message types for transaction %s, messages length: %d", detail.Hash, len(detail.Messages))
+		global.Logger.Warnf("WARN: failed to extract message types for transaction %s, messages length: %d", detail.Hash, len(detail.Messages))
 	}
 
 	// Compress and encode data for storage
@@ -267,14 +267,14 @@ func processLargeField(ctx context.Context, storageClient storage.Storage, field
 	dataToUpload, _, compressErr := CompressDataToBytes(originalData)
 	if compressErr != nil {
 		// Log compression error - this is critical as it means large data will remain in database
-		log.Printf("WARN: failed to compress %s field for transaction %s: %v. Data will remain in database, which may cause database bloat.", fieldName, txHash, compressErr)
+		global.Logger.Warnf("WARN: failed to compress %s field for transaction %s: %v. Data will remain in database, which may cause database bloat.", fieldName, txHash, compressErr)
 		return ""
 	}
 
 	// Upload to object storage
 	if err := storageClient.PutObject(ctx, key, dataToUpload); err != nil {
 		// Log upload error - fallback to database storage
-		log.Printf("WARN: failed to upload %s field to object storage for transaction %s: %v. Falling back to database storage.", fieldName, txHash, err)
+		global.Logger.Warnf("WARN: failed to upload %s field to object storage for transaction %s: %v. Falling back to database storage.", fieldName, txHash, err)
 		return ""
 	}
 
@@ -571,7 +571,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 
 			// Log warning if no message types extracted
 			if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
-				log.Printf("WARN: extracted 0 message types from %d messages in TxRaw->TxBody, all messages have empty TypeUrl", len(txBody.Messages))
+				global.Logger.Warnf("WARN: extracted 0 message types from %d messages in TxRaw->TxBody, all messages have empty TypeUrl", len(txBody.Messages))
 			}
 
 			return messageTypes
@@ -595,7 +595,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 
 		// Log warning if no message types extracted
 		if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
-			log.Printf("WARN: extracted 0 message types from %d protobuf messages, all messages have empty TypeUrl", len(txBody.Messages))
+			global.Logger.Warnf("WARN: extracted 0 message types from %d protobuf messages, all messages have empty TypeUrl", len(txBody.Messages))
 		}
 
 		return messageTypes
@@ -627,7 +627,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 	}
 
 	// Both protobuf and JSON parsing failed
-	log.Printf("WARN: failed to extract message types: protobuf unmarshal error, messages length: %d, first bytes: %v", len(messagesBytes), getFirstBytes(messagesBytes, 10))
+	global.Logger.Warnf("WARN: failed to extract message types: protobuf unmarshal error, messages length: %d, first bytes: %v", len(messagesBytes), getFirstBytes(messagesBytes, 10))
 	return nil
 }
 

@@ -31,8 +31,8 @@ func GetBlockFromPool() *models.Block {
 	return blockPool.Get().(*models.Block)
 }
 
-// PutBlockToPool returns a Block to the object pool.
-// The block should be reset before being put back.
+// PutBlockToPool puts a Block back to the object pool.
+// The block is reset to zero values before being put back.
 //
 // Parameters:
 //   - block: The Block instance to return to the pool
@@ -54,8 +54,8 @@ func GetTransactionFromPool() *models.Transaction {
 	return transactionPool.Get().(*models.Transaction)
 }
 
-// PutTransactionToPool returns a Transaction to the object pool.
-// The transaction should be reset before being put back.
+// PutTransactionToPool puts a Transaction back to the object pool.
+// The transaction is reset to zero values before being put back.
 //
 // Parameters:
 //   - tx: The Transaction instance to return to the pool

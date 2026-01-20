@@ -519,15 +519,15 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 	var startTime time.Time
 	switch req.TimeRange {
 	case "1h":
-		startTime = now.Add(-1 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorTimeRange1Hour) * time.Hour)
 	case "6h":
-		startTime = now.Add(-6 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorTimeRange6Hour) * time.Hour)
 	case "24h", "":
-		startTime = now.Add(-24 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorTimeRange24Hour) * time.Hour)
 	case "7d":
-		startTime = now.AddDate(0, 0, -7)
+		startTime = now.AddDate(0, 0, -IPMonitorTimeRange7Days)
 	default:
-		startTime = now.Add(-24 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorDefaultTimeRange) * time.Hour)
 	}
 
 	// Build query
@@ -563,16 +563,14 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 		Where("created_at >= ?", startTime).
 		Group("ip_address").
 		Order("request_count DESC").
-		Limit(10).
+		Limit(IPMonitorTopLimit).
 		Scan(&topIPs)
 
-	// Get IP rate limit config for comparison (default values)
-	ipPerHour := int32(5000)
-	// TODO: Get from config when available
-	// config := global.GetConfig()
-	// if config.APIManagement != nil && config.APIManagement.RateLimit != nil {
-	// 	ipPerHour = config.APIManagement.RateLimit.IpPerHour
-	// }
+	// Get IP rate limit config from global configuration
+	ipPerHour := IPRateLimitPerHourDefault
+	if global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
+		ipPerHour = int(global.APIManagementConfig.RateLimit.IpPerHour)
+	}
 
 	// Build top IPs list with status
 	topIPInfos := make([]*pb.IPRequestTopDTO, 0, len(topIPs))
@@ -610,7 +608,7 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 		Model(&models.APIRequestLog{}).
 		Where("created_at >= ? AND status_code = 429", startTime).
 		Order("created_at DESC").
-		Limit(100).
+		Limit(IPMonitorLogLimit).
 		Find(&rateLimitLogs).Error
 	if err != nil {
 		global.Logger.Warnf("failed to get rate limit logs: %v", err)
@@ -645,20 +643,19 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 // GetIPRateLimitConfig gets IP rate limit configuration
 func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	// Default values
-	ipPerMinute := int32(100)
-	ipPerHour := int32(5000)
+	ipPerMinute := IPRateLimitPerMinuteDefault
+	ipPerHour := IPRateLimitPerHourDefault
 	blockType := "all"
 
-	// TODO: Get from config when available
-	// config := global.GetConfig()
-	// if config.APIManagement != nil && config.APIManagement.RateLimit != nil {
-	// 	ipPerMinute = config.APIManagement.RateLimit.IpPerMinute
-	// 	ipPerHour = config.APIManagement.RateLimit.IpPerHour
-	// }
+	// Get values from global configuration
+	if global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
+		ipPerMinute = int(global.APIManagementConfig.RateLimit.IpPerMinute)
+		ipPerHour = int(global.APIManagementConfig.RateLimit.IpPerHour)
+	}
 
 	response := &pb.IPRateLimitConfigDTO{
-		IpPerMinute: ipPerMinute,
-		IpPerHour:   ipPerHour,
+		IpPerMinute: int32(ipPerMinute),
+		IpPerHour:   int32(ipPerHour),
 		BlockType:   blockType,
 	}
 
@@ -672,16 +669,19 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 	}
 
 	// Validate values
-	if req.IpPerMinute < 10 || req.IpPerMinute > 1000 {
+	if req.IpPerMinute < IPRateLimitPerMinMin || req.IpPerMinute > IPRateLimitPerMinMax {
 		return ErrorReply(http.StatusBadRequest, "ip_per_minute must be between 10 and 1000", nil), nil
 	}
-	if req.IpPerHour < 100 || req.IpPerHour > 50000 {
+	if req.IpPerHour < IPRateLimitPerHourMin || req.IpPerHour > IPRateLimitPerHourMax {
 		return ErrorReply(http.StatusBadRequest, "ip_per_hour must be between 100 and 50000", nil), nil
 	}
 
-	// Update config (in production, this should be persisted to database or config file)
-	// For now, we'll just return success
-	// TODO: Implement config persistence
+	// Note: Configuration updates require persistence implementation
+	// Recommended approaches:
+	// 1. Store in Redis for runtime configuration (fast, supports hot-reload)
+	// 2. Create a system_configs table for persistent storage
+	// 3. Implement config file hot-reload mechanism
+	// Current implementation returns success but does not persist changes
 
 	response := &pb.IPRateLimitConfigDTO{
 		IpPerMinute: req.IpPerMinute,
@@ -941,15 +941,15 @@ func (s *AdminService) exportIPMonitor(ctx context.Context, timeRange string) (s
 	var startTime time.Time
 	switch timeRange {
 	case "1h":
-		startTime = now.Add(-1 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorTimeRange1Hour) * time.Hour)
 	case "6h":
-		startTime = now.Add(-6 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorTimeRange6Hour) * time.Hour)
 	case "24h", "":
-		startTime = now.Add(-24 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorTimeRange24Hour) * time.Hour)
 	case "7d":
-		startTime = now.AddDate(0, 0, -7)
+		startTime = now.AddDate(0, 0, -IPMonitorTimeRange7Days)
 	default:
-		startTime = now.Add(-24 * time.Hour)
+		startTime = now.Add(-time.Duration(IPMonitorDefaultTimeRange) * time.Hour)
 	}
 
 	var topIPs []struct {
@@ -963,7 +963,7 @@ func (s *AdminService) exportIPMonitor(ctx context.Context, timeRange string) (s
 		Where("created_at >= ?", startTime).
 		Group("ip_address").
 		Order("request_count DESC").
-		Limit(1000).
+		Limit(IPMonitorExportLimit).
 		Scan(&topIPs).Error
 
 	if err != nil {

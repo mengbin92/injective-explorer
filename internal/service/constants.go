@@ -71,6 +71,24 @@ const (
 	// API token constants
 	DefaultAPITokenMonthlyLimit = 100000 // Default monthly limit for API tokens
 
+	// IP rate limit constants
+	IPRateLimitPerMinuteDefault = 100  // Default IP rate limit per minute
+	IPRateLimitPerHourDefault   = 5000 // Default IP rate limit per hour
+	IPRateLimitPerMinMin        = 10   // Minimum IP rate limit per minute
+	IPRateLimitPerMinMax        = 1000 // Maximum IP rate limit per minute
+	IPRateLimitPerHourMin       = 100  // Minimum IP rate limit per hour
+	IPRateLimitPerHourMax       = 50000 // Maximum IP rate limit per hour
+
+	// IP monitor constants
+	IPMonitorTimeRange1Hour  = 1  // 1 hour time range
+	IPMonitorTimeRange6Hour  = 6  // 6 hours time range
+	IPMonitorTimeRange24Hour = 24 // 24 hours time range
+	IPMonitorTimeRange7Days  = 7  // 7 days time range
+	IPMonitorTopLimit        = 10 // Top IPs limit for monitor
+	IPMonitorLogLimit        = 100 // Rate limit log limit
+	IPMonitorDefaultTimeRange = 24 // Default time range in hours
+	IPMonitorExportLimit     = 1000 // IP monitor export limit
+
 	// Time period constants (in days)
 	PeriodLast7Days  = 7  // Last 7 days
 	PeriodLast30Days = 30 // Last 30 days

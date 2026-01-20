@@ -19,7 +19,7 @@ import (
 // Block represents a blockchain block in the database.
 // It embeds gorm.Model which provides ID, CreatedAt, UpdatedAt, and DeletedAt fields.
 //
-// The struct is designed to store block information from the Injective blockchain explorer,
+// The struct is designed to store block information from the injective chain explorer,
 // including block height, proposer information, hash values, transaction counts, and timestamps.
 type Block struct {
 	gorm.Model
@@ -40,7 +40,7 @@ type Block struct {
 // BlockFromProto converts a protobuf BlockDetailInfo to a Block model.
 //
 // Parameters:
-//   - detail: The protobuf block detail information (note: parameter name corrected from "deatil")
+//   - detail: The protobuf block detail information
 //
 // Returns:
 //   - *Block: A new Block instance with data from the protobuf message
