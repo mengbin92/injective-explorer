@@ -17,10 +17,12 @@ import (
 	"injective-explorer/provider/db"
 	"injective-explorer/provider/storage"
 
+	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
@@ -339,6 +341,117 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 
 	if err != nil {
 		return errors.Wrapf(err, "failed to update EVM transaction %s", evmTx.TransactionHash)
+	}
+
+	// Update transactions table with signer and signatures if they are empty
+	// This is important for EVM transactions from go-ethereum/MetaMask where
+	// the signer cannot be extracted from Cosmos SDK's AuthInfo.SignerInfos
+	if details.From != "" && details.ParseStatus == "success" {
+		// Check if signer is empty in transactions table
+		var existingTx models.Transaction
+		err := db.Get().WithContext(ctx).
+			Select("hash, signer, signatures").
+			Where("hash = ?", evmTx.TransactionHash).
+			First(&existingTx).Error
+
+		if err == nil {
+			// Transaction exists, check if signer is empty or to/value need updating
+			if existingTx.Signer == "" || existingTx.To == "" || existingTx.Value == "" {
+				// Convert EVM address to Ethereum format for storage
+				ethSigner := models.ConvertAddressToEthForStorage(details.From)
+				ethTo := models.ConvertAddressToEthForStorage(details.To)
+				ethValue := details.Value
+
+				// Try to get original Cosmos transaction to extract full signature information
+				var signatures []string
+				chainClient, err := GetSharedChainClient()
+				if err == nil {
+					// Create a context with timeout for the GetTx call
+					txCtx, txCancel := context.WithTimeout(ctx, 10*time.Second)
+					defer txCancel()
+
+					txResp, err := chainClient.GetTx(txCtx, evmTx.TransactionHash)
+					if err == nil && txResp != nil {
+						// Convert GetTxResponse to TxDetailData to extract signatures
+						txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec)
+						if txDetailData != nil && len(txDetailData.Signatures) > 0 {
+							// Use the signatures from the original Cosmos transaction
+							sigMessages := make([]proto.Message, 0, len(txDetailData.Signatures))
+							for _, sig := range txDetailData.Signatures {
+								if sig != nil {
+									// Ensure address is set (use EVM From address if not set)
+									if sig.Address == "" {
+										sig.Address = ethSigner
+									}
+									sigMessages = append(sigMessages, sig)
+								}
+							}
+							signatures, err = models.MarshalProtoSliceToJSON(sigMessages)
+							if err != nil {
+								global.Logger.Warnf("failed to marshal signatures from Cosmos transaction %s: %v", evmTx.TransactionHash, err)
+								signatures = nil
+							}
+						}
+					} else if err != nil {
+						global.Logger.Debugf("failed to get Cosmos transaction %s for signature extraction: %v", evmTx.TransactionHash, err)
+					}
+				} else {
+					global.Logger.Debugf("failed to get shared chain client for signature extraction: %v", err)
+				}
+
+				// Fallback: create minimal signature data if we couldn't get it from Cosmos transaction
+				if signatures == nil {
+					// Create signature data with at least the address
+					sigData := &injective_explorer_rpcpb.Signature{
+						Address:  ethSigner,
+						Pubkey:   "", // Not available from EVM RPC
+						Sequence: 0,  // Default value (uint64)
+						Signature: "", // Not available from EVM RPC
+					}
+
+					// Marshal signature to JSON string
+					sigMessages := []proto.Message{sigData}
+					signatures, err = models.MarshalProtoSliceToJSON(sigMessages)
+					if err != nil {
+						global.Logger.Warnf("failed to marshal signature for transaction %s: %v", evmTx.TransactionHash, err)
+						signatures = nil
+					}
+				}
+
+				// Update transactions table with signer, signatures, to, and value
+				// Note: We need to manually serialize signatures to JSON array string
+				// because GORM's Updates(map[string]interface{}) doesn't apply the serializer:json tag
+				txUpdates := map[string]interface{}{
+					"signer": ethSigner,
+					"to":     ethTo,
+					"value":  ethValue,
+				}
+				if signatures != nil {
+					// Marshal []string to JSON array string (e.g., ["{...}", "{...}"])
+					signaturesJSON, err := sonic.Marshal(signatures)
+					if err != nil {
+						global.Logger.Warnf("failed to marshal signatures to JSON array for transaction %s: %v", evmTx.TransactionHash, err)
+					} else {
+						txUpdates["signatures"] = string(signaturesJSON)
+					}
+				}
+
+				err = db.Get().WithContext(ctx).
+					Model(&models.Transaction{}).
+					Where("hash = ?", evmTx.TransactionHash).
+					Updates(txUpdates).Error
+
+				if err != nil {
+					global.Logger.Warnf("failed to update signer and signatures for transaction %s: %v", evmTx.TransactionHash, err)
+					// Don't fail the whole operation if this update fails
+				} else {
+					global.Logger.Debugf("updated signer and signatures for EVM transaction %s (signer: %s)", evmTx.TransactionHash, ethSigner)
+				}
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			// Log error but don't fail the operation
+			global.Logger.Warnf("failed to check transaction %s for signer update: %v", evmTx.TransactionHash, err)
+		}
 	}
 
 	return nil
