@@ -20,11 +20,11 @@ type UsageDailyStats struct {
 	// StatDate is the statistics date (part of unique index with UserID)
 	StatDate time.Time `gorm:"column:stat_date;type:date;not null;uniqueIndex:uk_user_date" json:"stat_date"`
 	// TotalCalls is the total number of API calls on this date
-	TotalCalls uint64 `gorm:"column:total_calls;type:bigint unsigned;not null;default:0" json:"total_calls"`
+	TotalCalls uint64 `gorm:"column:total_calls;type:bigint unsigned;not null" json:"total_calls"`
 	// SuccessCalls is the number of successful API calls on this date
-	SuccessCalls uint64 `gorm:"column:success_calls;type:bigint unsigned;not null;default:0" json:"success_calls"`
+	SuccessCalls uint64 `gorm:"column:success_calls;type:bigint unsigned;not null" json:"success_calls"`
 	// FailedCalls is the number of failed API calls on this date
-	FailedCalls uint64 `gorm:"column:failed_calls;type:bigint unsigned;not null;default:0" json:"failed_calls"`
+	FailedCalls uint64 `gorm:"column:failed_calls;type:bigint unsigned;not null" json:"failed_calls"`
 }
 
 // TableName specifies the table name for UsageDailyStats.

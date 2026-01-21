@@ -12,9 +12,9 @@ type EmailBlacklist struct {
 	// Domain is the email domain (lowercase, without @)
 	Domain string `gorm:"column:domain;type:varchar(255);not null;uniqueIndex" json:"domain"`
 	// Status is the status: active/disabled
-	Status string `gorm:"column:status;type:varchar(20);not null;default:'active'" json:"status"`
+	Status string `gorm:"column:status;type:varchar(20);not null" json:"status"`
 	// BlockCount is the number of times this domain was blocked
-	BlockCount uint64 `gorm:"column:block_count;type:bigint unsigned;not null;default:0" json:"block_count"`
+	BlockCount uint64 `gorm:"column:block_count;type:bigint unsigned;not null" json:"block_count"`
 	// Note is the note/description
 	Note string `gorm:"column:note;type:text" json:"note"`
 }

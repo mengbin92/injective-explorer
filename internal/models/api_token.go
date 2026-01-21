@@ -24,9 +24,9 @@ type APIToken struct {
 	// TokenPreview is the token preview format (inj_xxx...xxx) for display
 	TokenPreview string `gorm:"column:token_preview;type:varchar(20);not null" json:"token_preview"`
 	// PlanType is the plan type: free or paid
-	PlanType string `gorm:"column:plan_type;type:varchar(20);not null;default:'free'" json:"plan_type"`
+	PlanType string `gorm:"column:plan_type;type:varchar(20);not null" json:"plan_type"`
 	// Status is the token status: active or disabled
-	Status string `gorm:"column:status;type:varchar(20);not null;default:'active'" json:"status"`
+	Status string `gorm:"column:status;type:varchar(20);not null" json:"status"`
 	// LastUsedAt is the last time the token was used (nullable)
 	LastUsedAt *time.Time `gorm:"column:last_used_at" json:"last_used_at"`
 }

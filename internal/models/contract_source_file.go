@@ -12,7 +12,7 @@ type ContractSourceFile struct {
 
 	// Basic information
 	ContractAddress string `json:"contract_address" gorm:"column:contract_address;size:128;not null;index"`
-	ChainID         string `json:"chain_id" gorm:"column:chain_id;size:50;default:injective-1;index"`
+	ChainID         string `json:"chain_id" gorm:"column:chain_id;size:50;index"`
 
 	// File information
 	FileName              string `json:"file_name" gorm:"column:file_name;size:255;not null"`                      // Original filename (e.g., "Token.sol" or "abi.json")

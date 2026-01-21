@@ -26,11 +26,11 @@ type APIPlan struct {
 	// MaxTokens is the maximum number of tokens allowed for this plan
 	MaxTokens int `gorm:"column:max_tokens;type:int;not null" json:"max_tokens"`
 	// EnableWebhook indicates whether webhook is enabled for this plan
-	EnableWebhook bool `gorm:"column:enable_webhook;type:tinyint(1);not null;default:0" json:"enable_webhook"`
+	EnableWebhook bool `gorm:"column:enable_webhook;type:tinyint(1);not null" json:"enable_webhook"`
 	// Price is the plan price
-	Price float64 `gorm:"column:price;type:decimal(10,2);not null;default:0.00" json:"price"`
+	Price float64 `gorm:"column:price;type:decimal(10,2);not null" json:"price"`
 	// Status is the plan status: active or inactive
-	Status string `gorm:"column:status;type:varchar(20);not null;default:'active'" json:"status"`
+	Status string `gorm:"column:status;type:varchar(20);not null" json:"status"`
 }
 
 // TableName specifies the table name for APIPlan.

@@ -57,7 +57,7 @@ type Transaction struct {
 	Signer               string     `json:"signer" gorm:"type:varchar(128);column:signer"`                         // Signer is the transaction initiator address (first signer)
 	To                   string     `json:"to" gorm:"type:varchar(128);column:to"`                                 // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
 	Value                string     `json:"value" gorm:"type:varchar(128);column:value"`                           // Value is the transaction value for ethereum transactions (corresponds to 'value' field in ethereum tx)
-	Archived             bool       `json:"archived" gorm:"column:archived;default:0"`                             // Archived indicates whether this transaction has been archived
+	Archived             bool       `json:"archived" gorm:"column:archived"`                                       // Archived indicates whether this transaction has been archived
 	DataStorageKey       string     `json:"data_storage_key" gorm:"column:data_storage_key"`                       // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
 	MessagesStorageKey   string     `json:"messages_storage_key" gorm:"column:messages_storage_key"`               // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
 	LogsStorageKey       string     `json:"logs_storage_key" gorm:"column:logs_storage_key"`                       // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)

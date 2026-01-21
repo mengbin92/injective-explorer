@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -34,8 +33,8 @@ func TestUploadContractFiles_InputValidation(t *testing.T) {
 
 	t.Run("missing contract_address", func(t *testing.T) {
 		req := &pb.UploadContractFilesRequest{
-			ChainId:          "injective-1",
-			SourceCodeBase64: base64.StdEncoding.EncodeToString([]byte("// Solidity code")),
+			ChainId:    "injective-1",
+			SourceCode: []byte("// Solidity code"),
 		}
 
 		resp, err := service.UploadContractFiles(ctx, req)
@@ -77,14 +76,14 @@ func TestUploadContractFiles_InputValidation(t *testing.T) {
 	})
 }
 
-// TestDecodeAndValidateFile tests the decodeAndValidateFile function.
-func TestDecodeAndValidateFile(t *testing.T) {
+// TestValidateFile tests the validateFile function.
+func TestValidateFile(t *testing.T) {
 	validSolCode := "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;"
 	validAbiJSON := `[{"constant":true,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"type":"function"}]`
 
 	tests := []struct {
 		name             string
-		base64Content    string
+		fileContent      []byte
 		fileType         string
 		expectedExt      string
 		fileName         string
@@ -97,7 +96,7 @@ func TestDecodeAndValidateFile(t *testing.T) {
 	}{
 		{
 			name:             "valid source code file",
-			base64Content:    base64.StdEncoding.EncodeToString([]byte(validSolCode)),
+			fileContent:      []byte(validSolCode),
 			fileType:         "source",
 			expectedExt:      ".sol",
 			fileName:         "Token.sol",
@@ -109,7 +108,7 @@ func TestDecodeAndValidateFile(t *testing.T) {
 		},
 		{
 			name:             "valid ABI file",
-			base64Content:    base64.StdEncoding.EncodeToString([]byte(validAbiJSON)),
+			fileContent:      []byte(validAbiJSON),
 			fileType:         "abi",
 			expectedExt:      ".json",
 			fileName:         "abi.json",
@@ -121,7 +120,7 @@ func TestDecodeAndValidateFile(t *testing.T) {
 		},
 		{
 			name:             "auto-generate filename for source",
-			base64Content:    base64.StdEncoding.EncodeToString([]byte(validSolCode)),
+			fileContent:      []byte(validSolCode),
 			fileType:         "source",
 			expectedExt:      ".sol",
 			fileName:         "",
@@ -133,7 +132,7 @@ func TestDecodeAndValidateFile(t *testing.T) {
 		},
 		{
 			name:             "auto-generate filename for ABI",
-			base64Content:    base64.StdEncoding.EncodeToString([]byte(validAbiJSON)),
+			fileContent:      []byte(validAbiJSON),
 			fileType:         "abi",
 			expectedExt:      ".json",
 			fileName:         "",
@@ -144,18 +143,8 @@ func TestDecodeAndValidateFile(t *testing.T) {
 			expectedMIMEType: "application/json",
 		},
 		{
-			name:           "invalid base64 encoding",
-			base64Content:  "!!!invalid-base64!!!",
-			fileType:       "source",
-			expectedExt:    ".sol",
-			fileName:       "Token.sol",
-			maxSize:        10 * 1024 * 1024,
-			wantErr:        true,
-			errMsgContains: "invalid base64 encoding",
-		},
-		{
 			name:           "file size exceeds maximum",
-			base64Content:  base64.StdEncoding.EncodeToString([]byte(strings.Repeat("x", 11*1024*1024))),
+			fileContent:    []byte(strings.Repeat("x", 11*1024*1024)),
 			fileType:       "source",
 			expectedExt:    ".sol",
 			fileName:       "Token.sol",
@@ -165,7 +154,7 @@ func TestDecodeAndValidateFile(t *testing.T) {
 		},
 		{
 			name:           "invalid JSON for ABI file",
-			base64Content:  base64.StdEncoding.EncodeToString([]byte("not valid json")),
+			fileContent:    []byte("not valid json"),
 			fileType:       "abi",
 			expectedExt:    ".json",
 			fileName:       "abi.json",
@@ -177,32 +166,32 @@ func TestDecodeAndValidateFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := decodeAndValidateFile(tt.base64Content, tt.fileType, tt.expectedExt, tt.fileName, tt.maxSize)
+			result, err := validateFile(tt.fileContent, tt.fileType, tt.expectedExt, tt.fileName, tt.maxSize)
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("decodeAndValidateFile() expected error but got none")
+					t.Errorf("validateFile() expected error but got none")
 				}
 				if tt.errMsgContains != "" && !strings.Contains(err.Error(), tt.errMsgContains) {
-					t.Errorf("decodeAndValidateFile() expected error to contain %q, got %q", tt.errMsgContains, err.Error())
+					t.Errorf("validateFile() expected error to contain %q, got %q", tt.errMsgContains, err.Error())
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("decodeAndValidateFile() unexpected error: %v", err)
+				t.Errorf("validateFile() unexpected error: %v", err)
 				return
 			}
 
 			if tt.checkResult && result != nil {
 				if result.Name != tt.expectedName {
-					t.Errorf("decodeAndValidateFile() expected name %q, got %q", tt.expectedName, result.Name)
+					t.Errorf("validateFile() expected name %q, got %q", tt.expectedName, result.Name)
 				}
 				if result.MIMEType != tt.expectedMIMEType {
-					t.Errorf("decodeAndValidateFile() expected MIME type %q, got %q", tt.expectedMIMEType, result.MIMEType)
+					t.Errorf("validateFile() expected MIME type %q, got %q", tt.expectedMIMEType, result.MIMEType)
 				}
 				if len(result.Content) == 0 {
-					t.Errorf("decodeAndValidateFile() expected non-empty content")
+					t.Errorf("validateFile() expected non-empty content")
 				}
 			}
 		})
@@ -437,7 +426,7 @@ func TestUploadContractFiles_RequestScenarios(t *testing.T) {
 			req: &pb.UploadContractFilesRequest{
 				ContractAddress:    "0x1234567890abcdef1234567890abcdef12345678",
 				ChainId:            "injective-1",
-				SourceCodeBase64:   base64.StdEncoding.EncodeToString([]byte(validSolCode)),
+				SourceCode:   []byte(validSolCode),
 				SourceCodeFileName: "Token.sol",
 			},
 			wantErr:        true, // Will fail because contract doesn't exist in DB
@@ -449,7 +438,7 @@ func TestUploadContractFiles_RequestScenarios(t *testing.T) {
 			req: &pb.UploadContractFilesRequest{
 				ContractAddress: "0x1234567890abcdef1234567890abcdef12345678",
 				ChainId:         "injective-1",
-				AbiBase64:       base64.StdEncoding.EncodeToString([]byte(validAbiJSON)),
+				Abi:       []byte(validAbiJSON),
 				AbiFileName:     "abi.json",
 			},
 			wantErr:        true, // Will fail because contract doesn't exist in DB
@@ -461,9 +450,9 @@ func TestUploadContractFiles_RequestScenarios(t *testing.T) {
 			req: &pb.UploadContractFilesRequest{
 				ContractAddress:    "0x1234567890abcdef1234567890abcdef12345678",
 				ChainId:            "injective-1",
-				SourceCodeBase64:   base64.StdEncoding.EncodeToString([]byte(validSolCode)),
+				SourceCode:   []byte(validSolCode),
 				SourceCodeFileName: "Token.sol",
-				AbiBase64:          base64.StdEncoding.EncodeToString([]byte(validAbiJSON)),
+				Abi:          []byte(validAbiJSON),
 				AbiFileName:        "abi.json",
 				Description:        "Test contract upload",
 				UploadedBy:         "0xuser",
@@ -477,7 +466,7 @@ func TestUploadContractFiles_RequestScenarios(t *testing.T) {
 			req: &pb.UploadContractFilesRequest{
 				ContractAddress:    "0x1234567890abcdef1234567890abcdef12345678",
 				ChainId:            "",
-				SourceCodeBase64:   base64.StdEncoding.EncodeToString([]byte(validSolCode)),
+				SourceCode:   []byte(validSolCode),
 				SourceCodeFileName: "Token.sol",
 			},
 			wantErr:        true, // Will fail because contract doesn't exist in DB
@@ -566,7 +555,7 @@ func TestUploadContractFiles_EdgeCases(t *testing.T) {
 		req := &pb.UploadContractFilesRequest{
 			ContractAddress:    "0x1234567890abcdef1234567890abcdef12345678",
 			ChainId:            "injective-1",
-			SourceCodeBase64:   base64.StdEncoding.EncodeToString([]byte("")),
+			SourceCode:   []byte(""),
 			SourceCodeFileName: "empty.sol",
 		}
 
@@ -585,7 +574,7 @@ func TestUploadContractFiles_EdgeCases(t *testing.T) {
 		req := &pb.UploadContractFilesRequest{
 			ContractAddress:    "0x1234567890abcdef1234567890abcdef12345678",
 			ChainId:            "injective-1",
-			SourceCodeBase64:   base64.StdEncoding.EncodeToString([]byte("// code")),
+			SourceCode:   []byte("// code"),
 			SourceCodeFileName: longFileName,
 		}
 
@@ -603,7 +592,7 @@ func TestUploadContractFiles_EdgeCases(t *testing.T) {
 		req := &pb.UploadContractFilesRequest{
 			ContractAddress:    "0x1234567890abcdef1234567890abcdef12345678",
 			ChainId:            "injective-1",
-			SourceCodeBase64:   base64.StdEncoding.EncodeToString([]byte("// code")),
+			SourceCode:   []byte("// code"),
 			SourceCodeFileName: "Token.sol",
 			Description:        "Special chars: <>&\"'\\n\\t中文",
 			UploadedBy:         "0xuser",

@@ -243,14 +243,14 @@ message UploadContractFilesRequest {
   // Chain ID (optional, default: injective-1)
   string chain_id = 2 [ json_name = "chain_id" ];
 
-  // Source code file (.sol) content as base64 encoded string (optional)
-  string source_code_base64 = 3 [ json_name = "source_code_base64" ];
+  // Source code file (.sol) content as bytes (optional)
+  bytes source_code = 3 [ json_name = "source_code" ];
 
   // Source code file name (optional, e.g., "Token.sol")
   string source_code_file_name = 4 [ json_name = "source_code_file_name" ];
 
-  // ABI file (.json) content as base64 encoded string (optional)
-  string abi_base64 = 5 [ json_name = "abi_base64" ];
+  // ABI file (.json) content as bytes (optional)
+  bytes abi = 5 [ json_name = "abi" ];
 
   // ABI file name (optional, e.g., "abi.json")
   string abi_file_name = 6 [ json_name = "abi_file_name" ];

@@ -4,9 +4,9 @@ package service
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -891,8 +891,8 @@ func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.U
 	}
 
 	// At least one file must be provided
-	if req.SourceCodeBase64 == "" && req.AbiBase64 == "" {
-		return ErrorReply(http.StatusBadRequest, "at least one file (source_code_base64 or abi_base64) is required", errors.New("no file provided")), errors.New("no file provided")
+	if len(req.SourceCode) == 0 && len(req.Abi) == 0 {
+		return ErrorReply(http.StatusBadRequest, "at least one file (source_code or abi) is required", errors.New("no file provided")), errors.New("no file provided")
 	}
 
 	// Set default chain ID
@@ -924,48 +924,82 @@ func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.U
 	const maxFileSize = 10 * 1024 * 1024 // 10MB max file size
 	const storageThreshold = 100 * 1024  // 100KB threshold for using object storage
 
+	// Concurrent file upload using WaitGroup
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var uploadErr error
+
 	// Upload source code file if provided
-	if req.SourceCodeBase64 != "" {
-		fileData, err := decodeAndValidateFile(req.SourceCodeBase64, "source", ".sol", req.SourceCodeFileName, maxFileSize)
-		if err != nil {
-			return ErrorReply(http.StatusBadRequest, fmt.Sprintf("invalid source code file: %v", err), err), err
-		}
+	if len(req.SourceCode) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fileData, err := validateFile(req.SourceCode, "source", ".sol", req.SourceCodeFileName, maxFileSize)
+			if err != nil {
+				uploadErr = err
+				return
+			}
 
-		sourceFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "source", fileData, req.SourceCodeFileName, req.Description, req.UploadedBy, storageThreshold)
-		if err != nil {
-			global.Logger.Errorf("failed to save source code file: %v", err)
-			return ErrorReply(http.StatusInternalServerError, "failed to save source code file", err), err
-		}
+			sourceFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "source", fileData, req.SourceCodeFileName, req.Description, req.UploadedBy, storageThreshold)
+			if err != nil {
+				global.Logger.Errorf("failed to save source code file: %v", err)
+				uploadErr = err
+				return
+			}
 
-		uploadedFiles = append(uploadedFiles, map[string]interface{}{
-			"file_type":     "source",
-			"file_name":     sourceFile.FileName,
-			"file_id":       sourceFile.ID,
-			"file_size":     sourceFile.FileSize,
-			"storage_type":  s.getStorageType(sourceFile),
-		})
+			mu.Lock()
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"file_type":    "source",
+				"file_name":    sourceFile.FileName,
+				"file_id":      sourceFile.ID,
+				"file_size":    sourceFile.FileSize,
+				"storage_type": s.getStorageType(sourceFile),
+			})
+			mu.Unlock()
+		}()
 	}
 
 	// Upload ABI file if provided
-	if req.AbiBase64 != "" {
-		fileData, err := decodeAndValidateFile(req.AbiBase64, "abi", ".json", req.AbiFileName, maxFileSize)
-		if err != nil {
-			return ErrorReply(http.StatusBadRequest, fmt.Sprintf("invalid ABI file: %v", err), err), err
-		}
+	if len(req.Abi) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fileData, err := validateFile(req.Abi, "abi", ".json", req.AbiFileName, maxFileSize)
+			if err != nil {
+				uploadErr = err
+				return
+			}
 
-		abiFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "abi", fileData, req.AbiFileName, req.Description, req.UploadedBy, storageThreshold)
-		if err != nil {
-			global.Logger.Errorf("failed to save ABI file: %v", err)
-			return ErrorReply(http.StatusInternalServerError, "failed to save ABI file", err), err
-		}
+			abiFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "abi", fileData, req.AbiFileName, req.Description, req.UploadedBy, storageThreshold)
+			if err != nil {
+				global.Logger.Errorf("failed to save ABI file: %v", err)
+				uploadErr = err
+				return
+			}
 
-		uploadedFiles = append(uploadedFiles, map[string]interface{}{
-			"file_type":     "abi",
-			"file_name":     abiFile.FileName,
-			"file_id":       abiFile.ID,
-			"file_size":     abiFile.FileSize,
-			"storage_type":  s.getStorageType(abiFile),
-		})
+			mu.Lock()
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"file_type":    "abi",
+				"file_name":    abiFile.FileName,
+				"file_id":      abiFile.ID,
+				"file_size":    abiFile.FileSize,
+				"storage_type": s.getStorageType(abiFile),
+			})
+			mu.Unlock()
+		}()
+	}
+
+	// Wait for all uploads to complete
+	wg.Wait()
+
+	// Check for upload errors
+	if uploadErr != nil {
+		// Check if it's a validation error by inspecting the error message
+		errMsg := uploadErr.Error()
+		if len(errMsg) > 0 && (errMsg == "invalid base64 encoding" || errMsg == "file size exceeds maximum" || errMsg == "invalid JSON format for ABI file") {
+			return ErrorReply(http.StatusBadRequest, fmt.Sprintf("invalid file: %v", uploadErr), uploadErr), uploadErr
+		}
+		return ErrorReply(http.StatusInternalServerError, "failed to save file", uploadErr), uploadErr
 	}
 
 	// Build response
@@ -979,21 +1013,16 @@ func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.U
 	return MarshalAndReply(responseData, "marshal upload response error")
 }
 
-// FileData represents decoded file data
+// FileData represents file data
 type FileData struct {
-	Content []byte
-	Name    string
+	Content  []byte
+	Name     string
 	MIMEType string
 }
 
-// decodeAndValidateFile decodes base64 file content and validates it
-func decodeAndValidateFile(base64Content, fileType, expectedExt, fileName string, maxSize int) (*FileData, error) {
-	// Decode base64
-	fileContent, err := base64.StdEncoding.DecodeString(base64Content)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid base64 encoding")
-	}
-
+// validateFile validates file content and metadata.
+// This function operates directly on bytes, avoiding unnecessary base64 decoding.
+func validateFile(fileContent []byte, fileType, expectedExt, fileName string, maxSize int) (*FileData, error) {
 	// Check file size
 	if len(fileContent) > maxSize {
 		return nil, errors.Errorf("file size exceeds maximum %d bytes", maxSize)

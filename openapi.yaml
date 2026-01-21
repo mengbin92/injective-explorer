@@ -3,2495 +3,2499 @@
 
 openapi: 3.0.3
 info:
-    title: ""
-    version: 0.0.1
+  title: ""
+  version: 0.0.1
 paths:
-    /api/v1/account/balances:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetAccountBalances
-            parameters:
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/account/info:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetAccountInfo
-            parameters:
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/account/transactions:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetAccountTransactions
-            parameters:
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-                - name: tx_types
-                  in: query
-                  description: |-
-                    Optional: filter by message types from transaction messages (e.g.,
-                     ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit",
-                     "MsgWithdraw"]) Supports both full type URL (e.g.,
-                     "/cosmos.bank.v1beta1.MsgSend") and short type name (e.g., "MsgSend") If
-                     empty, returns all transactions regardless of message types Note: A
-                     transaction matches if ANY of its messages matches ANY of the specified
-                     types
-                  schema:
-                    type: array
-                    items:
-                        type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/address/label:
-        put:
-            tags:
-                - AddressLabelService
-            description: UpdateAddressLabel updates an existing address label.
-            operationId: AddressLabelService_UpdateAddressLabel
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UpdateAddressLabelRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        post:
-            tags:
-                - AddressLabelService
-            description: CreateAddressLabel creates a new address label.
-            operationId: AddressLabelService_CreateAddressLabel
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.CreateAddressLabelRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        delete:
-            tags:
-                - AddressLabelService
-            description: DeleteAddressLabel deletes an address label.
-            operationId: AddressLabelService_DeleteAddressLabel
-            parameters:
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-                - name: chain_id
-                  in: query
-                  schema:
-                    type: string
-                - name: label_type
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/address/label/list:
-        get:
-            tags:
-                - AddressLabelService
-            description: ListAddressLabels lists address labels with filter conditions.
-            operationId: AddressLabelService_ListAddressLabels
-            parameters:
-                - name: chain_id
-                  in: query
-                  schema:
-                    type: string
-                - name: label_type
-                  in: query
-                  schema:
-                    type: string
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-                - name: label_value
-                  in: query
-                  schema:
-                    type: string
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/address/labels:
-        get:
-            tags:
-                - AddressLabelService
-            description: GetAddressLabels retrieves all labels for an address.
-            operationId: AddressLabelService_GetAddressLabels
-            parameters:
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-                - name: chain_id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/email/blacklist:
-        get:
-            tags:
-                - AdminService
-            description: |-
-                ========== Email Blacklist Management ==========
-                 ListEmailBlacklist lists email blacklist domains
-            operationId: AdminService_ListEmailBlacklist
-            parameters:
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-                - name: domain
-                  in: query
-                  schema:
-                    type: string
-                - name: status
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        put:
-            tags:
-                - AdminService
-            description: UpdateEmailDomain updates an email domain
-            operationId: AdminService_UpdateEmailDomain
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UpdateEmailDomainRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        post:
-            tags:
-                - AdminService
-            description: AddEmailDomain adds an email domain to blacklist
-            operationId: AdminService_AddEmailDomain
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.AddEmailDomainRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        delete:
-            tags:
-                - AdminService
-            description: DeleteEmailDomain deletes an email domain from blacklist
-            operationId: AdminService_DeleteEmailDomain
-            parameters:
-                - name: id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/email/blacklist/batch-delete:
-        post:
-            tags:
-                - AdminService
-            description: BatchDeleteEmailDomains batch deletes email domains
-            operationId: AdminService_BatchDeleteEmailDomains
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.BatchDeleteEmailDomainsRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/email/blacklist/batch-import:
-        post:
-            tags:
-                - AdminService
-            description: BatchImportEmailDomains batch imports email domains
-            operationId: AdminService_BatchImportEmailDomains
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.BatchImportEmailDomainsRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/email/blacklist/preview-import:
-        post:
-            tags:
-                - AdminService
-            description: PreviewImportEmailDomains previews batch import email domains
-            operationId: AdminService_PreviewImportEmailDomains
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.PreviewImportEmailDomainsRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/email/blacklist/stats:
-        get:
-            tags:
-                - AdminService
-            description: GetEmailBlacklistStats gets email blacklist statistics
-            operationId: AdminService_GetEmailBlacklistStats
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/email/blacklist/toggle:
-        put:
-            tags:
-                - AdminService
-            description: ToggleEmailDomainStatus toggles email domain status (active/disabled)
-            operationId: AdminService_ToggleEmailDomainStatus
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.ToggleEmailDomainStatusRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/blacklist:
-        get:
-            tags:
-                - AdminService
-            description: ListIPBlacklist lists IP blacklist
-            operationId: AdminService_ListIPBlacklist
-            parameters:
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-                - name: ip_address
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        post:
-            tags:
-                - AdminService
-            description: AddIPToBlacklist adds an IP to blacklist
-            operationId: AdminService_AddIPToBlacklist
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.AddIPToBlacklistRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        delete:
-            tags:
-                - AdminService
-            description: RemoveIPFromBlacklist removes an IP from blacklist
-            operationId: AdminService_RemoveIPFromBlacklist
-            parameters:
-                - name: ip_address
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/blacklist/batch:
-        post:
-            tags:
-                - AdminService
-            description: BatchAddIPToBlacklist batch adds IPs to blacklist
-            operationId: AdminService_BatchAddIPToBlacklist
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.BatchAddIPToBlacklistRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/blacklist/batch-remove:
-        post:
-            tags:
-                - AdminService
-            description: BatchRemoveIPFromBlacklist batch removes IPs from blacklist
-            operationId: AdminService_BatchRemoveIPFromBlacklist
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.BatchRemoveIPFromBlacklistRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/blacklist/stats:
-        get:
-            tags:
-                - AdminService
-            description: GetIPBlacklistStats gets IP blacklist statistics
-            operationId: AdminService_GetIPBlacklistStats
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/config:
-        get:
-            tags:
-                - AdminService
-            description: GetIPRateLimitConfig gets IP rate limit configuration
-            operationId: AdminService_GetIPRateLimitConfig
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        put:
-            tags:
-                - AdminService
-            description: UpdateIPRateLimitConfig updates IP rate limit configuration
-            operationId: AdminService_UpdateIPRateLimitConfig
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UpdateIPRateLimitConfigRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/detail:
-        get:
-            tags:
-                - AdminService
-            description: GetIPDetail gets IP detail information
-            operationId: AdminService_GetIPDetail
-            parameters:
-                - name: ip_address
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/export:
-        get:
-            tags:
-                - AdminService
-            description: ExportIPList exports IP list (records/blacklist/monitor)
-            operationId: AdminService_ExportIPList
-            parameters:
-                - name: type
-                  in: query
-                  schema:
-                    type: string
-                - name: time_range
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/monitor:
-        get:
-            tags:
-                - AdminService
-            description: GetIPRequestMonitor gets IP request monitoring data
-            operationId: AdminService_GetIPRequestMonitor
-            parameters:
-                - name: time_range
-                  in: query
-                  schema:
-                    type: string
-                - name: ip_address
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/records:
-        get:
-            tags:
-                - AdminService
-            description: |-
-                ========== IP Management ==========
-                 ListIPRegistrationRecords lists IP registration records
-            operationId: AdminService_ListIPRegistrationRecords
-            parameters:
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-                - name: ip_address
-                  in: query
-                  schema:
-                    type: string
-                - name: status
-                  in: query
-                  schema:
-                    type: string
-                - name: time_range
-                  in: query
-                  schema:
-                    type: string
-                - name: min_register_count
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/ip/records/stats:
-        get:
-            tags:
-                - AdminService
-            description: GetIPRecordsStats gets IP registration records statistics
-            operationId: AdminService_GetIPRecordsStats
-            parameters:
-                - name: time_range
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/plan:
-        get:
-            tags:
-                - AdminService
-            description: |-
-                ========== Plan Management ==========
-                 GetPlan gets a plan by ID
-            operationId: AdminService_GetPlan
-            parameters:
-                - name: id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/plans:
-        get:
-            tags:
-                - AdminService
-            description: ListPlans lists all plans
-            operationId: AdminService_ListPlans
-            parameters:
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-                - name: plan_type
-                  in: query
-                  schema:
-                    type: string
-                - name: status
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        put:
-            tags:
-                - AdminService
-            description: UpdatePlan updates a plan configuration
-            operationId: AdminService_UpdatePlan
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UpdatePlanRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        post:
-            tags:
-                - AdminService
-            description: CreatePlan creates a new plan
-            operationId: AdminService_CreatePlan
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.CreatePlanRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/plans/stats:
-        get:
-            tags:
-                - AdminService
-            description: GetPlanStats gets plan usage statistics
-            operationId: AdminService_GetPlanStats
-            parameters:
-                - name: id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/usage/errors:
-        get:
-            tags:
-                - AdminService
-            description: GetUsageErrors gets error request list
-            operationId: AdminService_GetUsageErrors
-            parameters:
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-                - name: status_code
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: time_range
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/user/token-stats:
-        get:
-            tags:
-                - AdminService
-            description: GetUserTokenStats gets token statistics for a specific user
-            operationId: AdminService_GetUserTokenStats
-            parameters:
-                - name: user_id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/admin/user/tokens:
-        get:
-            tags:
-                - AdminService
-            description: |-
-                ========== User Token Management ==========
-                 ListUserTokens lists all tokens for a specific user
-            operationId: AdminService_ListUserTokens
-            parameters:
-                - name: user_id
-                  in: query
-                  schema:
-                    type: string
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/block/by-height:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetBlockByHeight
-            parameters:
-                - name: height
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/block/gas-utilization:
-        get:
-            tags:
-                - Explorer
-            description: Get block gas utilization for the latest 10 blocks
-            operationId: Explorer_GetBlockGasUtilization
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/block/latest:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetLatestBlocks
-            parameters:
-                - name: page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/block/latest-height:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetLatestBlockHeight
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/blocks/batch:
-        post:
-            tags:
-                - Explorer
-            operationId: Explorer_GetBlocksBatch
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.GetBlocksBatchRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/files/upload:
-        post:
-            tags:
-                - ContractInfoService
-            description: |-
-                UploadContractFiles uploads contract source code files (.sol) and ABI files (.json)
-                 Returns Reply with data containing upload result
-            operationId: ContractInfoService_UploadContractFiles
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UploadContractFilesRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info:
-        put:
-            tags:
-                - ContractInfoService
-            description: UpdateContractInfo updates contract information.
-            operationId: ContractInfoService_UpdateContractInfo
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UpdateContractInfoRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        post:
-            tags:
-                - ContractInfoService
-            description: CreateContractInfo creates a new contract information.
-            operationId: ContractInfoService_CreateContractInfo
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.CreateContractInfoRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        delete:
-            tags:
-                - ContractInfoService
-            description: DeleteContractInfo deletes contract information (soft delete).
-            operationId: ContractInfoService_DeleteContractInfo
-            parameters:
-                - name: contractAddress
-                  in: query
-                  schema:
-                    type: string
-                - name: chainId
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info/by-address:
-        get:
-            tags:
-                - ContractInfoService
-            description: GetContractInfoByAddress retrieves contract information by address.
-            operationId: ContractInfoService_GetContractInfoByAddress
-            parameters:
-                - name: contractAddress
-                  in: query
-                  schema:
-                    type: string
-                - name: chainId
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info/by-symbol:
-        get:
-            tags:
-                - ContractInfoService
-            description: |-
-                GetContractsBySymbol retrieves contracts by symbol (supports one-to-many
-                 relationship). This is primarily used for token contracts, but can be
-                 extended for other contract types.
-            operationId: ContractInfoService_GetContractsBySymbol
-            parameters:
-                - name: symbol
-                  in: query
-                  schema:
-                    type: string
-                - name: chainId
-                  in: query
-                  schema:
-                    type: string
-                - name: contractType
-                  in: query
-                  schema:
-                    type: string
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info/export:
-        get:
-            tags:
-                - ContractInfoService
-            description: |-
-                ExportContractInfos exports contract information in CSV or JSON format
-                 Returns Reply with data containing export result
-            operationId: ContractInfoService_ExportContractInfos
-            parameters:
-                - name: format
-                  in: query
-                  description: 'Export format: "csv" or "json" (required)'
-                  schema:
-                    type: string
-                - name: chain_id
-                  in: query
-                  description: Filter conditions (optional)
-                  schema:
-                    type: string
-                - name: contract_type
-                  in: query
-                  schema:
-                    type: string
-                - name: verification_status
-                  in: query
-                  schema:
-                    type: string
-                - name: name
-                  in: query
-                  schema:
-                    type: string
-                - name: symbol
-                  in: query
-                  schema:
-                    type: string
-                - name: contract_addresses
-                  in: query
-                  description: |-
-                    Specific contract addresses to export (optional, if empty exports all
-                     matching filters)
-                  schema:
-                    type: array
-                    items:
-                        type: string
-                - name: include_tags
-                  in: query
-                  description: 'Include tags in export (default: true)'
-                  schema:
-                    type: boolean
-                - name: include_metadata
-                  in: query
-                  description: 'Include metadata in export (default: true)'
-                  schema:
-                    type: boolean
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info/import:
-        post:
-            tags:
-                - ContractInfoService
-            description: |-
-                ImportContractInfos imports contract information from CSV or JSON file
-                 Returns Reply with data containing import result
-            operationId: ContractInfoService_ImportContractInfos
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.ImportContractInfosRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info/list:
-        get:
-            tags:
-                - ContractInfoService
-            description: |-
-                ListContractInfos lists contract information with various filter
-                 conditions.
-            operationId: ContractInfoService_ListContractInfos
-            parameters:
-                - name: chainId
-                  in: query
-                  schema:
-                    type: string
-                - name: contractType
-                  in: query
-                  schema:
-                    type: string
-                - name: verificationStatus
-                  in: query
-                  schema:
-                    type: string
-                - name: name
-                  in: query
-                  schema:
-                    type: string
-                - name: symbol
-                  in: query
-                  schema:
-                    type: string
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info/tag:
-        post:
-            tags:
-                - ContractInfoService
-            description: AddContractTag adds a tag to a contract.
-            operationId: ContractInfoService_AddContractTag
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.AddContractTagRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        delete:
-            tags:
-                - ContractInfoService
-            description: RemoveContractTag removes a tag from a contract.
-            operationId: ContractInfoService_RemoveContractTag
-            parameters:
-                - name: contractAddress
-                  in: query
-                  schema:
-                    type: string
-                - name: chainId
-                  in: query
-                  schema:
-                    type: string
-                - name: tagType
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/contract/info/tags:
-        get:
-            tags:
-                - ContractInfoService
-            description: GetContractTags retrieves all tags for a contract.
-            operationId: ContractInfoService_GetContractTags
-            parameters:
-                - name: contractAddress
-                  in: query
-                  schema:
-                    type: string
-                - name: chainId
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/dashboard/stats:
-        get:
-            tags:
-                - APITokenService
-            description: GetDashboardStats gets dashboard statistics for a user
-            operationId: APITokenService_GetDashboardStats
-            parameters:
-                - name: days
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/evm/account/transactions:
-        get:
-            tags:
-                - Explorer
-            description: Get EVM account transactions
-            operationId: Explorer_GetEVMAccountTransactions
-            parameters:
-                - name: address
-                  in: query
-                  schema:
-                    type: string
-                - name: page
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageSize
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: cursor
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/evm/transaction:
-        get:
-            tags:
-                - Explorer
-            description: |-
-                EVM 交易相关 API
-                 Get EVM transaction by hash
-            operationId: Explorer_GetEVMTransaction
-            parameters:
-                - name: hash
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/evm/transactions:
-        get:
-            tags:
-                - Explorer
-            description: Get EVM transactions list
-            operationId: Explorer_GetEVMTransactions
-            parameters:
-                - name: page
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageSize
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: cursor
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/export/logs:
-        get:
-            tags:
-                - APITokenService
-            description: ExportUsageLogs exports usage logs to Excel format
-            operationId: APITokenService_ExportUsageLogs
-            parameters:
-                - name: time_range
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/health:
-        get:
-            tags:
-                - Explorer
-            description: Health check endpoint for gRPC-Web
-            operationId: Explorer_CheckHealthy
-            parameters:
-                - name: service
-                  in: query
-                  description: 'Optional: service name to check'
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.CheckHealthyResponse'
-    /api/v1/stream/account:
-        get:
-            tags:
-                - Explorer
-            description: Stream account updates (balance changes, new transactions, etc.)
-            operationId: Explorer_StreamAccountUpdates
-            parameters:
-                - name: address
-                  in: query
-                  description: 'Required: account address to monitor'
-                  schema:
-                    type: string
-                - name: fromTimestamp
-                  in: query
-                  description: |-
-                    Optional: start streaming from a specific timestamp
-                     If 0, streams from recent transactions
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.AccountUpdate'
-    /api/v1/stream/blocks:
-        get:
-            tags:
-                - Explorer
-            description: |-
-                Streaming RPCs for real-time updates
-                 Stream latest blocks as they are added to the chain
-            operationId: Explorer_StreamLatestBlocks
-            parameters:
-                - name: fromHeight
-                  in: query
-                  description: |-
-                    Optional: start streaming from a specific block height
-                     If 0, streams from the latest blocks
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.BlockUpdate'
-    /api/v1/stream/transactions:
-        get:
-            tags:
-                - Explorer
-            description: Stream latest transactions as they are added to the chain
-            operationId: Explorer_StreamLatestTransactions
-            parameters:
-                - name: types
-                  in: query
-                  description: |-
-                    Optional: filter by transaction types
-                     If empty, streams all transaction types
-                  schema:
-                    type: array
-                    items:
-                        type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.TransactionUpdate'
-    /api/v1/token/price-marketcap:
-        get:
-            tags:
-                - Explorer
-            description: |-
-                Get token price and market cap (supports multiple tokens)
-                 If token symbol is not specified, uses the default token from configuration
-            operationId: Explorer_GetTokenPriceAndMarketCap
-            parameters:
-                - name: token_symbol
-                  in: query
-                  description: |-
-                    Token symbol (e.g., "inj", "mycoin"). If not specified, uses default token
-                     from configuration
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/tokens:
-        get:
-            tags:
-                - APITokenService
-            description: ListTokens lists all tokens for a user
-            operationId: APITokenService_ListTokens
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        post:
-            tags:
-                - APITokenService
-            description: CreateToken creates a new API token
-            operationId: APITokenService_CreateToken
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.CreateTokenRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        delete:
-            tags:
-                - APITokenService
-            description: DeleteToken deletes a token
-            operationId: APITokenService_DeleteToken
-            parameters:
-                - name: token_id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/tokens/usage:
-        get:
-            tags:
-                - APITokenService
-            description: GetTokenUsage gets token usage statistics
-            operationId: APITokenService_GetTokenUsage
-            parameters:
-                - name: token_id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/transaction/by-hash:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetTransactionByHash
-            parameters:
-                - name: hash
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/transaction/failed-1000:
-        get:
-            tags:
-                - Explorer
-            description: Get failure statistics for the latest 1000 transactions
-            operationId: Explorer_GetFailedTransactions1000
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/transaction/failed-24h:
-        get:
-            tags:
-                - Explorer
-            description: Get failed transactions in the last 24 hours with failure reasons
-            operationId: Explorer_GetFailedTransactions24H
-            parameters:
-                - name: pagination.page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pagination.cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/transaction/latest:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetLatestTransactions
-            parameters:
-                - name: page
-                  in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
-                  schema:
-                    type: integer
-                    format: int32
-                - name: page_size
-                  in: query
-                  description: 每页大小，默认20，最大100
-                  schema:
-                    type: integer
-                    format: int32
-                - name: cursor
-                  in: query
-                  description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/transaction/stats:
-        get:
-            tags:
-                - Explorer
-            operationId: Explorer_GetTransactionStats
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/transactions/batch:
-        post:
-            tags:
-                - Explorer
-            description: Batch query interfaces for better performance
-            operationId: Explorer_GetTransactionsBatch
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.GetTransactionsBatchRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-    /api/v1/webhooks:
-        get:
-            tags:
-                - WebhookService
-            description: ListWebhooks lists webhook configurations
-            operationId: WebhookService_ListWebhooks
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        put:
-            tags:
-                - WebhookService
-            description: UpdateWebhook updates webhook configuration
-            operationId: WebhookService_UpdateWebhook
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.UpdateWebhookRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        post:
-            tags:
-                - WebhookService
-            description: CreateWebhook creates a webhook configuration
-            operationId: WebhookService_CreateWebhook
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/api.explorer.v1.CreateWebhookRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
-        delete:
-            tags:
-                - WebhookService
-            description: DeleteWebhook deletes a webhook
-            operationId: WebhookService_DeleteWebhook
-            parameters:
-                - name: webhook_id
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+  /api/v1/account/balances:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetAccountBalances
+      parameters:
+        - name: address
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/account/info:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetAccountInfo
+      parameters:
+        - name: address
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/account/transactions:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetAccountTransactions
+      parameters:
+        - name: address
+          in: query
+          schema:
+            type: string
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+        - name: tx_types
+          in: query
+          description: |-
+            Optional: filter by message types from transaction messages (e.g.,
+             ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit",
+             "MsgWithdraw"]) Supports both full type URL (e.g.,
+             "/cosmos.bank.v1beta1.MsgSend") and short type name (e.g., "MsgSend") If
+             empty, returns all transactions regardless of message types Note: A
+             transaction matches if ANY of its messages matches ANY of the specified
+             types
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/address/label:
+    put:
+      tags:
+        - AddressLabelService
+      description: UpdateAddressLabel updates an existing address label.
+      operationId: AddressLabelService_UpdateAddressLabel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.UpdateAddressLabelRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    post:
+      tags:
+        - AddressLabelService
+      description: CreateAddressLabel creates a new address label.
+      operationId: AddressLabelService_CreateAddressLabel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.CreateAddressLabelRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    delete:
+      tags:
+        - AddressLabelService
+      description: DeleteAddressLabel deletes an address label.
+      operationId: AddressLabelService_DeleteAddressLabel
+      parameters:
+        - name: address
+          in: query
+          schema:
+            type: string
+        - name: chain_id
+          in: query
+          schema:
+            type: string
+        - name: label_type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/address/label/list:
+    get:
+      tags:
+        - AddressLabelService
+      description: ListAddressLabels lists address labels with filter conditions.
+      operationId: AddressLabelService_ListAddressLabels
+      parameters:
+        - name: chain_id
+          in: query
+          schema:
+            type: string
+        - name: label_type
+          in: query
+          schema:
+            type: string
+        - name: address
+          in: query
+          schema:
+            type: string
+        - name: label_value
+          in: query
+          schema:
+            type: string
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/address/labels:
+    get:
+      tags:
+        - AddressLabelService
+      description: GetAddressLabels retrieves all labels for an address.
+      operationId: AddressLabelService_GetAddressLabels
+      parameters:
+        - name: address
+          in: query
+          schema:
+            type: string
+        - name: chain_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/email/blacklist:
+    get:
+      tags:
+        - AdminService
+      description: |-
+        ========== Email Blacklist Management ==========
+         ListEmailBlacklist lists email blacklist domains
+      operationId: AdminService_ListEmailBlacklist
+      parameters:
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+        - name: domain
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    put:
+      tags:
+        - AdminService
+      description: UpdateEmailDomain updates an email domain
+      operationId: AdminService_UpdateEmailDomain
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.UpdateEmailDomainRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    post:
+      tags:
+        - AdminService
+      description: AddEmailDomain adds an email domain to blacklist
+      operationId: AdminService_AddEmailDomain
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.AddEmailDomainRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    delete:
+      tags:
+        - AdminService
+      description: DeleteEmailDomain deletes an email domain from blacklist
+      operationId: AdminService_DeleteEmailDomain
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/email/blacklist/batch-delete:
+    post:
+      tags:
+        - AdminService
+      description: BatchDeleteEmailDomains batch deletes email domains
+      operationId: AdminService_BatchDeleteEmailDomains
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.BatchDeleteEmailDomainsRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/email/blacklist/batch-import:
+    post:
+      tags:
+        - AdminService
+      description: BatchImportEmailDomains batch imports email domains
+      operationId: AdminService_BatchImportEmailDomains
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.BatchImportEmailDomainsRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/email/blacklist/preview-import:
+    post:
+      tags:
+        - AdminService
+      description: PreviewImportEmailDomains previews batch import email domains
+      operationId: AdminService_PreviewImportEmailDomains
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.PreviewImportEmailDomainsRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/email/blacklist/stats:
+    get:
+      tags:
+        - AdminService
+      description: GetEmailBlacklistStats gets email blacklist statistics
+      operationId: AdminService_GetEmailBlacklistStats
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/email/blacklist/toggle:
+    put:
+      tags:
+        - AdminService
+      description: ToggleEmailDomainStatus toggles email domain status (active/disabled)
+      operationId: AdminService_ToggleEmailDomainStatus
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.ToggleEmailDomainStatusRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/blacklist:
+    get:
+      tags:
+        - AdminService
+      description: ListIPBlacklist lists IP blacklist
+      operationId: AdminService_ListIPBlacklist
+      parameters:
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+        - name: ip_address
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    post:
+      tags:
+        - AdminService
+      description: AddIPToBlacklist adds an IP to blacklist
+      operationId: AdminService_AddIPToBlacklist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.AddIPToBlacklistRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    delete:
+      tags:
+        - AdminService
+      description: RemoveIPFromBlacklist removes an IP from blacklist
+      operationId: AdminService_RemoveIPFromBlacklist
+      parameters:
+        - name: ip_address
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/blacklist/batch:
+    post:
+      tags:
+        - AdminService
+      description: BatchAddIPToBlacklist batch adds IPs to blacklist
+      operationId: AdminService_BatchAddIPToBlacklist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.BatchAddIPToBlacklistRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/blacklist/batch-remove:
+    post:
+      tags:
+        - AdminService
+      description: BatchRemoveIPFromBlacklist batch removes IPs from blacklist
+      operationId: AdminService_BatchRemoveIPFromBlacklist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.BatchRemoveIPFromBlacklistRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/blacklist/stats:
+    get:
+      tags:
+        - AdminService
+      description: GetIPBlacklistStats gets IP blacklist statistics
+      operationId: AdminService_GetIPBlacklistStats
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/config:
+    get:
+      tags:
+        - AdminService
+      description: GetIPRateLimitConfig gets IP rate limit configuration
+      operationId: AdminService_GetIPRateLimitConfig
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    put:
+      tags:
+        - AdminService
+      description: UpdateIPRateLimitConfig updates IP rate limit configuration
+      operationId: AdminService_UpdateIPRateLimitConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.UpdateIPRateLimitConfigRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/detail:
+    get:
+      tags:
+        - AdminService
+      description: GetIPDetail gets IP detail information
+      operationId: AdminService_GetIPDetail
+      parameters:
+        - name: ip_address
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/export:
+    get:
+      tags:
+        - AdminService
+      description: ExportIPList exports IP list (records/blacklist/monitor)
+      operationId: AdminService_ExportIPList
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: time_range
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/monitor:
+    get:
+      tags:
+        - AdminService
+      description: GetIPRequestMonitor gets IP request monitoring data
+      operationId: AdminService_GetIPRequestMonitor
+      parameters:
+        - name: time_range
+          in: query
+          schema:
+            type: string
+        - name: ip_address
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/records:
+    get:
+      tags:
+        - AdminService
+      description: |-
+        ========== IP Management ==========
+         ListIPRegistrationRecords lists IP registration records
+      operationId: AdminService_ListIPRegistrationRecords
+      parameters:
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+        - name: ip_address
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: time_range
+          in: query
+          schema:
+            type: string
+        - name: min_register_count
+          in: query
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/ip/records/stats:
+    get:
+      tags:
+        - AdminService
+      description: GetIPRecordsStats gets IP registration records statistics
+      operationId: AdminService_GetIPRecordsStats
+      parameters:
+        - name: time_range
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/plan:
+    get:
+      tags:
+        - AdminService
+      description: |-
+        ========== Plan Management ==========
+         GetPlan gets a plan by ID
+      operationId: AdminService_GetPlan
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/plans:
+    get:
+      tags:
+        - AdminService
+      description: ListPlans lists all plans
+      operationId: AdminService_ListPlans
+      parameters:
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+        - name: plan_type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    put:
+      tags:
+        - AdminService
+      description: UpdatePlan updates a plan configuration
+      operationId: AdminService_UpdatePlan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.UpdatePlanRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    post:
+      tags:
+        - AdminService
+      description: CreatePlan creates a new plan
+      operationId: AdminService_CreatePlan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.CreatePlanRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/plans/stats:
+    get:
+      tags:
+        - AdminService
+      description: GetPlanStats gets plan usage statistics
+      operationId: AdminService_GetPlanStats
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/usage/errors:
+    get:
+      tags:
+        - AdminService
+      description: GetUsageErrors gets error request list
+      operationId: AdminService_GetUsageErrors
+      parameters:
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+        - name: status_code
+          in: query
+          schema:
+            type: integer
+            format: int32
+        - name: time_range
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/user/token-stats:
+    get:
+      tags:
+        - AdminService
+      description: GetUserTokenStats gets token statistics for a specific user
+      operationId: AdminService_GetUserTokenStats
+      parameters:
+        - name: user_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/admin/user/tokens:
+    get:
+      tags:
+        - AdminService
+      description: |-
+        ========== User Token Management ==========
+         ListUserTokens lists all tokens for a specific user
+      operationId: AdminService_ListUserTokens
+      parameters:
+        - name: user_id
+          in: query
+          schema:
+            type: string
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/block/by-height:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetBlockByHeight
+      parameters:
+        - name: height
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/block/gas-utilization:
+    get:
+      tags:
+        - Explorer
+      description: Get block gas utilization for the latest 10 blocks
+      operationId: Explorer_GetBlockGasUtilization
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/block/latest:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetLatestBlocks
+      parameters:
+        - name: page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/block/latest-height:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetLatestBlockHeight
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/blocks/batch:
+    post:
+      tags:
+        - Explorer
+      operationId: Explorer_GetBlocksBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.GetBlocksBatchRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/files/upload:
+    post:
+      tags:
+        - ContractInfoService
+      description: |-
+        UploadContractFiles uploads contract source code files (.sol) and ABI files
+         (.json) Returns Reply with data containing upload result
+      operationId: ContractInfoService_UploadContractFiles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.UploadContractFilesRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info:
+    put:
+      tags:
+        - ContractInfoService
+      description: UpdateContractInfo updates contract information.
+      operationId: ContractInfoService_UpdateContractInfo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.UpdateContractInfoRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    post:
+      tags:
+        - ContractInfoService
+      description: CreateContractInfo creates a new contract information.
+      operationId: ContractInfoService_CreateContractInfo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.CreateContractInfoRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    delete:
+      tags:
+        - ContractInfoService
+      description: DeleteContractInfo deletes contract information (soft delete).
+      operationId: ContractInfoService_DeleteContractInfo
+      parameters:
+        - name: contractAddress
+          in: query
+          schema:
+            type: string
+        - name: chainId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info/by-address:
+    get:
+      tags:
+        - ContractInfoService
+      description: GetContractInfoByAddress retrieves contract information by address.
+      operationId: ContractInfoService_GetContractInfoByAddress
+      parameters:
+        - name: contractAddress
+          in: query
+          schema:
+            type: string
+        - name: chainId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info/by-symbol:
+    get:
+      tags:
+        - ContractInfoService
+      description: |-
+        GetContractsBySymbol retrieves contracts by symbol (supports one-to-many
+         relationship). This is primarily used for token contracts, but can be
+         extended for other contract types.
+      operationId: ContractInfoService_GetContractsBySymbol
+      parameters:
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: chainId
+          in: query
+          schema:
+            type: string
+        - name: contractType
+          in: query
+          schema:
+            type: string
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info/export:
+    get:
+      tags:
+        - ContractInfoService
+      description: |-
+        ExportContractInfos exports contract information in CSV or JSON format
+         Returns Reply with data containing export result
+      operationId: ContractInfoService_ExportContractInfos
+      parameters:
+        - name: format
+          in: query
+          description: 'Export format: "csv" or "json" (required)'
+          schema:
+            type: string
+        - name: chain_id
+          in: query
+          description: Filter conditions (optional)
+          schema:
+            type: string
+        - name: contract_type
+          in: query
+          schema:
+            type: string
+        - name: verification_status
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: contract_addresses
+          in: query
+          description: |-
+            Specific contract addresses to export (optional, if empty exports all
+             matching filters)
+          schema:
+            type: array
+            items:
+              type: string
+        - name: include_tags
+          in: query
+          description: "Include tags in export (default: true)"
+          schema:
+            type: boolean
+        - name: include_metadata
+          in: query
+          description: "Include metadata in export (default: true)"
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info/import:
+    post:
+      tags:
+        - ContractInfoService
+      description: |-
+        ImportContractInfos imports contract information from CSV or JSON file
+         Returns Reply with data containing import result
+      operationId: ContractInfoService_ImportContractInfos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.ImportContractInfosRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info/list:
+    get:
+      tags:
+        - ContractInfoService
+      description: |-
+        ListContractInfos lists contract information with various filter
+         conditions.
+      operationId: ContractInfoService_ListContractInfos
+      parameters:
+        - name: chainId
+          in: query
+          schema:
+            type: string
+        - name: contractType
+          in: query
+          schema:
+            type: string
+        - name: verificationStatus
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info/tag:
+    post:
+      tags:
+        - ContractInfoService
+      description: AddContractTag adds a tag to a contract.
+      operationId: ContractInfoService_AddContractTag
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.AddContractTagRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    delete:
+      tags:
+        - ContractInfoService
+      description: RemoveContractTag removes a tag from a contract.
+      operationId: ContractInfoService_RemoveContractTag
+      parameters:
+        - name: contractAddress
+          in: query
+          schema:
+            type: string
+        - name: chainId
+          in: query
+          schema:
+            type: string
+        - name: tagType
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/contract/info/tags:
+    get:
+      tags:
+        - ContractInfoService
+      description: GetContractTags retrieves all tags for a contract.
+      operationId: ContractInfoService_GetContractTags
+      parameters:
+        - name: contractAddress
+          in: query
+          schema:
+            type: string
+        - name: chainId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/dashboard/stats:
+    get:
+      tags:
+        - APITokenService
+      description: GetDashboardStats gets dashboard statistics for a user
+      operationId: APITokenService_GetDashboardStats
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/evm/account/transactions:
+    get:
+      tags:
+        - Explorer
+      description: Get EVM account transactions
+      operationId: Explorer_GetEVMAccountTransactions
+      parameters:
+        - name: address
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int32
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            format: int32
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/evm/transaction:
+    get:
+      tags:
+        - Explorer
+      description: |-
+        EVM 交易相关 API
+         Get EVM transaction by hash
+      operationId: Explorer_GetEVMTransaction
+      parameters:
+        - name: hash
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/evm/transactions:
+    get:
+      tags:
+        - Explorer
+      description: Get EVM transactions list
+      operationId: Explorer_GetEVMTransactions
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int32
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            format: int32
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/export/logs:
+    get:
+      tags:
+        - APITokenService
+      description: ExportUsageLogs exports usage logs to Excel format
+      operationId: APITokenService_ExportUsageLogs
+      parameters:
+        - name: time_range
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/health:
+    get:
+      tags:
+        - Explorer
+      description: Health check endpoint for gRPC-Web
+      operationId: Explorer_CheckHealthy
+      parameters:
+        - name: service
+          in: query
+          description: "Optional: service name to check"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.CheckHealthyResponse"
+  /api/v1/stream/account:
+    get:
+      tags:
+        - Explorer
+      description: Stream account updates (balance changes, new transactions, etc.)
+      operationId: Explorer_StreamAccountUpdates
+      parameters:
+        - name: address
+          in: query
+          description: "Required: account address to monitor"
+          schema:
+            type: string
+        - name: fromTimestamp
+          in: query
+          description: |-
+            Optional: start streaming from a specific timestamp
+             If 0, streams from recent transactions
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.AccountUpdate"
+  /api/v1/stream/blocks:
+    get:
+      tags:
+        - Explorer
+      description: |-
+        Streaming RPCs for real-time updates
+         Stream latest blocks as they are added to the chain
+      operationId: Explorer_StreamLatestBlocks
+      parameters:
+        - name: fromHeight
+          in: query
+          description: |-
+            Optional: start streaming from a specific block height
+             If 0, streams from the latest blocks
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.BlockUpdate"
+  /api/v1/stream/transactions:
+    get:
+      tags:
+        - Explorer
+      description: Stream latest transactions as they are added to the chain
+      operationId: Explorer_StreamLatestTransactions
+      parameters:
+        - name: types
+          in: query
+          description: |-
+            Optional: filter by transaction types
+             If empty, streams all transaction types
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.TransactionUpdate"
+  /api/v1/token/price-marketcap:
+    get:
+      tags:
+        - Explorer
+      description: |-
+        Get token price and market cap (supports multiple tokens)
+         If token symbol is not specified, uses the default token from configuration
+      operationId: Explorer_GetTokenPriceAndMarketCap
+      parameters:
+        - name: token_symbol
+          in: query
+          description: |-
+            Token symbol (e.g., "inj", "mycoin"). If not specified, uses default token
+             from configuration
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/tokens:
+    get:
+      tags:
+        - APITokenService
+      description: ListTokens lists all tokens for a user
+      operationId: APITokenService_ListTokens
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    post:
+      tags:
+        - APITokenService
+      description: CreateToken creates a new API token
+      operationId: APITokenService_CreateToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.CreateTokenRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    delete:
+      tags:
+        - APITokenService
+      description: DeleteToken deletes a token
+      operationId: APITokenService_DeleteToken
+      parameters:
+        - name: token_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/tokens/usage:
+    get:
+      tags:
+        - APITokenService
+      description: GetTokenUsage gets token usage statistics
+      operationId: APITokenService_GetTokenUsage
+      parameters:
+        - name: token_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/transaction/by-hash:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetTransactionByHash
+      parameters:
+        - name: hash
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/transaction/failed-1000:
+    get:
+      tags:
+        - Explorer
+      description: Get failure statistics for the latest 1000 transactions
+      operationId: Explorer_GetFailedTransactions1000
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/transaction/failed-24h:
+    get:
+      tags:
+        - Explorer
+      description: Get failed transactions in the last 24 hours with failure reasons
+      operationId: Explorer_GetFailedTransactions24H
+      parameters:
+        - name: pagination.page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: pagination.cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/transaction/latest:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetLatestTransactions
+      parameters:
+        - name: page
+          in: query
+          description: 页码，从1开始，默认1（基于页数的分页）
+          schema:
+            type: integer
+            format: int32
+        - name: page_size
+          in: query
+          description: 每页大小，默认20，最大100
+          schema:
+            type: integer
+            format: int32
+        - name: cursor
+          in: query
+          description: |-
+            游标（基于游标的分页，用于大数据集优化，优先级高于 page）
+             对于区块：使用区块高度(height)
+             对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/transaction/stats:
+    get:
+      tags:
+        - Explorer
+      operationId: Explorer_GetTransactionStats
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/transactions/batch:
+    post:
+      tags:
+        - Explorer
+      description: Batch query interfaces for better performance
+      operationId: Explorer_GetTransactionsBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.GetTransactionsBatchRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+  /api/v1/webhooks:
+    get:
+      tags:
+        - WebhookService
+      description: ListWebhooks lists webhook configurations
+      operationId: WebhookService_ListWebhooks
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    put:
+      tags:
+        - WebhookService
+      description: UpdateWebhook updates webhook configuration
+      operationId: WebhookService_UpdateWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.UpdateWebhookRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    post:
+      tags:
+        - WebhookService
+      description: CreateWebhook creates a webhook configuration
+      operationId: WebhookService_CreateWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/api.explorer.v1.CreateWebhookRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
+    delete:
+      tags:
+        - WebhookService
+      description: DeleteWebhook deletes a webhook
+      operationId: WebhookService_DeleteWebhook
+      parameters:
+        - name: webhook_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/api.explorer.v1.Reply"
 components:
-    schemas:
-        api.explorer.v1.AccountBalanceDTO:
+  schemas:
+    api.explorer.v1.AccountBalanceDTO:
+      type: object
+      properties:
+        address:
+          type: string
+        denom:
+          type: string
+        amount:
+          type: string
+    api.explorer.v1.AccountUpdate:
+      type: object
+      properties:
+        address:
+          type: string
+          description: Account address
+        update_type:
+          type: string
+          description: 'Update type: "transaction", "balance", etc.'
+        data:
+          allOf:
+            - $ref: "#/components/schemas/api.explorer.v1.AccountUpdateData"
+          description: Update data using strongly-typed AccountUpdateData
+        timestamp:
+          type: string
+          description: Timestamp of the update
+    api.explorer.v1.AccountUpdateData:
+      type: object
+      properties:
+        transaction:
+          allOf:
+            - $ref: "#/components/schemas/api.explorer.v1.TransactionDTO"
+          description: Transaction data if update_type is "transaction"
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/api.explorer.v1.AccountBalanceDTO"
+          description: Balance data if update_type is "balance"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional metadata
+      description: AccountUpdateData contains account update information
+    api.explorer.v1.AddContractTagRequest:
+      type: object
+      properties:
+        contractAddress:
+          type: string
+        chainId:
+          type: string
+        tagType:
+          type: string
+        tagValue:
+          type: string
+        tagColor:
+          type: string
+        description:
+          type: string
+        createdBy:
+          type: string
+    api.explorer.v1.AddEmailDomainRequest:
+      type: object
+      properties:
+        domain:
+          type: string
+        status:
+          type: string
+        note:
+          type: string
+    api.explorer.v1.AddIPToBlacklistRequest:
+      type: object
+      properties:
+        ip_address:
+          type: string
+        reason:
+          type: string
+        reason_text:
+          type: string
+        block_type:
+          type: string
+        operator_id:
+          type: string
+        operator_name:
+          type: string
+    api.explorer.v1.BatchAddIPToBlacklistRequest:
+      type: object
+      properties:
+        ip_addresses:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+        reason_text:
+          type: string
+        block_type:
+          type: string
+        operator_id:
+          type: string
+        operator_name:
+          type: string
+    api.explorer.v1.BatchDeleteEmailDomainsRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+    api.explorer.v1.BatchImportEmailDomainsRequest:
+      type: object
+      properties:
+        domains:
+          type: array
+          items:
+            type: string
+    api.explorer.v1.BatchRemoveIPFromBlacklistRequest:
+      type: object
+      properties:
+        ip_addresses:
+          type: array
+          items:
+            type: string
+    api.explorer.v1.BlockDTO:
+      type: object
+      properties:
+        height:
+          type: string
+        proposer:
+          type: string
+        moniker:
+          type: string
+        block_hash:
+          type: string
+        parent_hash:
+          type: string
+        num_precommits:
+          type: string
+        num_txs:
+          type: string
+        total_txs:
+          type: string
+        txs:
+          type: array
+          items:
             type: object
-            properties:
-                address:
-                    type: string
-                denom:
-                    type: string
-                amount:
-                    type: string
-        api.explorer.v1.AccountUpdate:
-            type: object
-            properties:
-                address:
-                    type: string
-                    description: Account address
-                update_type:
-                    type: string
-                    description: 'Update type: "transaction", "balance", etc.'
-                data:
-                    allOf:
-                        - $ref: '#/components/schemas/api.explorer.v1.AccountUpdateData'
-                    description: Update data using strongly-typed AccountUpdateData
-                timestamp:
-                    type: string
-                    description: Timestamp of the update
-        api.explorer.v1.AccountUpdateData:
-            type: object
-            properties:
-                transaction:
-                    allOf:
-                        - $ref: '#/components/schemas/api.explorer.v1.TransactionDTO'
-                    description: Transaction data if update_type is "transaction"
-                balances:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/api.explorer.v1.AccountBalanceDTO'
-                    description: Balance data if update_type is "balance"
-                metadata:
-                    type: object
-                    additionalProperties:
-                        type: string
-                    description: Additional metadata
-            description: AccountUpdateData contains account update information
-        api.explorer.v1.AddContractTagRequest:
-            type: object
-            properties:
-                contractAddress:
-                    type: string
-                chainId:
-                    type: string
-                tagType:
-                    type: string
-                tagValue:
-                    type: string
-                tagColor:
-                    type: string
-                description:
-                    type: string
-                createdBy:
-                    type: string
-        api.explorer.v1.AddEmailDomainRequest:
-            type: object
-            properties:
-                domain:
-                    type: string
-                status:
-                    type: string
-                note:
-                    type: string
-        api.explorer.v1.AddIPToBlacklistRequest:
-            type: object
-            properties:
-                ip_address:
-                    type: string
-                reason:
-                    type: string
-                reason_text:
-                    type: string
-                block_type:
-                    type: string
-                operator_id:
-                    type: string
-                operator_name:
-                    type: string
-        api.explorer.v1.BatchAddIPToBlacklistRequest:
-            type: object
-            properties:
-                ip_addresses:
-                    type: array
-                    items:
-                        type: string
-                reason:
-                    type: string
-                reason_text:
-                    type: string
-                block_type:
-                    type: string
-                operator_id:
-                    type: string
-                operator_name:
-                    type: string
-        api.explorer.v1.BatchDeleteEmailDomainsRequest:
-            type: object
-            properties:
-                ids:
-                    type: array
-                    items:
-                        type: string
-        api.explorer.v1.BatchImportEmailDomainsRequest:
-            type: object
-            properties:
-                domains:
-                    type: array
-                    items:
-                        type: string
-        api.explorer.v1.BatchRemoveIPFromBlacklistRequest:
-            type: object
-            properties:
-                ip_addresses:
-                    type: array
-                    items:
-                        type: string
-        api.explorer.v1.BlockDTO:
-            type: object
-            properties:
-                height:
-                    type: string
-                proposer:
-                    type: string
-                moniker:
-                    type: string
-                block_hash:
-                    type: string
-                parent_hash:
-                    type: string
-                num_precommits:
-                    type: string
-                num_txs:
-                    type: string
-                total_txs:
-                    type: string
-                txs:
-                    type: array
-                    items:
-                        type: object
-                timestamp:
-                    type: string
-                block_unix_timestamp:
-                    type: string
-        api.explorer.v1.BlockUpdate:
-            type: object
-            properties:
-                block:
-                    allOf:
-                        - $ref: '#/components/schemas/api.explorer.v1.BlockDTO'
-                    description: Block data using strongly-typed BlockDTO
-                update_type:
-                    type: string
-                    description: 'Update type: "new" or "update"'
-                timestamp:
-                    type: string
-                    description: Timestamp of the update
-            description: Streaming response messages
-        api.explorer.v1.CheckHealthyResponse:
-            type: object
-            properties:
-                status:
-                    type: string
-                    description: 'Health status: "healthy", "degraded", "unhealthy"'
-                service:
-                    type: string
-                    description: Service name
-                timestamp:
-                    type: string
-                    description: Timestamp of the health check
-                details:
-                    type: object
-                    additionalProperties:
-                        $ref: '#/components/schemas/api.explorer.v1.HealthDetails'
-                    description: Health details for each component (database, redis, etc.)
-            description: CheckHealthyResponse contains the health status of the service
-        api.explorer.v1.CreateAddressLabelRequest:
-            type: object
-            properties:
-                address:
-                    type: string
-                chain_id:
-                    type: string
-                label_type:
-                    type: string
-                label_value:
-                    type: string
-                label_color:
-                    type: string
-                description:
-                    type: string
-                created_by:
-                    type: string
-            description: CreateAddressLabelRequest is the request message for creating an address label.
-        api.explorer.v1.CreateContractInfoRequest:
-            type: object
-            properties:
-                contractAddress:
-                    type: string
-                name:
-                    type: string
-                tokenName:
-                    type: string
-                tokenSymbol:
-                    type: string
-                contractType:
-                    type: string
-                chainId:
-                    type: string
-                verificationStatus:
-                    type: string
-                metadata:
-                    type: object
-                    additionalProperties:
-                        type: string
-                tags:
-                    type: array
-                    items:
-                        type: string
-            description: Request messages
-        api.explorer.v1.CreatePlanRequest:
-            type: object
-            properties:
-                name:
-                    type: string
-                plan_type:
-                    type: string
-                monthly_limit:
-                    type: string
-                rate_limit_per_second:
-                    type: integer
-                    format: int32
-                max_tokens:
-                    type: integer
-                    format: int32
-                enable_webhook:
-                    type: boolean
-                price:
-                    type: number
-                    format: double
-                status:
-                    type: string
-                description:
-                    type: string
-        api.explorer.v1.CreateTokenRequest:
-            type: object
-            properties:
-                name:
-                    type: string
-            description: CreateTokenRequest creates a new token
-        api.explorer.v1.CreateWebhookRequest:
-            type: object
-            properties:
-                token_id:
-                    type: string
-                webhook_url:
-                    type: string
-                events:
-                    type: array
-                    items:
-                        type: string
-            description: CreateWebhookRequest creates a webhook
-        api.explorer.v1.EVMLogDTO:
-            type: object
-            properties:
-                address:
-                    type: string
-                topics:
-                    type: array
-                    items:
-                        type: string
-                data:
-                    type: string
-                block_number:
-                    type: string
-                tx_hash:
-                    type: string
-                tx_index:
-                    type: integer
-                    format: uint32
-                log_index:
-                    type: integer
-                    format: uint32
-            description: EVMLogDTO represents an EVM event log
-        api.explorer.v1.EVMTransactionDTO:
-            type: object
-            properties:
-                hash:
-                    type: string
-                block_number:
-                    type: string
-                block_timestamp:
-                    type: string
-                from:
-                    type: string
-                to:
-                    type: string
-                value:
-                    type: string
-                nonce:
-                    type: string
-                gas_price:
-                    type: string
-                gas_limit:
-                    type: string
-                gas_used:
-                    type: string
-                input_data:
-                    type: string
-                contract_address:
-                    type: string
-                method_id:
-                    type: string
-                method_name:
-                    type: string
-                status:
-                    type: string
-                logs:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/api.explorer.v1.EVMLogDTO'
-                transaction_fee:
-                    type: string
-                is_contract_call:
-                    type: boolean
-                is_contract_create:
-                    type: boolean
-            description: EVMTransactionDTO represents an EVM transaction in Etherscan-like format
-        api.explorer.v1.GetBlocksBatchRequest:
-            type: object
-            properties:
-                heights:
-                    type: array
-                    items:
-                        type: string
-        api.explorer.v1.GetTransactionsBatchRequest:
-            type: object
-            properties:
-                hashes:
-                    type: array
-                    items:
-                        type: string
-            description: Batch query request messages
-        api.explorer.v1.HealthDetails:
-            type: object
-            properties:
-                status:
-                    type: string
-                    description: 'Component status: "healthy", "unhealthy", "unavailable", "not_configured"'
-                error:
-                    type: string
-                    description: Optional error message if component is unhealthy
-                latencyMs:
-                    type: number
-                    description: Optional latency in milliseconds
-                    format: double
-            description: HealthDetails contains detailed health information for each component
-        api.explorer.v1.ImportContractInfosRequest:
-            type: object
-            properties:
-                format:
-                    type: string
-                    description: 'Import format: "csv" or "json" (required)'
-                file_content_base64:
-                    type: string
-                    description: File content as base64 encoded string
-                import_mode:
-                    type: string
-                    description: |-
-                        Import mode: "create" (only create new), "update" (only update existing),
-                         "upsert" (create or update) Default: "upsert"
-                skip_errors:
-                    type: boolean
-                    description: 'Skip validation errors and continue importing (default: false)'
-                default_chain_id:
-                    type: string
-                    description: Default chain_id for contracts without chain_id specified (optional)
-                default_contract_type:
-                    type: string
-                    description: |-
-                        Default contract_type for contracts without contract_type specified
-                         (optional)
-            description: |-
-                ImportContractInfosRequest is the request message for importing contract
-                 information
-        api.explorer.v1.PreviewImportEmailDomainsRequest:
-            type: object
-            properties:
-                domains:
-                    type: array
-                    items:
-                        type: string
-        api.explorer.v1.Reply:
-            type: object
-            properties:
-                code:
-                    type: integer
-                    description: 响应状态码，0表示成功，非0表示失败
-                    format: int32
-                message:
-                    type: string
-                    description: 响应消息
-                data:
-                    type: object
-                    description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
-            description: 通用响应结构
-        api.explorer.v1.ToggleEmailDomainStatusRequest:
-            type: object
-            properties:
-                id:
-                    type: string
-        api.explorer.v1.TransactionDTO:
-            type: object
-            properties:
-                id:
-                    type: string
-                block_number:
-                    type: string
-                block_timestamp:
-                    type: string
-                hash:
-                    type: string
-                code:
-                    type: integer
-                    format: uint32
-                data:
-                    type: string
-                info:
-                    type: string
-                gas_wanted:
-                    type: string
-                gas_used:
-                    type: string
-                gas_fee:
-                    type: string
-                codespace:
-                    type: string
-                events:
-                    type: array
-                    items:
-                        type: string
-                tx_type:
-                    type: string
-                messages:
-                    type: string
-                signatures:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/api.explorer.v1.TransactionSignature'
-                memo:
-                    type: string
-                tx_number:
-                    type: string
-                block_unix_timestamp:
-                    type: string
-                error_log:
-                    type: string
-                logs:
-                    type: string
-                claim_ids:
-                    type: array
-                    items:
-                        type: string
-                signer:
-                    type: string
-                to:
-                    type: string
-                value:
-                    type: string
-                    description: tx, or recipient in other tx types)
-                evm_transaction:
-                    allOf:
-                        - $ref: '#/components/schemas/api.explorer.v1.EVMTransactionDTO'
-                    description: ethereum tx, or amount in other tx types)
-        api.explorer.v1.TransactionSignature:
-            type: object
-            properties:
-                pubkey:
-                    type: string
-                address:
-                    type: string
-                sequence:
-                    type: string
-                signature:
-                    type: string
-            description: TransactionSignature represents a transaction signature with address information
-        api.explorer.v1.TransactionUpdate:
-            type: object
-            properties:
-                transaction:
-                    allOf:
-                        - $ref: '#/components/schemas/api.explorer.v1.TransactionDTO'
-                    description: Transaction data using strongly-typed TransactionDTO
-                update_type:
-                    type: string
-                    description: 'Update type: "new" or "update"'
-                timestamp:
-                    type: string
-                    description: Timestamp of the update
-        api.explorer.v1.UpdateAddressLabelRequest:
-            type: object
-            properties:
-                address:
-                    type: string
-                chain_id:
-                    type: string
-                label_type:
-                    type: string
-                label_value:
-                    type: string
-                label_color:
-                    type: string
-                description:
-                    type: string
-            description: UpdateAddressLabelRequest is the request message for updating an address label.
-        api.explorer.v1.UpdateContractInfoRequest:
-            type: object
-            properties:
-                contractAddress:
-                    type: string
-                chainId:
-                    type: string
-                name:
-                    type: string
-                tokenName:
-                    type: string
-                tokenSymbol:
-                    type: string
-                contractType:
-                    type: string
-                verificationStatus:
-                    type: string
-                metadata:
-                    type: object
-                    additionalProperties:
-                        type: string
-        api.explorer.v1.UpdateEmailDomainRequest:
-            type: object
-            properties:
-                id:
-                    type: string
-                status:
-                    type: string
-                note:
-                    type: string
-        api.explorer.v1.UpdateIPRateLimitConfigRequest:
-            type: object
-            properties:
-                ip_per_minute:
-                    type: integer
-                    format: int32
-                ip_per_hour:
-                    type: integer
-                    format: int32
-                block_type:
-                    type: string
-        api.explorer.v1.UpdatePlanRequest:
-            type: object
-            properties:
-                id:
-                    type: string
-                description:
-                    type: string
-                monthly_limit:
-                    type: string
-                rate_limit_per_second:
-                    type: integer
-                    format: int32
-                max_tokens:
-                    type: integer
-                    format: int32
-        api.explorer.v1.UpdateWebhookRequest:
-            type: object
-            properties:
-                webhook_id:
-                    type: string
-                webhook_url:
-                    type: string
-                events:
-                    type: array
-                    items:
-                        type: string
-                status:
-                    type: string
-            description: UpdateWebhookRequest updates a webhook
-        api.explorer.v1.UploadContractFilesRequest:
-            type: object
-            properties:
-                contract_address:
-                    type: string
-                    description: Contract address (required)
-                chain_id:
-                    type: string
-                    description: 'Chain ID (optional, default: injective-1)'
-                source_code_base64:
-                    type: string
-                    description: Source code file (.sol) content as base64 encoded string (optional)
-                source_code_file_name:
-                    type: string
-                    description: Source code file name (optional, e.g., "Token.sol")
-                abi_base64:
-                    type: string
-                    description: ABI file (.json) content as base64 encoded string (optional)
-                abi_file_name:
-                    type: string
-                    description: ABI file name (optional, e.g., "abi.json")
-                description:
-                    type: string
-                    description: Optional description
-                uploaded_by:
-                    type: string
-                    description: User/address who uploaded the file (optional)
-            description: UploadContractFilesRequest is the request message for uploading contract files
+        timestamp:
+          type: string
+        block_unix_timestamp:
+          type: string
+    api.explorer.v1.BlockUpdate:
+      type: object
+      properties:
+        block:
+          allOf:
+            - $ref: "#/components/schemas/api.explorer.v1.BlockDTO"
+          description: Block data using strongly-typed BlockDTO
+        update_type:
+          type: string
+          description: 'Update type: "new" or "update"'
+        timestamp:
+          type: string
+          description: Timestamp of the update
+      description: Streaming response messages
+    api.explorer.v1.CheckHealthyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: 'Health status: "healthy", "degraded", "unhealthy"'
+        service:
+          type: string
+          description: Service name
+        timestamp:
+          type: string
+          description: Timestamp of the health check
+        details:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/api.explorer.v1.HealthDetails"
+          description: Health details for each component (database, redis, etc.)
+      description: CheckHealthyResponse contains the health status of the service
+    api.explorer.v1.CreateAddressLabelRequest:
+      type: object
+      properties:
+        address:
+          type: string
+        chain_id:
+          type: string
+        label_type:
+          type: string
+        label_value:
+          type: string
+        label_color:
+          type: string
+        description:
+          type: string
+        created_by:
+          type: string
+      description: CreateAddressLabelRequest is the request message for creating an address label.
+    api.explorer.v1.CreateContractInfoRequest:
+      type: object
+      properties:
+        contractAddress:
+          type: string
+        name:
+          type: string
+        tokenName:
+          type: string
+        tokenSymbol:
+          type: string
+        contractType:
+          type: string
+        chainId:
+          type: string
+        verificationStatus:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+      description: Request messages
+    api.explorer.v1.CreatePlanRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        plan_type:
+          type: string
+        monthly_limit:
+          type: string
+        rate_limit_per_second:
+          type: integer
+          format: int32
+        max_tokens:
+          type: integer
+          format: int32
+        enable_webhook:
+          type: boolean
+        price:
+          type: number
+          format: double
+        status:
+          type: string
+        description:
+          type: string
+    api.explorer.v1.CreateTokenRequest:
+      type: object
+      properties:
+        name:
+          type: string
+      description: CreateTokenRequest creates a new token
+    api.explorer.v1.CreateWebhookRequest:
+      type: object
+      properties:
+        token_id:
+          type: string
+        webhook_url:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+      description: CreateWebhookRequest creates a webhook
+    api.explorer.v1.EVMLogDTO:
+      type: object
+      properties:
+        address:
+          type: string
+        topics:
+          type: array
+          items:
+            type: string
+        data:
+          type: string
+        block_number:
+          type: string
+        tx_hash:
+          type: string
+        tx_index:
+          type: integer
+          format: uint32
+        log_index:
+          type: integer
+          format: uint32
+      description: EVMLogDTO represents an EVM event log
+    api.explorer.v1.EVMTransactionDTO:
+      type: object
+      properties:
+        hash:
+          type: string
+        block_number:
+          type: string
+        block_timestamp:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        value:
+          type: string
+        nonce:
+          type: string
+        gas_price:
+          type: string
+        gas_limit:
+          type: string
+        gas_used:
+          type: string
+        input_data:
+          type: string
+        contract_address:
+          type: string
+        method_id:
+          type: string
+        method_name:
+          type: string
+        status:
+          type: string
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/api.explorer.v1.EVMLogDTO"
+        transaction_fee:
+          type: string
+        is_contract_call:
+          type: boolean
+        is_contract_create:
+          type: boolean
+      description: EVMTransactionDTO represents an EVM transaction in Etherscan-like format
+    api.explorer.v1.GetBlocksBatchRequest:
+      type: object
+      properties:
+        heights:
+          type: array
+          items:
+            type: string
+    api.explorer.v1.GetTransactionsBatchRequest:
+      type: object
+      properties:
+        hashes:
+          type: array
+          items:
+            type: string
+      description: Batch query request messages
+    api.explorer.v1.HealthDetails:
+      type: object
+      properties:
+        status:
+          type: string
+          description: 'Component status: "healthy", "unhealthy", "unavailable", "not_configured"'
+        error:
+          type: string
+          description: Optional error message if component is unhealthy
+        latencyMs:
+          type: number
+          description: Optional latency in milliseconds
+          format: double
+      description: HealthDetails contains detailed health information for each component
+    api.explorer.v1.ImportContractInfosRequest:
+      type: object
+      properties:
+        format:
+          type: string
+          description: 'Import format: "csv" or "json" (required)'
+        file_content_base64:
+          type: string
+          description: File content as base64 encoded string
+        import_mode:
+          type: string
+          description: |-
+            Import mode: "create" (only create new), "update" (only update existing),
+             "upsert" (create or update) Default: "upsert"
+        skip_errors:
+          type: boolean
+          description: "Skip validation errors and continue importing (default: false)"
+        default_chain_id:
+          type: string
+          description: Default chain_id for contracts without chain_id specified (optional)
+        default_contract_type:
+          type: string
+          description: |-
+            Default contract_type for contracts without contract_type specified
+             (optional)
+      description: |-
+        ImportContractInfosRequest is the request message for importing contract
+         information
+    api.explorer.v1.PreviewImportEmailDomainsRequest:
+      type: object
+      properties:
+        domains:
+          type: array
+          items:
+            type: string
+    api.explorer.v1.Reply:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 响应状态码，0表示成功，非0表示失败
+          format: int32
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: object
+          description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
+      description: 通用响应结构
+    api.explorer.v1.ToggleEmailDomainStatusRequest:
+      type: object
+      properties:
+        id:
+          type: string
+    api.explorer.v1.TransactionDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        block_number:
+          type: string
+        block_timestamp:
+          type: string
+        hash:
+          type: string
+        code:
+          type: integer
+          format: uint32
+        data:
+          type: string
+        info:
+          type: string
+        gas_wanted:
+          type: string
+        gas_used:
+          type: string
+        gas_fee:
+          type: string
+        codespace:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+        tx_type:
+          type: string
+        messages:
+          type: string
+        signatures:
+          type: array
+          items:
+            $ref: "#/components/schemas/api.explorer.v1.TransactionSignature"
+        memo:
+          type: string
+        tx_number:
+          type: string
+        block_unix_timestamp:
+          type: string
+        error_log:
+          type: string
+        logs:
+          type: string
+        claim_ids:
+          type: array
+          items:
+            type: string
+        signer:
+          type: string
+        to:
+          type: string
+        value:
+          type: string
+          description: tx, or recipient in other tx types)
+        evm_transaction:
+          allOf:
+            - $ref: "#/components/schemas/api.explorer.v1.EVMTransactionDTO"
+          description: ethereum tx, or amount in other tx types)
+    api.explorer.v1.TransactionSignature:
+      type: object
+      properties:
+        pubkey:
+          type: string
+        address:
+          type: string
+        sequence:
+          type: string
+        signature:
+          type: string
+      description: TransactionSignature represents a transaction signature with address information
+    api.explorer.v1.TransactionUpdate:
+      type: object
+      properties:
+        transaction:
+          allOf:
+            - $ref: "#/components/schemas/api.explorer.v1.TransactionDTO"
+          description: Transaction data using strongly-typed TransactionDTO
+        update_type:
+          type: string
+          description: 'Update type: "new" or "update"'
+        timestamp:
+          type: string
+          description: Timestamp of the update
+    api.explorer.v1.UpdateAddressLabelRequest:
+      type: object
+      properties:
+        address:
+          type: string
+        chain_id:
+          type: string
+        label_type:
+          type: string
+        label_value:
+          type: string
+        label_color:
+          type: string
+        description:
+          type: string
+      description: UpdateAddressLabelRequest is the request message for updating an address label.
+    api.explorer.v1.UpdateContractInfoRequest:
+      type: object
+      properties:
+        contractAddress:
+          type: string
+        chainId:
+          type: string
+        name:
+          type: string
+        tokenName:
+          type: string
+        tokenSymbol:
+          type: string
+        contractType:
+          type: string
+        verificationStatus:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    api.explorer.v1.UpdateEmailDomainRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        note:
+          type: string
+    api.explorer.v1.UpdateIPRateLimitConfigRequest:
+      type: object
+      properties:
+        ip_per_minute:
+          type: integer
+          format: int32
+        ip_per_hour:
+          type: integer
+          format: int32
+        block_type:
+          type: string
+    api.explorer.v1.UpdatePlanRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        monthly_limit:
+          type: string
+        rate_limit_per_second:
+          type: integer
+          format: int32
+        max_tokens:
+          type: integer
+          format: int32
+    api.explorer.v1.UpdateWebhookRequest:
+      type: object
+      properties:
+        webhook_id:
+          type: string
+        webhook_url:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+      description: UpdateWebhookRequest updates a webhook
+    api.explorer.v1.UploadContractFilesRequest:
+      type: object
+      properties:
+        contract_address:
+          type: string
+          description: Contract address (required)
+        chain_id:
+          type: string
+          description: "Chain ID (optional, default: injective-1)"
+        source_code:
+          type: string
+          description: Source code file (.sol) content as bytes (optional)
+          format: bytes
+        source_code_file_name:
+          type: string
+          description: Source code file name (optional, e.g., "Token.sol")
+        abi:
+          type: string
+          description: ABI file (.json) content as bytes (optional)
+          format: bytes
+        abi_file_name:
+          type: string
+          description: ABI file name (optional, e.g., "abi.json")
+        description:
+          type: string
+          description: Optional description
+        uploaded_by:
+          type: string
+          description: User/address who uploaded the file (optional)
+      description: |-
+        UploadContractFilesRequest is the request message for uploading contract
+         files
 tags:
-    - name: APITokenService
-      description: APITokenService provides API token management services
-    - name: AddressLabelService
-      description: |-
-        AddressLabelService provides address label management services.
-         This service allows users to add, edit, delete, and query labels for blockchain addresses.
-    - name: AdminService
-      description: |-
-        AdminService provides admin management services for API plans, IP management,
-         and email blacklist
-    - name: ContractInfoService
-      description: |-
-        ContractInfoService provides contract information query and management
-         services. This service supports various contract types (token contracts, NFT
-         contracts, etc.), with token contracts being the primary use case currently.
-    - name: Explorer
-    - name: WebhookService
-      description: |-
-        WebhookService provides webhook management (for paid tokens only).
-         This service is reserved for future implementation.
+  - name: APITokenService
+    description: APITokenService provides API token management services
+  - name: AddressLabelService
+    description: |-
+      AddressLabelService provides address label management services.
+       This service allows users to add, edit, delete, and query labels for blockchain addresses.
+  - name: AdminService
+    description: |-
+      AdminService provides admin management services for API plans, IP management,
+       and email blacklist
+  - name: ContractInfoService
+    description: |-
+      ContractInfoService provides contract information query and management
+       services. This service supports various contract types (token contracts, NFT
+       contracts, etc.), with token contracts being the primary use case currently.
+  - name: Explorer
+  - name: WebhookService
+    description: |-
+      WebhookService provides webhook management (for paid tokens only).
+       This service is reserved for future implementation.

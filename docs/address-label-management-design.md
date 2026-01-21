@@ -185,13 +185,13 @@ message AddressLabelDTO {
 
 ### 3.2 HTTP端点
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/address/label` | 创建地址标签 |
-| PUT | `/api/v1/address/label` | 更新地址标签 |
-| DELETE | `/api/v1/address/label` | 删除地址标签 |
-| GET | `/api/v1/address/labels` | 获取地址的所有标签 |
-| GET | `/api/v1/address/label/list` | 列表查询地址标签 |
+| 方法   | 路径                         | 说明               |
+| ------ | ---------------------------- | ------------------ |
+| POST   | `/api/v1/address/label`      | 创建地址标签       |
+| PUT    | `/api/v1/address/label`      | 更新地址标签       |
+| DELETE | `/api/v1/address/label`      | 删除地址标签       |
+| GET    | `/api/v1/address/labels`     | 获取地址的所有标签 |
+| GET    | `/api/v1/address/label/list` | 列表查询地址标签   |
 
 ## 四、实现设计
 
@@ -700,12 +700,12 @@ err = db.AutoMigrate(
 
 ### 6.1 错误码定义
 
-| HTTP状态码 | 错误码 | 说明 |
-|-----------|--------|------|
-| 400 | BAD_REQUEST | 请求参数错误 |
-| 404 | NOT_FOUND | 标签不存在 |
-| 409 | CONFLICT | 标签已存在（创建时） |
-| 500 | INTERNAL_ERROR | 服务器内部错误 |
+| HTTP状态码 | 错误码         | 说明                 |
+| ---------- | -------------- | -------------------- |
+| 400        | BAD_REQUEST    | 请求参数错误         |
+| 404        | NOT_FOUND      | 标签不存在           |
+| 409        | CONFLICT       | 标签已存在（创建时） |
+| 500        | INTERNAL_ERROR | 服务器内部错误       |
 
 ### 6.2 错误响应格式
 

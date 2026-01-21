@@ -24,11 +24,11 @@ type Webhook struct {
 	// Events is the list of subscribed event types (stored as JSON)
 	Events []string `gorm:"column:events;serializer:json" json:"events"`
 	// Status is the webhook status (active/inactive)
-	Status string `gorm:"column:status;type:varchar(20);not null;default:'active'" json:"status"`
+	Status string `gorm:"column:status;type:varchar(20);not null" json:"status"`
 	// LastTriggeredAt is the last time the webhook was triggered
 	LastTriggeredAt *time.Time `gorm:"column:last_triggered_at" json:"last_triggered_at"`
 	// FailureCount is the number of consecutive failures
-	FailureCount int `gorm:"column:failure_count;type:int;not null;default:0" json:"failure_count"`
+	FailureCount int `gorm:"column:failure_count;type:int;not null" json:"failure_count"`
 }
 
 // TableName specifies the table name for Webhook.

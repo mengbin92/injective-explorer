@@ -32,7 +32,7 @@ type EVMTransaction struct {
 	EVMDetailsStorageKey string `json:"evm_details_storage_key" gorm:"column:evm_details_storage_key"`
 
 	// EVMDetailsSynced indicates whether EVM transaction details have been synced
-	EVMDetailsSynced bool `json:"evm_details_synced" gorm:"column:evm_details_synced;default:0;index"`
+	EVMDetailsSynced bool `json:"evm_details_synced" gorm:"column:evm_details_synced;index"`
 
 	// EVMDetailsSyncError contains error information if EVM details sync failed
 	EVMDetailsSyncError string `json:"evm_details_sync_error" gorm:"type:text;column:evm_details_sync_error"`

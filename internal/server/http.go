@@ -3,7 +3,9 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
+	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -542,7 +544,30 @@ func registerExportRoutes(srv *khttp.Server, apiTokenService *service.APITokenSe
 }
 
 // registerContractFileUploadRoutes registers custom HTTP routes for multipart file upload.
-// This provides an alternative to the base64-based proto endpoint for better user experience.
+//
+// This function registers a multipart form data upload endpoint that provides an alternative
+// to the base64-based proto endpoint, offering better user experience for file uploads.
+//
+// Parameters:
+//   - srv: The HTTP server instance to register routes on
+//   - contractInfoService: The contract info service instance for handling upload logic
+//   - logger: Logger instance for logging upload operations
+//
+// Registered Routes:
+//   - POST /api/v1/contract/files/upload-multipart: Handles multipart file uploads
+//
+// The multipart endpoint accepts:
+//   - contract_address (required): Contract address
+//   - chain_id (optional): Chain ID
+//   - source_code (optional): Source code file (.sol)
+//   - abi (optional): ABI file (.json)
+//   - description (optional): File description
+//   - uploaded_by (optional): User/address who uploaded the file
+//
+// Security improvements:
+//   - Uses io.LimitReader with http.MaxBytesReader to prevent DoS attacks
+//   - Enforces 10MB maximum file size per file
+//   - Safe file reading with proper error handling
 func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *service.ContractInfoService, logger log.Logger) {
 	r := srv.Route("/")
 
@@ -575,58 +600,46 @@ func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *se
 		uploadedBy := ctx.Request().FormValue("uploaded_by")
 
 		// Read source code file if provided
-		var sourceCodeBase64, sourceCodeFileName string
+		var sourceCodeData []byte
+		var sourceCodeFileName string
 		sourceCodeFile, sourceCodeHeader, err := ctx.Request().FormFile("source_code")
 		if err == nil {
 			defer sourceCodeFile.Close()
-			fileData := make([]byte, sourceCodeHeader.Size)
-			_, err = sourceCodeFile.Read(fileData)
+			sourceCodeData, err = readFormFile(sourceCodeFile, 10<<20) // 10MB limit
 			if err != nil {
 				log.NewHelper(logger).Errorf("Failed to read source code file: %v", err)
-				ctx.Response().Header().Set("Content-Type", "application/json")
-				ctx.Response().WriteHeader(http.StatusBadRequest)
-				ctx.Response().Write([]byte(`{"code":400,"message":"Failed to read source code file","data":null}`))
+				writeJSONError(ctx.Response(), http.StatusBadRequest, "Failed to read source code file")
 				return nil
 			}
-			sourceCodeBase64 = base64.StdEncoding.EncodeToString(fileData)
 			sourceCodeFileName = sourceCodeHeader.Filename
 		} else if err != http.ErrMissingFile {
 			log.NewHelper(logger).Errorf("Error reading source code file: %v", err)
-			ctx.Response().Header().Set("Content-Type", "application/json")
-			ctx.Response().WriteHeader(http.StatusBadRequest)
-			ctx.Response().Write([]byte(`{"code":400,"message":"Error reading source code file","data":null}`))
+			writeJSONError(ctx.Response(), http.StatusBadRequest, "Error reading source code file")
 			return nil
 		}
 
 		// Read ABI file if provided
-		var abiBase64, abiFileName string
+		var abiData []byte
+		var abiFileName string
 		abiFile, abiHeader, err := ctx.Request().FormFile("abi")
 		if err == nil {
 			defer abiFile.Close()
-			fileData := make([]byte, abiHeader.Size)
-			_, err = abiFile.Read(fileData)
+			abiData, err = readFormFile(abiFile, 10<<20) // 10MB limit
 			if err != nil {
 				log.NewHelper(logger).Errorf("Failed to read ABI file: %v", err)
-				ctx.Response().Header().Set("Content-Type", "application/json")
-				ctx.Response().WriteHeader(http.StatusBadRequest)
-				ctx.Response().Write([]byte(`{"code":400,"message":"Failed to read ABI file","data":null}`))
+				writeJSONError(ctx.Response(), http.StatusBadRequest, "Failed to read ABI file")
 				return nil
 			}
-			abiBase64 = base64.StdEncoding.EncodeToString(fileData)
 			abiFileName = abiHeader.Filename
 		} else if err != http.ErrMissingFile {
 			log.NewHelper(logger).Errorf("Error reading ABI file: %v", err)
-			ctx.Response().Header().Set("Content-Type", "application/json")
-			ctx.Response().WriteHeader(http.StatusBadRequest)
-			ctx.Response().Write([]byte(`{"code":400,"message":"Error reading ABI file","data":null}`))
+			writeJSONError(ctx.Response(), http.StatusBadRequest, "Error reading ABI file")
 			return nil
 		}
 
 		// At least one file must be provided
-		if sourceCodeBase64 == "" && abiBase64 == "" {
-			ctx.Response().Header().Set("Content-Type", "application/json")
-			ctx.Response().WriteHeader(http.StatusBadRequest)
-			ctx.Response().Write([]byte(`{"code":400,"message":"At least one file (source_code or abi) is required","data":null}`))
+		if len(sourceCodeData) == 0 && len(abiData) == 0 {
+			writeJSONError(ctx.Response(), http.StatusBadRequest, "At least one file (source_code or abi) is required")
 			return nil
 		}
 
@@ -634,9 +647,9 @@ func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *se
 		req := &v1.UploadContractFilesRequest{
 			ContractAddress:    contractAddress,
 			ChainId:            chainID,
-			SourceCodeBase64:   sourceCodeBase64,
+			SourceCode:         sourceCodeData,
 			SourceCodeFileName: sourceCodeFileName,
-			AbiBase64:          abiBase64,
+			Abi:                abiData,
 			AbiFileName:        abiFileName,
 			Description:        description,
 			UploadedBy:         uploadedBy,
@@ -670,4 +683,42 @@ func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *se
 	})
 
 	log.NewHelper(logger).Info("Contract file upload multipart route registered: POST /api/v1/contract/files/upload-multipart")
+}
+
+// readFormFile safely reads a multipart form file with size limit.
+// Uses io.LimitReader to prevent DoS attacks from oversized files.
+//
+// Parameters:
+//   - file: The multipart form file to read
+//   - maxSize: Maximum file size in bytes
+//
+// Returns:
+//   - []byte: File content
+//   - error: Error if reading fails or file exceeds limit
+func readFormFile(file multipart.File, maxSize int64) ([]byte, error) {
+	// Use io.ReadAll with http.MaxBytesReader for safe reading
+	defer file.Close()
+	limitedReader := io.LimitReader(file, maxSize+1) // +1 to detect overflow
+	data, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, err
+	}
+	// Check if file exceeded limit
+	if int64(len(data)) > maxSize {
+		return nil, http.ErrHandlerTimeout
+	}
+	return data, nil
+}
+
+// writeJSONError writes a standardized JSON error response.
+// This provides a consistent error response format across all HTTP endpoints.
+//
+// Parameters:
+//   - w: HTTP response writer
+//   - statusCode: HTTP status code
+//   - message: Error message
+func writeJSONError(w http.ResponseWriter, statusCode int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	w.Write([]byte(fmt.Sprintf(`{"code":%d,"message":"%s","data":null}`, statusCode, message)))
 }

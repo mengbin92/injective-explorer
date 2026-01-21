@@ -18,13 +18,13 @@ type IPBlacklist struct {
 	// ReasonText is the detailed reason description
 	ReasonText string `gorm:"column:reason_text;type:varchar(255)" json:"reason_text"`
 	// BlockCount is the number of times this IP was blocked
-	BlockCount uint64 `gorm:"column:block_count;type:bigint unsigned;not null;default:0" json:"block_count"`
+	BlockCount uint64 `gorm:"column:block_count;type:bigint unsigned;not null" json:"block_count"`
 	// OperatorID is the ID of the operator who added this IP
 	OperatorID string `gorm:"column:operator_id;type:varchar(64)" json:"operator_id"`
 	// OperatorName is the name of the operator
 	OperatorName string `gorm:"column:operator_name;type:varchar(100)" json:"operator_name"`
 	// BlockType is the restriction type: all/register/api
-	BlockType string `gorm:"column:block_type;type:varchar(20);not null;default:'all'" json:"block_type"`
+	BlockType string `gorm:"column:block_type;type:varchar(20);not null" json:"block_type"`
 }
 
 // TableName specifies the table name for IPBlacklist.
