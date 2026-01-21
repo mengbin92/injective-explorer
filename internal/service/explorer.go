@@ -879,10 +879,11 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 }
 
 // GetTransactionByHash retrieves a specific transaction by its hash.
+// Supports both Cosmos transaction hashes and EVM transaction hashes.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
-//   - req: Request containing the transaction hash
+//   - req: Request containing the transaction hash (Cosmos or EVM)
 //
 // Returns:
 //   - *pb.Reply: Response containing the transaction data
@@ -957,6 +958,46 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 			cacheTransaction(queryCtx, archivedTx)
 			txDTO := models.ToTransactionDTO(archivedTx, models.DTOModeWithDetail)
 			return MarshalAndReply(txDTO, "marshal transaction error")
+		}
+
+		// Not found in archive table, check if it's an EVM transaction hash
+		global.Logger.Debugf("transaction not found by Cosmos hash, checking if it's an EVM hash: hash=%s", hash)
+		var evmTx models.EVMTransaction
+		evmErr := db.Get().WithContext(queryCtx).
+			Where("evm_hash = ?", "0x"+hash).
+			First(&evmTx).Error
+		if evmErr == nil {
+			// Found EVM transaction, get the Cosmos transaction hash and retry
+			cosmosHash := strings.TrimPrefix(evmTx.TransactionHash, "0x")
+			global.Logger.Infof("found EVM transaction, querying with Cosmos hash: evm_hash=0x%s, cosmos_hash=%s", hash, cosmosHash)
+
+			// Query Cosmos transaction using the Cosmos hash from evm_transactions
+			err = db.Get().WithContext(queryCtx).Where("hash = ?", evmTx.TransactionHash).First(&dbTx).Error
+			if err == nil {
+				// Found in database
+				global.Logger.Debugf("Cosmos transaction found via EVM hash: hash=%s, archived=%v", cosmosHash, dbTx.Archived)
+
+				// If transaction is archived, load full data from archive table
+				if dbTx.Archived {
+					archivedTx, archiveErr := archiveService.GetArchivedTransaction(queryCtx, evmTx.TransactionHash)
+					if archiveErr == nil && archivedTx != nil {
+						global.Logger.Debugf("Cosmos transaction found in archive via EVM hash: hash=%s", cosmosHash)
+						// Cache the transaction for future queries
+						cacheTransaction(queryCtx, archivedTx)
+						txDTO := models.ToTransactionDTO(archivedTx, models.DTOModeWithDetail)
+						return MarshalAndReply(txDTO, "marshal transaction error")
+					}
+				}
+
+				// Transaction not archived, or archive data not found, return as is
+				// Cache the transaction for future queries
+				cacheTransaction(queryCtx, &dbTx)
+
+				txDTO := models.ToTransactionDTO(&dbTx, models.DTOModeWithDetail)
+				return MarshalAndReply(txDTO, "marshal transaction error")
+			}
+		} else if !errors.Is(evmErr, gorm.ErrRecordNotFound) {
+			global.Logger.Warnf("EVM transaction query error: hash=%s, error=%v", hash, evmErr)
 		}
 	}
 
