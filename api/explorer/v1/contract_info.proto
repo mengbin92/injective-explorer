@@ -99,6 +99,15 @@ service ContractInfoService {
       body : "*"
     };
   }
+
+  // UploadContractFiles uploads contract source code files (.sol) and ABI files
+  // (.json) Returns Reply with data containing upload result
+  rpc UploadContractFiles(UploadContractFilesRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/contract/files/upload"
+      body : "*"
+    };
+  }
 }
 
 // Request messages
@@ -223,6 +232,34 @@ message ImportContractInfosRequest {
   // Default contract_type for contracts without contract_type specified
   // (optional)
   string default_contract_type = 6 [ json_name = "default_contract_type" ];
+}
+
+// UploadContractFilesRequest is the request message for uploading contract
+// files
+message UploadContractFilesRequest {
+  // Contract address (required)
+  string contract_address = 1 [ json_name = "contract_address" ];
+
+  // Chain ID (optional, default: injective-1)
+  string chain_id = 2 [ json_name = "chain_id" ];
+
+  // Source code file (.sol) content as base64 encoded string (optional)
+  string source_code_base64 = 3 [ json_name = "source_code_base64" ];
+
+  // Source code file name (optional, e.g., "Token.sol")
+  string source_code_file_name = 4 [ json_name = "source_code_file_name" ];
+
+  // ABI file (.json) content as base64 encoded string (optional)
+  string abi_base64 = 5 [ json_name = "abi_base64" ];
+
+  // ABI file name (optional, e.g., "abi.json")
+  string abi_file_name = 6 [ json_name = "abi_file_name" ];
+
+  // Optional description
+  string description = 7;
+
+  // User/address who uploaded the file (optional)
+  string uploaded_by = 8 [ json_name = "uploaded_by" ];
 }
 
 // Response data messages (used in Reply.data as Struct)

@@ -1009,6 +1009,27 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/contract/files/upload:
+        post:
+            tags:
+                - ContractInfoService
+            description: |-
+                UploadContractFiles uploads contract source code files (.sol) and ABI files (.json)
+                 Returns Reply with data containing upload result
+            operationId: ContractInfoService_UploadContractFiles
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UploadContractFilesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/contract/info:
         put:
             tags:
@@ -2425,6 +2446,34 @@ components:
                 status:
                     type: string
             description: UpdateWebhookRequest updates a webhook
+        api.explorer.v1.UploadContractFilesRequest:
+            type: object
+            properties:
+                contract_address:
+                    type: string
+                    description: Contract address (required)
+                chain_id:
+                    type: string
+                    description: 'Chain ID (optional, default: injective-1)'
+                source_code_base64:
+                    type: string
+                    description: Source code file (.sol) content as base64 encoded string (optional)
+                source_code_file_name:
+                    type: string
+                    description: Source code file name (optional, e.g., "Token.sol")
+                abi_base64:
+                    type: string
+                    description: ABI file (.json) content as base64 encoded string (optional)
+                abi_file_name:
+                    type: string
+                    description: ABI file name (optional, e.g., "abi.json")
+                description:
+                    type: string
+                    description: Optional description
+                uploaded_by:
+                    type: string
+                    description: User/address who uploaded the file (optional)
+            description: UploadContractFilesRequest is the request message for uploading contract files
 tags:
     - name: APITokenService
       description: APITokenService provides API token management services

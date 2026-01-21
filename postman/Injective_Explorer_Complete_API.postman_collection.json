@@ -1759,6 +1759,215 @@
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"total_count\": 50,\n    \"success_count\": 48,\n    \"failed_count\": 2,\n    \"errors\": [\n      {\n        \"row\": 15,\n        \"contract_address\": \"invalid_address\",\n        \"error\": \"Invalid address format\"\n      },\n      {\n        \"row\": 32,\n        \"contract_address\": \"0x123\",\n        \"error\": \"Duplicate contract address\"\n      }\n    ]\n  }\n}"
             }
           ]
+        },
+        {
+          "name": "上传合约源文件",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has uploaded files data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('contract_address');",
+                  "        pm.expect(jsonData.data).to.have.property('uploaded_files');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"contract_address\": \"{{contract_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"source_code_base64\": \"Ly8gU1BEWC1MaWNlbnNlLUlkZW50aWZpZXI6IE1JVApwcmlnbWEgc29saWRpdHkgXjAuOC4wOwo8...\",\n    \"source_code_file_name\": \"Token.sol\",\n    \"abi_base64\": \"W3siY29uc3RhbnQiOnRydWUsImlucHV0cyI6W10sIm5hbWUiOiJuYW1lIiwib3V0cHV0cyI6W3sibmFtZSI6IiIsInR5cGUiOiJzdHJpbmcifV0sInR5cGUiOiJmdW5jdGlvbiJ9XQ==\",\n    \"abi_file_name\": \"abi.json\",\n    \"description\": \"Contract source code and ABI files\",\n    \"uploaded_by\": \"developer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/contract/files/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contract",
+                "files",
+                "upload"
+              ]
+            },
+            "description": "上传合约源代码文件(.sol)和ABI文件(.json)。支持同时上传源代码和ABI，或单独上传其中一个。文件内容使用base64编码。"
+          },
+          "response": [
+            {
+              "name": "Success Response - Both Files",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{api_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"contract_address\": \"{{contract_address}}\",\n  \"chain_id\": \"{{chain_id}}\",\n  \"source_code_base64\": \"Ly8gU1BEWC1MaWNlbnNlLUlkZW50aWZpZXI6IE1JVApwcmlnbWEgc29saWRpdHkgXjAuOC4wOwo=\",\n  \"source_code_file_name\": \"Token.sol\",\n  \"abi_base64\": \"W3siY29uc3RhbnQiOnRydWUsImlucHV0cyI6W10sIm5hbWUiOiJuYW1lIiwidHlwZSI6ImZ1bmN0aW9uIn1d\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/contract/files/upload",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "contract", "files", "upload"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"contract_address\": \"0x1234567890abcdef1234567890abcdef12345678\",\n    \"chain_id\": \"injective-1\",\n    \"uploaded_files\": [\n      {\n        \"file_type\": \"source\",\n        \"file_name\": \"Token.sol\",\n        \"file_id\": 123,\n        \"file_size\": 1024,\n        \"storage_type\": \"database\"\n      },\n      {\n        \"file_type\": \"abi\",\n        \"file_name\": \"abi.json\",\n        \"file_id\": 124,\n        \"file_size\": 512,\n        \"storage_type\": \"database\"\n      }\n    ],\n    \"uploaded_at\": \"2024-01-15T10:30:00Z\"\n  }\n}"
+            },
+            {
+              "name": "Success Response - Source Code Only",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{api_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"contract_address\": \"{{contract_address}}\",\n  \"chain_id\": \"{{chain_id}}\",\n  \"source_code_base64\": \"Ly8gU1BEWC1MaWNlbnNlLUlkZW50aWZpZXI6IE1JVApwcmlnbWEgc29saWRpdHkgXjAuOC4wOwo=\",\n  \"source_code_file_name\": \"Token.sol\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/contract/files/upload",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "contract", "files", "upload"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"contract_address\": \"0x1234567890abcdef1234567890abcdef12345678\",\n    \"chain_id\": \"injective-1\",\n    \"uploaded_files\": [\n      {\n        \"file_type\": \"source\",\n        \"file_name\": \"Token.sol\",\n        \"file_id\": 125,\n        \"file_size\": 1024,\n        \"storage_type\": \"object_storage\"\n      }\n    ],\n    \"uploaded_at\": \"2024-01-15T10:31:00Z\"\n  }\n}"
+            },
+            {
+              "name": "Error - Contract Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{api_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"contract_address\": \"0xnotexist\",\n  \"chain_id\": \"{{chain_id}}\",\n  \"source_code_base64\": \"Ly8gY29kZQ==\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/contract/files/upload",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "contract", "files", "upload"]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"code\": 404,\n  \"message\": \"contract not found\",\n  \"data\": null\n}"
+            },
+            {
+              "name": "Error - Invalid Base64",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{api_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"contract_address\": \"{{contract_address}}\",\n  \"source_code_base64\": \"!!!invalid-base64!!!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/contract/files/upload",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "contract", "files", "upload"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"code\": 400,\n  \"message\": \"invalid source code file: invalid base64 encoding\",\n  \"data\": null\n}"
+            }
+          ]
         }
       ]
     },

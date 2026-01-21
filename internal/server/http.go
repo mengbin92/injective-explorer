@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -114,6 +115,7 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 
 	contractInfoService := service.NewContractInfoService()
 	v1.RegisterContractInfoServiceHTTPServer(srv, contractInfoService)
+	registerContractFileUploadRoutes(srv, contractInfoService, logger)
 
 	apiTokenService := service.NewAPITokenService()
 	v1.RegisterAPITokenServiceHTTPServer(srv, apiTokenService)
@@ -537,4 +539,135 @@ func registerExportRoutes(srv *khttp.Server, apiTokenService *service.APITokenSe
 	_ = srv // Suppress unused parameter warning
 	_ = apiTokenService
 	_ = logger
+}
+
+// registerContractFileUploadRoutes registers custom HTTP routes for multipart file upload.
+// This provides an alternative to the base64-based proto endpoint for better user experience.
+func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *service.ContractInfoService, logger log.Logger) {
+	r := srv.Route("/")
+
+	// POST /api/v1/contract/files/upload-multipart - Multipart form data upload
+	r.POST("/api/v1/contract/files/upload-multipart", func(ctx khttp.Context) error {
+		log.NewHelper(logger).Infof("Contract file upload multipart request received")
+
+		// Parse multipart form (max 20MB total)
+		err := ctx.Request().ParseMultipartForm(20 << 20)
+		if err != nil {
+			log.NewHelper(logger).Errorf("Failed to parse multipart form: %v", err)
+			ctx.Response().Header().Set("Content-Type", "application/json")
+			ctx.Response().WriteHeader(http.StatusBadRequest)
+			ctx.Response().Write([]byte(`{"code":400,"message":"Failed to parse multipart form","data":null}`))
+			return nil
+		}
+
+		// Get contract address (required)
+		contractAddress := ctx.Request().FormValue("contract_address")
+		if contractAddress == "" {
+			ctx.Response().Header().Set("Content-Type", "application/json")
+			ctx.Response().WriteHeader(http.StatusBadRequest)
+			ctx.Response().Write([]byte(`{"code":400,"message":"contract_address is required","data":null}`))
+			return nil
+		}
+
+		// Get optional fields
+		chainID := ctx.Request().FormValue("chain_id")
+		description := ctx.Request().FormValue("description")
+		uploadedBy := ctx.Request().FormValue("uploaded_by")
+
+		// Read source code file if provided
+		var sourceCodeBase64, sourceCodeFileName string
+		sourceCodeFile, sourceCodeHeader, err := ctx.Request().FormFile("source_code")
+		if err == nil {
+			defer sourceCodeFile.Close()
+			fileData := make([]byte, sourceCodeHeader.Size)
+			_, err = sourceCodeFile.Read(fileData)
+			if err != nil {
+				log.NewHelper(logger).Errorf("Failed to read source code file: %v", err)
+				ctx.Response().Header().Set("Content-Type", "application/json")
+				ctx.Response().WriteHeader(http.StatusBadRequest)
+				ctx.Response().Write([]byte(`{"code":400,"message":"Failed to read source code file","data":null}`))
+				return nil
+			}
+			sourceCodeBase64 = base64.StdEncoding.EncodeToString(fileData)
+			sourceCodeFileName = sourceCodeHeader.Filename
+		} else if err != http.ErrMissingFile {
+			log.NewHelper(logger).Errorf("Error reading source code file: %v", err)
+			ctx.Response().Header().Set("Content-Type", "application/json")
+			ctx.Response().WriteHeader(http.StatusBadRequest)
+			ctx.Response().Write([]byte(`{"code":400,"message":"Error reading source code file","data":null}`))
+			return nil
+		}
+
+		// Read ABI file if provided
+		var abiBase64, abiFileName string
+		abiFile, abiHeader, err := ctx.Request().FormFile("abi")
+		if err == nil {
+			defer abiFile.Close()
+			fileData := make([]byte, abiHeader.Size)
+			_, err = abiFile.Read(fileData)
+			if err != nil {
+				log.NewHelper(logger).Errorf("Failed to read ABI file: %v", err)
+				ctx.Response().Header().Set("Content-Type", "application/json")
+				ctx.Response().WriteHeader(http.StatusBadRequest)
+				ctx.Response().Write([]byte(`{"code":400,"message":"Failed to read ABI file","data":null}`))
+				return nil
+			}
+			abiBase64 = base64.StdEncoding.EncodeToString(fileData)
+			abiFileName = abiHeader.Filename
+		} else if err != http.ErrMissingFile {
+			log.NewHelper(logger).Errorf("Error reading ABI file: %v", err)
+			ctx.Response().Header().Set("Content-Type", "application/json")
+			ctx.Response().WriteHeader(http.StatusBadRequest)
+			ctx.Response().Write([]byte(`{"code":400,"message":"Error reading ABI file","data":null}`))
+			return nil
+		}
+
+		// At least one file must be provided
+		if sourceCodeBase64 == "" && abiBase64 == "" {
+			ctx.Response().Header().Set("Content-Type", "application/json")
+			ctx.Response().WriteHeader(http.StatusBadRequest)
+			ctx.Response().Write([]byte(`{"code":400,"message":"At least one file (source_code or abi) is required","data":null}`))
+			return nil
+		}
+
+		// Build request
+		req := &v1.UploadContractFilesRequest{
+			ContractAddress:    contractAddress,
+			ChainId:            chainID,
+			SourceCodeBase64:   sourceCodeBase64,
+			SourceCodeFileName: sourceCodeFileName,
+			AbiBase64:          abiBase64,
+			AbiFileName:        abiFileName,
+			Description:        description,
+			UploadedBy:         uploadedBy,
+		}
+
+		// Call service method
+		reply, err := contractInfoService.UploadContractFiles(ctx.Request().Context(), req)
+		if err != nil {
+			log.NewHelper(logger).Errorf("Failed to upload contract files: %v", err)
+			ctx.Response().Header().Set("Content-Type", "application/json")
+			ctx.Response().WriteHeader(int(reply.Code))
+			if replyData, marshalErr := sonic.Marshal(reply); marshalErr == nil {
+				ctx.Response().Write(replyData)
+			} else {
+				ctx.Response().Write([]byte(`{"code":500,"message":"Internal server error","data":null}`))
+			}
+			return nil
+		}
+
+		// Write response
+		ctx.Response().Header().Set("Content-Type", "application/json")
+		ctx.Response().WriteHeader(int(reply.Code))
+		replyData, err := sonic.Marshal(reply)
+		if err != nil {
+			log.NewHelper(logger).Errorf("Failed to marshal response: %v", err)
+			ctx.Response().Write([]byte(`{"code":500,"message":"Failed to marshal response","data":null}`))
+			return nil
+		}
+		ctx.Response().Write(replyData)
+		return nil
+	})
+
+	log.NewHelper(logger).Info("Contract file upload multipart route registered: POST /api/v1/contract/files/upload-multipart")
 }

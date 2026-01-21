@@ -3,6 +3,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
+	"injective-explorer/provider/storage"
 
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
@@ -50,7 +53,7 @@ const (
 
 // Default values
 const (
-	DefaultContractType       = "cosmwasm"
+	DefaultContractType       = "solidity"
 	DefaultChainID            = "injective-1"
 	DefaultVerificationStatus = "unverified"
 )
@@ -866,4 +869,227 @@ func (s *ContractInfoService) clearContractCache(ctx context.Context, chainID, c
 			global.Logger.Warnf("failed to clear cache key %s: %v", key, err)
 		}
 	}
+}
+
+// UploadContractFiles uploads contract source code files (.sol) and ABI files (.json).
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing file contents and metadata
+//
+// Returns:
+//   - *pb.Reply: Response containing upload result
+//   - error: Error if the operation fails
+func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.UploadContractFilesRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	if req.ContractAddress == "" {
+		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+	}
+
+	// At least one file must be provided
+	if req.SourceCodeBase64 == "" && req.AbiBase64 == "" {
+		return ErrorReply(http.StatusBadRequest, "at least one file (source_code_base64 or abi_base64) is required", errors.New("no file provided")), errors.New("no file provided")
+	}
+
+	// Set default chain ID
+	chainID := req.ChainId
+	if chainID == "" {
+		chainID = DefaultChainID
+	}
+
+	// Convert address to Ethereum format for storage
+	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+
+	queryCtx, queryCancel := context.WithTimeout(ctx, DBQueryTimeout)
+	defer queryCancel()
+
+	// Check if contract exists
+	var contractInfo models.ContractInfo
+	err := db.Get().WithContext(queryCtx).
+		Where("chain_id = ? AND contract_address = ?", chainID, contractAddress).
+		First(&contractInfo).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrorReply(http.StatusNotFound, "contract not found", errors.New("contract not found")), errors.New("contract not found")
+		}
+		global.Logger.Errorf("failed to check contract existence: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to check contract existence", err), err
+	}
+
+	uploadedFiles := make([]map[string]interface{}, 0)
+	const maxFileSize = 10 * 1024 * 1024 // 10MB max file size
+	const storageThreshold = 100 * 1024  // 100KB threshold for using object storage
+
+	// Upload source code file if provided
+	if req.SourceCodeBase64 != "" {
+		fileData, err := decodeAndValidateFile(req.SourceCodeBase64, "source", ".sol", req.SourceCodeFileName, maxFileSize)
+		if err != nil {
+			return ErrorReply(http.StatusBadRequest, fmt.Sprintf("invalid source code file: %v", err), err), err
+		}
+
+		sourceFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "source", fileData, req.SourceCodeFileName, req.Description, req.UploadedBy, storageThreshold)
+		if err != nil {
+			global.Logger.Errorf("failed to save source code file: %v", err)
+			return ErrorReply(http.StatusInternalServerError, "failed to save source code file", err), err
+		}
+
+		uploadedFiles = append(uploadedFiles, map[string]interface{}{
+			"file_type":     "source",
+			"file_name":     sourceFile.FileName,
+			"file_id":       sourceFile.ID,
+			"file_size":     sourceFile.FileSize,
+			"storage_type":  s.getStorageType(sourceFile),
+		})
+	}
+
+	// Upload ABI file if provided
+	if req.AbiBase64 != "" {
+		fileData, err := decodeAndValidateFile(req.AbiBase64, "abi", ".json", req.AbiFileName, maxFileSize)
+		if err != nil {
+			return ErrorReply(http.StatusBadRequest, fmt.Sprintf("invalid ABI file: %v", err), err), err
+		}
+
+		abiFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "abi", fileData, req.AbiFileName, req.Description, req.UploadedBy, storageThreshold)
+		if err != nil {
+			global.Logger.Errorf("failed to save ABI file: %v", err)
+			return ErrorReply(http.StatusInternalServerError, "failed to save ABI file", err), err
+		}
+
+		uploadedFiles = append(uploadedFiles, map[string]interface{}{
+			"file_type":     "abi",
+			"file_name":     abiFile.FileName,
+			"file_id":       abiFile.ID,
+			"file_size":     abiFile.FileSize,
+			"storage_type":  s.getStorageType(abiFile),
+		})
+	}
+
+	// Build response
+	responseData := map[string]interface{}{
+		"contract_address": contractAddress,
+		"chain_id":         chainID,
+		"uploaded_files":   uploadedFiles,
+		"uploaded_at":      time.Now().Format(time.RFC3339),
+	}
+
+	return MarshalAndReply(responseData, "marshal upload response error")
+}
+
+// FileData represents decoded file data
+type FileData struct {
+	Content []byte
+	Name    string
+	MIMEType string
+}
+
+// decodeAndValidateFile decodes base64 file content and validates it
+func decodeAndValidateFile(base64Content, fileType, expectedExt, fileName string, maxSize int) (*FileData, error) {
+	// Decode base64
+	fileContent, err := base64.StdEncoding.DecodeString(base64Content)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid base64 encoding")
+	}
+
+	// Check file size
+	if len(fileContent) > maxSize {
+		return nil, errors.Errorf("file size exceeds maximum %d bytes", maxSize)
+	}
+
+	// Validate file extension
+	if fileName == "" {
+		fileName = fmt.Sprintf("file%s", expectedExt)
+	}
+
+	// Determine MIME type
+	mimeType := "text/plain"
+	if fileType == "abi" || expectedExt == ".json" {
+		// Validate JSON format for ABI files
+		var jsonData interface{}
+		if err := sonic.Unmarshal(fileContent, &jsonData); err != nil {
+			return nil, errors.Wrap(err, "invalid JSON format for ABI file")
+		}
+		mimeType = "application/json"
+	}
+
+	return &FileData{
+		Content:  fileContent,
+		Name:     fileName,
+		MIMEType: mimeType,
+	}, nil
+}
+
+// saveContractFile saves a contract file to database or object storage
+func (s *ContractInfoService) saveContractFile(ctx context.Context, contractAddress, chainID, fileType string, fileData *FileData, _, description, uploadedBy string, storageThreshold int) (*models.ContractSourceFile, error) {
+	// Calculate file hash
+	hash := calculateFileHash(fileData.Content)
+
+	// Check if file already exists (by hash)
+	var existingFile models.ContractSourceFile
+	err := db.Get().WithContext(ctx).
+		Where("chain_id = ? AND contract_address = ? AND file_type = ? AND file_hash = ?", chainID, contractAddress, fileType, hash).
+		First(&existingFile).Error
+
+	if err == nil {
+		// File already exists, return existing file
+		return &existingFile, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.Wrap(err, "failed to check existing file")
+	}
+
+	// Create new file record
+	sourceFile := &models.ContractSourceFile{
+		ContractAddress: contractAddress,
+		ChainID:         chainID,
+		FileName:        fileData.Name,
+		FileType:        fileType,
+		FileSize:        int64(len(fileData.Content)),
+		FileHash:        hash,
+		MIMEType:        fileData.MIMEType,
+		Description:     description,
+		UploadedBy:      uploadedBy,
+	}
+
+	// Decide storage location based on file size
+	if len(fileData.Content) > storageThreshold {
+		// Store in object storage for large files
+		storageClient := storage.Get()
+		storageKey := fmt.Sprintf("contract-files/%s/%s/%s/%s", chainID, contractAddress, fileType, hash)
+
+		if err := storageClient.PutObject(ctx, storageKey, fileData.Content); err != nil {
+			global.Logger.Warnf("failed to upload file to object storage, falling back to database: %v", err)
+			// Fallback to database storage
+			sourceFile.FileContent = string(fileData.Content)
+		} else {
+			sourceFile.FileContentStorageKey = storageKey
+		}
+	} else {
+		// Store in database for small files
+		sourceFile.FileContent = string(fileData.Content)
+	}
+
+	// Save to database
+	err = db.Get().WithContext(ctx).Create(sourceFile).Error
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create contract source file")
+	}
+
+	return sourceFile, nil
+}
+
+// getStorageType returns the storage type used for a file
+func (s *ContractInfoService) getStorageType(file *models.ContractSourceFile) string {
+	if file.FileContentStorageKey != "" {
+		return "object_storage"
+	}
+	return "database"
+}
+
+// calculateFileHash calculates SHA256 hash of file content
+func calculateFileHash(content []byte) string {
+	hash := sha256.Sum256(content)
+	return fmt.Sprintf("%x", hash)
 }

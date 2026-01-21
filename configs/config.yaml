@@ -204,7 +204,7 @@ api_management:
   # Test mode: bypasses authentication and rate limiting for testing
   # IMPORTANT: Only enable this in development/testing environments
   # WARNING: Do NOT enable in production as it disables all security restrictions
-  test_mode: false
+  test_mode: true
 
   # Rate limit configuration
   rate_limit:
