@@ -4,7 +4,6 @@ package models
 import (
 	"injective-explorer/internal/global"
 	"injective-explorer/provider/db"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -135,17 +134,17 @@ func BlockToProto(block *Block) *injective_explorer_rpcpb.BlockDetailInfo {
 	// Note: This is only needed if the protobuf expects Injective format
 	// For now, we'll use the stored Ethereum format as-is
 	return &injective_explorer_rpcpb.BlockDetailInfo{
-		Height:            block.Height,
-		Proposer:          block.Proposer,
-		Moniker:           block.Moniker,
-		BlockHash:         block.BlockHash,
-		ParentHash:        block.ParentHash,
-		NumPreCommits:     block.NumPrecommits,
-		NumTxs:            block.NumTxs,
-		TotalTxs:          block.TotalTxs,
-		Timestamp:         block.Timestamp,
+		Height:             block.Height,
+		Proposer:           block.Proposer,
+		Moniker:            block.Moniker,
+		BlockHash:          block.BlockHash,
+		ParentHash:         block.ParentHash,
+		NumPreCommits:      block.NumPrecommits,
+		NumTxs:             block.NumTxs,
+		TotalTxs:           block.TotalTxs,
+		Timestamp:          block.Timestamp,
 		BlockUnixTimestamp: block.BlockUnixTimestamp,
-		Txs:               txs,
+		Txs:                txs,
 	}
 }
 
@@ -157,7 +156,7 @@ type proposerInfo struct {
 func BlockFromTM(block *coretypes.ResultBlock) *Block {
 	txs := make([]string, 0, len(block.Block.Data.Txs))
 	for _, tx := range block.Block.Data.Txs {
-		txs = append(txs, base64.StdEncoding.EncodeToString(tx))
+		txs = append(txs, hex.EncodeToString(tx.Hash()))
 	}
 
 	var proposerInfo proposerInfo
@@ -171,17 +170,17 @@ func BlockFromTM(block *coretypes.ResultBlock) *Block {
 	}
 
 	return &Block{
-		Height:            uint64(block.Block.Height),
-		BlockHash:         fmt.Sprintf("0x%s", strings.ToLower(block.BlockID.Hash.String())),
-		ParentHash:        fmt.Sprintf("0x%s", strings.ToLower(block.Block.LastBlockID.Hash.String())),
-		NumPrecommits:     int64(len(block.Block.LastCommit.Signatures)),
-		NumTxs:            int64(len(block.Block.Data.Txs)),
-		TotalTxs:          int64(len(block.Block.Data.Txs)),
-		Timestamp:         block.Block.Time.Format(time.RFC3339),
+		Height:             uint64(block.Block.Height),
+		BlockHash:          fmt.Sprintf("0x%s", strings.ToLower(block.BlockID.Hash.String())),
+		ParentHash:         fmt.Sprintf("0x%s", strings.ToLower(block.Block.LastBlockID.Hash.String())),
+		NumPrecommits:      int64(len(block.Block.LastCommit.Signatures)),
+		NumTxs:             int64(len(block.Block.Data.Txs)),
+		TotalTxs:           int64(len(block.Block.Data.Txs)),
+		Timestamp:          block.Block.Time.Format(time.RFC3339),
 		BlockUnixTimestamp: uint64(block.Block.Time.Unix()),
-		Proposer:          proposerInfo.OperatorAddress,
-		Txs:               txs,
-		Moniker:           proposerInfo.Moniker,
+		Proposer:           proposerInfo.OperatorAddress,
+		Txs:                txs,
+		Moniker:            proposerInfo.Moniker,
 	}
 }
 
