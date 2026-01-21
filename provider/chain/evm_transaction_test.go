@@ -22,11 +22,11 @@ func TestGetEVMTransactionByCosmosHash(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	tmClient, _ := rpchttp.New(network.TmEndpoint)
 
-	// 初始化客户端
+	// Initialize client
 	clientCtx, err := chainclient.NewClientContext(
 		network.ChainId,
 		"",
-		nil, // 对于只读查询可以传 nil
+		nil, // For read-only queries, can pass nil
 	)
 	assert.NoError(t, err, "failed to create client context")
 

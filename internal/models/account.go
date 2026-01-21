@@ -205,14 +205,20 @@ func ConvertAddressToEthForStorage(address string) string {
 	return ethAddr
 }
 
-// 错误定义
+// Error definitions for address conversion
 var (
 	ErrInvalidAddress = fmt.Errorf("invalid address format")
 	ErrConversion     = fmt.Errorf("address conversion failed")
 )
 
-// IsValidInjectiveAddress 验证 Injective 地址格式
-// 检查地址是否符合 inj1... 格式且能正确解码
+// IsValidInjectiveAddress validates an Injective address format.
+// Checks if the address conforms to the inj1... format and can be correctly decoded.
+//
+// Parameters:
+//   - addr: The address string to validate
+//
+// Returns:
+//   - bool: True if the address is valid, false otherwise
 func IsValidInjectiveAddress(addr string) bool {
 	if addr == "" {
 		return false

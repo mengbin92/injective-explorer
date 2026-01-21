@@ -28,7 +28,7 @@ import (
 )
 
 func TestInjectiveWithSDK(t *testing.T) {
-	// 使用SDK内置的网络配置
+	// Use SDK's built-in network configuration
 	network := common.LoadNetwork("testnet", "lb")
 
 	tmClient := tmclient.NewRPCClient(network.TmEndpoint)
@@ -60,11 +60,11 @@ func TestGetAccountBalances(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	tmClient, _ := rpchttp.New(network.TmEndpoint)
 
-	// 初始化客户端
+	// Initialize client
 	clientCtx, err := chainclient.NewClientContext(
 		network.ChainId,
 		"",
-		nil, // 对于只读查询可以传 nil
+		nil, // For read-only queries, can pass nil
 	)
 	assert.NoError(t, err, "failed to create client context")
 
@@ -141,11 +141,11 @@ func TestGetAccountInfo(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	tmClient, _ := rpchttp.New(network.TmEndpoint)
 
-	// 初始化客户端
+	// Initialize client
 	clientCtx, err := chainclient.NewClientContext(
 		network.ChainId,
 		"",
-		nil, // 对于只读查询可以传 nil
+		nil, // For read-only queries, can pass nil
 	)
 	assert.NoError(t, err, "failed to create client context")
 
@@ -264,11 +264,11 @@ func TestGetGasPrice(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	tmClient, _ := rpchttp.New(network.TmEndpoint)
 
-	// 初始化客户端
+	// Initialize client
 	clientCtx, err := chainclient.NewClientContext(
 		network.ChainId,
 		"",
-		nil, // 对于只读查询可以传 nil
+		nil, // For read-only queries, can pass nil
 	)
 	assert.NoError(t, err, "failed to create client context")
 
@@ -325,11 +325,11 @@ func TestAccountBalance(t *testing.T) {
 	network := common.LoadNetwork("mainnet", "lb")
 	tmClient, _ := rpchttp.New(network.TmEndpoint)
 
-	// 初始化客户端
+	// Initialize client
 	clientCtx, err := chainclient.NewClientContext(
 		network.ChainId,
 		"",
-		nil, // 对于只读查询可以传 nil
+		nil, // For read-only queries, can pass nil
 	)
 	assert.NoError(t, err, "failed to create client context")
 

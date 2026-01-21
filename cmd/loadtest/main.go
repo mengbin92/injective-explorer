@@ -1,4 +1,4 @@
-// Package main 提供HTTP接口并发压力测试工具
+// Package main provides an HTTP interface concurrent stress testing tool.
 package main
 
 import (
@@ -18,22 +18,22 @@ import (
 	"github.com/fatih/color"
 )
 
-// 常量定义
+// Constant definitions
 const (
-	// DefaultMinLatency 默认最小延迟值（微秒），用于初始化
+	// DefaultMinLatency is the default minimum latency value (microseconds) for initialization
 	DefaultMinLatency = int64(1e9)
-	// DefaultMaxIdleConns 默认最大空闲连接数（已优化为200）
+	// DefaultMaxIdleConns is the default maximum number of idle connections (optimized to 200)
 	DefaultMaxIdleConns = 200
-	// DefaultMaxIdleConnsPerHost 每个host的最大空闲连接数（已优化为100）
+	// DefaultMaxIdleConnsPerHost is the maximum number of idle connections per host (optimized to 100)
 	DefaultMaxIdleConnsPerHost = 100
-	// DefaultIdleConnTimeout 空闲连接超时时间
+	// DefaultIdleConnTimeout is the idle connection timeout
 	DefaultIdleConnTimeout = 90 * time.Second
-	// DefaultTLSHandshakeTimeout TLS握手超时时间
+	// DefaultTLSHandshakeTimeout is the TLS handshake timeout
 	DefaultTLSHandshakeTimeout = 10 * time.Second
 )
 
 var (
-	// 测试配置
+	// Test configuration
 	baseURL      string
 	concurrency  int
 	duration     time.Duration
@@ -41,14 +41,14 @@ var (
 	timeout      time.Duration
 	verbose      bool
 	testEndpoint string
-	skipDataLoad bool // 是否跳过数据预加载
+	skipDataLoad bool // Whether to skip data preloading
 
-	// 动态测试数据
-	latestBlockHeight int64      // 最新区块高度
-	testAddresses     []string   // 真实测试地址
-	validBlockRange   BlockRange // 有效区块范围
+	// Dynamic test data
+	latestBlockHeight int64      // Latest block height
+	testAddresses     []string   // Real test addresses
+	validBlockRange   BlockRange // Valid block range
 
-	// 默认测试地址（降级使用）
+	// Default test addresses (for fallback use)
 	defaultAddresses = []string{
 		"0x935b705b5943b0e1b859651d2ccf375bc96dfdd7",
 		"0x9a0f5da660a8aabe5df86fbaa399f733bd461b1b",
@@ -56,25 +56,25 @@ var (
 	}
 )
 
-// BlockRange 区块范围
+// BlockRange represents a block range
 type BlockRange struct {
 	Min int64
 	Max int64
 }
 
-// Stats 封装所有统计信息
+// Stats encapsulates all statistical information
 type Stats struct {
 	mu           sync.RWMutex
 	total        int64
 	success      int64
 	failed       int64
-	totalLatency int64 // 微秒
+	totalLatency int64 // microseconds
 	minLatency   int64
 	maxLatency   int64
 	statusCodes  map[int]int64
 }
 
-// NewStats 创建新的统计对象
+// NewStats creates a new statistics object
 func NewStats() *Stats {
 	return &Stats{
 		minLatency:  DefaultMinLatency,
@@ -82,26 +82,26 @@ func NewStats() *Stats {
 	}
 }
 
-// RecordRequest 记录请求
+// RecordRequest records a request
 func (s *Stats) RecordRequest() {
 	atomic.AddInt64(&s.total, 1)
 }
 
-// RecordSuccess 记录成功请求
+// RecordSuccess records a successful request
 func (s *Stats) RecordSuccess() {
 	atomic.AddInt64(&s.success, 1)
 }
 
-// RecordFailure 记录失败请求
+// RecordFailure records a failed request
 func (s *Stats) RecordFailure() {
 	atomic.AddInt64(&s.failed, 1)
 }
 
-// RecordLatency 记录延迟
+// RecordLatency records latency
 func (s *Stats) RecordLatency(latency int64) {
 	atomic.AddInt64(&s.totalLatency, latency)
 
-	// 更新最小延迟
+	// Update minimum latency
 	for {
 		old := atomic.LoadInt64(&s.minLatency)
 		if latency >= old {
@@ -112,7 +112,7 @@ func (s *Stats) RecordLatency(latency int64) {
 		}
 	}
 
-	// 更新最大延迟
+	// Update maximum latency
 	for {
 		old := atomic.LoadInt64(&s.maxLatency)
 		if latency <= old {
@@ -124,14 +124,14 @@ func (s *Stats) RecordLatency(latency int64) {
 	}
 }
 
-// RecordStatus 记录状态码
+// RecordStatus records a status code
 func (s *Stats) RecordStatus(code int) {
 	s.mu.Lock()
 	s.statusCodes[code]++
 	s.mu.Unlock()
 }
 
-// GetStats 获取统计信息快照
+// GetStats gets a snapshot of the statistics
 func (s *Stats) GetStats() (total, success, failed, totalLat, minLat, maxLat int64, statusCodes map[int]int64) {
 	total = atomic.LoadInt64(&s.total)
 	success = atomic.LoadInt64(&s.success)
@@ -150,93 +150,93 @@ func (s *Stats) GetStats() (total, success, failed, totalLat, minLat, maxLat int
 	return
 }
 
-// 全局统计对象
+// Global statistics object
 var stats = NewStats()
 
 func init() {
-	flag.StringVar(&baseURL, "url", "http://localhost:8000", "服务器基础URL")
-	flag.IntVar(&concurrency, "c", 10, "并发数")
-	flag.DurationVar(&duration, "d", 0, "测试持续时间（如：30s, 5m）")
-	flag.IntVar(&requests, "n", 0, "总请求数（0表示使用duration）")
-	flag.DurationVar(&timeout, "timeout", 30*time.Second, "请求超时时间")
-	flag.BoolVar(&verbose, "v", false, "详细输出")
-	flag.StringVar(&testEndpoint, "endpoint", "", "指定测试的接口路径（空表示测试所有接口）")
-	flag.BoolVar(&skipDataLoad, "skip-data-load", false, "跳过数据预加载，使用默认测试数据")
+	flag.StringVar(&baseURL, "url", "http://localhost:8000", "Server base URL")
+	flag.IntVar(&concurrency, "c", 10, "Number of concurrent workers")
+	flag.DurationVar(&duration, "d", 0, "Test duration (e.g., 30s, 5m)")
+	flag.IntVar(&requests, "n", 0, "Total number of requests (0 means use duration)")
+	flag.DurationVar(&timeout, "timeout", 30*time.Second, "Request timeout")
+	flag.BoolVar(&verbose, "v", false, "Verbose output")
+	flag.StringVar(&testEndpoint, "endpoint", "", "Specify the endpoint path to test (empty means test all endpoints)")
+	flag.BoolVar(&skipDataLoad, "skip-data-load", false, "Skip data preloading and use default test data")
 }
 
-// EndpointConfig 接口配置
+// EndpointConfig represents endpoint configuration
 type EndpointConfig struct {
 	Path         string
 	Method       string
 	Params       map[string]string
 	Name         string
-	ParamBuilder func(rng *rand.Rand, addresses []string) map[string]string // 动态参数构建函数（使用 ParamBuilder 模式，避免对全局状态的静态依赖）
+	ParamBuilder func(rng *rand.Rand, addresses []string) map[string]string // Dynamic parameter builder function (using ParamBuilder pattern to avoid static dependency on global state)
 }
 
-// 所有可测试的接口
+// All testable endpoints
 var endpoints = []EndpointConfig{
 	{
-		Name:   "健康检查",
+		Name:   "Health Check",
 		Path:   "/api/v1/health",
 		Method: "GET",
 		Params: map[string]string{},
 	},
 	{
-		Name:   "最新区块高度",
+		Name:   "Latest Block Height",
 		Path:   "/api/v1/block/latest-height",
 		Method: "GET",
 		Params: map[string]string{},
 	},
 	{
-		Name:         "最新区块列表",
+		Name:         "Latest Block List",
 		Path:         "/api/v1/block/latest",
 		Method:       "GET",
 		Params:       map[string]string{},
 		ParamBuilder: buildPaginationParams,
 	},
 	{
-		Name:         "按高度获取区块",
+		Name:         "Get Block by Height",
 		Path:         "/api/v1/block/by-height",
 		Method:       "GET",
 		Params:       map[string]string{},
 		ParamBuilder: buildBlockHeightParams,
 	},
 	{
-		Name:         "最新交易列表",
+		Name:         "Latest Transaction List",
 		Path:         "/api/v1/transaction/latest",
 		Method:       "GET",
 		Params:       map[string]string{},
 		ParamBuilder: buildPaginationParams,
 	},
 	{
-		Name:   "交易统计",
+		Name:   "Transaction Statistics",
 		Path:   "/api/v1/transaction/stats",
 		Method: "GET",
 		Params: map[string]string{},
 	},
 	{
-		Name:         "24小时失败交易",
+		Name:         "24h Failed Transactions",
 		Path:         "/api/v1/transaction/failed-24h",
 		Method:       "GET",
 		Params:       map[string]string{},
 		ParamBuilder: buildPaginationParams,
 	},
 	{
-		Name:         "账户信息",
+		Name:         "Account Information",
 		Path:         "/api/v1/account/info",
 		Method:       "GET",
 		Params:       map[string]string{},
 		ParamBuilder: buildAddressParams,
 	},
 	{
-		Name:         "账户余额",
+		Name:         "Account Balances",
 		Path:         "/api/v1/account/balances",
 		Method:       "GET",
 		Params:       map[string]string{},
 		ParamBuilder: buildAddressParams,
 	},
 	{
-		Name:         "账户交易",
+		Name:         "Account Transactions",
 		Path:         "/api/v1/account/transactions",
 		Method:       "GET",
 		Params:       map[string]string{},
@@ -244,10 +244,10 @@ var endpoints = []EndpointConfig{
 	},
 }
 
-// buildPaginationParams 构建随机分页参数
+// buildPaginationParams builds random pagination parameters
 func buildPaginationParams(rng *rand.Rand, _ []string) map[string]string {
 	pageSizes := []int{10, 20, 50, 100}
-	page := rng.Intn(10) + 1          // 1-10页
+	page := rng.Intn(10) + 1          // 1-10 pages
 	pageSize := pageSizes[rng.Intn(len(pageSizes))]
 	return map[string]string{
 		"pagination.page":      fmt.Sprintf("%d", page),
@@ -255,11 +255,11 @@ func buildPaginationParams(rng *rand.Rand, _ []string) map[string]string {
 	}
 }
 
-// buildBlockHeightParams 构建随机区块高度参数
+// buildBlockHeightParams builds random block height parameters
 func buildBlockHeightParams(rng *rand.Rand, _ []string) map[string]string {
 	height := int64(1)
 	if validBlockRange.Max > 0 {
-		// 从全部历史中随机选择区块高度
+		// Randomly select block height from entire history
 		height = validBlockRange.Min + rng.Int63n(validBlockRange.Max-validBlockRange.Min+1)
 	}
 	return map[string]string{
@@ -267,8 +267,8 @@ func buildBlockHeightParams(rng *rand.Rand, _ []string) map[string]string {
 	}
 }
 
-// buildAddressParams 构建随机地址参数
-// 使用 ParamBuilder 模式，动态生成测试参数，避免对全局状态的静态依赖
+// buildAddressParams builds random address parameters
+// Uses ParamBuilder pattern to dynamically generate test parameters, avoiding static dependency on global state
 func buildAddressParams(rng *rand.Rand, addresses []string) map[string]string {
 	if len(addresses) == 0 {
 		addresses = defaultAddresses
@@ -279,8 +279,8 @@ func buildAddressParams(rng *rand.Rand, addresses []string) map[string]string {
 	}
 }
 
-// buildAddressWithPaginationParams 构建随机地址和分页参数
-// 使用 ParamBuilder 模式，动态生成测试参数，避免对全局状态的静态依赖
+// buildAddressWithPaginationParams builds random address and pagination parameters
+// Uses ParamBuilder pattern to dynamically generate test parameters, avoiding static dependency on global state
 func buildAddressWithPaginationParams(rng *rand.Rand, addresses []string) map[string]string {
 	params := buildAddressParams(rng, addresses)
 	paginationParams := buildPaginationParams(rng, addresses)
@@ -290,32 +290,32 @@ func buildAddressWithPaginationParams(rng *rand.Rand, addresses []string) map[st
 	return params
 }
 
-// loadTestDataFromAPI 从API加载真实测试数据
+// loadTestDataFromAPI loads real test data from API
 func loadTestDataFromAPI(client *http.Client) error {
-	color.Cyan("正在从API加载测试数据...\n")
+	color.Cyan("Loading test data from API...\n")
 
-	// 1. 获取最新区块高度
+	// 1. Get latest block height
 	if err := loadLatestBlockHeight(client); err != nil {
-		color.Yellow("警告: 获取最新区块高度失败: %v，将使用默认值\n", err)
-		// 使用默认值
+		color.Yellow("Warning: Failed to get latest block height: %v, will use default value\n", err)
+		// Use default value
 		validBlockRange = BlockRange{Min: 1, Max: 148025427}
 	} else {
-		color.Green("✓ 最新区块高度: %d\n", latestBlockHeight)
+		color.Green("✓ Latest block height: %d\n", latestBlockHeight)
 	}
 
-	// 2. 从最新交易中提取真实地址
+	// 2. Extract real addresses from latest transactions
 	if err := loadRealAddresses(client); err != nil {
-		color.Yellow("警告: 获取真实地址失败: %v，将使用默认地址\n", err)
+		color.Yellow("Warning: Failed to get real addresses: %v, will use default addresses\n", err)
 		testAddresses = defaultAddresses
 	} else {
-		color.Green("✓ 获取到 %d 个真实地址\n", len(testAddresses))
+		color.Green("✓ Got %d real addresses\n", len(testAddresses))
 	}
 
 	fmt.Println()
 	return nil
 }
 
-// loadLatestBlockHeight 获取最新区块高度
+// loadLatestBlockHeight gets the latest block height
 func loadLatestBlockHeight(client *http.Client) error {
 	u := baseURL + "/api/v1/block/latest-height"
 
@@ -337,14 +337,14 @@ func loadLatestBlockHeight(client *http.Client) error {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	// 读取响应
+	// Read response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	// 解析响应 (假设返回格式为 {"height": 123456})
-	// 这里简化处理，直接从响应中提取数字
+	// Parse response (assuming format is {"height": 123456})
+	// Simplified handling: extract number directly from response
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return err
@@ -358,7 +358,7 @@ func loadLatestBlockHeight(client *http.Client) error {
 	return nil
 }
 
-// loadRealAddresses 从最新交易中提取真实地址
+// loadRealAddresses extracts real addresses from latest transactions
 func loadRealAddresses(client *http.Client) error {
 	u := baseURL + "/api/v1/transaction/latest?pagination.page=1&pagination.page_size=50"
 
@@ -385,26 +385,26 @@ func loadRealAddresses(client *http.Client) error {
 		return err
 	}
 
-	// 解析响应,提取地址
+	// Parse response and extract addresses
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return err
 	}
 
-	// 提取所有唯一的地址
+	// Extract all unique addresses
 	addressMap := make(map[string]bool)
 	if transactions, ok := result["transactions"].([]interface{}); ok {
 		for _, tx := range transactions {
 			if txMap, ok := tx.(map[string]interface{}); ok {
-				// 尝试提取from地址
+				// Try to extract from address
 				if from, ok := txMap["from"].(string); ok && from != "" {
 					addressMap[from] = true
 				}
-				// 尝试提取to地址
+				// Try to extract to address
 				if to, ok := txMap["to"].(string); ok && to != "" {
 					addressMap[to] = true
 				}
-				// 尝试提取signer地址
+				// Try to extract signer address
 				if signer, ok := txMap["signer"].(string); ok && signer != "" {
 					addressMap[signer] = true
 				}
@@ -412,7 +412,7 @@ func loadRealAddresses(client *http.Client) error {
 		}
 	}
 
-	// 转换为切片
+	// Convert to slice
 	if len(addressMap) > 0 {
 		testAddresses = make([]string, 0, len(addressMap))
 		for addr := range addressMap {
@@ -426,19 +426,19 @@ func loadRealAddresses(client *http.Client) error {
 func main() {
 	flag.Parse()
 
-	// 验证参数
+	// Validate parameters
 	if duration == 0 && requests == 0 {
-		fmt.Fprintf(os.Stderr, "错误: 必须指定 -d (持续时间) 或 -n (请求数)\n")
+		fmt.Fprintf(os.Stderr, "Error: Must specify -d (duration) or -n (number of requests)\n")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	if concurrency <= 0 {
-		fmt.Fprintf(os.Stderr, "错误: 并发数必须大于0\n")
+		fmt.Fprintf(os.Stderr, "Error: Concurrent workers must be greater than 0\n")
 		os.Exit(1)
 	}
 
-	// 选择要测试的接口
+	// Select endpoints to test
 	testEndpoints := endpoints
 	if testEndpoint != "" {
 		found := false
@@ -450,50 +450,50 @@ func main() {
 			}
 		}
 		if !found {
-			fmt.Fprintf(os.Stderr, "警告: 未找到接口 %s，将测试所有接口\n", testEndpoint)
+			fmt.Fprintf(os.Stderr, "Warning: Endpoint %s not found, will test all endpoints\n", testEndpoint)
 		}
 	}
 
-	// 显示测试配置
-	color.Cyan("=== HTTP接口压力测试 ===\n")
-	fmt.Printf("服务器URL: %s\n", baseURL)
-	fmt.Printf("并发数: %d\n", concurrency)
+	// Display test configuration
+	color.Cyan("=== HTTP Interface Stress Test ===\n")
+	fmt.Printf("Server URL: %s\n", baseURL)
+	fmt.Printf("Concurrent workers: %d\n", concurrency)
 	if duration > 0 {
-		fmt.Printf("持续时间: %v\n", duration)
+		fmt.Printf("Duration: %v\n", duration)
 	} else {
-		fmt.Printf("总请求数: %d\n", requests)
+		fmt.Printf("Total requests: %d\n", requests)
 	}
-	fmt.Printf("请求超时: %v\n", timeout)
-	fmt.Printf("测试接口数: %d\n", len(testEndpoints))
+	fmt.Printf("Request timeout: %v\n", timeout)
+	fmt.Printf("Number of endpoints to test: %d\n", len(testEndpoints))
 	fmt.Println()
 
-	// 创建HTTP客户端（优化配置）
+	// Create HTTP client (optimized configuration)
 	client := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			MaxIdleConns:       200,                    // 增加总连接数
-			MaxIdleConnsPerHost: 100,                    // 增加每个host的连接数
-			IdleConnTimeout:    DefaultIdleConnTimeout,
-			DisableCompression: false,                  // 启用压缩
+			MaxIdleConns:        200, // Increase total connections
+			MaxIdleConnsPerHost: 100, // Increase connections per host
+			IdleConnTimeout:     DefaultIdleConnTimeout,
+			DisableCompression:  false, // Enable compression
 			TLSHandshakeTimeout: DefaultTLSHandshakeTimeout,
-			ForceAttemptHTTP2:  true,                   // 尝试使用 HTTP/2（如果服务器支持）
+			ForceAttemptHTTP2:   true, // Try to use HTTP/2 (if server supports it)
 		},
 	}
 
-	// 从API加载测试数据
+	// Load test data from API
 	if !skipDataLoad {
 		if err := loadTestDataFromAPI(client); err != nil {
-			color.Red("错误: 加载测试数据失败: %v\n", err)
+			color.Red("Error: Failed to load test data: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
-		color.Yellow("跳过数据预加载，使用默认测试数据\n")
+		color.Yellow("Skipping data preloading, using default test data\n")
 		testAddresses = defaultAddresses
 		validBlockRange = BlockRange{Min: 1, Max: 148025427}
 		fmt.Println()
 	}
 
-	// 启动测试
+	// Start test
 	ctx, cancel := context.WithCancel(context.Background())
 	if duration > 0 {
 		ctx, cancel = context.WithTimeout(context.Background(), duration)
@@ -503,17 +503,17 @@ func main() {
 	var wg sync.WaitGroup
 	startTime := time.Now()
 
-	// 启动并发worker
+	// Start concurrent workers
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			// 传递 testAddresses 避免 worker 依赖全局状态
+			// Pass testAddresses to avoid worker dependency on global state
 			worker(ctx, client, testEndpoints, workerID, testAddresses)
 		}(i)
 	}
 
-	// 如果指定了请求数，等待完成
+	// If request count is specified, wait for completion
 	if requests > 0 {
 		for atomic.LoadInt64(&stats.total) < int64(requests) {
 			time.Sleep(10 * time.Millisecond)
@@ -521,17 +521,17 @@ func main() {
 		cancel()
 	}
 
-	// 等待所有worker完成
+	// Wait for all workers to complete
 	wg.Wait()
 	endTime := time.Now()
 
-	// 打印统计结果
+	// Print statistics
 	printStats(startTime, endTime, testEndpoints)
 }
 
-// worker 执行请求的worker函数
+// worker is the worker function that executes requests
 func worker(ctx context.Context, client *http.Client, endpoints []EndpointConfig, workerID int, addresses []string) {
-	// 为每个worker创建独立的随机数生成器
+	// Create independent random number generator for each worker
 	rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(workerID)))
 
 	for {
@@ -539,22 +539,22 @@ func worker(ctx context.Context, client *http.Client, endpoints []EndpointConfig
 		case <-ctx.Done():
 			return
 		default:
-			// 如果指定了请求数，检查是否达到
+			// If request count is specified, check if reached
 			if requests > 0 && atomic.LoadInt64(&stats.total) >= int64(requests) {
 				return
 			}
 
-			// 随机选择一个接口进行测试
+			// Randomly select an endpoint to test
 			ep := selectRandomEndpoint(endpoints, rng)
 
-			// 执行请求（传递 addresses 避免依赖全局状态）
+			// Execute request (pass addresses to avoid dependency on global state)
 			if err := makeRequest(client, ep, rng, addresses); err != nil {
 				if verbose {
-					color.Red("[Worker %d] 请求失败: %v\n", workerID, err)
+					color.Red("[Worker %d] Request failed: %v\n", workerID, err)
 				}
 			}
 
-			// 如果指定了请求数，检查是否达到
+			// If request count is specified, check if reached
 			if requests > 0 && atomic.LoadInt64(&stats.total) >= int64(requests) {
 				return
 			}
@@ -562,7 +562,7 @@ func worker(ctx context.Context, client *http.Client, endpoints []EndpointConfig
 	}
 }
 
-// selectRandomEndpoint 随机选择一个endpoint
+// selectRandomEndpoint randomly selects an endpoint
 func selectRandomEndpoint(endpoints []EndpointConfig, rng *rand.Rand) EndpointConfig {
 	if len(endpoints) == 0 {
 		return EndpointConfig{}
@@ -570,24 +570,24 @@ func selectRandomEndpoint(endpoints []EndpointConfig, rng *rand.Rand) EndpointCo
 	return endpoints[rng.Intn(len(endpoints))]
 }
 
-// makeRequest 执行单个HTTP请求
-// 返回错误以便调用者可以处理
+// makeRequest executes a single HTTP request
+// Returns error so caller can handle it
 func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand, addresses []string) error {
-	// 构建URL
+	// Build URL
 	u, err := url.Parse(baseURL + ep.Path)
 	if err != nil {
 		stats.RecordRequest()
 		stats.RecordFailure()
-		return fmt.Errorf("URL解析失败: %w", err)
+		return fmt.Errorf("URL parsing failed: %w", err)
 	}
 
-	// 添加查询参数
+	// Add query parameters
 	q := u.Query()
-	// 先添加静态参数
+	// First add static parameters
 	for k, v := range ep.Params {
 		q.Set(k, v)
 	}
-	// 如果有动态参数构建器，使用它构建动态参数（传递 addresses 避免依赖全局状态）
+	// If there's a dynamic parameter builder, use it to build dynamic parameters (pass addresses to avoid dependency on global state)
 	if ep.ParamBuilder != nil {
 		dynamicParams := ep.ParamBuilder(rng, addresses)
 		for k, v := range dynamicParams {
@@ -596,10 +596,10 @@ func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand, address
 	}
 	u.RawQuery = q.Encode()
 
-	// 记录开始时间
+	// Record start time
 	start := time.Now()
 
-	// 发送请求
+	// Send request
 	resp, err := client.Get(u.String())
 	latency := time.Since(start).Microseconds()
 
@@ -607,25 +607,25 @@ func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand, address
 
 	if err != nil {
 		if verbose {
-			color.Red("[%s] 请求失败: %v\n", ep.Name, err)
+			color.Red("[%s] Request failed: %v\n", ep.Name, err)
 		}
 		stats.RecordFailure()
 		stats.RecordLatency(latency)
-		return fmt.Errorf("HTTP请求失败: %w", err)
+		return fmt.Errorf("HTTP request failed: %w", err)
 	}
 
-	// 确保响应体被关闭（修复资源泄漏）
-	// 关键修复：读取并丢弃响应体，确保连接可以复用
-	// HTTP/1.1 要求必须读取完响应体才能复用连接
-	// 如果不读取，连接会被关闭，每个请求都需要建立新连接，导致性能急剧下降
-	// 这在本地测试时影响不大（连接建立很快），但在服务器测试时影响显著（网络延迟高）
+	// Ensure response body is closed (fix resource leak)
+	// Key fix: Read and discard response body to ensure connection can be reused
+	// HTTP/1.1 requires reading the entire response body to reuse connections
+	// If not read, the connection will be closed and each request will need to establish a new connection, causing severe performance degradation
+	// This has little impact in local testing (connection establishment is fast), but significant impact in server testing (high network latency)
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
 
-	// 记录状态码
+	// Record status code
 	stats.RecordStatus(resp.StatusCode)
 
-	// 更新统计
+	// Update statistics
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		stats.RecordSuccess()
 	} else {
@@ -635,37 +635,37 @@ func makeRequest(client *http.Client, ep EndpointConfig, rng *rand.Rand, address
 		}
 	}
 
-	// 更新延迟统计
+	// Update latency statistics
 	stats.RecordLatency(latency)
 
 	return nil
 }
 
-// printStats 打印统计结果
+// printStats prints test results
 func printStats(startTime, endTime time.Time, endpoints []EndpointConfig) {
 	duration := endTime.Sub(startTime)
 	total, success, failed, totalLat, minLat, maxLat, statusCodes := stats.GetStats()
 
-	color.Cyan("\n=== 测试结果 ===\n")
-	fmt.Printf("测试时长: %v\n", duration.Round(time.Millisecond))
-	fmt.Printf("总请求数: %d\n", total)
-	fmt.Printf("成功请求: %d (%.2f%%)\n", success, float64(success)/float64(total)*100)
-	fmt.Printf("失败请求: %d (%.2f%%)\n", failed, float64(failed)/float64(total)*100)
+	color.Cyan("\n=== Test Results ===\n")
+	fmt.Printf("Test duration: %v\n", duration.Round(time.Millisecond))
+	fmt.Printf("Total requests: %d\n", total)
+	fmt.Printf("Successful requests: %d (%.2f%%)\n", success, float64(success)/float64(total)*100)
+	fmt.Printf("Failed requests: %d (%.2f%%)\n", failed, float64(failed)/float64(total)*100)
 
 	if total > 0 {
-		avgLatency := float64(totalLat) / float64(total) / 1000.0 // 转换为毫秒
+		avgLatency := float64(totalLat) / float64(total) / 1000.0 // Convert to milliseconds
 		minLatMs := float64(minLat) / 1000.0
 		maxLatMs := float64(maxLat) / 1000.0
 		qps := float64(total) / duration.Seconds()
 
-		fmt.Printf("\n性能指标:\n")
-		fmt.Printf("  QPS (每秒请求数): %.2f\n", qps)
-		fmt.Printf("  平均延迟: %.2f ms\n", avgLatency)
-		fmt.Printf("  最小延迟: %.2f ms\n", minLatMs)
-		fmt.Printf("  最大延迟: %.2f ms\n", maxLatMs)
+		fmt.Printf("\nPerformance metrics:\n")
+		fmt.Printf("  QPS (requests per second): %.2f\n", qps)
+		fmt.Printf("  Average latency: %.2f ms\n", avgLatency)
+		fmt.Printf("  Minimum latency: %.2f ms\n", minLatMs)
+		fmt.Printf("  Maximum latency: %.2f ms\n", maxLatMs)
 
-		// 打印状态码分布
-		fmt.Printf("\n状态码分布:\n")
+		// Print status code distribution
+		fmt.Printf("\nStatus code distribution:\n")
 		for code, count := range statusCodes {
 			percentage := float64(count) / float64(total) * 100
 			statusColor := color.New(color.FgGreen)
@@ -678,7 +678,7 @@ func printStats(startTime, endTime time.Time, endpoints []EndpointConfig) {
 		}
 	}
 
-	fmt.Printf("\n测试接口:\n")
+	fmt.Printf("\nTested endpoints:\n")
 	for _, ep := range endpoints {
 		fmt.Printf("  - %s: %s\n", ep.Name, ep.Path)
 	}
