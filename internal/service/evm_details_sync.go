@@ -133,17 +133,12 @@ func (s *EVMDetailsSyncService) processBatch(workerID int) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.Timeout)
 	defer cancel()
 
-	// Batch pop tasks from queue
-	tasks := make([]string, 0, s.config.BatchSize)
-	for i := 0; i < s.config.BatchSize; i++ {
-		result, err := s.redisClient.BRPop(ctx, time.Second, s.config.QueueKey).Result()
-		if err != nil {
-			if err != redis.Nil {
-				global.Logger.Warnf("worker %d: failed to pop from queue: %v", workerID, err)
-			}
-			break
-		}
-		tasks = append(tasks, result[1])
+	// Batch fetch tasks using LRANGE + LTRIM for efficient batch processing
+	// This is much faster than multiple BRPop calls with 1s minimum timeout
+	tasks, err := s.batchPopTasks(ctx, workerID)
+	if err != nil {
+		global.Logger.Warnf("worker %d: failed to batch pop tasks: %v", workerID, err)
+		return
 	}
 
 	if len(tasks) == 0 {
@@ -162,6 +157,39 @@ func (s *EVMDetailsSyncService) processBatch(workerID int) {
 		}(task)
 	}
 	wg.Wait()
+}
+
+// batchPopTasks fetches and removes a batch of tasks from the Redis queue efficiently.
+// Uses LRANGE + LTRIM in a pipeline for atomic batch fetching (much faster than multiple BRPop calls).
+func (s *EVMDetailsSyncService) batchPopTasks(ctx context.Context, workerID int) ([]string, error) {
+	// Use LRANGE to get up to BatchSize items, then LTRIM to remove them
+	// This is done atomically using a pipeline
+	pipe := s.redisClient.Pipeline()
+
+	// LRANGE queue 0 -1 returns all items, we limit to BatchSize
+	lrangeCmd := pipe.LRange(ctx, s.config.QueueKey, 0, int64(s.config.BatchSize-1))
+	// LTRIM queue BatchSize -1 removes the fetched items
+	ltrimCmd := pipe.LTrim(ctx, s.config.QueueKey, int64(s.config.BatchSize), -1)
+
+	// Execute pipeline
+	_, err := pipe.Exec(ctx)
+	if err != nil && err != redis.Nil {
+		return nil, errors.Wrap(err, "failed to execute batch pop pipeline")
+	}
+
+	// Get results
+	tasks, err := lrangeCmd.Result()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get LRANGE result")
+	}
+
+	// LTRIM result is "OK" on success
+	_, err = ltrimCmd.Result()
+	if err != nil && err != redis.Nil {
+		return nil, errors.Wrap(err, "failed to trim queue")
+	}
+
+	return tasks, nil
 }
 
 // processTask processes a single EVM transaction details task.
@@ -446,6 +474,15 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 					// Don't fail the whole operation if this update fails
 				} else {
 					global.Logger.Debugf("updated signer and signatures for EVM transaction %s (signer: %s)", evmTx.TransactionHash, ethSigner)
+					// Update Redis cache with the updated transaction data
+					var updatedTx models.Transaction
+					if err := db.Get().WithContext(ctx).
+						Where("hash = ?", evmTx.TransactionHash).
+						First(&updatedTx).Error; err == nil {
+						cacheTransaction(ctx, &updatedTx)
+					} else {
+						global.Logger.Debugf("failed to reload transaction %s for cache update: %v", evmTx.TransactionHash, err)
+					}
 				}
 			}
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {

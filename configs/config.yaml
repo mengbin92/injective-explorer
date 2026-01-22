@@ -119,14 +119,14 @@ sync:
 
   # 并发配置
   concurrency:
-    tx_processors: 10 # 并发交易处理器数量
-    historical_sync_workers: 5 # 历史同步工作线程数
+    tx_processors: 50 # 并发交易处理器数量
+    historical_sync_workers: 20 # 历史同步工作线程数
 
   # 批次大小配置
   batch_size:
-    historical_sync: 10 # 历史同步批次大小
+    historical_sync: 100 # 历史同步批次大小
     missing_block_check: 100 # 查找缺失区块的批次大小
-    tx_batch: 50 # 交易批量处理批次大小（与区块同步速度保持一致）
+    tx_batch: 200 # 交易批量处理批次大小（与区块同步速度保持一致）
 
   # 重试配置
   retry:

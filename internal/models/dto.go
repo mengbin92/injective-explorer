@@ -290,6 +290,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			Hash:               tx.Hash,
 			ErrorLog:           tx.ErrorLog,
 			Messages:           messagesStr,
+			GasUsed:            tx.GasUsed,
 			Signer:             tx.Signer,
 			To:                 tx.To,
 			Value:              tx.Value,

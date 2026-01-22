@@ -156,11 +156,11 @@ const (
 	defaultRetryDelay                 = 2 * time.Second        // Initial retry delay
 	defaultEarliestBlockHeight        = uint64(1)              // Earliest block height
 	defaultEVMDetailsQueueKey         = "evm:details:queue"    // Redis key name for EVM details queue
-	defaultEVMDetailsWorkerCount      = 10                     // Number of EVM details sync workers (increased from 3 to 10 for better parallelism)
-	defaultEVMDetailsBatchSize        = 10                     // EVM details batch size
+	defaultEVMDetailsWorkerCount      = 20                     // Number of EVM details sync workers (increased from 10 to 20 for faster sync)
+	defaultEVMDetailsBatchSize        = 50                     // EVM details batch size (increased from 10 to 50 for faster sync)
 	defaultEVMDetailsRetryDelay       = 5 * time.Second        // EVM details retry delay
 	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
-	defaultEVMDetailsProcessInterval  = 2 * time.Second        // EVM details process interval
+	defaultEVMDetailsProcessInterval  = 100 * time.Millisecond // EVM details process interval (reduced from 2s to 100ms for faster sync)
 	defaultEVMDetailsTimeout          = 90 * time.Second       // EVM details timeout
 )
 
