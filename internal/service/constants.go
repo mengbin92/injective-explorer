@@ -15,12 +15,12 @@ const (
 	MinPageSize     = 1
 
 	// Timeout constants
-	GRPCTimeout              = 60 * time.Second
-	CountQueryTimeout        = 2 * time.Second
-	BlockQueryTimeout        = 30 * time.Second
-	DBQueryTimeout           = 5 * time.Second // Database query timeout (reduced from 10s to 5s for faster failure)
-	AsyncEnhancementTimeout  = 10 * time.Second // Timeout for asynchronous block/transaction enhancement operations
-	ValidatorUpdateInterval  = 10 * time.Minute // Interval for periodic validator updates
+	GRPCTimeout             = 60 * time.Second
+	CountQueryTimeout       = 2 * time.Second
+	BlockQueryTimeout       = 30 * time.Second
+	DBQueryTimeout          = 5 * time.Second  // Database query timeout (reduced from 10s to 5s for faster failure)
+	AsyncEnhancementTimeout = 10 * time.Second // Timeout for asynchronous block/transaction enhancement operations
+	ValidatorUpdateInterval = 10 * time.Minute // Interval for periodic validator updates
 
 	// Approximate count constants
 	ApproximateCountThreshold  = 10000
@@ -58,36 +58,36 @@ const (
 	BlockGasLimit            = 150_000_000 // Default block gas limit for Injective (fallback value if consensus params query fails)
 
 	// Chain query constants
-	RecentBlockThreshold = 1000 // Block height threshold for querying from chain (within last N blocks)
-	OldBlockThreshold     = 10000 // Block height threshold for considering a block as "old" (skip enhancement for very old blocks)
+	RecentBlockThreshold = 1000  // Block height threshold for querying from chain (within last N blocks)
+	OldBlockThreshold    = 10000 // Block height threshold for considering a block as "old" (skip enhancement for very old blocks)
 
 	// Transaction enhancement constants
 	MaxTxEnhancementCount = 100 // Maximum number of transactions to enhance synchronously (blocks with more txs are enhanced asynchronously)
 
 	// Batch size constants
 	BlockBatchSizeLimit = 100 // Maximum batch size for block queries
-	QueryBatchLimit      = 100 // Maximum batch size for generic queries
+	QueryBatchLimit     = 100 // Maximum batch size for generic queries
 
 	// API token constants
 	DefaultAPITokenMonthlyLimit = 100000 // Default monthly limit for API tokens
 
 	// IP rate limit constants
-	IPRateLimitPerMinuteDefault = 100  // Default IP rate limit per minute
-	IPRateLimitPerHourDefault   = 5000 // Default IP rate limit per hour
-	IPRateLimitPerMinMin        = 10   // Minimum IP rate limit per minute
-	IPRateLimitPerMinMax        = 1000 // Maximum IP rate limit per minute
-	IPRateLimitPerHourMin       = 100  // Minimum IP rate limit per hour
+	IPRateLimitPerMinuteDefault = 100   // Default IP rate limit per minute
+	IPRateLimitPerHourDefault   = 5000  // Default IP rate limit per hour
+	IPRateLimitPerMinMin        = 10    // Minimum IP rate limit per minute
+	IPRateLimitPerMinMax        = 1000  // Maximum IP rate limit per minute
+	IPRateLimitPerHourMin       = 100   // Minimum IP rate limit per hour
 	IPRateLimitPerHourMax       = 50000 // Maximum IP rate limit per hour
 
 	// IP monitor constants
-	IPMonitorTimeRange1Hour  = 1  // 1 hour time range
-	IPMonitorTimeRange6Hour  = 6  // 6 hours time range
-	IPMonitorTimeRange24Hour = 24 // 24 hours time range
-	IPMonitorTimeRange7Days  = 7  // 7 days time range
-	IPMonitorTopLimit        = 10 // Top IPs limit for monitor
-	IPMonitorLogLimit        = 100 // Rate limit log limit
-	IPMonitorDefaultTimeRange = 24 // Default time range in hours
-	IPMonitorExportLimit     = 1000 // IP monitor export limit
+	IPMonitorTimeRange1Hour   = 1    // 1 hour time range
+	IPMonitorTimeRange6Hour   = 6    // 6 hours time range
+	IPMonitorTimeRange24Hour  = 24   // 24 hours time range
+	IPMonitorTimeRange7Days   = 7    // 7 days time range
+	IPMonitorTopLimit         = 10   // Top IPs limit for monitor
+	IPMonitorLogLimit         = 100  // Rate limit log limit
+	IPMonitorDefaultTimeRange = 24   // Default time range in hours
+	IPMonitorExportLimit      = 1000 // IP monitor export limit
 
 	// Time period constants (in days)
 	PeriodLast7Days  = 7  // Last 7 days
@@ -122,6 +122,7 @@ const (
 	CacheKeyEVMDetailsPrefix      = "evm:details:"                  // Cache key prefix for EVM transaction details
 	CacheKeyLatestBlockHeight     = "cache:latest:block:height"     // Latest block height cache key
 	CacheKeyGasPrice              = "cache:gas:price"               // Gas price cache key
+	CacheKeyHistoricalSyncHeight  = "sync:historical:block:height"  // Historical block sync height persistence key
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 1 * time.Hour                   // Single block cache expiration time (1 hour - increased from 5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
@@ -162,6 +163,38 @@ const (
 	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
 	defaultEVMDetailsProcessInterval  = 100 * time.Millisecond // EVM details process interval (reduced from 2s to 100ms for faster sync)
 	defaultEVMDetailsTimeout          = 90 * time.Second       // EVM details timeout
+)
+
+// Additional sync block constants
+const (
+	// Block sync constants
+	CommonBlockSearchBackwardLimit = 1000 // Maximum height to search backwards when finding common block
+	HeightQueryBatchSize           = 1000 // Batch size for querying block heights
+	ProgressLogInterval            = 10   // Print progress every N blocks processed
+
+	// Concurrency and parallelism
+	DefaultMaxConcurrency = 5  // Default maximum concurrency for parallel operations
+	MaxConcurrentRPCCalls = 20 // Maximum concurrent RPC calls
+
+	// Timeout constants (in seconds)
+	EVMContextTimeoutSeconds       = 10 // EVM context timeout in seconds
+	StatsContextTimeoutSeconds     = 5  // Statistics context timeout in seconds
+	CleanupContextTimeoutSeconds   = 5  // Cleanup context timeout in seconds
+	RedisContextTimeoutSeconds     = 2  // Redis context timeout in seconds
+	RedisLongContextTimeoutSeconds = 10 // Redis long context timeout in seconds
+
+	// Retry and backoff constants
+	BalanceQueryMaxRetries        = 2 // Maximum retry attempts for balance queries
+	BalanceQueryRetryMaxAttempts  = 3 // Maximum retry attempts for balance queries (including initial attempt)
+	BalanceQueryRetryDelaySeconds = 1 // Initial retry delay for balance queries in seconds
+	EVMDetailsRetryMaxAttempts    = 3 // Maximum retry attempts for EVM details tasks
+
+	// Error and logging constants
+	ErrorSampleCount       = 3   // Number of error samples to display
+	ShortDelayMilliseconds = 100 // Short delay in milliseconds for brief pauses
+
+	// Redis persistence
+	RedisPersistNoExpiry = 0 // Redis key with no expiration (persist forever)
 )
 
 // SyncConfig holds the sync service configuration with default values.

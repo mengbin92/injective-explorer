@@ -18,6 +18,25 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+const (
+	// Database connection retry constants
+	DBMaxRetries      = 10             // Maximum number of connection retry attempts
+	DBInitialRetryDelay = 2 * time.Second // Initial delay before retry
+
+	// Database connection pool settings
+	// Optimize connection pool for high TPS:
+	// - MaxIdleConns: Keep more idle connections to reduce connection overhead
+	// - MaxOpenConns: Allow more concurrent connections for high load
+	//   IMPORTANT: Must be 60-70% of MySQL's max_connections to avoid "Too many connections"
+	//   Default MySQL max_connections is 151, so 100 is safe (66% of 151)
+	// - ConnMaxLifetime: Recycle connections periodically to prevent stale connections
+	// - ConnMaxIdleTime: Close idle connections after a period to free resources
+	DBMaxIdleConns      = 30            // 30% of MaxOpenConns for efficiency (100 * 0.3)
+	DBMaxOpenConns      = 100           // Increased from 50 to 100 for better concurrency
+	DBConnMaxLifetime   = 5 * time.Minute  // Reduced from 1 hour to 5 minutes for faster recycling
+	DBConnMaxIdleTime   = 3 * time.Minute  // Close idle connections after 3 minutes to free resources
+)
+
 var (
 	// gdb is the global GORM database instance
 	gdb *gorm.DB
@@ -50,10 +69,9 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 
 	initDBOnce.Do(func() {
 		// Retry connection with exponential backoff
-		maxRetries := 10
-		retryDelay := 2 * time.Second
+		retryDelay := DBInitialRetryDelay
 
-		for attempt := 0; attempt < maxRetries; attempt++ {
+		for attempt := 0; attempt < DBMaxRetries; attempt++ {
 			switch cfg.Driver {
 			case "postgre":
 				gdb, initErr = postgres.InitDB(cfg.Source, gormLogger)
@@ -71,9 +89,9 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 
 			// Log retry attempt
 			logHelper := log.NewHelper(logKratos)
-			if attempt < maxRetries-1 {
+			if attempt < DBMaxRetries-1 {
 				logHelper.Warnf("database connection attempt %d/%d failed: %v, retrying in %v...",
-					attempt+1, maxRetries, initErr, retryDelay)
+					attempt+1, DBMaxRetries, initErr, retryDelay)
 				time.Sleep(retryDelay)
 				retryDelay *= 2 // Exponential backoff
 			}
@@ -94,23 +112,16 @@ func Init(ctx context.Context, cfg *conf.Data_Database, logKratos log.Logger) er
 		return errors.Wrap(err, "get sql db error")
 	}
 
-	// Optimize connection pool for high TPS:
-	// - MaxIdleConns: Keep more idle connections to reduce connection overhead
-	// - MaxOpenConns: Allow more concurrent connections for high load
-	//   IMPORTANT: Must be 60-70% of MySQL's max_connections to avoid "Too many connections"
-	//   Default MySQL max_connections is 151, so 100 is safe (66% of 151)
-	// - ConnMaxLifetime: Recycle connections periodically to prevent stale connections
-	// - ConnMaxIdleTime: Close idle connections after 10 minutes to free resources
-	//
+	// Optimize connection pool for high TPS
 	// CRITICAL: If you see "Too many connections" error, reduce MaxOpenConns to 60% of MySQL max_connections
 	// Example: If MySQL max_connections = 151, set MaxOpenConns = 90 (151 * 0.6)
 	//
 	// Performance optimization: Increased pool size for better concurrency
 	// Ensure MySQL max_connections >= 150 (recommended: 200)
-	sqlDB.SetMaxIdleConns(30)                  // 30% of MaxOpenConns for efficiency (100 * 0.3)
-	sqlDB.SetMaxOpenConns(100)                 // Increased from 50 to 100 for better concurrency
-	sqlDB.SetConnMaxLifetime(5 * time.Minute)  // Reduced from 1 hour to 5 minutes for faster recycling
-	sqlDB.SetConnMaxIdleTime(3 * time.Minute)  // Close idle connections after 3 minutes to free resources
+	sqlDB.SetMaxIdleConns(DBMaxIdleConns)
+	sqlDB.SetMaxOpenConns(DBMaxOpenConns)
+	sqlDB.SetConnMaxLifetime(DBConnMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(DBConnMaxIdleTime)
 
 	// Test the connection
 	if err := sqlDB.PingContext(ctx); err != nil {

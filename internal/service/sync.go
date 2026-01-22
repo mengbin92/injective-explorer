@@ -516,8 +516,8 @@ func (s *SyncService) findCommonBlockHeight(knownHash string) (uint64, error) {
 
 	// Check blocks backwards from maxHeight
 	startHeight := maxHeight
-	if startHeight > 1000 {
-		startHeight = maxHeight - 1000
+	if startHeight > CommonBlockSearchBackwardLimit {
+		startHeight = maxHeight - CommonBlockSearchBackwardLimit
 	}
 
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.BlockQueryTimeout)
@@ -599,7 +599,7 @@ func (s *SyncService) batchCheckBlockExistence(heights []uint64) (map[uint64]boo
 	}
 
 	// Batch query to avoid too many SQL parameters (1000 per batch)
-	batchSize := 1000
+	batchSize := HeightQueryBatchSize
 	for i := 0; i < len(heights); i += batchSize {
 		end := i + batchSize
 		if end > len(heights) {
@@ -654,8 +654,8 @@ func (s *SyncService) blockWorker(id int, taskChan <-chan uint64, resultChan cha
 
 			processedCount++
 
-			// Print progress every 10 blocks processed
-			if processedCount%10 == 0 {
+			// Print progress every N blocks processed
+			if processedCount%ProgressLogInterval == 0 {
 				global.Logger.Debugf("block worker %d processed %d blocks", id, processedCount)
 			}
 		}
@@ -832,7 +832,7 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 	// Use configurable concurrency based on backward sync workers, but cap at reasonable limit
 	maxConcurrency := s.config.BackwardSyncWorkers
 	if maxConcurrency <= 0 {
-		maxConcurrency = 5 // Default
+		maxConcurrency = DefaultMaxConcurrency // Default
 	}
 	if maxConcurrency > 20 {
 		maxConcurrency = 20 // Cap at 20 to avoid overwhelming the API
@@ -1106,7 +1106,7 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 	// Extract transaction hashes and push to Redis queue (batch push for better performance)
 	if len(blockResp.Block.Data.Txs) > 0 {
 		redisClient := cache.GetRedisClient()
-		if redisClient != nil {	
+		if redisClient != nil {
 			// Batch push to Redis for better performance
 			txHashes := make([]string, 0, len(blockResp.Block.Data.Txs))
 			for _, tx := range blockResp.Block.Data.Txs {
@@ -1266,7 +1266,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 	txResults := make([]txResult, len(txHashes))
 	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, 10) // Limit concurrent RPC calls to 10
+	semaphore := make(chan struct{}, MaxConcurrentRPCCalls) // Limit concurrent RPC calls
 
 	for i, txHash := range txHashes {
 		wg.Add(1)
@@ -1358,7 +1358,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 					// If hash not found in explorer data, try to get from chainClient (abci.Event)
 					// This is synchronous to ensure data consistency in batch processing
 					if evmHash == "" && s.chainClient != nil {
-						evmCtx, evmCancel := context.WithTimeout(ctx, 10*time.Second)
+						evmCtx, evmCancel := context.WithTimeout(ctx, EVMContextTimeoutSeconds*time.Second)
 						txResp, err := s.chainClient.GetTx(evmCtx, txModel.Hash)
 						evmCancel()
 
@@ -1376,7 +1376,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						// Store EVM information in separate table to avoid affecting transactions table
 						// This prevents signatures and signer fields from being cleared
 						go func(cosmosHash, evmHash string) {
-							evmCtx, evmCancel := context.WithTimeout(context.Background(), 5*time.Second)
+							evmCtx, evmCancel := context.WithTimeout(context.Background(), StatsContextTimeoutSeconds*time.Second)
 							defer evmCancel()
 
 							// Upsert EVM transaction (create if not exists, update evm_hash if exists)
@@ -1448,25 +1448,25 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		var parts []string
 		if len(fetchErrors) > 0 {
 			sample := fetchErrors
-			if len(sample) > 3 {
-				sample = append([]string(nil), sample[:3]...)
-				sample = append(sample, fmt.Sprintf("...and %d more", len(fetchErrors)-3))
+			if len(sample) > ErrorSampleCount {
+				sample = append([]string(nil), sample[:ErrorSampleCount]...)
+				sample = append(sample, fmt.Sprintf("...and %d more", len(fetchErrors)-ErrorSampleCount))
 			}
 			parts = append(parts, fmt.Sprintf("fetch errors=%d (samples: %v)", len(fetchErrors), sample))
 		}
 		if len(nilResponseErrors) > 0 {
 			sample := nilResponseErrors
-			if len(sample) > 3 {
-				sample = append([]string(nil), sample[:3]...)
-				sample = append(sample, fmt.Sprintf("...and %d more", len(nilResponseErrors)-3))
+			if len(sample) > ErrorSampleCount {
+				sample = append([]string(nil), sample[:ErrorSampleCount]...)
+				sample = append(sample, fmt.Sprintf("...and %d more", len(nilResponseErrors)-ErrorSampleCount))
 			}
 			parts = append(parts, fmt.Sprintf("nil responses=%d (samples: %v)", len(nilResponseErrors), sample))
 		}
 		if len(convertErrors) > 0 {
 			sample := convertErrors
-			if len(sample) > 3 {
-				sample = append([]string(nil), sample[:3]...)
-				sample = append(sample, fmt.Sprintf("...and %d more", len(convertErrors)-3))
+			if len(sample) > ErrorSampleCount {
+				sample = append([]string(nil), sample[:ErrorSampleCount]...)
+				sample = append(sample, fmt.Sprintf("...and %d more", len(convertErrors)-ErrorSampleCount))
 			}
 			parts = append(parts, fmt.Sprintf("conversion errors=%d (samples: %v)", len(convertErrors), sample))
 		}
@@ -1691,7 +1691,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		// Update transaction statistics incrementally (async to avoid blocking)
 		isUpdate := existingTxMap[tm.txModel.Hash] != 0
 		go func(tx *models.Transaction, isNew bool) {
-			statsCtx, statsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			statsCtx, statsCancel := context.WithTimeout(context.Background(), StatsContextTimeoutSeconds*time.Second)
 			defer statsCancel()
 			updateTransactionStatsIncremental(statsCtx, tx, isNew)
 		}(tm.txModel, !isUpdate)
@@ -1724,7 +1724,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 		// Return transaction to pool
 		go func(tx *models.Transaction) {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(ShortDelayMilliseconds * time.Millisecond)
 			PutTransactionToPool(tx)
 		}(tm.txModel)
 	}
@@ -1936,7 +1936,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	// Transaction saved successfully, remove from processing queue
 	// Use async operation for non-critical cleanup to avoid blocking
 	go func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), CleanupContextTimeoutSeconds*time.Second)
 		defer cleanupCancel()
 		redisClient.LRem(cleanupCtx, s.config.TxHashProcessingQueueKey, 0, txHash)
 	}()
@@ -1946,7 +1946,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Update transaction statistics incrementally (async to avoid blocking)
 	go func() {
-		statsCtx, statsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		statsCtx, statsCancel := context.WithTimeout(context.Background(), StatsContextTimeoutSeconds*time.Second)
 		defer statsCancel()
 		updateTransactionStatsIncremental(statsCtx, txModel, !isTxUpdate)
 	}()
@@ -1982,7 +1982,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	// Use async operation to avoid blocking, but ensure it happens after all synchronous operations
 	go func() {
 		// Small delay to ensure all references are done
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(ShortDelayMilliseconds * time.Millisecond)
 		PutTransactionToPool(poolTx)
 	}()
 
@@ -2242,8 +2242,8 @@ func (s *SyncService) updateAccountBalances(ctx context.Context, address string)
 	var err error
 
 	// Retry up to 2 times with exponential backoff
-	maxRetries := 2
-	retryDelay := 1 * time.Second
+	maxRetries := BalanceQueryMaxRetries
+	retryDelay := BalanceQueryRetryDelaySeconds * time.Second
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			// Wait before retry
@@ -2530,10 +2530,27 @@ func (s *SyncService) historicalBlockSync() {
 		global.Logger.Infof("RPC node earliest block height not available, using config value: %d", earliestBlockHeight)
 	}
 
-	// Initialize historical sync height from database
-	// Start from earliest block height, or the minimum height in database if we have blocks
+	// Initialize historical sync height from Redis persistence or database
+	// Try to recover from Redis first (for crash recovery)
 	var minHeight uint64 = earliestBlockHeight
 	var maxHeight uint64
+
+	// Try to load persisted sync height from Redis
+	redisClient := cache.GetRedisClient()
+	var persistedHeight uint64 = 0
+	if redisClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), RedisContextTimeoutSeconds*time.Second)
+		defer cancel()
+
+		heightStr, err := redisClient.Get(ctx, CacheKeyHistoricalSyncHeight).Result()
+		if err == nil && heightStr != "" {
+			if _, err := fmt.Sscanf(heightStr, "%d", &persistedHeight); err == nil {
+				global.Logger.Infof("historical block sync: recovered persisted sync height %d from Redis", persistedHeight)
+			}
+		}
+	}
+
+	// Get database min/max heights
 	err = db.Get().Model(&models.Block{}).
 		Select("COALESCE(MIN(height), ?)", earliestBlockHeight).
 		Scan(&minHeight).Error
@@ -2542,7 +2559,6 @@ func (s *SyncService) historicalBlockSync() {
 		minHeight = earliestBlockHeight
 	}
 
-	// Get max height to determine sync range
 	err = db.Get().Model(&models.Block{}).
 		Select("COALESCE(MAX(height), 0)").
 		Scan(&maxHeight).Error
@@ -2550,17 +2566,24 @@ func (s *SyncService) historicalBlockSync() {
 		global.Logger.Warnf("failed to query max height from database: %v", err)
 	}
 
-	// If we already have blocks from earliest height, check if we need to sync historical blocks
-	if minHeight > earliestBlockHeight {
+	// Determine starting height for historical sync
+	var startHeight uint64
+	if persistedHeight > 0 {
+		// Recover from persisted height
+		startHeight = persistedHeight
+		global.Logger.Infof("historical block sync: resuming from persisted height %d", startHeight)
+	} else if minHeight > earliestBlockHeight {
 		// We have blocks, but not from the beginning
 		// Start syncing from earliest block height to minHeight - 1
-		global.Logger.Infof("historical block sync: found blocks from height %d, will sync from height %d to %d", minHeight, earliestBlockHeight, minHeight-1)
-		s.setHistoricalSyncHeight(earliestBlockHeight)
+		startHeight = earliestBlockHeight
+		global.Logger.Infof("historical block sync: found blocks from height %d, will sync from height %d to %d", minHeight, startHeight, minHeight-1)
 	} else {
-		// No blocks or starting from earliest block height, start from earliest block height
-		global.Logger.Infof("historical block sync: starting from earliest block height %d", earliestBlockHeight)
-		s.setHistoricalSyncHeight(earliestBlockHeight)
+		// No blocks or starting from earliest block height
+		startHeight = earliestBlockHeight
+		global.Logger.Infof("historical block sync: starting from earliest block height %d", startHeight)
 	}
+
+	s.setHistoricalSyncHeight(startHeight)
 
 	ticker := time.NewTicker(s.config.HistoricalSyncInterval)
 	defer ticker.Stop()
@@ -2906,18 +2929,65 @@ func (s *SyncService) findNextMissingBlock(startHeight, maxHeight uint64) uint64
 	return 0 // No missing blocks found
 }
 
-// getHistoricalSyncHeight returns the current historical sync height.
+// getHistoricalSyncHeight returns current historical sync height.
+// First tries to load from Redis persistence, falls back to in-memory value.
 func (s *SyncService) getHistoricalSyncHeight() uint64 {
 	s.historicalSyncMutex.RLock()
 	defer s.historicalSyncMutex.RUnlock()
+
+	// Try to load from Redis persistence
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), RedisContextTimeoutSeconds*time.Second)
+		defer cancel()
+
+		heightStr, err := redisClient.Get(ctx, CacheKeyHistoricalSyncHeight).Result()
+		if err == nil && heightStr != "" {
+			var height uint64
+			if _, err := fmt.Sscanf(heightStr, "%d", &height); err == nil {
+				// Update in-memory value if Redis has a more recent value
+				if height > s.historicalSyncHeight {
+					s.historicalSyncHeight = height
+				}
+				return s.historicalSyncHeight
+			}
+		}
+	}
+
 	return s.historicalSyncHeight
 }
 
-// setHistoricalSyncHeight sets the current historical sync height.
+// setHistoricalSyncHeight sets current historical sync height and persists it to Redis.
 func (s *SyncService) setHistoricalSyncHeight(height uint64) {
 	s.historicalSyncMutex.Lock()
 	defer s.historicalSyncMutex.Unlock()
 	s.historicalSyncHeight = height
+
+	// Persist to Redis for recovery after restart
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), RedisContextTimeoutSeconds*time.Second)
+		defer cancel()
+
+		// Set with no expiration (sync state should persist indefinitely)
+		if err := redisClient.Set(ctx, CacheKeyHistoricalSyncHeight, height, RedisPersistNoExpiry).Err(); err != nil {
+			global.Logger.Warnf("failed to persist historical sync height to Redis: %v", err)
+		}
+	}
+}
+
+// clearHistoricalSyncHeight clears the persisted historical sync height from Redis.
+// This is useful when you want to restart historical sync from the beginning.
+func (s *SyncService) clearHistoricalSyncHeight() {
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), RedisContextTimeoutSeconds*time.Second)
+		defer cancel()
+
+		if err := redisClient.Del(ctx, CacheKeyHistoricalSyncHeight).Err(); err != nil {
+			global.Logger.Warnf("failed to clear historical sync height from Redis: %v", err)
+		}
+	}
 }
 
 // recoverProcessingQueue recovers transaction hashes from the processing queue
@@ -2929,7 +2999,7 @@ func (s *SyncService) recoverProcessingQueue() error {
 		return errors.New("redis client is nil")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), RedisLongContextTimeoutSeconds*time.Second)
 	defer cancel()
 
 	// Get all transaction hashes from processing queue

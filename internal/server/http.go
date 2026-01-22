@@ -27,6 +27,24 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	// HTTP server timeout constants
+	HTTPReadTimeout       = 15 * time.Second // Read timeout (reduced from 30s for faster failure)
+	HTTPWriteTimeout      = 15 * time.Second // Write timeout (reduced from 30s for faster failure)
+	HTTPIdleTimeout       = 60 * time.Second // Idle timeout (reduced from 120s)
+	HTTPReadHeaderTimeout = 5 * time.Second  // Read header timeout
+
+	// HTTP server size limits
+	HTTPMaxHeaderBytes = 1 << 20 // 1MB max header bytes
+
+	// CORS configuration constants
+	CORSMaxAge = 86400 // Cache preflight requests for 24 hours (in seconds)
+
+	// File upload size limits
+	MaxMultipartFormSize = 20 << 20 // 20MB maximum multipart form size
+	MaxFileSize          = 10 << 20 // 10MB maximum file size per file
+)
+
 var (
 	openAPIFileCache     string
 	openAPIFileCacheOnce sync.Once
@@ -103,13 +121,13 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	srv := khttp.NewServer(opts...)
 
 	if httpSrv := srv.Server; httpSrv != nil {
-		httpSrv.ReadTimeout = 15 * time.Second      // Reduced from 30s to 15s for faster failure
-		httpSrv.WriteTimeout = 15 * time.Second     // Reduced from 30s to 15s for faster failure
-		httpSrv.IdleTimeout = 60 * time.Second     // Reduced from 120s to 60s
-		httpSrv.ReadHeaderTimeout = 5 * time.Second 
+		httpSrv.ReadTimeout = HTTPReadTimeout
+		httpSrv.WriteTimeout = HTTPWriteTimeout
+		httpSrv.IdleTimeout = HTTPIdleTimeout
+		httpSrv.ReadHeaderTimeout = HTTPReadHeaderTimeout
 
 		httpSrv.SetKeepAlivesEnabled(true)
-		httpSrv.MaxHeaderBytes = 1 << 20 
+		httpSrv.MaxHeaderBytes = HTTPMaxHeaderBytes
 	}
 
 	explorerService := service.NewExplorerService()
@@ -185,7 +203,7 @@ func configureCORS(enableCors bool) func(http.Handler) http.Handler {
 			// Note: Accept, Origin, and Access-Control-Request-* headers are simple headers
 			// and don't need to be explicitly allowed
 		}),
-		handlers.MaxAge(86400), // Cache preflight requests for 24 hours
+		handlers.MaxAge(CORSMaxAge),
 	)
 
 	if allowCredentials {
@@ -576,7 +594,7 @@ func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *se
 		log.NewHelper(logger).Infof("Contract file upload multipart request received")
 
 		// Parse multipart form (max 20MB total)
-		err := ctx.Request().ParseMultipartForm(20 << 20)
+		err := ctx.Request().ParseMultipartForm(MaxMultipartFormSize)
 		if err != nil {
 			log.NewHelper(logger).Errorf("Failed to parse multipart form: %v", err)
 			ctx.Response().Header().Set("Content-Type", "application/json")
@@ -605,7 +623,7 @@ func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *se
 		sourceCodeFile, sourceCodeHeader, err := ctx.Request().FormFile("source_code")
 		if err == nil {
 			defer sourceCodeFile.Close()
-			sourceCodeData, err = readFormFile(sourceCodeFile, 10<<20) // 10MB limit
+			sourceCodeData, err = readFormFile(sourceCodeFile, MaxFileSize)
 			if err != nil {
 				log.NewHelper(logger).Errorf("Failed to read source code file: %v", err)
 				writeJSONError(ctx.Response(), http.StatusBadRequest, "Failed to read source code file")
@@ -624,7 +642,7 @@ func registerContractFileUploadRoutes(srv *khttp.Server, contractInfoService *se
 		abiFile, abiHeader, err := ctx.Request().FormFile("abi")
 		if err == nil {
 			defer abiFile.Close()
-			abiData, err = readFormFile(abiFile, 10<<20) // 10MB limit
+			abiData, err = readFormFile(abiFile, MaxFileSize)
 			if err != nil {
 				log.NewHelper(logger).Errorf("Failed to read ABI file: %v", err)
 				writeJSONError(ctx.Response(), http.StatusBadRequest, "Failed to read ABI file")

@@ -14,6 +14,22 @@ import (
 	"github.com/redis/go-redis/v9/maintnotifications"
 )
 
+const (
+	// Redis connection pool defaults
+	redisDefaultPoolSize = 10 // Default connection pool size
+
+	// Redis timeout defaults
+	redisDefaultDialTimeout  = 5 * time.Second // Default dial timeout
+	redisDefaultPoolTimeout  = 5 * time.Second // Default pool timeout
+	redisDefaultHealthCheckInterval = 30 * time.Second // Default health check interval
+
+	// Redis retry defaults
+	redisDefaultMaxRetries = 3 // Default maximum retry attempts
+
+	// Cache warming defaults
+	redisDefaultWarmTTL = 1 * time.Hour // Default TTL for warmed cache keys
+)
+
 var (
 	// redisc is the global Redis client instance
 	redisc *redis.Client
@@ -55,7 +71,7 @@ func InitRedis(ctx context.Context, cfg *conf.Data_Redis, logger log.Logger) err
 		if cfg.PoolSize > 0 {
 			options.PoolSize = int(cfg.PoolSize)
 		} else {
-			options.PoolSize = 10 // Default pool size
+			options.PoolSize = redisDefaultPoolSize
 		}
 
 		// Set advanced connection pool settings
@@ -71,19 +87,19 @@ func InitRedis(ctx context.Context, cfg *conf.Data_Redis, logger log.Logger) err
 		if cfg.DialTimeout != nil {
 			options.DialTimeout = cfg.DialTimeout.AsDuration()
 		} else {
-			options.DialTimeout = 5 * time.Second // Default dial timeout
+			options.DialTimeout = redisDefaultDialTimeout
 		}
 		if cfg.PoolTimeout != nil {
 			options.PoolTimeout = cfg.PoolTimeout.AsDuration()
 		} else {
-			options.PoolTimeout = 5 * time.Second // Default pool timeout
+			options.PoolTimeout = redisDefaultPoolTimeout
 		}
 
 		// Set retry policy
 		if cfg.MaxRetries > 0 {
 			options.MaxRetries = int(cfg.MaxRetries)
 		} else {
-			options.MaxRetries = 3 // Default max retries
+			options.MaxRetries = redisDefaultMaxRetries
 		}
 		if cfg.MinRetryBackoff != nil {
 			options.MinRetryBackoff = cfg.MinRetryBackoff.AsDuration()
@@ -145,7 +161,7 @@ func GetRedisClient() *redis.Client {
 
 // setupHealthCheck sets up periodic health checking for Redis connection.
 func setupHealthCheck(ctx context.Context, cfg *conf.Data_Redis, logger log.Logger) {
-	interval := 30 * time.Second // Default health check interval
+	interval := redisDefaultHealthCheckInterval
 	if cfg.HealthCheckInterval != nil {
 		interval = cfg.HealthCheckInterval.AsDuration()
 	}
@@ -183,7 +199,7 @@ func warmCache(ctx context.Context, cfg *conf.Data_Redis, logger log.Logger) err
 	startTime := time.Now()
 
 	// Get default TTL for warmed keys
-	ttl := 1 * time.Hour // Default TTL
+	ttl := redisDefaultWarmTTL
 	if cfg.WarmTtl != nil {
 		ttl = cfg.WarmTtl.AsDuration()
 	}

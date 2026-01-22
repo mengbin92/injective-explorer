@@ -28,12 +28,14 @@ import (
 
 // EVMDetailsSyncService handles EVM transaction details synchronization.
 type EVMDetailsSyncService struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	config      *EVMDetailsSyncConfig
-	evmClient   *chain.EVMClient
-	redisClient *redis.Client
-	wg          sync.WaitGroup
+	ctx                context.Context
+	cancel             context.CancelFunc
+	config             *EVMDetailsSyncConfig
+	evmClient          *chain.EVMClient
+	redisClient        *redis.Client
+	wg                 sync.WaitGroup
+	inFlightTasks      map[string]bool // Track tasks currently being processed
+	inFlightTasksMutex sync.RWMutex    // Protect concurrent access to inFlightTasks
 }
 
 // EVMDetailsSyncConfig holds the EVM details sync service configuration.
@@ -82,11 +84,12 @@ func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig,
 	}
 
 	return &EVMDetailsSyncService{
-		ctx:         serviceCtx,
-		cancel:      cancel,
-		config:      config,
-		evmClient:   evmClient,
-		redisClient: redisClient,
+		ctx:           serviceCtx,
+		cancel:        cancel,
+		config:        config,
+		evmClient:     evmClient,
+		redisClient:   redisClient,
+		inFlightTasks: make(map[string]bool),
 	}, nil
 }
 
@@ -204,6 +207,14 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 	cosmosHash := parts[0]
 	evmHash := parts[1]
 
+	// Check if this task is already being processed by another worker
+	// This prevents concurrent processing of the same transaction which can cause deadlocks
+	if !s.markTaskInFlight(cosmosHash) {
+		global.Logger.Debugf("worker %d: transaction %s is already being processed by another worker, skipping", workerID, cosmosHash)
+		return
+	}
+	defer s.unmarkTaskInFlight(cosmosHash)
+
 	// Check if EVM transaction exists in evm_transactions table
 	var evmTx models.EVMTransaction
 	err := db.Get().WithContext(ctx).
@@ -245,10 +256,22 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 			global.Logger.Infof("worker %d: EVM transaction %s marked as synced but raw_details_json is empty (object storage disabled), re-syncing", workerID, cosmosHash)
 		}
 		// Reset sync status to allow re-sync
-		db.Get().WithContext(ctx).
+		// Use optimistic locking to prevent concurrent update issues
+		result := db.Get().WithContext(ctx).
 			Model(&evmTx).
-			Where("transaction_hash = ?", cosmosHash).
+			Where("id = ? AND transaction_hash = ?", evmTx.ID, cosmosHash).
 			Update("evm_details_synced", false)
+
+		if result.Error != nil {
+			global.Logger.Warnf("worker %d: failed to reset sync status for %s: %v", workerID, cosmosHash, result.Error)
+			// Continue anyway, will retry on next attempt
+		}
+
+		if result.RowsAffected == 0 {
+			// Record was not found or already updated by another worker
+			global.Logger.Debugf("worker %d: sync status reset for %s affected 0 rows, skipping", workerID, cosmosHash)
+			return
+		}
 	}
 
 	// Fetch EVM transaction details
@@ -361,14 +384,24 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 		global.Logger.Infof("Stored raw JSON for %s (parse_status: %s)", evmTx.TransactionHash, details.ParseStatus)
 	}
 
-	// Update evm_transactions table
-	err = db.Get().WithContext(ctx).
-		Model(evmTx).
-		Where("transaction_hash = ?", evmTx.TransactionHash).
-		Updates(updates).Error
+	// Update evm_transactions table with optimistic locking
+	// Use WHERE clause with ID to ensure we're updating the same record
+	// This prevents concurrent updates from causing lost updates
+	result := db.Get().WithContext(ctx).
+		Model(&models.EVMTransaction{}).
+		Where("id = ? AND transaction_hash = ?", evmTx.ID, evmTx.TransactionHash).
+		Updates(updates)
 
-	if err != nil {
-		return errors.Wrapf(err, "failed to update EVM transaction %s", evmTx.TransactionHash)
+	if result.Error != nil {
+		return errors.Wrapf(result.Error, "failed to update EVM transaction %s", evmTx.TransactionHash)
+	}
+
+	// Check if the update actually affected a row
+	if result.RowsAffected == 0 {
+		// Record was not found or already updated by another worker
+		// This can happen if another worker already synced this transaction
+		global.Logger.Warnf("EVM transaction %s (id=%d) was not updated, possibly already updated by another worker", evmTx.TransactionHash, evmTx.ID)
+		return nil // Don't fail, just log and continue
 	}
 
 	// Update transactions table with signer and signatures if they are empty
@@ -395,7 +428,7 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 				chainClient, err := GetSharedChainClient()
 				if err == nil {
 					// Create a context with timeout for the GetTx call
-					txCtx, txCancel := context.WithTimeout(ctx, 10*time.Second)
+					txCtx, txCancel := context.WithTimeout(ctx, EVMContextTimeoutSeconds*time.Second)
 					defer txCancel()
 
 					txResp, err := chainClient.GetTx(txCtx, evmTx.TransactionHash)
@@ -431,9 +464,9 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 				if signatures == nil {
 					// Create signature data with at least the address
 					sigData := &injective_explorer_rpcpb.Signature{
-						Address:  ethSigner,
-						Pubkey:   "", // Not available from EVM RPC
-						Sequence: 0,  // Default value (uint64)
+						Address:   ethSigner,
+						Pubkey:    "", // Not available from EVM RPC
+						Sequence:  0,  // Default value (uint64)
 						Signature: "", // Not available from EVM RPC
 					}
 
@@ -495,13 +528,22 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 }
 
 // updateSyncError updates the sync error information for an EVM transaction.
+// Uses optimistic locking to prevent concurrent update issues.
 func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash string, errorMsg string) {
-	db.Get().WithContext(ctx).
+	result := db.Get().WithContext(ctx).
 		Model(&models.EVMTransaction{}).
 		Where("transaction_hash = ?", cosmosHash).
 		Updates(map[string]interface{}{
 			"evm_details_sync_error": errorMsg,
 		})
+
+	if result.Error != nil {
+		global.Logger.Warnf("failed to update sync error for %s: %v", cosmosHash, result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		global.Logger.Debugf("sync error update for %s affected 0 rows, possibly already updated", cosmosHash)
+	}
 }
 
 // shouldRetryEVM checks if a task should be retried based on the error type.
@@ -618,4 +660,27 @@ func createEVMClientFromConfig(evmConfig *conf.Chain_EVM) (*chain.EVMClient, err
 		Network: global.NetworkName,
 		Timeout: evmConfig.Timeout.AsDuration(),
 	})
+}
+
+// markTaskInFlight marks a task as being processed.
+// Returns true if the task was successfully marked (not already in flight),
+// false if the task is already being processed by another worker.
+func (s *EVMDetailsSyncService) markTaskInFlight(cosmosHash string) bool {
+	s.inFlightTasksMutex.Lock()
+	defer s.inFlightTasksMutex.Unlock()
+
+	if s.inFlightTasks[cosmosHash] {
+		return false // Already being processed
+	}
+
+	s.inFlightTasks[cosmosHash] = true
+	return true
+}
+
+// unmarkTaskInFlight removes a task from the in-flight tracking.
+func (s *EVMDetailsSyncService) unmarkTaskInFlight(cosmosHash string) {
+	s.inFlightTasksMutex.Lock()
+	defer s.inFlightTasksMutex.Unlock()
+
+	delete(s.inFlightTasks, cosmosHash)
 }

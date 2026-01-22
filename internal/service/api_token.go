@@ -24,6 +24,19 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	// API token configuration constants
+	apiTokenQueryTimeout      = 5 * time.Second  // Default timeout for database queries
+	apiTokenQueryLongTimeout  = 10 * time.Second // Longer timeout for complex queries
+	apiTokenQueryExportTimeout = 30 * time.Second // Timeout for export operations
+
+	// Token generation constants
+	apiTokenRandomBytesSize = 32 // Size of random bytes for token generation (256 bits)
+	apiTokenNameMinLength   = 1  // Minimum token name length
+	apiTokenNameMaxLength   = 50 // Maximum token name length
+	apiTokenDefaultMaxCount = 3  // Default maximum number of tokens per user (Free plan)
+)
+
 // APITokenService implements the API token management service.
 // It provides methods to create, list, delete tokens and query token usage statistics.
 type APITokenService struct {
@@ -54,8 +67,8 @@ func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRe
 	}
 
 	// Validate name
-	if len(req.Name) == 0 || len(req.Name) > 50 {
-		return nil, status.Error(codes.InvalidArgument, "Token name must be 1-50 characters")
+	if len(req.Name) < apiTokenNameMinLength || len(req.Name) > apiTokenNameMaxLength {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("Token name must be %d-%d characters", apiTokenNameMinLength, apiTokenNameMaxLength))
 	}
 
 	// Get user ID from HTTP header (set by external auth system)
@@ -67,7 +80,7 @@ func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRe
 
 	// Check user token count
 	var count int64
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryTimeout)
 	defer queryCancel()
 
 	err := db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
@@ -79,8 +92,8 @@ func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRe
 	}
 
 	// Get user's plan to check max tokens
-	// For now, default to 3 tokens (Free plan)
-	maxTokens := 3
+	// For now, default to apiTokenDefaultMaxCount tokens (Free plan)
+	maxTokens := apiTokenDefaultMaxCount
 	if count >= int64(maxTokens) {
 		return nil, status.Error(codes.ResourceExhausted,
 			fmt.Sprintf("Maximum token limit reached (%d tokens)", maxTokens))
@@ -135,7 +148,7 @@ func (s *APITokenService) ListTokens(ctx context.Context, req *pb.ListTokensRequ
 		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryTimeout)
 	defer queryCancel()
 
 	var tokens []models.APIToken
@@ -194,7 +207,7 @@ func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRe
 		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryTimeout)
 	defer queryCancel()
 
 	// Verify ownership
@@ -244,7 +257,7 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryTimeout)
 	defer queryCancel()
 
 	// Verify token ownership
@@ -311,8 +324,8 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 //   - tokenPreview: The token preview (byh_xxx...xxx)
 //   - err: Error if generation fails
 func generateAPIToken() (token, tokenHash, tokenPreview string, err error) {
-	// Generate 32 random bytes
-	randomBytes := make([]byte, 32)
+	// Generate random bytes for token
+	randomBytes := make([]byte, apiTokenRandomBytesSize)
 	if _, err := rand.Read(randomBytes); err != nil {
 		return "", "", "", err
 	}
@@ -326,8 +339,12 @@ func generateAPIToken() (token, tokenHash, tokenPreview string, err error) {
 	tokenHash = hex.EncodeToString(hash[:])
 
 	// Generate preview (first 9 chars + ... + last 6 chars)
-	if len(token) > 15 {
-		tokenPreview = token[:9] + "..." + token[len(token)-6:]
+	const tokenPreviewPrefixLen = 9
+	const tokenPreviewSuffixLen = 6
+	const tokenMinPreviewLen = 15
+
+	if len(token) > tokenMinPreviewLen {
+		tokenPreview = token[:tokenPreviewPrefixLen] + "..." + token[len(token)-tokenPreviewSuffixLen:]
 	} else {
 		tokenPreview = token
 	}
@@ -387,7 +404,7 @@ func (s *APITokenService) GetDashboardStats(ctx context.Context, req *pb.GetDash
 		days = 365 // Cap at 1 year
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryLongTimeout)
 	defer queryCancel()
 
 	// Calculate date range
@@ -490,7 +507,7 @@ func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsa
 		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryExportTimeout)
 	defer queryCancel()
 
 	// Build query

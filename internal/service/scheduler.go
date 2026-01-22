@@ -12,6 +12,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	// Scheduler interval constants
+	schedulerCheckInterval = 1 * time.Hour  // Interval to check if scheduled task should run
+	schedulerRunWindow     = 5              // Time window in minutes to run scheduled task
+	schedulerSleepAfterRun = 5 * time.Minute // Sleep duration to avoid multiple runs
+
+	// Scheduled task times
+	dailyStatsHour   = 1 // 1 AM for daily stats update
+	archiveHour      = 2 // 2 AM for archive task
+	monthlyResetDay  = 1 // 1st day of month for quota reset
+	monthlyResetHour = 0 // Midnight (0 AM) for quota reset
+)
+
 // Scheduler manages background scheduled tasks for API management.
 // It handles daily stats updates, monthly quota resets, and log archiving.
 type Scheduler struct {
@@ -57,7 +70,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 // scheduleDailyStats schedules daily stats update task.
 // It runs at 1 AM every day to aggregate statistics from the previous day.
 func (s *Scheduler) scheduleDailyStats(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour) // Check every hour
+	ticker := time.NewTicker(schedulerCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -67,7 +80,7 @@ func (s *Scheduler) scheduleDailyStats(ctx context.Context) {
 		case <-ticker.C:
 			now := time.Now()
 			// Run at 1 AM
-			if now.Hour() == 1 && now.Minute() < 5 {
+			if now.Hour() == dailyStatsHour && now.Minute() < schedulerRunWindow {
 				yesterday := now.AddDate(0, 0, -1)
 				s.logger.Infof("Starting daily stats update for %s", yesterday.Format("2006-01-02"))
 				if err := s.statsService.UpdateDailyStats(ctx, yesterday); err != nil {
@@ -75,8 +88,8 @@ func (s *Scheduler) scheduleDailyStats(ctx context.Context) {
 				} else {
 					s.logger.Infof("Daily stats update completed for %s", yesterday.Format("2006-01-02"))
 				}
-				// Sleep for 5 minutes to avoid running multiple times
-				time.Sleep(5 * time.Minute)
+				// Sleep to avoid running multiple times
+				time.Sleep(schedulerSleepAfterRun)
 			}
 		}
 	}
@@ -85,7 +98,7 @@ func (s *Scheduler) scheduleDailyStats(ctx context.Context) {
 // scheduleMonthlyQuotaReset schedules monthly quota reset task.
 // It runs at the start of each month (1st day, 00:00-00:05) to reset user monthly quotas.
 func (s *Scheduler) scheduleMonthlyQuotaReset(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour) // Check every hour
+	ticker := time.NewTicker(schedulerCheckInterval)
 	defer ticker.Stop()
 
 	var lastResetMonth time.Month = 0
@@ -97,7 +110,7 @@ func (s *Scheduler) scheduleMonthlyQuotaReset(ctx context.Context) {
 		case <-ticker.C:
 			now := time.Now()
 			// Run at the start of each month (1st day, 00:00-00:05)
-			if now.Day() == 1 && now.Hour() == 0 && now.Minute() < 5 && now.Month() != lastResetMonth {
+			if now.Day() == monthlyResetDay && now.Hour() == monthlyResetHour && now.Minute() < schedulerRunWindow && now.Month() != lastResetMonth {
 				s.logger.Infof("Starting monthly quota reset for %s", now.Format("2006-01"))
 				if err := s.resetMonthlyQuota(ctx); err != nil {
 					s.logger.Errorf("Monthly quota reset error: %v", err)
@@ -105,8 +118,8 @@ func (s *Scheduler) scheduleMonthlyQuotaReset(ctx context.Context) {
 					s.logger.Infof("Monthly quota reset completed for %s", now.Format("2006-01"))
 					lastResetMonth = now.Month()
 				}
-				// Sleep for 5 minutes to avoid running multiple times
-				time.Sleep(5 * time.Minute)
+				// Sleep to avoid running multiple times
+				time.Sleep(schedulerSleepAfterRun)
 			}
 		}
 	}
@@ -143,7 +156,7 @@ func (s *Scheduler) resetMonthlyQuota(ctx context.Context) error {
 // scheduleArchive schedules archive task.
 // It runs daily at 2 AM to archive old API request logs (90+ days old).
 func (s *Scheduler) scheduleArchive(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour) // Check every hour
+	ticker := time.NewTicker(schedulerCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -153,7 +166,7 @@ func (s *Scheduler) scheduleArchive(ctx context.Context) {
 		case <-ticker.C:
 			now := time.Now()
 			// Run at 2 AM
-			if now.Hour() == 2 && now.Minute() < 5 {
+			if now.Hour() == archiveHour && now.Minute() < schedulerRunWindow {
 				s.logger.Infof("Starting API log archive task")
 				config := DefaultArchiveUsageConfig()
 				if err := s.archiveService.ArchiveOldLogs(ctx, config); err != nil {
@@ -161,8 +174,8 @@ func (s *Scheduler) scheduleArchive(ctx context.Context) {
 				} else {
 					s.logger.Infof("API log archive completed")
 				}
-				// Sleep for 5 minutes to avoid running multiple times
-				time.Sleep(5 * time.Minute)
+				// Sleep to avoid running multiple times
+				time.Sleep(schedulerSleepAfterRun)
 			}
 		}
 	}
