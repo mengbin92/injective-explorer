@@ -258,9 +258,15 @@ func buildPaginationParams(rng *rand.Rand, _ []string) map[string]string {
 // buildBlockHeightParams builds random block height parameters
 func buildBlockHeightParams(rng *rand.Rand, _ []string) map[string]string {
 	height := int64(1)
-	if validBlockRange.Max > 0 {
-		// Randomly select block height from entire history
-		height = validBlockRange.Min + rng.Int63n(validBlockRange.Max-validBlockRange.Min+1)
+	// Use latestBlockHeight directly to avoid issues with validBlockRange global variable
+	if latestBlockHeight > 0 {
+		// Randomly select block height from 1 to latestBlockHeight
+		// Add safety check to ensure height is reasonable
+		maxHeight := latestBlockHeight
+		if maxHeight > 100000000 { // Sanity check: shouldn't exceed 100M
+			maxHeight = 100000000
+		}
+		height = 1 + rng.Int63n(maxHeight)
 	}
 	return map[string]string{
 		"height": fmt.Sprintf("%d", height),
@@ -343,16 +349,22 @@ func loadLatestBlockHeight(client *http.Client) error {
 		return err
 	}
 
-	// Parse response (assuming format is {"height": 123456})
-	// Simplified handling: extract number directly from response
+	// Parse response (format is {"code":200, "message":"success", "data":{"height":"123456"}})
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return err
 	}
 
-	if h, ok := result["height"].(float64); ok {
-		latestBlockHeight = int64(h)
-		validBlockRange = BlockRange{Min: 1, Max: latestBlockHeight}
+	// Extract height from nested data field
+	if data, ok := result["data"].(map[string]interface{}); ok {
+		// Height is returned as a string (e.g., "39242")
+		if hStr, ok := data["height"].(string); ok {
+			var height int64
+			if _, err := fmt.Sscanf(hStr, "%d", &height); err == nil {
+				latestBlockHeight = height
+				validBlockRange = BlockRange{Min: 1, Max: latestBlockHeight}
+			}
+		}
 	}
 
 	return nil
@@ -386,6 +398,7 @@ func loadRealAddresses(client *http.Client) error {
 	}
 
 	// Parse response and extract addresses
+	// Format is {"code":200, "message":"success", "data":{"data":[...], "pagination":{...}}}
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return err
@@ -393,20 +406,23 @@ func loadRealAddresses(client *http.Client) error {
 
 	// Extract all unique addresses
 	addressMap := make(map[string]bool)
-	if transactions, ok := result["transactions"].([]interface{}); ok {
-		for _, tx := range transactions {
-			if txMap, ok := tx.(map[string]interface{}); ok {
-				// Try to extract from address
-				if from, ok := txMap["from"].(string); ok && from != "" {
-					addressMap[from] = true
-				}
-				// Try to extract to address
-				if to, ok := txMap["to"].(string); ok && to != "" {
-					addressMap[to] = true
-				}
-				// Try to extract signer address
-				if signer, ok := txMap["signer"].(string); ok && signer != "" {
-					addressMap[signer] = true
+	// Access nested data.data field for transactions
+	if data, ok := result["data"].(map[string]interface{}); ok {
+		if transactions, ok := data["data"].([]interface{}); ok {
+			for _, tx := range transactions {
+				if txMap, ok := tx.(map[string]interface{}); ok {
+					// Try to extract from address
+					if from, ok := txMap["from"].(string); ok && from != "" {
+						addressMap[from] = true
+					}
+					// Try to extract to address
+					if to, ok := txMap["to"].(string); ok && to != "" {
+						addressMap[to] = true
+					}
+					// Try to extract signer address
+					if signer, ok := txMap["signer"].(string); ok && signer != "" {
+						addressMap[signer] = true
+					}
 				}
 			}
 		}

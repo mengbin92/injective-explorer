@@ -44,6 +44,7 @@ import (
 type ExplorerService struct {
 	pb.UnimplementedExplorerServer
 	statsUpdateOnce sync.Once // Ensure stats update goroutine starts only once
+	coalescer       *RequestCoalescer
 }
 
 var (
@@ -80,7 +81,9 @@ func createEVMClient() (*chain.EVMClient, error) {
 // Returns:
 //   - *ExplorerService: A new service instance
 func NewExplorerService() *ExplorerService {
-	return &ExplorerService{}
+	return &ExplorerService{
+		coalescer: NewRequestCoalescer(30*time.Second, 30*time.Second, 1000),
+	}
 }
 
 // getStorageThresholdForSync returns the storage threshold for uploading to object storage during sync.
@@ -634,14 +637,23 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 func (s *ExplorerService) GetLatestBlockHeight(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
 	global.Logger.Debugf("get latest block height")
 
-	client := GetSharedTmClient()
-	height, err := client.GetLatestBlockHeight(ctx)
+	// Use request coalescing to prevent duplicate queries under high concurrency
+	result, err := s.coalescer.Do(ctx, "block:latest-height", func() (interface{}, error) {
+		client := GetSharedTmClient()
+		height, err := client.GetLatestBlockHeight(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return height, nil
+	})
+
 	if err != nil {
 		global.Logger.Errorf("get latest block height error: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "get latest block height error", err), err
 	}
 
-	return MarshalAndReply(&pb.LatestBlockHeightResponse{Height: height}, "marshal height error")
+	height := result.(int64)
+	return MarshalAndReply(&pb.LatestBlockHeightResponse{Height: int64(height)}, "marshal height error")
 }
 
 // getCachedGasPrice retrieves the current gas price with caching.
