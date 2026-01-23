@@ -100,6 +100,9 @@ func (s *EVMDetailsSyncService) Start() {
 		s.wg.Add(1)
 		go s.worker(i)
 	}
+	// Start background worker to periodically check and update missing signatures/signer
+	s.wg.Add(1)
+	go s.periodicSignerUpdateWorker()
 	global.Logger.Infof("EVM details sync service started with %d workers", s.config.WorkerCount)
 }
 
@@ -287,6 +290,12 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 		// Update error information
 		s.updateSyncError(ctx, cosmosHash, enhancedErrMsg)
 
+		// IMPORTANT: Do NOT clear Redis cache on failure
+		// Keep the transaction in Redis cache so it can be retried later
+		// This ensures that even if EVM details sync fails, the transaction
+		// remains available for querying and can be updated when sync succeeds
+		s.preserveTransactionCache(ctx, cosmosHash)
+
 		// Retry if should retry
 		if s.shouldRetryEVM(&evmTx, err) {
 			s.retryTask(ctx, taskStr)
@@ -297,6 +306,11 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 	// Save transaction details to evm_transactions table
 	if err := s.saveEVMDetails(ctx, &evmTx, details); err != nil {
 		global.Logger.Errorf("worker %d: failed to save EVM details for %s: %v", workerID, cosmosHash, err)
+		
+		// IMPORTANT: Do NOT clear Redis cache on save failure
+		// Preserve the transaction cache so it can be retried later
+		s.preserveTransactionCache(ctx, cosmosHash)
+		
 		s.retryTask(ctx, taskStr)
 		return
 	}
@@ -387,12 +401,21 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 	// Update evm_transactions table with optimistic locking
 	// Use WHERE clause with ID to ensure we're updating the same record
 	// This prevents concurrent updates from causing lost updates
-	result := db.Get().WithContext(ctx).
+	// Use a separate context with timeout to avoid using expired context
+	// This ensures the update can complete even if the original context timed out
+	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer saveCancel()
+	
+	result := db.Get().WithContext(saveCtx).
 		Model(&models.EVMTransaction{}).
 		Where("id = ? AND transaction_hash = ?", evmTx.ID, evmTx.TransactionHash).
 		Updates(updates)
 
 	if result.Error != nil {
+		// Check if error is due to context timeout
+		if errors.Is(result.Error, context.DeadlineExceeded) || errors.Is(result.Error, context.Canceled) {
+			return errors.Wrapf(result.Error, "context expired while updating EVM transaction %s", evmTx.TransactionHash)
+		}
 		return errors.Wrapf(result.Error, "failed to update EVM transaction %s", evmTx.TransactionHash)
 	}
 
@@ -408,9 +431,14 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 	// This is important for EVM transactions from go-ethereum/MetaMask where
 	// the signer cannot be extracted from Cosmos SDK's AuthInfo.SignerInfos
 	if details.From != "" && details.ParseStatus == "success" {
+		// Use a separate context with timeout to avoid using expired context
+		// This ensures the update can complete even if the original context timed out
+		updateCtx, updateCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer updateCancel()
+		
 		// Check if signer is empty in transactions table
 		var existingTx models.Transaction
-		err := db.Get().WithContext(ctx).
+		err := db.Get().WithContext(updateCtx).
 			Select("hash, signer, signatures").
 			Where("hash = ?", evmTx.TransactionHash).
 			First(&existingTx).Error
@@ -428,7 +456,7 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 				chainClient, err := GetSharedChainClient()
 				if err == nil {
 					// Create a context with timeout for the GetTx call
-					txCtx, txCancel := context.WithTimeout(ctx, EVMContextTimeoutSeconds*time.Second)
+					txCtx, txCancel := context.WithTimeout(updateCtx, EVMContextTimeoutSeconds*time.Second)
 					defer txCancel()
 
 					txResp, err := chainClient.GetTx(txCtx, evmTx.TransactionHash)
@@ -497,7 +525,7 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 					}
 				}
 
-				err = db.Get().WithContext(ctx).
+				err = db.Get().WithContext(updateCtx).
 					Model(&models.Transaction{}).
 					Where("hash = ?", evmTx.TransactionHash).
 					Updates(txUpdates).Error
@@ -505,16 +533,27 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 				if err != nil {
 					global.Logger.Warnf("failed to update signer and signatures for transaction %s: %v", evmTx.TransactionHash, err)
 					// Don't fail the whole operation if this update fails
+					// But still preserve the cache so it can be retried later
+					// Use a separate context to avoid using expired context
+					s.preserveTransactionCache(ctx, evmTx.TransactionHash)
 				} else {
 					global.Logger.Debugf("updated signer and signatures for EVM transaction %s (signer: %s)", evmTx.TransactionHash, ethSigner)
 					// Update Redis cache with the updated transaction data
+					// This ensures the cache is updated with the latest signatures and signer
+					// Use a separate context with timeout to avoid using expired context
+					cacheCtx, cacheCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cacheCancel()
+					
 					var updatedTx models.Transaction
-					if err := db.Get().WithContext(ctx).
+					if err := db.Get().WithContext(cacheCtx).
 						Where("hash = ?", evmTx.TransactionHash).
 						First(&updatedTx).Error; err == nil {
-						cacheTransaction(ctx, &updatedTx)
+						cacheTransaction(cacheCtx, &updatedTx)
+						global.Logger.Debugf("updated Redis cache for transaction %s with signatures and signer", evmTx.TransactionHash)
 					} else {
 						global.Logger.Debugf("failed to reload transaction %s for cache update: %v", evmTx.TransactionHash, err)
+						// Even if reload fails, preserve the cache with current data
+						s.preserveTransactionCache(ctx, evmTx.TransactionHash)
 					}
 				}
 			}
@@ -530,7 +569,12 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 // updateSyncError updates the sync error information for an EVM transaction.
 // Uses optimistic locking to prevent concurrent update issues.
 func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash string, errorMsg string) {
-	result := db.Get().WithContext(ctx).
+	// Use a separate context with timeout to avoid using expired context
+	// This ensures the error update can complete even if the original context timed out
+	updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer updateCancel()
+	
+	result := db.Get().WithContext(updateCtx).
 		Model(&models.EVMTransaction{}).
 		Where("transaction_hash = ?", cosmosHash).
 		Updates(map[string]interface{}{
@@ -538,7 +582,13 @@ func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash 
 		})
 
 	if result.Error != nil {
-		global.Logger.Warnf("failed to update sync error for %s: %v", cosmosHash, result.Error)
+		// Check if error is due to context timeout
+		if errors.Is(result.Error, context.DeadlineExceeded) || errors.Is(result.Error, context.Canceled) {
+			global.Logger.Debugf("context expired while updating sync error for %s", cosmosHash)
+		} else {
+			global.Logger.Warnf("failed to update sync error for %s: %v", cosmosHash, result.Error)
+		}
+		return
 	}
 
 	if result.RowsAffected == 0 {
@@ -582,8 +632,14 @@ func (s *EVMDetailsSyncService) retryTask(ctx context.Context, taskStr string) {
 			delay := time.Duration(1<<uint(attempt)) * baseDelay
 			time.Sleep(delay)
 
+			// Use a separate context with timeout to avoid using expired context
+			// This ensures the retry can complete even if the original context timed out
+			retryCtx, retryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			
 			// Try to push the task back to the queue
-			err := s.redisClient.LPush(ctx, s.config.QueueKey, taskStr).Err()
+			err := s.redisClient.LPush(retryCtx, s.config.QueueKey, taskStr).Err()
+			retryCancel()
+			
 			if err == nil {
 				global.Logger.Infof("Task %s successfully queued for retry (attempt %d)", taskStr, attempt+1)
 				return
@@ -593,7 +649,8 @@ func (s *EVMDetailsSyncService) retryTask(ctx context.Context, taskStr string) {
 		}
 
 		// All retries exhausted
-		global.Logger.Errorf("Failed to retry task %s after %d attempts, giving up", taskStr, maxRetries)
+		// Don't log as error if it's just context timeout - this is expected in some cases
+		global.Logger.Warnf("Failed to retry task %s after %d attempts, giving up. Task may be retried later by periodic check.", taskStr, maxRetries)
 	}()
 }
 
@@ -683,4 +740,273 @@ func (s *EVMDetailsSyncService) unmarkTaskInFlight(cosmosHash string) {
 	defer s.inFlightTasksMutex.Unlock()
 
 	delete(s.inFlightTasks, cosmosHash)
+}
+
+// preserveTransactionCache ensures that a transaction remains in Redis cache
+// even when EVM details sync fails. This allows the transaction to be queried
+// and updated when sync succeeds later.
+func (s *EVMDetailsSyncService) preserveTransactionCache(ctx context.Context, cosmosHash string) {
+	// Check if context is already expired to avoid unnecessary operations
+	if ctx.Err() != nil {
+		global.Logger.Debugf("context expired for transaction %s, skipping cache preservation", cosmosHash)
+		return
+	}
+
+	// Use a separate context with timeout to avoid using expired context
+	// This ensures cache preservation can complete even if the original context timed out
+	preserveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if transaction exists in database
+	var tx models.Transaction
+	err := db.Get().WithContext(preserveCtx).
+		Where("hash = ?", cosmosHash).
+		First(&tx).Error
+
+	if err != nil {
+		// Transaction not found in database, nothing to preserve
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			global.Logger.Debugf("transaction %s not found in database, skipping cache preservation", cosmosHash)
+		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			global.Logger.Debugf("context expired while querying transaction %s for cache preservation", cosmosHash)
+		} else {
+			global.Logger.Warnf("failed to query transaction %s for cache preservation: %v", cosmosHash, err)
+		}
+		return
+	}
+
+	// Update Redis cache with current transaction data
+	// This ensures the transaction remains available even if EVM details sync fails
+	cacheTransaction(preserveCtx, &tx)
+	global.Logger.Debugf("preserved transaction cache for %s after EVM details sync failure", cosmosHash)
+}
+
+// periodicSignerUpdateWorker periodically checks for EVM transactions with missing
+// signatures or signer and attempts to update them from EVM details.
+// This ensures that even if initial sync failed, the data can be updated later.
+func (s *EVMDetailsSyncService) periodicSignerUpdateWorker() {
+	defer s.wg.Done()
+
+	// Check every 5 minutes for missing signatures/signer
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.checkAndUpdateMissingSigners()
+		}
+	}
+}
+
+// checkAndUpdateMissingSigners checks for EVM transactions with missing signatures or signer
+// and attempts to update them from evm_transactions table.
+func (s *EVMDetailsSyncService) checkAndUpdateMissingSigners() {
+	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	defer cancel()
+
+	// Find EVM transactions that have been synced but transactions table has empty signer
+	// Include transactions where evm_from_address is empty - we'll recover it from raw transaction data
+	// Limit to 100 transactions per check to avoid overloading
+	var evmTxs []models.EVMTransaction
+	err := db.Get().WithContext(ctx).
+		Joins("JOIN transactions ON evm_transactions.transaction_hash = transactions.hash").
+		Where("evm_transactions.evm_details_synced = ? AND (transactions.signer = '' OR transactions.signatures IS NULL OR transactions.signatures = '[]' OR transactions.signatures = '')", true).
+		Limit(100).
+		Find(&evmTxs).Error
+
+	if err != nil {
+		global.Logger.Warnf("failed to query EVM transactions with missing signers: %v", err)
+		return
+	}
+
+	if len(evmTxs) == 0 {
+		return
+	}
+
+	global.Logger.Infof("found %d EVM transactions with missing signatures/signer, attempting to update", len(evmTxs))
+
+	// Update each transaction
+	successCount := 0
+	for _, evmTx := range evmTxs {
+		if err := s.updateSignerFromEVMDetails(ctx, &evmTx); err != nil {
+			global.Logger.Warnf("failed to update signer for transaction %s: %v", evmTx.TransactionHash, err)
+		} else {
+			successCount++
+		}
+	}
+
+	if successCount > 0 {
+		global.Logger.Infof("successfully updated %d/%d EVM transactions with missing signatures/signer", successCount, len(evmTxs))
+	}
+}
+
+// updateSignerFromEVMDetails updates the signer and signatures for a transaction
+// from the EVM details stored in evm_transactions table.
+func (s *EVMDetailsSyncService) updateSignerFromEVMDetails(ctx context.Context, evmTx *models.EVMTransaction) error {
+	var ethSigner, ethTo, value string
+	var err error
+
+	// First try to use cached from address if available
+	if evmTx.EVMFromAddress != "" {
+		ethSigner = models.ConvertAddressToEthForStorage(evmTx.EVMFromAddress)
+		ethTo = models.ConvertAddressToEthForStorage(evmTx.EVMToAddress)
+	} else {
+		// From address is empty - need to recover it from raw transaction data
+		// This happens when the original sync failed to recover the sender
+		ethSigner, ethTo, value, err = s.recoverFromRawTransaction(ctx, evmTx)
+		if err != nil {
+			return errors.Wrap(err, "failed to recover from address from raw transaction")
+		}
+	}
+
+	// Try to get value from raw_details_json or object storage
+	if evmTx.RawDetailsJSON != "" {
+		// Parse JSON to extract value
+		var details map[string]interface{}
+		if err := sonic.Unmarshal([]byte(evmTx.RawDetailsJSON), &details); err == nil {
+			if val, ok := details["value"].(string); ok {
+				value = val
+			}
+		}
+	} else if evmTx.EVMDetailsStorageKey != "" && storage.IsEnabled() {
+		// Try to load from object storage
+		storageClient := storage.Get()
+		if data, err := storageClient.GetObject(ctx, evmTx.EVMDetailsStorageKey); err == nil {
+			var details map[string]interface{}
+			if err := sonic.Unmarshal(data, &details); err == nil {
+				if val, ok := details["value"].(string); ok {
+					value = val
+				}
+			}
+		}
+	}
+
+	// Create minimal signature data
+	sigData := &injective_explorer_rpcpb.Signature{
+		Address:   ethSigner,
+		Pubkey:    "", // Not available from EVM RPC
+		Sequence:  0,  // Default value
+		Signature: "", // Not available from EVM RPC
+	}
+
+	// Marshal signature to JSON string
+	sigMessages := []proto.Message{sigData}
+	signatures, err := models.MarshalProtoSliceToJSON(sigMessages)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal signature")
+	}
+
+	// Update transactions table
+	txUpdates := map[string]interface{}{
+		"signer": ethSigner,
+		"to":     ethTo,
+	}
+	if value != "" {
+		txUpdates["value"] = value
+	}
+	if signatures != nil {
+		signaturesJSON, err := sonic.Marshal(signatures)
+		if err != nil {
+			global.Logger.Warnf("failed to marshal signatures to JSON array for transaction %s: %v", evmTx.TransactionHash, err)
+		} else {
+			txUpdates["signatures"] = string(signaturesJSON)
+		}
+	}
+
+	err = db.Get().WithContext(ctx).
+		Model(&models.Transaction{}).
+		Where("hash = ?", evmTx.TransactionHash).
+		Updates(txUpdates).Error
+
+	if err != nil {
+		return errors.Wrap(err, "failed to update transaction")
+	}
+
+	// Update Redis cache
+	var updatedTx models.Transaction
+	if err := db.Get().WithContext(ctx).
+		Where("hash = ?", evmTx.TransactionHash).
+		First(&updatedTx).Error; err == nil {
+		cacheTransaction(ctx, &updatedTx)
+	}
+
+	return nil
+}
+
+// recoverFromRawTransaction recovers the from address, to address, and value
+// from the raw transaction data stored in evm_transactions table.
+// This is used for historical data where evm_from_address was not populated during initial sync.
+func (s *EVMDetailsSyncService) recoverFromRawTransaction(ctx context.Context, evmTx *models.EVMTransaction) (from, to, value string, err error) {
+	// Parse raw_details_json to extract transaction data
+	var rawDetails map[string]interface{}
+	if evmTx.RawDetailsJSON != "" {
+		if err := sonic.Unmarshal([]byte(evmTx.RawDetailsJSON), &rawDetails); err != nil {
+			return "", "", "", errors.Wrap(err, "failed to parse raw_details_json")
+		}
+	} else if evmTx.EVMDetailsStorageKey != "" && storage.IsEnabled() {
+		// Try to load from object storage
+		storageClient := storage.Get()
+		data, err := storageClient.GetObject(ctx, evmTx.EVMDetailsStorageKey)
+		if err != nil {
+			return "", "", "", errors.Wrap(err, "failed to load from object storage")
+		}
+		if err := sonic.Unmarshal(data, &rawDetails); err != nil {
+			return "", "", "", errors.Wrap(err, "failed to parse storage data")
+		}
+	} else {
+		return "", "", "", errors.New("no raw transaction data available")
+	}
+
+	// Extract transaction data
+	txData, ok := rawDetails["transaction"].(map[string]interface{})
+	if !ok {
+		return "", "", "", errors.New("transaction data not found in raw_details_json")
+	}
+
+	// Extract to address
+	if toAddr, ok := txData["to"].(string); ok && toAddr != "" {
+		to = models.ConvertAddressToEthForStorage(toAddr)
+	}
+
+	// Extract value
+	if val, ok := txData["value"].(string); ok {
+		value = val
+	}
+
+	// Recover from address from transaction signature
+	// Need to use go-ethereum's transaction types
+
+	// Try to decode and recover from address
+	// The transaction data should have v, r, s values
+	v, hasV := txData["v"].(string)
+	r, hasR := txData["r"].(string)
+	sVal, hasS := txData["s"].(string)
+
+	if !hasV || !hasR || !hasS {
+		return "", "", "", errors.New("transaction signature (v,r,s) not found in raw data")
+	}
+
+	// Use EVM client to recover from address
+	recoveredFrom, err := s.evmClient.RecoverSender(ctx, evmTx.EVMHash, v, r, sVal)
+	if err != nil {
+		return "", "", "", errors.Wrap(err, "failed to recover sender from signature")
+	}
+
+	from = models.ConvertAddressToEthForStorage(recoveredFrom)
+
+	// Also update evm_transactions table with the recovered from address
+	// This prevents needing to recover it again in the future
+	updateErr := db.Get().WithContext(ctx).
+		Model(&models.EVMTransaction{}).
+		Where("transaction_hash = ?", evmTx.TransactionHash).
+		Update("evm_from_address", from).Error
+	if updateErr != nil {
+		global.Logger.Warnf("failed to update evm_from_address for %s: %v", evmTx.TransactionHash, updateErr)
+		// Don't fail - we have the from address, just continue
+	}
+
+	return from, to, value, nil
 }

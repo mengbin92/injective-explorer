@@ -432,3 +432,56 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 
 	return nil
 }
+
+// ChainID returns the chain ID (convenience method for accessing chainID field)
+func (c *EVMClient) ChainID() *big.Int {
+	return c.chainID
+}
+
+// RecoverSender recovers the sender address from transaction signature components (v, r, s).
+// This is used when we have raw transaction data but the from address was not recovered.
+//
+// Parameters:
+//   - ctx: Context for the request
+//   - evmHash: EVM transaction hash
+//   - v, r, s: Signature components as hex strings
+//
+// Returns:
+//   - string: Recovered sender address
+//   - error: Error if recovery fails
+func (c *EVMClient) RecoverSender(ctx context.Context, evmHash string, v, r, s string) (string, error) {
+	// Parse signature components
+	vInt := new(big.Int)
+	if _, ok := vInt.SetString(v, 0); !ok {
+		return "", errors.New("invalid v value")
+	}
+
+	rBytes := common.FromHex(r)
+	if rBytes == nil {
+		return "", errors.New("invalid r value")
+	}
+
+	sBytes := common.FromHex(s)
+	if sBytes == nil {
+		return "", errors.New("invalid s value")
+	}
+
+	// Fetch the transaction again to get the full transaction object
+	txHash := common.HexToHash(evmHash)
+	tx, isPending, err := c.client.TransactionByHash(ctx, txHash)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to get transaction %s", evmHash)
+	}
+	if isPending {
+		return "", errors.New("cannot recover sender for pending transaction")
+	}
+
+	// Recover sender from transaction
+	signer := types.NewEIP155Signer(c.chainID)
+	sender, err := types.Sender(signer, tx)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to recover sender from transaction %s", evmHash)
+	}
+
+	return sender.Hex(), nil
+}

@@ -373,8 +373,19 @@ func (c *EVMClient) getRawTransactionDetailsFallback(ctx context.Context, txHash
 		details.RawReceiptJSON = receiptJSON
 	}
 
+	// Try to recover sender address even in fallback mode
+	// This is critical for updating signer/signatures in the transactions table
+	signer := types.NewEIP155Signer(c.chainID)
+	from, err := types.Sender(signer, tx)
+	if err != nil {
+		// Sender recovery failed - this is the original parse error
+		global.Logger.Warnf("Fallback: Failed to recover sender for %s: %v", txHash.Hex(), err)
+		// Continue without from address - downstream will handle missing signer
+	} else {
+		details.From = from.Hex()
+	}
+
 	// Try to extract basic information from transaction
-	// These don't require sender recovery
 	if tx.To() != nil {
 		details.To = tx.To().Hex()
 	}
@@ -428,9 +439,11 @@ func (c *EVMClient) getRawTransactionDetailsFallback(ctx context.Context, txHash
 	}
 
 	// Get current block for confirmations
-	currentBlock, err := c.client.BlockNumber(ctx)
-	if err == nil {
-		details.Confirmations = currentBlock - receipt.BlockNumber.Uint64()
+	if receipt != nil {
+		currentBlock, err := c.client.BlockNumber(ctx)
+		if err == nil {
+			details.Confirmations = currentBlock - receipt.BlockNumber.Uint64()
+		}
 	}
 
 	// Mark as partial since we have some data but not from address

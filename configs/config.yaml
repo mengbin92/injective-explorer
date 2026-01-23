@@ -109,7 +109,7 @@ sync:
   # 时间间隔配置
   intervals:
     tx_process: 1s # 交易处理器空闲检查间隔
-    historical_sync: 10s # 历史区块同步间隔
+    historical_sync: 1s # 历史区块同步间隔
     historical_batch_delay: 1s # 历史同步批次延迟
     rpc_status_retry: 5s # RPC 状态获取失败重试延迟
 
