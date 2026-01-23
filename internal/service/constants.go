@@ -54,6 +54,11 @@ const (
 	RequestCoalescerCleanupInterval = 30 * time.Second // Interval for cleaning up stale inflight requests
 	RequestCoalescerMaxInflightSize = 1000             // Maximum number of concurrent inflight requests
 
+	// EVM task deduplication constants
+	EVMDetailsTaskMaxAge         = 60 * time.Second // Maximum age for EVM task before cleanup
+	EVMDetailsTaskCleanupInterval = 30 * time.Second // Cleanup interval for EVM tasks
+	EVMDetailsTaskMaxSize         = 5000             // Maximum number of concurrent EVM tasks
+
 	// Account query constants
 	AccountTransactionLimit = 50 // Maximum number of transactions to return for account queries
 
@@ -178,6 +183,9 @@ const (
 	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
 	defaultEVMDetailsProcessInterval  = 100 * time.Millisecond // EVM details process interval (reduced from 2s to 100ms for faster sync)
 	defaultEVMDetailsTimeout          = 90 * time.Second       // EVM details timeout
+	defaultEVMDetailsBatchUpdateSize  = 100                    // Batch update buffer size
+	defaultEVMDetailsBatchFlushInterval = 5 * time.Second      // Batch update flush interval
+	defaultEVMDetailsRPCBatchSize     = 20                     // RPC batch size for transaction details (smaller than task batch to avoid timeout)
 )
 
 // Additional sync block constants
@@ -361,12 +369,14 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 //   - *EVMDetailsSyncConfig: EVM details sync configuration
 func LoadEVMDetailsSyncConfig(bc *conf.Bootstrap) *EVMDetailsSyncConfig {
 	return &EVMDetailsSyncConfig{
-		QueueKey:         defaultEVMDetailsQueueKey,
-		WorkerCount:      defaultEVMDetailsWorkerCount,
-		BatchSize:        defaultEVMDetailsBatchSize,
-		RetryDelay:       defaultEVMDetailsRetryDelay,
-		MaxRetryAttempts: defaultEVMDetailsMaxRetryAttempts,
-		ProcessInterval:  defaultEVMDetailsProcessInterval,
-		Timeout:          defaultEVMDetailsTimeout,
+		QueueKey:           defaultEVMDetailsQueueKey,
+		WorkerCount:        defaultEVMDetailsWorkerCount,
+		BatchSize:          defaultEVMDetailsBatchSize,
+		RetryDelay:         defaultEVMDetailsRetryDelay,
+		MaxRetryAttempts:   defaultEVMDetailsMaxRetryAttempts,
+		ProcessInterval:    defaultEVMDetailsProcessInterval,
+		Timeout:            defaultEVMDetailsTimeout,
+		BatchUpdateSize:    defaultEVMDetailsBatchUpdateSize,
+		BatchFlushInterval: defaultEVMDetailsBatchFlushInterval,
 	}
 }

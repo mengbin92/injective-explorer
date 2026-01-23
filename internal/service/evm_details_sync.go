@@ -24,29 +24,50 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // EVMDetailsSyncService handles EVM transaction details synchronization.
 type EVMDetailsSyncService struct {
-	ctx                context.Context
-	cancel             context.CancelFunc
-	config             *EVMDetailsSyncConfig
-	evmClient          *chain.EVMClient
-	redisClient        *redis.Client
-	wg                 sync.WaitGroup
-	inFlightTasks      map[string]bool // Track tasks currently being processed
-	inFlightTasksMutex sync.RWMutex    // Protect concurrent access to inFlightTasks
+	ctx              context.Context
+	cancel           context.CancelFunc
+	config           *EVMDetailsSyncConfig
+	evmClient        *chain.EVMClient
+	redisClient      *redis.Client
+	wg               sync.WaitGroup
+	taskDeduplicator *RequestCoalescer // Request coalescer for task deduplication
+	// Batch update buffer
+	updateBuffer      []*EVMTransactionUpdate
+	updateBufferMutex sync.Mutex
+	updateBufferSize  int
+	flushTicker       *time.Ticker
+}
+
+// EVMTransactionUpdate represents an EVM transaction update for batch processing.
+type EVMTransactionUpdate struct {
+	ID                   uint
+	TransactionHash      string
+	EVMDetailsSynced     bool
+	EVMDetailsSyncAt     *time.Time
+	EVMDetailsSyncError  string
+	EVMFromAddress       string
+	EVMToAddress         string
+	EVMDetailsStorageKey string
+	RawDetailsJSON       string
+	UpdatedAt            time.Time
 }
 
 // EVMDetailsSyncConfig holds the EVM details sync service configuration.
 type EVMDetailsSyncConfig struct {
-	QueueKey         string
-	WorkerCount      int
-	BatchSize        int
-	RetryDelay       time.Duration
-	MaxRetryAttempts int
-	ProcessInterval  time.Duration
-	Timeout          time.Duration
+	QueueKey           string
+	WorkerCount        int
+	BatchSize          int
+	RetryDelay         time.Duration
+	MaxRetryAttempts   int
+	ProcessInterval    time.Duration
+	Timeout            time.Duration
+	BatchUpdateSize    int           // Batch update buffer size
+	BatchFlushInterval time.Duration // Batch update flush interval
 }
 
 // NewEVMDetailsSyncService creates a new instance of EVMDetailsSyncService.
@@ -84,12 +105,19 @@ func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig,
 	}
 
 	return &EVMDetailsSyncService{
-		ctx:           serviceCtx,
-		cancel:        cancel,
-		config:        config,
-		evmClient:     evmClient,
-		redisClient:   redisClient,
-		inFlightTasks: make(map[string]bool),
+		ctx:         serviceCtx,
+		cancel:      cancel,
+		config:      config,
+		evmClient:   evmClient,
+		redisClient: redisClient,
+		taskDeduplicator: NewRequestCoalescer(
+			EVMDetailsTaskMaxAge,
+			EVMDetailsTaskCleanupInterval,
+			EVMDetailsTaskMaxSize,
+		),
+		updateBuffer:     make([]*EVMTransactionUpdate, 0, config.BatchUpdateSize),
+		updateBufferSize: config.BatchUpdateSize,
+		flushTicker:      time.NewTicker(config.BatchFlushInterval),
 	}, nil
 }
 
@@ -103,6 +131,12 @@ func (s *EVMDetailsSyncService) Start() {
 	// Start background worker to periodically check and update missing signatures/signer
 	s.wg.Add(1)
 	go s.periodicSignerUpdateWorker()
+	// Start task deduplication metrics logger
+	s.wg.Add(1)
+	go s.logTaskDeduplicationMetrics()
+	// Start batch update flusher
+	s.wg.Add(1)
+	go s.batchUpdateFlusher()
 	global.Logger.Infof("EVM details sync service started with %d workers", s.config.WorkerCount)
 }
 
@@ -110,6 +144,20 @@ func (s *EVMDetailsSyncService) Start() {
 // It cancels the context and waits for all goroutines to finish.
 func (s *EVMDetailsSyncService) Stop() {
 	s.cancel()
+
+	// Flush any remaining updates in the buffer
+	s.flushUpdateBuffer()
+
+	// Stop flush ticker
+	if s.flushTicker != nil {
+		s.flushTicker.Stop()
+	}
+
+	// Stop RequestCoalescer cleanup goroutine
+	if s.taskDeduplicator != nil {
+		s.taskDeduplicator.Stop()
+	}
+
 	if s.evmClient != nil {
 		s.evmClient.Close()
 	}
@@ -135,6 +183,7 @@ func (s *EVMDetailsSyncService) worker(id int) {
 }
 
 // processBatch processes a batch of EVM transaction details tasks.
+// Uses batch RPC calls to fetch multiple transaction details at once, significantly reducing RPC overhead.
 func (s *EVMDetailsSyncService) processBatch(workerID int) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.Timeout)
 	defer cancel()
@@ -153,14 +202,58 @@ func (s *EVMDetailsSyncService) processBatch(workerID int) {
 
 	global.Logger.Debugf("worker %d: processing %d EVM details tasks", workerID, len(tasks))
 
-	// Process tasks concurrently
+	// Parse all tasks into structured data
+	type taskData struct {
+		cosmosHash string
+		evmHash    string
+		taskStr    string
+	}
+	taskList := make([]taskData, 0, len(tasks))
+	evmHashes := make([]string, 0, len(tasks))
+
+	for _, taskStr := range tasks {
+		parts := strings.Split(taskStr, ":")
+		if len(parts) != 2 {
+			global.Logger.Warnf("worker %d: invalid task format: %s", workerID, taskStr)
+			continue
+		}
+		taskList = append(taskList, taskData{
+			cosmosHash: parts[0],
+			evmHash:    parts[1],
+			taskStr:    taskStr,
+		})
+		evmHashes = append(evmHashes, parts[1])
+	}
+
+	if len(taskList) == 0 {
+		return
+	}
+
+	// Fetch all EVM details in batch (significantly reduces RPC calls)
+	// Instead of N calls to GetTransactionDetails, we make 1 batch call
+	detailsList, errorsList := s.fetchEVMDetailsBatch(ctx, evmHashes)
+
+	// Process tasks concurrently with pre-fetched details
 	var wg sync.WaitGroup
-	for _, task := range tasks {
+	for i, task := range taskList {
 		wg.Add(1)
-		go func(taskStr string) {
+		go func(idx int, t taskData) {
 			defer wg.Done()
-			s.processTask(ctx, taskStr, workerID)
-		}(task)
+
+			var details *chain.TransactionDetails
+			var fetchErr error
+
+			// Use pre-fetched details if available
+			if idx < len(detailsList) {
+				details = detailsList[idx]
+			}
+			if idx < len(errorsList) {
+				fetchErr = errorsList[idx]
+			}
+
+			// Process with pre-fetched details
+			s.processTaskWithDetails(ctx, t.cosmosHash, t.evmHash, details, fetchErr, workerID)
+		}(i, task)
 	}
 	wg.Wait()
 }
@@ -210,14 +303,59 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 	cosmosHash := parts[0]
 	evmHash := parts[1]
 
-	// Check if this task is already being processed by another worker
-	// This prevents concurrent processing of the same transaction which can cause deadlocks
-	if !s.markTaskInFlight(cosmosHash) {
-		global.Logger.Debugf("worker %d: transaction %s is already being processed by another worker, skipping", workerID, cosmosHash)
-		return
-	}
-	defer s.unmarkTaskInFlight(cosmosHash)
+	// Use RequestCoalescer to deduplicate concurrent processing of the same transaction
+	// This prevents concurrent processing which can cause deadlocks and wasted resources
+	_, err := s.taskDeduplicator.Do(ctx, cosmosHash, func() (interface{}, error) {
+		return nil, s.processTaskInternal(ctx, cosmosHash, evmHash, workerID)
+	})
 
+	if err != nil {
+		// Context errors are expected during shutdown
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			global.Logger.Errorf("worker %d: unexpected error from task deduplicator for %s: %v", workerID, cosmosHash, err)
+		}
+	}
+}
+
+// processTaskInternal is the core logic for processing a single EVM transaction details task.
+// This is called by processTask after deduplication check.
+func (s *EVMDetailsSyncService) processTaskInternal(ctx context.Context, cosmosHash, evmHash string, workerID int) error {
+	// Fetch EVM transaction details (for non-batch path)
+	details, err := s.fetchEVMDetails(ctx, evmHash)
+	if err != nil {
+		return s.handleFetchError(ctx, cosmosHash, evmHash, err, workerID)
+	}
+
+	return s.saveAndProcessDetails(ctx, cosmosHash, evmHash, details, workerID)
+}
+
+// processTaskWithDetails processes a task using pre-fetched transaction details.
+// This is used by batch RPC processing to avoid redundant fetches.
+func (s *EVMDetailsSyncService) processTaskWithDetails(
+	ctx context.Context,
+	cosmosHash, evmHash string,
+	details *chain.TransactionDetails,
+	fetchErr error,
+	workerID int,
+) {
+	// Use RequestCoalescer to deduplicate concurrent processing of the same transaction
+	_, err := s.taskDeduplicator.Do(ctx, cosmosHash, func() (interface{}, error) {
+		if fetchErr != nil {
+			return nil, s.handleFetchError(ctx, cosmosHash, evmHash, fetchErr, workerID)
+		}
+		return nil, s.saveAndProcessDetails(ctx, cosmosHash, evmHash, details, workerID)
+	})
+
+	if err != nil {
+		// Context errors are expected during shutdown
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			global.Logger.Errorf("worker %d: unexpected error from task deduplicator for %s: %v", workerID, cosmosHash, err)
+		}
+	}
+}
+
+// handleFetchError handles errors from fetching EVM details.
+func (s *EVMDetailsSyncService) handleFetchError(ctx context.Context, cosmosHash, evmHash string, fetchErr error, workerID int) error {
 	// Check if EVM transaction exists in evm_transactions table
 	var evmTx models.EVMTransaction
 	err := db.Get().WithContext(ctx).
@@ -227,12 +365,56 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			global.Logger.Warnf("worker %d: EVM transaction %s not found in evm_transactions table, skipping", workerID, cosmosHash)
-			return
+			return nil
+		}
+		global.Logger.Errorf("worker %d: failed to query EVM transaction %s: %v", workerID, cosmosHash, err)
+		s.retryTask(ctx, cosmosHash+":"+evmHash)
+		return err
+	}
+
+	// Categorize and enhance error message
+	errorType := categorizeError(fetchErr)
+	enhancedErrMsg := fmt.Sprintf("[%s] %v", errorType, fetchErr)
+
+	global.Logger.Warnf("worker %d: failed to fetch EVM details for %s (evm: %s): %s",
+		workerID, cosmosHash, evmHash, enhancedErrMsg)
+
+	// Update error information
+	s.updateSyncError(ctx, cosmosHash, enhancedErrMsg)
+
+	// IMPORTANT: Do NOT clear Redis cache on failure
+	s.preserveTransactionCache(ctx, cosmosHash)
+
+	// Retry if should retry
+	if s.shouldRetryEVM(&evmTx, fetchErr) {
+		s.retryTask(ctx, cosmosHash+":"+evmHash)
+	}
+
+	return fetchErr
+}
+
+// saveAndProcessDetails saves fetched transaction details and processes them.
+func (s *EVMDetailsSyncService) saveAndProcessDetails(
+	ctx context.Context,
+	cosmosHash, evmHash string,
+	details *chain.TransactionDetails,
+	workerID int,
+) error {
+	// Check if EVM transaction exists in evm_transactions table
+	var evmTx models.EVMTransaction
+	err := db.Get().WithContext(ctx).
+		Where("transaction_hash = ?", cosmosHash).
+		First(&evmTx).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			global.Logger.Warnf("worker %d: EVM transaction %s not found in evm_transactions table, skipping", workerID, cosmosHash)
+			return nil
 		}
 		global.Logger.Errorf("worker %d: failed to query EVM transaction %s: %v", workerID, cosmosHash, err)
 		// Retry task
-		s.retryTask(ctx, taskStr)
-		return
+		s.retryTask(ctx, cosmosHash+":"+evmHash)
+		return err
 	}
 
 	// Skip if already synced and data exists
@@ -246,14 +428,14 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 		if storage.IsEnabled() {
 			if hasDataInStorage {
 				// Data exists in object storage, skip
-				return
+				return nil
 			}
 			// Data missing in object storage, need to re-sync
 			global.Logger.Infof("worker %d: EVM transaction %s marked as synced but data missing in object storage, re-syncing", workerID, cosmosHash)
 		} else {
 			if hasDataInDB {
 				// Data exists in database, skip
-				return
+				return nil
 			}
 			// Data missing in database, need to re-sync
 			global.Logger.Infof("worker %d: EVM transaction %s marked as synced but raw_details_json is empty (object storage disabled), re-syncing", workerID, cosmosHash)
@@ -273,49 +455,24 @@ func (s *EVMDetailsSyncService) processTask(ctx context.Context, taskStr string,
 		if result.RowsAffected == 0 {
 			// Record was not found or already updated by another worker
 			global.Logger.Debugf("worker %d: sync status reset for %s affected 0 rows, skipping", workerID, cosmosHash)
-			return
+			return nil
 		}
-	}
-
-	// Fetch EVM transaction details
-	details, err := s.fetchEVMDetails(ctx, evmHash)
-	if err != nil {
-		// Categorize and enhance error message
-		errorType := categorizeError(err)
-		enhancedErrMsg := fmt.Sprintf("[%s] %v", errorType, err)
-
-		global.Logger.Warnf("worker %d: failed to fetch EVM details for %s (evm: %s): %s",
-			workerID, cosmosHash, evmHash, enhancedErrMsg)
-
-		// Update error information
-		s.updateSyncError(ctx, cosmosHash, enhancedErrMsg)
-
-		// IMPORTANT: Do NOT clear Redis cache on failure
-		// Keep the transaction in Redis cache so it can be retried later
-		// This ensures that even if EVM details sync fails, the transaction
-		// remains available for querying and can be updated when sync succeeds
-		s.preserveTransactionCache(ctx, cosmosHash)
-
-		// Retry if should retry
-		if s.shouldRetryEVM(&evmTx, err) {
-			s.retryTask(ctx, taskStr)
-		}
-		return
 	}
 
 	// Save transaction details to evm_transactions table
 	if err := s.saveEVMDetails(ctx, &evmTx, details); err != nil {
 		global.Logger.Errorf("worker %d: failed to save EVM details for %s: %v", workerID, cosmosHash, err)
-		
+
 		// IMPORTANT: Do NOT clear Redis cache on save failure
 		// Preserve the transaction cache so it can be retried later
 		s.preserveTransactionCache(ctx, cosmosHash)
-		
-		s.retryTask(ctx, taskStr)
-		return
+
+		s.retryTask(ctx, cosmosHash+":"+evmHash)
+		return err
 	}
 
 	global.Logger.Debugf("worker %d: successfully synced EVM details for %s", workerID, cosmosHash)
+	return nil
 }
 
 // fetchEVMDetails fetches EVM transaction details from EVM RPC.
@@ -326,6 +483,16 @@ func (s *EVMDetailsSyncService) fetchEVMDetails(ctx context.Context, evmHash str
 		return nil, errors.Wrapf(err, "failed to get transaction details for %s", evmHash)
 	}
 	return details, nil
+}
+
+// fetchEVMDetailsBatch fetches EVM transaction details for multiple transactions in batch.
+// This significantly reduces RPC calls by batching requests.
+func (s *EVMDetailsSyncService) fetchEVMDetailsBatch(ctx context.Context, evmHashes []string) ([]*chain.TransactionDetails, []error) {
+	hashes := make([]ethcommon.Hash, len(evmHashes))
+	for i, h := range evmHashes {
+		hashes[i] = ethcommon.HexToHash(h)
+	}
+	return s.evmClient.GetTransactionDetailsBatch(ctx, hashes)
 }
 
 // saveEVMDetails saves EVM transaction details to evm_transactions table or object storage.
@@ -398,34 +565,32 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 		global.Logger.Infof("Stored raw JSON for %s (parse_status: %s)", evmTx.TransactionHash, details.ParseStatus)
 	}
 
-	// Update evm_transactions table with optimistic locking
-	// Use WHERE clause with ID to ensure we're updating the same record
-	// This prevents concurrent updates from causing lost updates
-	// Use a separate context with timeout to avoid using expired context
-	// This ensures the update can complete even if the original context timed out
-	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer saveCancel()
-	
-	result := db.Get().WithContext(saveCtx).
-		Model(&models.EVMTransaction{}).
-		Where("id = ? AND transaction_hash = ?", evmTx.ID, evmTx.TransactionHash).
-		Updates(updates)
+	// Build EVMTransactionUpdate for batch processing
+	var rawDetailsJSON string
+	var storageKeyStr string
 
-	if result.Error != nil {
-		// Check if error is due to context timeout
-		if errors.Is(result.Error, context.DeadlineExceeded) || errors.Is(result.Error, context.Canceled) {
-			return errors.Wrapf(result.Error, "context expired while updating EVM transaction %s", evmTx.TransactionHash)
-		}
-		return errors.Wrapf(result.Error, "failed to update EVM transaction %s", evmTx.TransactionHash)
+	if val, ok := updates["raw_details_json"].(string); ok {
+		rawDetailsJSON = val
+	}
+	if val, ok := updates["evm_details_storage_key"].(string); ok {
+		storageKeyStr = val
 	}
 
-	// Check if the update actually affected a row
-	if result.RowsAffected == 0 {
-		// Record was not found or already updated by another worker
-		// This can happen if another worker already synced this transaction
-		global.Logger.Warnf("EVM transaction %s (id=%d) was not updated, possibly already updated by another worker", evmTx.TransactionHash, evmTx.ID)
-		return nil // Don't fail, just log and continue
+	update := &EVMTransactionUpdate{
+		ID:                   evmTx.ID,
+		TransactionHash:      evmTx.TransactionHash,
+		EVMDetailsSynced:     true,
+		EVMDetailsSyncAt:     &now,
+		EVMDetailsSyncError:  "",
+		EVMFromAddress:       details.From,
+		EVMToAddress:         details.To,
+		EVMDetailsStorageKey: storageKeyStr,
+		RawDetailsJSON:       rawDetailsJSON,
+		UpdatedAt:            now,
 	}
+
+	// Add to batch update buffer instead of immediate UPDATE
+	s.addToUpdateBuffer(update)
 
 	// Update transactions table with signer and signatures if they are empty
 	// This is important for EVM transactions from go-ethereum/MetaMask where
@@ -719,29 +884,6 @@ func createEVMClientFromConfig(evmConfig *conf.Chain_EVM) (*chain.EVMClient, err
 	})
 }
 
-// markTaskInFlight marks a task as being processed.
-// Returns true if the task was successfully marked (not already in flight),
-// false if the task is already being processed by another worker.
-func (s *EVMDetailsSyncService) markTaskInFlight(cosmosHash string) bool {
-	s.inFlightTasksMutex.Lock()
-	defer s.inFlightTasksMutex.Unlock()
-
-	if s.inFlightTasks[cosmosHash] {
-		return false // Already being processed
-	}
-
-	s.inFlightTasks[cosmosHash] = true
-	return true
-}
-
-// unmarkTaskInFlight removes a task from the in-flight tracking.
-func (s *EVMDetailsSyncService) unmarkTaskInFlight(cosmosHash string) {
-	s.inFlightTasksMutex.Lock()
-	defer s.inFlightTasksMutex.Unlock()
-
-	delete(s.inFlightTasks, cosmosHash)
-}
-
 // preserveTransactionCache ensures that a transaction remains in Redis cache
 // even when EVM details sync fails. This allows the transaction to be queried
 // and updated when sync succeeds later.
@@ -1009,4 +1151,163 @@ func (s *EVMDetailsSyncService) recoverFromRawTransaction(ctx context.Context, e
 	}
 
 	return from, to, value, nil
+}
+
+// logTaskDeduplicationMetrics periodically logs task deduplication metrics.
+// This helps monitor the effectiveness of request coalescing and detect potential issues.
+func (s *EVMDetailsSyncService) logTaskDeduplicationMetrics() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			if s.taskDeduplicator != nil {
+				metrics := s.taskDeduplicator.GetMetrics()
+				global.Logger.Infof(
+					"EVM task dedup metrics: inflight=%d/%d, total=%d, coalesced=%d (%.1f%%), direct=%d, cleanup=%d",
+					metrics.InflightCount,
+					metrics.MaxInflightSize,
+					metrics.TotalRequests,
+					metrics.CoalescedRequests,
+					metrics.CoalescedRatio*100,
+					metrics.DirectRequests,
+					metrics.CleanupCount,
+				)
+			}
+		}
+	}
+}
+
+// batchUpdateFlusher periodically flushes the batch update buffer.
+func (s *EVMDetailsSyncService) batchUpdateFlusher() {
+	defer s.wg.Done()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-s.flushTicker.C:
+			s.flushUpdateBuffer()
+		}
+	}
+}
+
+// addToUpdateBuffer adds an EVM transaction update to the batch buffer.
+// If buffer is full, it triggers an immediate flush.
+func (s *EVMDetailsSyncService) addToUpdateBuffer(update *EVMTransactionUpdate) {
+	s.updateBufferMutex.Lock()
+	s.updateBuffer = append(s.updateBuffer, update)
+	shouldFlush := len(s.updateBuffer) >= s.updateBufferSize
+	s.updateBufferMutex.Unlock()
+
+	// Flush immediately if buffer is full (async to avoid blocking)
+	if shouldFlush {
+		go s.flushUpdateBuffer()
+	}
+}
+
+// flushUpdateBuffer flushes all pending updates in the buffer to the database.
+func (s *EVMDetailsSyncService) flushUpdateBuffer() {
+	s.updateBufferMutex.Lock()
+	if len(s.updateBuffer) == 0 {
+		s.updateBufferMutex.Unlock()
+		return
+	}
+
+	// Take ownership of current buffer and create new one
+	updates := s.updateBuffer
+	s.updateBuffer = make([]*EVMTransactionUpdate, 0, s.updateBufferSize)
+	s.updateBufferMutex.Unlock()
+
+	// Execute batch update
+	if err := s.executeBatchUpdate(updates); err != nil {
+		global.Logger.Errorf("Batch update failed for %d txs: %v", len(updates), err)
+		// Fallback to individual updates on error
+		s.fallbackToIndividualUpdates(updates)
+	} else {
+		global.Logger.Debugf("Successfully batch updated %d EVM transactions", len(updates))
+	}
+}
+
+// executeBatchUpdate executes a batch update using GORM's CreateInBatches with OnConflict.
+func (s *EVMDetailsSyncService) executeBatchUpdate(updates []*EVMTransactionUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Convert EVMTransactionUpdate to EVMTransaction for GORM
+	evmTxs := make([]*models.EVMTransaction, len(updates))
+	for i, u := range updates {
+		evmTxs[i] = &models.EVMTransaction{
+			TransactionHash:      u.TransactionHash,
+			EVMDetailsSynced:     u.EVMDetailsSynced,
+			EVMDetailsSyncAt:     u.EVMDetailsSyncAt,
+			EVMDetailsSyncError:  u.EVMDetailsSyncError,
+			EVMFromAddress:       u.EVMFromAddress,
+			EVMToAddress:         u.EVMToAddress,
+			EVMDetailsStorageKey: u.EVMDetailsStorageKey,
+			RawDetailsJSON:       u.RawDetailsJSON,
+		}
+		evmTxs[i].ID = u.ID
+		evmTxs[i].UpdatedAt = u.UpdatedAt
+	}
+
+	// Use CreateInBatches with ON CONFLICT UPDATE (similar to sync.go:950-965)
+	// This performs INSERT ... ON DUPLICATE KEY UPDATE which is more efficient than UPDATE
+	return db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Use Clauses with OnConflict for batch upsert
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "transaction_hash"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"evm_details_synced",
+				"evm_details_sync_at",
+				"evm_details_sync_error",
+				"evm_from_address",
+				"evm_to_address",
+				"evm_details_storage_key",
+				"raw_details_json",
+				"updated_at",
+			}),
+		}).CreateInBatches(evmTxs, 100).Error
+	})
+}
+
+// fallbackToIndividualUpdates falls back to individual updates when batch update fails.
+// This ensures data consistency even if batch operations fail.
+func (s *EVMDetailsSyncService) fallbackToIndividualUpdates(updates []*EVMTransactionUpdate) {
+	global.Logger.Warnf("Falling back to individual updates for %d transactions", len(updates))
+
+	successCount := 0
+	for _, u := range updates {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := db.Get().WithContext(ctx).
+			Model(&models.EVMTransaction{}).
+			Where("id = ? AND transaction_hash = ?", u.ID, u.TransactionHash).
+			Updates(map[string]interface{}{
+				"evm_details_synced":      u.EVMDetailsSynced,
+				"evm_details_sync_at":     u.EVMDetailsSyncAt,
+				"evm_details_sync_error":  u.EVMDetailsSyncError,
+				"evm_from_address":        u.EVMFromAddress,
+				"evm_to_address":          u.EVMToAddress,
+				"evm_details_storage_key": u.EVMDetailsStorageKey,
+				"raw_details_json":        u.RawDetailsJSON,
+				"updated_at":              u.UpdatedAt,
+			}).Error
+		cancel()
+
+		if err != nil {
+			global.Logger.Errorf("Individual update failed for transaction %s: %v", u.TransactionHash, err)
+		} else {
+			successCount++
+		}
+	}
+
+	global.Logger.Infof("Individual updates completed: %d/%d successful", successCount, len(updates))
 }

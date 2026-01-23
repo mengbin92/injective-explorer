@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 )
 
@@ -484,4 +486,329 @@ func (c *EVMClient) RecoverSender(ctx context.Context, evmHash string, v, r, s s
 	}
 
 	return sender.Hex(), nil
+}
+
+// GetTransactionDetailsBatch gets transaction details for multiple transactions in batch.
+// This significantly reduces RPC calls by batching requests for transactions, receipts, and blocks.
+// Returns a slice of TransactionDetails and a slice of errors (one per transaction).
+// If batch call fails, automatically falls back to individual GetTransactionDetails calls.
+func (c *EVMClient) GetTransactionDetailsBatch(ctx context.Context, txHashes []common.Hash) ([]*TransactionDetails, []error) {
+	if len(txHashes) == 0 {
+		return nil, nil
+	}
+
+	results := make([]*TransactionDetails, len(txHashes))
+	errs := make([]error, len(txHashes))
+
+	// Try batch RPC call first
+	batchResults, batchErrs, batchCallErr := c.batchGetTransactionDetailsInternal(ctx, txHashes)
+	if batchCallErr == nil {
+		// Batch call succeeded
+		copy(results, batchResults)
+		copy(errs, batchErrs)
+		return results, errs
+	}
+
+	// Batch call failed, fall back to individual calls
+	return c.fallbackToIndividualCalls(ctx, txHashes)
+}
+
+// batchGetTransactionDetailsInternal performs batch RPC calls to fetch transaction details.
+// Returns results, errors per transaction, and an error if the batch call itself fails.
+func (c *EVMClient) batchGetTransactionDetailsInternal(ctx context.Context, txHashes []common.Hash) ([]*TransactionDetails, []error, error) {
+	results := make([]*TransactionDetails, len(txHashes))
+	errs := make([]error, len(txHashes))
+
+	// Create RPC client for batch calls
+	rpcClient, err := rpc.DialContext(ctx, c.rpcURL)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to dial RPC for batch call")
+	}
+	defer rpcClient.Close()
+
+	// Phase 1: Batch get transactions and receipts
+	txs, receipts, err := c.batchGetTransactionsAndReceipts(ctx, rpcClient, txHashes)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to batch get transactions and receipts")
+	}
+
+	// Phase 2: Collect unique block numbers needed
+	blockNumbers := make(map[uint64]bool)
+	for i, receipt := range receipts {
+		if receipt != nil && errs[i] == nil {
+			blockNumbers[receipt.BlockNumber.Uint64()] = true
+		}
+	}
+
+	// Phase 3: Batch get blocks
+	blocks, err := c.batchGetBlocks(ctx, rpcClient, blockNumbers)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to batch get blocks")
+	}
+
+	// Phase 4: Get current block number (only once)
+	currentBlockNumber, err := c.client.BlockNumber(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get current block number")
+	}
+
+	// Phase 5: Build TransactionDetails for each transaction
+	for i := range txHashes {
+		if txs[i] == nil || receipts[i] == nil {
+			errs[i] = fmt.Errorf("transaction or receipt not found")
+			continue
+		}
+
+		block := blocks[receipts[i].BlockNumber.Uint64()]
+		if block == nil {
+			errs[i] = fmt.Errorf("block not found")
+			continue
+		}
+
+		// Build transaction details
+		results[i], errs[i] = c.buildTransactionDetailsFromComponents(
+			txHashes[i], txs[i], receipts[i], block, currentBlockNumber,
+		)
+	}
+
+	return results, errs, nil
+}
+
+// batchGetTransactionsAndReceipts uses BatchCallContext to fetch transactions and receipts.
+func (c *EVMClient) batchGetTransactionsAndReceipts(ctx context.Context, rpcClient *rpc.Client, txHashes []common.Hash) ([]*types.Transaction, []*types.Receipt, error) {
+	// Build batch requests
+	batchElems := make([]rpc.BatchElem, len(txHashes)*2)
+	txResults := make([]*types.Transaction, len(txHashes))
+	receiptResults := make([]*types.Receipt, len(txHashes))
+
+	for i, hash := range txHashes {
+		batchElems[i*2] = rpc.BatchElem{
+			Method: "eth_getTransactionByHash",
+			Args:   []interface{}{hash},
+			Result: &txResults[i],
+		}
+		batchElems[i*2+1] = rpc.BatchElem{
+			Method: "eth_getTransactionReceipt",
+			Args:   []interface{}{hash},
+			Result: &receiptResults[i],
+		}
+	}
+
+	// Execute batch call
+	err := rpcClient.BatchCallContext(ctx, batchElems)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Check individual errors
+	for i := range batchElems {
+		if batchElems[i].Error != nil {
+			// Log but don't fail the entire batch
+			if i%2 == 0 {
+				txResults[i/2] = nil
+			} else {
+				receiptResults[i/2] = nil
+			}
+		}
+	}
+
+	return txResults, receiptResults, nil
+}
+
+// batchGetBlocks fetches multiple blocks in batch.
+func (c *EVMClient) batchGetBlocks(ctx context.Context, rpcClient *rpc.Client, blockNumbers map[uint64]bool) (map[uint64]*types.Block, error) {
+	if len(blockNumbers) == 0 {
+		return make(map[uint64]*types.Block), nil
+	}
+
+	// Convert map to slice
+	numbers := make([]uint64, 0, len(blockNumbers))
+	for num := range blockNumbers {
+		numbers = append(numbers, num)
+	}
+
+	// Build batch requests for blocks
+	batchElems := make([]rpc.BatchElem, len(numbers))
+	blockResults := make([]*types.Block, len(numbers))
+
+	for i, num := range numbers {
+		batchElems[i] = rpc.BatchElem{
+			Method: "eth_getBlockByNumber",
+			Args:   []interface{}{fmt.Sprintf("0x%x", num), true}, // true = include transactions
+			Result: &blockResults[i],
+		}
+	}
+
+	// Execute batch call
+	err := rpcClient.BatchCallContext(ctx, batchElems)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build result map
+	blocks := make(map[uint64]*types.Block)
+	for i, num := range numbers {
+		if batchElems[i].Error == nil && blockResults[i] != nil {
+			blocks[num] = blockResults[i]
+		}
+	}
+
+	return blocks, nil
+}
+
+// buildTransactionDetailsFromComponents builds TransactionDetails from individual components.
+// This is extracted from getTransactionDetailsInternal to enable reuse in batch operations.
+// It uses pre-fetched components (tx, receipt, block) instead of making RPC calls.
+func (c *EVMClient) buildTransactionDetailsFromComponents(
+	txHash common.Hash,
+	tx *types.Transaction,
+	receipt *types.Receipt,
+	block *types.Block,
+	currentBlockNumber uint64,
+) (*TransactionDetails, error) {
+	// Check for pending transaction
+	if receipt == nil || block == nil {
+		return nil, fmt.Errorf("transaction is still pending or not found")
+	}
+
+	// Recover From address
+	signer := types.NewEIP155Signer(c.chainID)
+	from, err := types.Sender(signer, tx)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to recover sender")
+	}
+
+	// Extract method signature
+	method := ""
+	if len(tx.Data()) >= 4 {
+		method = "0x" + hex.EncodeToString(tx.Data()[:4])
+	}
+
+	// Calculate gas price and fee
+	gasPrice := tx.GasPrice()
+	var baseFee, maxFeePerGas, maxPriorityFee *big.Int
+
+	// Check if this is an EIP-1559 transaction
+	if tx.Type() == types.DynamicFeeTxType {
+		maxFeePerGas = tx.GasFeeCap()
+		maxPriorityFee = tx.GasTipCap()
+		// Base fee must be obtained from block header
+		if block.BaseFee() != nil {
+			baseFee = block.BaseFee()
+			// Actual gas price paid = baseFee + priorityFee
+			gasPrice = new(big.Int).Add(baseFee, maxPriorityFee)
+		}
+	}
+
+	// Calculate transaction fee
+	transactionFee := new(big.Int).Mul(
+		big.NewInt(int64(receipt.GasUsed)),
+		gasPrice,
+	)
+
+	// Calculate gas usage percentage
+	var gasUsedPercent float64
+	if tx.Gas() > 0 {
+		gasUsedPercent = float64(receipt.GasUsed) / float64(tx.Gas()) * 100
+	}
+
+	// Build log information
+	logs := make([]LogInfo, len(receipt.Logs))
+	for i, log := range receipt.Logs {
+		topics := make([]string, len(log.Topics))
+		for j, topic := range log.Topics {
+			topics[j] = topic.Hex()
+		}
+		logs[i] = LogInfo{
+			Address: log.Address.Hex(),
+			Topics:  topics,
+			Data:    hex.EncodeToString(log.Data),
+			Index:   log.Index,
+			Removed: log.Removed,
+		}
+	}
+
+	// Determine To address
+	to := ""
+	if tx.To() != nil {
+		to = tx.To().Hex()
+	}
+
+	// For contract creation, use contract address from receipt
+	contractAddress := ""
+	if receipt.ContractAddress != (common.Address{}) {
+		contractAddress = receipt.ContractAddress.Hex()
+		// If To is empty and we have a contract address, use it
+		if to == "" {
+			to = contractAddress
+		}
+	}
+
+	// Determine status
+	status := "Failed"
+	if receipt.Status == 1 {
+		status = "Success"
+	}
+
+	// Build result
+	details := &TransactionDetails{
+		Hash:             txHash.Hex(),
+		Status:           status,
+		Method:           method,
+		BlockNumber:      receipt.BlockNumber.Uint64(),
+		BlockHash:        receipt.BlockHash.Hex(),
+		Confirmations:    currentBlockNumber - receipt.BlockNumber.Uint64(),
+		Timestamp:        time.Unix(int64(block.Time()), 0),
+		From:             from.Hex(),
+		To:               to,
+		ContractAddress:  contractAddress,
+		Value:            tx.Value().String(),
+		TransactionFee:   transactionFee.String(),
+		GasPrice:         gasPrice.String(),
+		GasLimit:         tx.Gas(),
+		GasUsed:          receipt.GasUsed,
+		GasUsedPercent:   gasUsedPercent,
+		Nonce:            tx.Nonce(),
+		Input:            hex.EncodeToString(tx.Data()),
+		TransactionIndex: receipt.TransactionIndex,
+		Logs:             logs,
+		ParseStatus:      "success",
+	}
+
+	// Add EIP-1559 related fields
+	if baseFee != nil {
+		details.BaseFee = baseFee.String()
+	}
+	if maxFeePerGas != nil {
+		details.MaxFeePerGas = maxFeePerGas.String()
+	}
+	if maxPriorityFee != nil {
+		details.MaxPriorityFee = maxPriorityFee.String()
+	}
+
+	return details, nil
+}
+
+// fallbackToIndividualCalls falls back to individual GetTransactionDetails calls when batch fails.
+func (c *EVMClient) fallbackToIndividualCalls(ctx context.Context, txHashes []common.Hash) ([]*TransactionDetails, []error) {
+	results := make([]*TransactionDetails, len(txHashes))
+	errs := make([]error, len(txHashes))
+
+	// Use a semaphore to limit concurrency
+	sem := make(chan struct{}, 5) // Max 5 concurrent requests
+	var wg sync.WaitGroup
+
+	for i, hash := range txHashes {
+		wg.Add(1)
+		go func(idx int, txHash common.Hash) {
+			defer wg.Done()
+			sem <- struct{}{}        // Acquire
+			defer func() { <-sem }() // Release
+
+			results[idx], errs[idx] = c.GetTransactionDetails(ctx, txHash)
+		}(i, hash)
+	}
+
+	wg.Wait()
+	return results, errs
 }
