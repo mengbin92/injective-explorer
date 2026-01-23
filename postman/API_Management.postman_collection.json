@@ -355,6 +355,63 @@
           "response": []
         },
         {
+          "name": "Get Block Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/block/transactions?height={{block_height}}&pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "block",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "height",
+                  "value": "{{block_height}}",
+                  "description": "Block height"
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "Page size (default: 20, max: 100)"
+                }
+              ]
+            },
+            "description": "Get transactions of a specific block with pagination. Requires Bearer token authentication."
+          },
+          "response": []
+        },
+        {
           "name": "Get Account Info",
           "event": [
             {

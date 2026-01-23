@@ -171,6 +171,71 @@
           "response": []
         },
         {
+          "name": "获取区块交易列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has transactions data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('transactions');",
+                  "        pm.expect(jsonData.data.transactions).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/block/transactions?height={{block_height}}&pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "block",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "height",
+                  "value": "{{block_height}}",
+                  "description": "Block height"
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                }
+              ]
+            },
+            "description": "获取指定区块的交易列表（分页）"
+          },
+          "response": []
+        },
+        {
           "name": "获取最新区块高度",
           "event": [
             {
