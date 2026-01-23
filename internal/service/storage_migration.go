@@ -85,8 +85,9 @@ func (s *StorageMigrationService) MigrateTransactions(ctx context.Context, confi
 	if config.Threshold < 0 {
 		return errors.New("threshold must be non-negative")
 	}
-	if config.BatchSize > 1000 {
-		global.Logger.Warnf("batch size %d is very large, consider using a smaller value for better performance", config.BatchSize)
+	if config.BatchSize > MaxStorageMigrationBatch {
+		global.Logger.Warnf("batch size %d is very large (max recommended: %d), consider using a smaller value for better performance",
+			config.BatchSize, MaxStorageMigrationBatch)
 	}
 
 	global.Logger.Infof("starting transaction migration to object storage: batch_size=%d, threshold=%d, dry_run=%v",

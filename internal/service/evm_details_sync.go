@@ -804,7 +804,7 @@ func (s *EVMDetailsSyncService) periodicSignerUpdateWorker() {
 // checkAndUpdateMissingSigners checks for EVM transactions with missing signatures or signer
 // and attempts to update them from evm_transactions table.
 func (s *EVMDetailsSyncService) checkAndUpdateMissingSigners() {
-	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.ctx, EVMDetailsTimeout)
 	defer cancel()
 
 	// Find EVM transactions that have been synced but transactions table has empty signer

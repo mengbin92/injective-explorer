@@ -136,7 +136,7 @@ func (s *SyncService) TryAcquireSyncLock(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 
-	lockTTL := 30 * time.Second
+	lockTTL := SyncLockTTL
 
 	// Try to acquire lock using SETNX (SET if Not eXists)
 	acquired, err := redisClient.SetNX(ctx, s.syncLockKey, s.syncLockValue, lockTTL).Result()
@@ -1669,7 +1669,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	// Step 7: Update accounts for all transactions (can be done in background)
 	// Note: Account updates are done individually but can be optimized later
 	go func() {
-		accountCtx, accountCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		accountCtx, accountCancel := context.WithTimeout(context.Background(), AccountQueryTimeout)
 		defer accountCancel()
 		for _, tm := range txModels {
 			// Convert GetTxResponse to TxDetailData for account extraction
@@ -2233,8 +2233,8 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 // Uses independent context with timeout to avoid deadline exceeded errors.
 func (s *SyncService) updateAccountBalances(ctx context.Context, address string) error {
 	// Create independent context with timeout for balance query
-	// Use longer timeout (30s) as balance queries may take time
-	balanceCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Use AccountQueryTimeout as balance queries may take time
+	balanceCtx, cancel := context.WithTimeout(context.Background(), AccountQueryTimeout)
 	defer cancel()
 
 	// Get account balances from chain with retry logic

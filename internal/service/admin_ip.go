@@ -708,10 +708,12 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 
 	// Validate values
 	if req.IpPerMinute < IPRateLimitPerMinMin || req.IpPerMinute > IPRateLimitPerMinMax {
-		return ErrorReply(http.StatusBadRequest, "ip_per_minute must be between 10 and 1000", nil), nil
+		return ErrorReply(http.StatusBadRequest,
+			fmt.Sprintf("ip_per_minute must be between %d and %d", IPRateLimitPerMinMin, IPRateLimitPerMinMax), nil), nil
 	}
 	if req.IpPerHour < IPRateLimitPerHourMin || req.IpPerHour > IPRateLimitPerHourMax {
-		return ErrorReply(http.StatusBadRequest, "ip_per_hour must be between 100 and 50000", nil), nil
+		return ErrorReply(http.StatusBadRequest,
+			fmt.Sprintf("ip_per_hour must be between %d and %d", IPRateLimitPerHourMin, IPRateLimitPerHourMax), nil), nil
 	}
 
 	// Prepare configuration data for persistence

@@ -65,7 +65,7 @@ func (s *ExportService) ExportUsageLogs(ctx context.Context, userID string, w io
 	}
 
 	// Query in batches to avoid memory issues
-	batchSize := 1000
+	batchSize := ExportBatchSize
 	page := 1
 	row := 2
 

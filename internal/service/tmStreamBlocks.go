@@ -96,7 +96,7 @@ func (s *SyncService) getAllValidators(ctx context.Context) error {
 	validatorsResp, err := stakingClient.Validators(ctx, &stakingtypes.QueryValidatorsRequest{
 		// Status: stakingtypes.BondStatusBonded, // Query bonded validators
 		Pagination: &query.PageRequest{
-			Limit: 1000, // Query up to 1000 validators
+			Limit: MaxValidatorQueryLimit, // Query up to MaxValidatorQueryLimit validators
 		},
 	})
 	if err != nil {

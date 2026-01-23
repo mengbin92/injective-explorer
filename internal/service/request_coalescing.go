@@ -58,22 +58,22 @@ type RequestCoalescer struct {
 // NewRequestCoalescer creates a new request coalescer instance.
 //
 // Parameters:
-//   - maxInflightAge: Maximum age of an inflight request before cleanup (default: 30s).
-//   - cleanupInterval: How often to run cleanup (default: 30s).
-//   - maxInflightSize: Maximum number of concurrent inflight requests (default: 1000).
+//   - maxInflightAge: Maximum age of an inflight request before cleanup (default: RequestCoalescerMaxInflightAge).
+//   - cleanupInterval: How often to run cleanup (default: RequestCoalescerCleanupInterval).
+//   - maxInflightSize: Maximum number of concurrent inflight requests (default: RequestCoalescerMaxInflightSize).
 //     When exceeded, new requests will execute directly without coalescing (graceful degradation).
 //
 // Returns:
 //   - *RequestCoalescer: A new request coalescer instance.
 func NewRequestCoalescer(maxInflightAge, cleanupInterval time.Duration, maxInflightSize int) *RequestCoalescer {
 	if maxInflightAge <= 0 {
-		maxInflightAge = 30 * time.Second
+		maxInflightAge = RequestCoalescerMaxInflightAge
 	}
 	if cleanupInterval <= 0 {
-		cleanupInterval = 30 * time.Second
+		cleanupInterval = RequestCoalescerCleanupInterval
 	}
 	if maxInflightSize <= 0 {
-		maxInflightSize = 1000
+		maxInflightSize = RequestCoalescerMaxInflightSize
 	}
 
 	rc := &RequestCoalescer{
@@ -104,7 +104,11 @@ func NewRequestCoalescer(maxInflightAge, cleanupInterval time.Duration, maxInfli
 //
 // Example:
 //
-//	coalescer := NewRequestCoalescer(30*time.Second, 30*time.Second, 1000)
+//	coalescer := NewRequestCoalescer(
+//		RequestCoalescerMaxInflightAge,
+//		RequestCoalescerCleanupInterval,
+//		RequestCoalescerMaxInflightSize,
+//	)
 //	result, err := coalescer.Do(ctx, "tx:hash:0x123", func() (interface{}, error) {
 //	    return db.GetTransaction("0x123")
 //	})

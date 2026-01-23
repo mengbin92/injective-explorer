@@ -21,6 +21,10 @@ const (
 	DBQueryTimeout          = 5 * time.Second  // Database query timeout (reduced from 10s to 5s for faster failure)
 	AsyncEnhancementTimeout = 10 * time.Second // Timeout for asynchronous block/transaction enhancement operations
 	ValidatorUpdateInterval = 10 * time.Minute // Interval for periodic validator updates
+	DefaultEVMTimeout       = 30 * time.Second // Default timeout for EVM client operations
+	SyncLockTTL             = 30 * time.Second // TTL for distributed sync lock in Redis
+	AccountQueryTimeout     = 30 * time.Second // Timeout for account-related queries (balances, staking info)
+	EVMDetailsTimeout       = 30 * time.Second // Timeout for EVM transaction details queries
 
 	// Approximate count constants
 	ApproximateCountThreshold  = 10000
@@ -42,20 +46,28 @@ const (
 	StreamInitialTransactionsCount = 20               // Number of initial transactions to send from cache in stream
 	StreamFirstEventTimeout        = 10 * time.Second // Timeout for waiting first event in stream
 	StreamHeartbeatInterval        = 30 * time.Second // Heartbeat ticker interval for stream
+	StatsUpdateInterval            = 30 * time.Second // Interval for updating statistics (TPS, gas price, etc.)
+	MinCacheTTL                    = 30 * time.Second // Minimum TTL for cache entries before refresh
+
+	// Request coalescing constants
+	RequestCoalescerMaxInflightAge  = 30 * time.Second // Maximum age for inflight requests before cleanup
+	RequestCoalescerCleanupInterval = 30 * time.Second // Interval for cleaning up stale inflight requests
+	RequestCoalescerMaxInflightSize = 1000             // Maximum number of concurrent inflight requests
 
 	// Account query constants
 	AccountTransactionLimit = 50 // Maximum number of transactions to return for account queries
 
 	// Transaction statistics constants
-	TPSBlockCount            = 100         // Number of latest blocks to use for TPS calculation
-	AvgBlockTimeSeconds      = 2.0         // Average block time in seconds (for Cosmos chains)
-	MillisecondsPerSecond    = 1000.0      // Conversion factor from milliseconds to seconds
-	StatsDays30              = 30          // Number of days for 30-day statistics
-	StatsHours24             = 24          // Number of hours for 24-hour statistics
-	GasPriceBlockCount       = 10          // Number of latest blocks to use for gas price calculation
-	BlockTimeBlockCount      = 100         // Number of latest blocks to use for average block time calculation
-	GasUtilizationBlockCount = 10          // Number of latest blocks to use for gas utilization calculation
-	BlockGasLimit            = 150_000_000 // Default block gas limit for Injective (fallback value if consensus params query fails)
+	TPSBlockCount              = 100         // Number of latest blocks to use for TPS calculation
+	AvgBlockTimeSeconds        = 2.0         // Average block time in seconds (for Cosmos chains)
+	MillisecondsPerSecond      = 1000.0      // Conversion factor from milliseconds to seconds
+	StatsDays30                = 30          // Number of days for 30-day statistics
+	StatsHours24               = 24          // Number of hours for 24-hour statistics
+	GasPriceBlockCount         = 10          // Number of latest blocks to use for gas price calculation
+	BlockTimeBlockCount        = 100         // Number of latest blocks to use for average block time calculation
+	GasUtilizationBlockCount   = 10          // Number of latest blocks to use for gas utilization calculation
+	BlockGasLimit              = 150_000_000 // Default block gas limit for Injective (fallback value if consensus params query fails)
+	Latest1000TransactionsLimit = 1000       // Number of latest transactions to analyze for failure statistics
 
 	// Chain query constants
 	RecentBlockThreshold = 1000  // Block height threshold for querying from chain (within last N blocks)
@@ -65,8 +77,11 @@ const (
 	MaxTxEnhancementCount = 100 // Maximum number of transactions to enhance synchronously (blocks with more txs are enhanced asynchronously)
 
 	// Batch size constants
-	BlockBatchSizeLimit = 100 // Maximum batch size for block queries
-	QueryBatchLimit     = 100 // Maximum batch size for generic queries
+	BlockBatchSizeLimit        = 100  // Maximum batch size for block queries
+	QueryBatchLimit            = 100  // Maximum batch size for generic queries
+	ExportBatchSize            = 1000 // Batch size for export operations
+	MaxValidatorQueryLimit     = 1000 // Maximum number of validators to query at once
+	MaxStorageMigrationBatch   = 1000 // Maximum batch size for storage migration operations
 
 	// API token constants
 	DefaultAPITokenMonthlyLimit = 100000 // Default monthly limit for API tokens

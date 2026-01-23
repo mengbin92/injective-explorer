@@ -16,8 +16,6 @@ import (
 	"injective-explorer/provider/storage"
 
 	"github.com/bytedance/sonic"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -133,23 +131,6 @@ func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 		return nil
 	}
 
-	// Convert Txs from JSON strings to JSON objects
-	var txs []*structpb.Struct
-	if len(block.Txs) > 0 {
-		txs = make([]*structpb.Struct, 0, len(block.Txs))
-		for _, txStr := range block.Txs {
-			if txStr == "" {
-				continue
-			}
-			// Parse JSON string to structpb.Struct
-			var txStruct structpb.Struct
-			if err := protojson.Unmarshal([]byte(txStr), &txStruct); err == nil {
-				txs = append(txs, &txStruct)
-			}
-			// If parsing fails, skip this transaction (graceful degradation)
-		}
-	}
-
 	if isDetail {
 		return &pb.BlockDTO{
 			Height:             block.Height,
@@ -160,7 +141,7 @@ func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 			NumPrecommits:      block.NumPrecommits,
 			NumTxs:             block.NumTxs,
 			TotalTxs:           block.TotalTxs,
-			Txs:                txs,
+			Txs:                block.Txs,
 			Timestamp:          block.Timestamp,
 			BlockUnixTimestamp: block.BlockUnixTimestamp,
 		}
@@ -693,7 +674,7 @@ func ToIPDetailDTO(ipAddress, ipLocation, status string, firstRegisterTime time.
 		Status:            status,
 		FirstRegisterTime: firstRegisterTimeStr,
 		TotalRegisters:    totalRegisters,
-		Accounts:         accounts,
+		Accounts:          accounts,
 	}
 }
 

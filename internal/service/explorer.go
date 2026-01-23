@@ -29,9 +29,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -61,7 +59,7 @@ func createEVMClient() (*chain.EVMClient, error) {
 
 		timeout := global.EVMConfig.Timeout.AsDuration()
 		if timeout == 0 {
-			timeout = 30 * time.Second
+			timeout = DefaultEVMTimeout
 		}
 
 		return chain.NewEVMClientWithConfig(&chain.EVMConfig{
@@ -82,7 +80,11 @@ func createEVMClient() (*chain.EVMClient, error) {
 //   - *ExplorerService: A new service instance
 func NewExplorerService() *ExplorerService {
 	return &ExplorerService{
-		coalescer: NewRequestCoalescer(30*time.Second, 30*time.Second, 1000),
+		coalescer: NewRequestCoalescer(
+			RequestCoalescerMaxInflightAge,
+			RequestCoalescerCleanupInterval,
+			RequestCoalescerMaxInflightSize,
+		),
 	}
 }
 
@@ -360,18 +362,19 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	return MarshalAndReply(blockDTO, "marshal block error")
 }
 
-// enhanceBlockDTOWithTransactions enhances BlockDTO with transaction signer, to, and value information.
-// It queries the database for transactions in the block and merges the information into the Txs field.
-// If transactions are not yet in the database, it fetches them from the chain and saves them to the database.
+// enhanceBlockDTOWithTransactions preloads transaction information from the database.
+// The Txs field now contains transaction hashes (strings) instead of full transaction objects.
+// This function queries the database for transactions in the block and fetches missing ones from the chain.
+// The Txs field remains as a hash list - detailed transaction info should be fetched via dedicated transaction APIs.
 // Optimized with batch processing and timeout management for better performance.
 //
 // Parameters:
 //   - ctx: Context for database queries
-//   - blockDTO: The BlockDTO to enhance
+//   - blockDTO: The BlockDTO with Txs as hash list
 //   - blockHeight: The block height
 //
 // Returns:
-//   - *pb.BlockDTO: Enhanced BlockDTO with transaction signer, to, value information
+//   - *pb.BlockDTO: The original blockDTO (Txs remains as hash list)
 func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, blockDTO *pb.BlockDTO, blockHeight uint64) *pb.BlockDTO {
 	if blockDTO == nil || len(blockDTO.Txs) == 0 {
 		return blockDTO
@@ -411,37 +414,16 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 
 	// Collect missing transaction hashes
 	missingHashes := make([]string, 0)
-	hashToTxStruct := make(map[string]*structpb.Struct)
 
 	// First pass: identify missing transactions
-	for _, txStruct := range blockDTO.Txs {
-		if txStruct == nil {
-			continue
-		}
-
-		// Extract hash from txStruct
-		hashValue, ok := txStruct.Fields["hash"]
-		if !ok {
-			continue
-		}
-
-		// Get hash string
-		hashStr := ""
-		if hashValue != nil {
-			if hashValue.GetKind() != nil {
-				switch v := hashValue.GetKind().(type) {
-				case *structpb.Value_StringValue:
-					hashStr = v.StringValue
-				}
-			}
-		}
-
-		if hashStr == "" {
+	// blockDTO.Txs is now []string (hash list), not []*structpb.Struct
+	for _, txHash := range blockDTO.Txs {
+		if txHash == "" {
 			continue
 		}
 
 		// Normalize hash (remove 0x prefix if present)
-		normalizedHash := hashStr
+		normalizedHash := txHash
 		if len(normalizedHash) >= 2 && normalizedHash[:2] == "0x" {
 			normalizedHash = normalizedHash[2:]
 		}
@@ -449,7 +431,6 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 		// Check if transaction exists in database
 		if _, found := txMap[normalizedHash]; !found {
 			missingHashes = append(missingHashes, normalizedHash)
-			hashToTxStruct[normalizedHash] = txStruct
 		}
 	}
 
@@ -549,80 +530,12 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 		}
 	}
 
-	// Enhance each transaction in blockDTO.Txs with signer, to, value
-	enhancedTxs := make([]*structpb.Struct, 0, len(blockDTO.Txs))
-	for _, txStruct := range blockDTO.Txs {
-		if txStruct == nil {
-			continue
-		}
+	// Note: The Txs field now contains only transaction hashes (strings).
+	// Detailed transaction information (signer, to, value) should be fetched
+	// via the GetTransactionByHash API for individual transactions.
+	// This function primarily serves to preload missing transactions into the database.
 
-		// Extract hash from txStruct
-		hashValue, ok := txStruct.Fields["hash"]
-		if !ok {
-			// If hash not found, keep original transaction
-			enhancedTxs = append(enhancedTxs, txStruct)
-			continue
-		}
-
-		// Get hash string
-		hashStr := ""
-		if hashValue != nil {
-			if hashValue.GetKind() != nil {
-				switch v := hashValue.GetKind().(type) {
-				case *structpb.Value_StringValue:
-					hashStr = v.StringValue
-				}
-			}
-		}
-
-		if hashStr == "" {
-			enhancedTxs = append(enhancedTxs, txStruct)
-			continue
-		}
-
-		// Normalize hash (remove 0x prefix if present)
-		normalizedHash := hashStr
-		if len(normalizedHash) >= 2 && normalizedHash[:2] == "0x" {
-			normalizedHash = normalizedHash[2:]
-		}
-
-		// Look up transaction in database (now includes newly fetched transactions)
-		dbTx, found := txMap[normalizedHash]
-		if !found {
-			// Transaction still not found (fetch failed or doesn't exist), keep original
-			enhancedTxs = append(enhancedTxs, txStruct)
-			continue
-		}
-
-		// Create a copy of the transaction struct and add signer, to, value fields
-		enhancedTx := proto.Clone(txStruct).(*structpb.Struct)
-		if enhancedTx.Fields == nil {
-			enhancedTx.Fields = make(map[string]*structpb.Value)
-		}
-
-		// Add signer field
-		if dbTx.Signer != "" {
-			enhancedTx.Fields["signer"] = structpb.NewStringValue(dbTx.Signer)
-		}
-
-		// Add to field
-		if dbTx.To != "" {
-			enhancedTx.Fields["to"] = structpb.NewStringValue(dbTx.To)
-		}
-
-		// Add value field
-		if dbTx.Value != "" {
-			enhancedTx.Fields["value"] = structpb.NewStringValue(dbTx.Value)
-		}
-
-		enhancedTxs = append(enhancedTxs, enhancedTx)
-	}
-
-	// Create a new BlockDTO with enhanced transactions
-	enhancedBlockDTO := proto.Clone(blockDTO).(*pb.BlockDTO)
-	enhancedBlockDTO.Txs = enhancedTxs
-
-	return enhancedBlockDTO
+	return blockDTO
 }
 
 // GetLatestBlockHeight retrieves the height of the latest block.
@@ -887,6 +800,100 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 	txDTOs := models.ToTransactionDTOs(dbTxs)
 	txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
+	return MarshalAndReply(txsResp, "marshal transactions error")
+}
+
+// GetBlockTransactions retrieves all transactions for a specific block by height.
+// Supports pagination for blocks with many transactions.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing the block height and optional pagination
+//
+// Returns:
+//   - *pb.Reply: Response containing the transactions in the block
+//   - error: Error if the operation fails or validation fails
+func (s *ExplorerService) GetBlockTransactions(ctx context.Context, req *pb.GetBlockTransactionsRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	// Validate block height
+	if req.Height <= 0 {
+		return ErrorReply(http.StatusBadRequest, "invalid block height", errors.New("block height must be positive")), errors.New("invalid block height")
+	}
+
+	// Set default pagination if not provided
+	pagination := req.Pagination
+	if pagination == nil {
+		pagination = &pb.PaginationRequest{
+			Page:     MinPage,
+			PageSize: DefaultPageSize,
+		}
+	}
+
+	// Normalize pagination parameters
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(pagination.Page, pagination.PageSize, pagination.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get block transactions: height=%d, page=%d, page_size=%d, use_cursor=%v, cursor=%v", req.Height, page, pageSize, useCursor, cursorValue)
+
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Query transactions from database with pagination
+	var dbTxs []models.Transaction
+	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).Where("block_number = ?", req.Height)
+
+	// Get total count for this block
+	var total int64
+	countErr := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).Where("block_number = ?", req.Height).Count(&total).Error
+	if countErr != nil {
+		global.Logger.Warnf("failed to get transaction count for block %d: %v", req.Height, countErr)
+	}
+
+	// Apply pagination
+	if useCursor {
+		// Use cursor-based pagination
+		// Cursor is tx_number, find transactions with tx_number > cursor (ascending order)
+		query = query.Where("tx_number > ?", cursorValue).
+			Order("tx_number ASC").
+			Limit(int(pageSize))
+	} else {
+		// Use page-based pagination
+		query = query.Order("tx_number ASC").
+			Offset(offset).
+			Limit(int(pageSize))
+	}
+
+	startTime := time.Now()
+	err := query.Find(&dbTxs).Error
+	queryDuration := time.Since(startTime)
+
+	if err != nil {
+		// Database error
+		global.Logger.Errorf("database query error: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
+	}
+
+	// Found in database or no results, convert to DTO and return
+	if len(dbTxs) > 0 {
+		global.Logger.Debugf("transactions found in database: height=%d, count=%d, query_time=%v", req.Height, len(dbTxs), queryDuration)
+	} else {
+		global.Logger.Debugf("no transactions found for block height %d", req.Height)
+	}
+
+	// Calculate next cursor
+	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+
+	// Convert to DTOs (use detail mode for rich transaction information)
+	txDTOs := make([]*pb.TransactionDTO, 0, len(dbTxs))
+	for i := range dbTxs {
+		txDTOs = append(txDTOs, models.ToTransactionDTO(&dbTxs[i], models.DTOModeWithDetail))
+	}
+
+	txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(dbTxs))
 	return MarshalAndReply(txsResp, "marshal transactions error")
 }
 
@@ -3675,9 +3682,9 @@ func getFailedTransactions24hCount(ctx context.Context, twentyFourHoursAgoUnix u
 		// Check if cache is about to expire (pre-warm)
 		redisClient := cache.GetRedisClient()
 		if redisClient != nil {
-			// If TTL < 30 seconds, refresh in background
+			// If TTL < MinCacheTTL, refresh in background to avoid cache miss
 			ttl, _ := redisClient.TTL(ctx, CacheKeyFailedTransactions24H).Result()
-			if ttl < 30*time.Second {
+			if ttl < MinCacheTTL {
 				global.Logger.Debug("cache expiring soon, refreshing in background")
 				go func() {
 					// Use separate context for background refresh
@@ -4016,12 +4023,11 @@ func (s *ExplorerService) GetFailedTransactions1000(ctx context.Context, req *em
 	g, gCtx := errgroup.WithContext(queryCtx)
 
 	var transactions []models.Transaction
-	const latest1000Limit = 1000
 
-	// Query: Get latest 1000 transactions
+	// Query: Get latest N transactions for failure statistics
 	g.Go(func() error {
 		var err error
-		transactions, err = queryLatest1000Transactions(gCtx, latest1000Limit)
+		transactions, err = queryLatest1000Transactions(gCtx, Latest1000TransactionsLimit)
 		return err
 	})
 
@@ -4043,9 +4049,9 @@ func (s *ExplorerService) GetFailedTransactions1000(ctx context.Context, req *em
 	failedTxInfos := convertToFailedTransactionInfos(failedTxs)
 
 	// Calculate success rate
-	// totalCount is the actual number of transactions retrieved (may be less than 1000 if database has fewer transactions)
+	// totalCount is the actual number of transactions retrieved (may be less than Latest1000TransactionsLimit if database has fewer transactions)
 	totalCount := int64(len(transactions))
-	global.Logger.Debugf("queryLatest1000Transactions: retrieved %d transactions (requested limit: %d)", totalCount, latest1000Limit)
+	global.Logger.Debugf("queryLatest1000Transactions: retrieved %d transactions (requested limit: %d)", totalCount, Latest1000TransactionsLimit)
 	var successRate float64
 	if totalCount > 0 {
 		successCount := totalCount - int64(len(failedTxs))
@@ -4055,12 +4061,11 @@ func (s *ExplorerService) GetFailedTransactions1000(ctx context.Context, req *em
 	}
 
 	// Build pagination info (for consistency with FailedTransactions24h)
-	// PageSize is fixed to 1000 as we query the latest 1000 transactions
-	const pageSize = 1000
+	// PageSize is fixed to Latest1000TransactionsLimit as we query the latest N transactions
 	paginationInfo := &pb.PaginationInfo{
 		Page:       1,
-		PageSize:   pageSize,
-		Total:      totalCount, // Actual number of transactions retrieved (may be less than 1000)
+		PageSize:   Latest1000TransactionsLimit,
+		Total:      totalCount, // Actual number of transactions retrieved (may be less than Latest1000TransactionsLimit)
 		TotalPages: 1,
 		HasPrev:    false,
 		HasNext:    false,
@@ -4521,9 +4526,9 @@ func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address str
 // startStatsComplexMetricsUpdater starts a background goroutine that periodically recalculates
 // complex transaction statistics metrics (TPS, gas prices, block time, gas utilization).
 // This ensures these metrics stay up-to-date even when using incremental updates for simple counts.
-// The function runs every 30 seconds to balance accuracy and performance.
+// The function runs at StatsUpdateInterval to balance accuracy and performance.
 func startStatsComplexMetricsUpdater() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(StatsUpdateInterval)
 	defer ticker.Stop()
 
 	global.Logger.Info("started background transaction stats complex metrics updater")
@@ -4750,7 +4755,7 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 		}
 		defer evmClient.Close()
 
-		evmCtx, evmCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		evmCtx, evmCancel := context.WithTimeout(context.Background(), EVMDetailsTimeout)
 		defer evmCancel()
 
 		evmDetails, err = evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(evmTx.EVMHash))
