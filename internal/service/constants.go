@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"injective-explorer/internal/conf"
+	"injective-explorer/internal/global"
+	"injective-explorer/provider/storage"
 )
 
 const (
@@ -378,5 +380,204 @@ func LoadEVMDetailsSyncConfig(bc *conf.Bootstrap) *EVMDetailsSyncConfig {
 		Timeout:            defaultEVMDetailsTimeout,
 		BatchUpdateSize:    defaultEVMDetailsBatchUpdateSize,
 		BatchFlushInterval: defaultEVMDetailsBatchFlushInterval,
+	}
+}
+
+// ============================================================================
+// Archive Cache Constants
+// ============================================================================
+
+const (
+	CacheKeyArchiveTransactionPrefix = "cache:archive:tx:"
+	CacheKeyArchiveBlockPrefix       = "cache:archive:block:"
+	CacheArchiveTransactionTTL       = 30 * time.Minute // Archive transaction cache TTL (30 minutes)
+	CacheArchiveBlockTTL             = 1 * time.Hour   // Archive block cache TTL (1 hour)
+)
+
+// ============================================================================
+// Unified Archive Configuration
+// ============================================================================
+
+// UnifiedArchiveConfig provides a unified configuration for both transaction and block archiving.
+// It supports common settings with type-specific overrides, cache configuration, and metrics.
+type UnifiedArchiveConfig struct {
+	// Common settings
+	Enabled          bool
+	AgeMonths        int
+	BatchSize        int
+	UseObjectStorage bool
+	StorageThreshold int
+	Interval         time.Duration
+
+	// Type-specific overrides (overrides common settings if non-zero)
+	TransactionAgeMonths int
+	TransactionBatchSize int
+	BlockAgeMonths       int
+	BlockBatchSize       int
+
+	// Cache settings
+	EnableCache bool
+	CacheTTL    time.Duration
+
+	// Monitoring
+	EnableMetrics    bool
+	ProgressCallback func(processed, total int64, batchSize int)
+}
+
+// GetTransactionConfig returns the ArchiveConfig for transactions based on the unified config.
+func (c *UnifiedArchiveConfig) GetTransactionConfig() *ArchiveConfig {
+	ageMonths := c.AgeMonths
+	if c.TransactionAgeMonths > 0 {
+		ageMonths = c.TransactionAgeMonths
+	}
+
+	batchSize := c.BatchSize
+	if c.TransactionBatchSize > 0 {
+		batchSize = c.TransactionBatchSize
+	}
+
+	return &ArchiveConfig{
+		ArchiveAgeMonths: ageMonths,
+		BatchSize:        batchSize,
+		UseObjectStorage: c.UseObjectStorage,
+		StorageThreshold: c.StorageThreshold,
+		ProgressCallback: c.ProgressCallback,
+	}
+}
+
+// GetBlockConfig returns the ArchiveConfig for blocks based on the unified config.
+func (c *UnifiedArchiveConfig) GetBlockConfig() *ArchiveConfig {
+	ageMonths := c.AgeMonths
+	if c.BlockAgeMonths > 0 {
+		ageMonths = c.BlockAgeMonths
+	}
+
+	batchSize := c.BatchSize
+	if c.BlockBatchSize > 0 {
+		batchSize = c.BlockBatchSize
+	}
+
+	return &ArchiveConfig{
+		ArchiveAgeMonths: ageMonths,
+		BatchSize:        batchSize,
+		UseObjectStorage: c.UseObjectStorage,
+		StorageThreshold: c.StorageThreshold,
+		ProgressCallback: c.ProgressCallback,
+	}
+}
+
+// LoadUnifiedArchiveConfig loads unified archive configuration from Bootstrap config with default values.
+// If config is nil or fields are not set, default values are used.
+//
+// Parameters:
+//   - bc: Bootstrap config (can be nil to use defaults)
+//
+// Returns:
+//   - *UnifiedArchiveConfig: Unified archive configuration
+func LoadUnifiedArchiveConfig(bc *conf.Bootstrap) *UnifiedArchiveConfig {
+	cfg := &UnifiedArchiveConfig{
+		Enabled:          false, // Default disabled for safety
+		AgeMonths:        DefaultArchiveAgeMonths,
+		BatchSize:        DefaultArchiveBatchSize,
+		StorageThreshold: DefaultStorageThreshold,
+		Interval:         24 * time.Hour,
+		EnableCache:      true,  // Cache enabled by default
+		CacheTTL:         CacheArchiveTransactionTTL,
+		EnableMetrics:    true,  // Metrics enabled by default
+	}
+
+	if bc == nil || bc.Archive == nil {
+		return cfg
+	}
+
+	archive := bc.Archive
+
+	// Load common settings
+	if archive.GetEnabled() {
+		cfg.Enabled = true
+	}
+	if archive.GetAgeMonths() > 0 {
+		cfg.AgeMonths = int(archive.GetAgeMonths())
+	}
+	if archive.GetBatchSize() > 0 {
+		cfg.BatchSize = int(archive.GetBatchSize())
+	}
+	if archive.GetStorageThreshold() > 0 {
+		cfg.StorageThreshold = int(archive.GetStorageThreshold())
+	}
+	if archive.Interval != nil {
+		cfg.Interval = archive.Interval.AsDuration()
+	}
+
+	// Load cache settings
+	if archive.GetEnableCache() {
+		cfg.EnableCache = true
+	}
+	if archive.GetCacheTtl() != nil {
+		cfg.CacheTTL = archive.GetCacheTtl().AsDuration()
+	}
+
+	// Load metrics settings
+	if archive.GetEnableMetrics() {
+		cfg.EnableMetrics = true
+	}
+
+	// Auto-detect object storage availability
+	useObjectStorage := storage.Get() != nil && !isNoOpStorage(storage.Get())
+	if archive.GetUseObjectStorage() {
+		cfg.UseObjectStorage = true
+	} else {
+		cfg.UseObjectStorage = useObjectStorage
+	}
+
+	return cfg
+}
+
+// LoadUnifiedArchiveConfigFromArchive loads unified archive configuration from Archive config with default values.
+// This is a helper function to load from global.ArchiveConfig directly.
+//
+// Parameters:
+//   - archiveCfg: Archive configuration (can be nil to use defaults)
+//
+// Returns:
+//   - *UnifiedArchiveConfig: Unified archive configuration
+func LoadUnifiedArchiveConfigFromArchive(archiveCfg *conf.Archive) *UnifiedArchiveConfig {
+	// Create a minimal Bootstrap wrapper
+	if archiveCfg == nil {
+		return &UnifiedArchiveConfig{
+			Enabled:          false,
+			AgeMonths:        DefaultArchiveAgeMonths,
+			BatchSize:        DefaultArchiveBatchSize,
+			StorageThreshold: DefaultStorageThreshold,
+			Interval:         24 * time.Hour,
+			EnableCache:      true,
+			CacheTTL:         CacheArchiveTransactionTTL,
+			EnableMetrics:    true,
+		}
+	}
+
+	// Use the main LoadUnifiedArchiveConfig function with a Bootstrap wrapper
+	return LoadUnifiedArchiveConfig(&conf.Bootstrap{Archive: archiveCfg})
+}
+
+// DefaultUnifiedArchiveConfig returns default unified archive configuration.
+// It automatically loads from global.ArchiveConfig if available.
+func DefaultUnifiedArchiveConfig() *UnifiedArchiveConfig {
+	if global.ArchiveConfig != nil {
+		return LoadUnifiedArchiveConfigFromArchive(global.ArchiveConfig)
+	}
+
+	// Fallback to constants
+	useObjectStorage := storage.Get() != nil && !isNoOpStorage(storage.Get())
+	return &UnifiedArchiveConfig{
+		Enabled:          false,
+		AgeMonths:        DefaultArchiveAgeMonths,
+		BatchSize:        DefaultArchiveBatchSize,
+		UseObjectStorage: useObjectStorage,
+		StorageThreshold: DefaultStorageThreshold,
+		Interval:         24 * time.Hour,
+		EnableCache:      true,
+		CacheTTL:         CacheArchiveTransactionTTL,
+		EnableMetrics:    true,
 	}
 }

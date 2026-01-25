@@ -184,6 +184,11 @@ message Archive {
   google.protobuf.Duration interval = 5;
   // Whether to enable automatic archiving (default: false)
   bool enabled = 6;
+  // Cache settings
+  bool enable_cache = 7;              // Whether to enable archive data caching (default: true)
+  google.protobuf.Duration cache_ttl = 8; // Cache TTL for archive data (default: 30 minutes)
+  // Metrics settings
+  bool enable_metrics = 9;            // Whether to enable archive metrics collection (default: true)
 }
 
 message TokenPrice {
