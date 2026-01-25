@@ -162,7 +162,7 @@ func (c *EVMClient) GetTransactionReceiptByHash(ctx context.Context, txHash comm
 
 // GetTransactionSender gets the sender address of a transaction
 func (c *EVMClient) GetTransactionSender(ctx context.Context, tx *types.Transaction, blockNumber *big.Int) (common.Address, error) {
-	signer := types.NewEIP155Signer(c.chainID)
+	signer := types.LatestSignerForChainID(tx.ChainId())
 	sender, err := types.Sender(signer, tx)
 	if err != nil {
 		return common.Address{}, errors.Wrap(err, "failed to get transaction sender")
@@ -479,7 +479,7 @@ func (c *EVMClient) RecoverSender(ctx context.Context, evmHash string, v, r, s s
 	}
 
 	// Recover sender from transaction
-	signer := types.NewEIP155Signer(c.chainID)
+	signer := types.LatestSignerForChainID(tx.ChainId())
 	sender, err := types.Sender(signer, tx)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to recover sender from transaction %s", evmHash)
@@ -672,7 +672,7 @@ func (c *EVMClient) buildTransactionDetailsFromComponents(
 	}
 
 	// Recover From address
-	signer := types.NewEIP155Signer(c.chainID)
+	signer := types.LatestSignerForChainID(tx.ChainId())
 	from, err := types.Sender(signer, tx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to recover sender")
@@ -693,11 +693,20 @@ func (c *EVMClient) buildTransactionDetailsFromComponents(
 		maxFeePerGas = tx.GasFeeCap()
 		maxPriorityFee = tx.GasTipCap()
 		// Base fee must be obtained from block header
-		if block.BaseFee() != nil {
-			baseFee = block.BaseFee()
-			// Actual gas price paid = baseFee + priorityFee
-			gasPrice = new(big.Int).Add(baseFee, maxPriorityFee)
-		}
+		// Use recovery to handle corrupted block objects with nil headers
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// Silently recover from panic - block header is nil/corrupted
+					// gasPrice will remain as tx.GasPrice()
+				}
+			}()
+			if block != nil && block.BaseFee() != nil {
+				baseFee = block.BaseFee()
+				// Actual gas price paid = baseFee + priorityFee
+				gasPrice = new(big.Int).Add(baseFee, maxPriorityFee)
+			}
+		}()
 	}
 
 	// Calculate transaction fee
@@ -751,6 +760,20 @@ func (c *EVMClient) buildTransactionDetailsFromComponents(
 	}
 
 	// Build result
+	// Use recovery to handle corrupted block objects with nil headers
+	var timestamp time.Time
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Silently recover from panic - block header is nil/corrupted
+				// timestamp will remain as zero value
+			}
+		}()
+		if block != nil {
+			timestamp = time.Unix(int64(block.Time()), 0)
+		}
+	}()
+
 	details := &TransactionDetails{
 		Hash:             txHash.Hex(),
 		Status:           status,
@@ -758,7 +781,7 @@ func (c *EVMClient) buildTransactionDetailsFromComponents(
 		BlockNumber:      receipt.BlockNumber.Uint64(),
 		BlockHash:        receipt.BlockHash.Hex(),
 		Confirmations:    currentBlockNumber - receipt.BlockNumber.Uint64(),
-		Timestamp:        time.Unix(int64(block.Time()), 0),
+		Timestamp:        timestamp,
 		From:             from.Hex(),
 		To:               to,
 		ContractAddress:  contractAddress,

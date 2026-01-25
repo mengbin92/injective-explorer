@@ -192,7 +192,7 @@ func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash co
 	}
 
 	// 5. Recover From address
-	signer := types.NewEIP155Signer(c.chainID)
+	signer := types.LatestSignerForChainID(tx.ChainId())
 	from, err := types.Sender(signer, tx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to recover sender")
@@ -213,11 +213,19 @@ func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash co
 		maxFeePerGas = tx.GasFeeCap()
 		maxPriorityFee = tx.GasTipCap()
 		// Base fee must be obtained from block header
-		if block.BaseFee() != nil {
-			baseFee = block.BaseFee()
-			// Actual gas price paid = baseFee + priorityFee
-			gasPrice = new(big.Int).Add(baseFee, maxPriorityFee)
-		}
+		// Use recovery to handle corrupted block objects with nil headers
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					global.Logger.Warnf("Recovered from panic when accessing block.BaseFee() for tx %s: %v", txHash.Hex(), r)
+				}
+			}()
+			if block != nil && block.BaseFee() != nil {
+				baseFee = block.BaseFee()
+				// Actual gas price paid = baseFee + priorityFee
+				gasPrice = new(big.Int).Add(baseFee, maxPriorityFee)
+			}
+		}()
 	}
 
 	// Calculate transaction fee
@@ -256,6 +264,19 @@ func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash co
 	}
 
 	// 11. Build result
+	// Use recovery to handle corrupted block objects with nil headers
+	var timestamp time.Time
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				global.Logger.Warnf("Recovered from panic when accessing block.Time() for tx %s: %v", txHash.Hex(), r)
+			}
+		}()
+		if block != nil {
+			timestamp = time.Unix(int64(block.Time()), 0)
+		}
+	}()
+
 	details := &TransactionDetails{
 		Hash:             txHash.Hex(),
 		Status:           getStatusString(receipt.Status),
@@ -263,7 +284,7 @@ func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash co
 		BlockNumber:      receipt.BlockNumber.Uint64(),
 		BlockHash:        receipt.BlockHash.Hex(),
 		Confirmations:    currentBlockNumber - receipt.BlockNumber.Uint64(),
-		Timestamp:        time.Unix(int64(block.Time()), 0),
+		Timestamp:        timestamp,
 		From:             from.Hex(),
 		To:               to,
 		ContractAddress:  contractAddress,
@@ -375,7 +396,7 @@ func (c *EVMClient) getRawTransactionDetailsFallback(ctx context.Context, txHash
 
 	// Try to recover sender address even in fallback mode
 	// This is critical for updating signer/signatures in the transactions table
-	signer := types.NewEIP155Signer(c.chainID)
+	signer := types.LatestSignerForChainID(tx.ChainId())
 	from, err := types.Sender(signer, tx)
 	if err != nil {
 		// Sender recovery failed - this is the original parse error
