@@ -104,7 +104,7 @@ service Explorer {
     };
   }
 
-  // EVM 交易相关 API
+  // EVM transaction related APIs
   // Get EVM transaction by hash
   rpc GetEVMTransaction(GetEVMTransactionRequest) returns (Reply) {
     option (google.api.http) = {
@@ -226,7 +226,7 @@ message FailedTransactions1000Response {
   ]; // Overall success rate in the latest 1000 transactions (percentage, 0-100)
 }
 
-// EVM 交易相关请求和响应
+// EVM transaction related requests and responses
 message GetEVMTransactionRequest {
   string hash = 1; // Transaction hash
 }

@@ -213,7 +213,7 @@ func (s *ArchiveService) ArchiveOldTransactions(ctx context.Context, config *Arc
 	// Count transactions to archive
 	var totalCount int64
 	err := s.db.WithContext(ctx).Model(&models.Transaction{}).
-		Where("created_at < ? AND (archived IS NULL OR archived = ?)", cutoffTime, false).
+		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
 		Count(&totalCount).Error
 	if err != nil {
 		return errors.Wrap(err, "count transactions to archive")
@@ -241,8 +241,8 @@ func (s *ArchiveService) ArchiveOldTransactions(ctx context.Context, config *Arc
 		// Get batch of transactions to archive
 		var transactions []models.Transaction
 		err := s.db.WithContext(ctx).
-			Where("created_at < ? AND (archived IS NULL OR archived = ?)", cutoffTime, false).
-			Order("created_at ASC").
+			Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
+			Order("block_unix_timestamp ASC").
 			Limit(config.BatchSize).
 			Offset(int(offset)).
 			Find(&transactions).Error
