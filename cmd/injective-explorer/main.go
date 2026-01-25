@@ -276,13 +276,25 @@ func runArchiveMode(bc *conf.Bootstrap, logger log.Logger) {
 	startTime := time.Now()
 	logHelper.Infof("Starting archive process at %s", startTime.Format(time.RFC3339))
 
+	// Archive transactions
 	err := archiveService.ArchiveOldTransactions(ctx, config)
 	if err != nil {
-		logHelper.Errorf("Archive failed: %v", err)
+		logHelper.Errorf("Transaction archiving failed: %v", err)
 		os.Exit(1)
 	}
-
 	duration := time.Since(startTime)
-	logHelper.Infof("Archive completed successfully in %v", duration)
+	logHelper.Infof("Transaction archiving completed in %v", duration)
+
+	// Archive blocks
+	startTime = time.Now()
+	metrics, err := archiveService.ArchiveOldBlocks(ctx, config)
+	if err != nil {
+		logHelper.Errorf("Block archiving failed: %v", err)
+		os.Exit(1)
+	}
+	duration = time.Since(startTime)
+	logHelper.Infof("Block archiving completed in %v (processed=%d, failed=%d)",
+		duration, metrics.ProcessedBlocks, metrics.FailedBlocks)
+
 	logHelper.Infof("Finished at %s", time.Now().Format(time.RFC3339))
 }

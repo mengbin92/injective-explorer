@@ -1029,15 +1029,26 @@ func (s *ArchiveSchedulerService) executeArchive(archiveService *ArchiveService)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 	defer cancel()
 
+	// Archive transactions
 	startTime := time.Now()
 	err := archiveService.ArchiveOldTransactions(ctx, s.config)
 	if err != nil {
-		global.Logger.Errorf("scheduled archive operation failed: %v", err)
-		return
+		global.Logger.Errorf("scheduled transaction archiving failed: %v", err)
+	} else {
+		duration := time.Since(startTime)
+		global.Logger.Infof("scheduled transaction archiving completed successfully in %v", duration)
 	}
 
-	duration := time.Since(startTime)
-	global.Logger.Infof("scheduled archive operation completed successfully in %v", duration)
+	// Archive blocks
+	startTime = time.Now()
+	metrics, err := archiveService.ArchiveOldBlocks(ctx, s.config)
+	if err != nil {
+		global.Logger.Errorf("scheduled block archiving failed: %v", err)
+	} else {
+		duration := time.Since(startTime)
+		global.Logger.Infof("scheduled block archiving completed successfully in %v (processed=%d, failed=%d)",
+			duration, metrics.ProcessedBlocks, metrics.FailedBlocks)
+	}
 }
 
 // Stop stops the archive scheduler service.
