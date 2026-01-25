@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"injective-explorer/internal/conf"
@@ -129,57 +130,133 @@ func main() {
 	logHelper.Infof("  - Storage threshold: %d bytes", config.StorageThreshold)
 	logHelper.Info("===========================================")
 
-	// Create context with timeout (2 hours should be enough for most cases)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
-	defer cancel()
-
 	var totalErrors int
+	var blockMetrics *service.BlockArchiveMetrics
 
-	// Archive blocks if requested
-	if archiveType == "blocks" || archiveType == "all" {
-		logHelper.Info("📦 Starting Block Archiving...")
+	// When archiving both, run in parallel for better performance
+	if archiveType == "all" {
+		logHelper.Info("🚀 Running both transaction and block archiving in parallel...")
 		logHelper.Info("")
 
-		startTime := time.Now()
-		metrics, err := archiveService.ArchiveOldBlocks(ctx, config)
-		duration := time.Since(startTime)
+		var wg sync.WaitGroup
+		var txErr, blockErr error
 
-		if err != nil {
-			logHelper.Errorf("❌ Block archiving failed: %v", err)
+		// Run transaction archiving in parallel
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			txCtx, txCancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer txCancel()
+			startTime := time.Now()
+			err := archiveService.ArchiveOldTransactions(txCtx, config)
+			if err != nil {
+				logHelper.Errorf("❌ Transaction archiving failed: %v", err)
+				txErr = err
+			} else {
+				duration := time.Since(startTime)
+				logHelper.Info("✅ Transaction Archiving Completed!")
+				logHelper.Infof("  Duration:            %v", duration)
+				logHelper.Info("")
+			}
+		}()
+
+		// Run block archiving in parallel
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			blockCtx, blockCancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer blockCancel()
+			startTime := time.Now()
+			metrics, err := archiveService.ArchiveOldBlocks(blockCtx, config)
+			if err != nil {
+				logHelper.Errorf("❌ Block archiving failed: %v", err)
+				blockErr = err
+			} else {
+				duration := time.Since(startTime)
+				logHelper.Info("✅ Block Archiving Completed!")
+				logHelper.Infof("  Total Blocks:        %d", metrics.TotalBlocks)
+				logHelper.Infof("  Processed:           %d", metrics.ProcessedBlocks)
+				logHelper.Infof("  Failed:              %d", metrics.FailedBlocks)
+				logHelper.Infof("  Compressed:          %d", metrics.CompressedBlocks)
+				logHelper.Infof("  Uploaded to Storage: %d", metrics.UploadedToStorageBlocks)
+				logHelper.Infof("  Duration:            %v", duration)
+				blockMetrics = metrics
+			}
+		}()
+
+		// Wait for both operations to complete
+		wg.Wait()
+
+		// Count errors
+		if txErr != nil {
 			totalErrors++
-		} else {
-			logHelper.Info("✅ Block Archiving Completed!")
-			logHelper.Infof("  Total Blocks:        %d", metrics.TotalBlocks)
-			logHelper.Infof("  Processed:           %d", metrics.ProcessedBlocks)
-			logHelper.Infof("  Failed:              %d", metrics.FailedBlocks)
-			logHelper.Infof("  Compressed:          %d", metrics.CompressedBlocks)
-			logHelper.Infof("  Uploaded to Storage: %d", metrics.UploadedToStorageBlocks)
-			logHelper.Infof("  Duration:            %v", duration)
+		}
+		if blockErr != nil {
+			totalErrors++
+		}
 
-			// Show archive progress
+		// Show archive progress after both complete
+		if blockMetrics != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
 			archived, total, _ := archiveService.GetArchiveProgress(ctx)
 			logHelper.Infof("  Archive Progress:    %d / %d (%.2f%%)",
 				archived, total, float64(archived)*100/float64(total))
 			logHelper.Info("")
 		}
-	}
-
-	// Archive transactions if requested
-	if archiveType == "transactions" || archiveType == "all" {
-		logHelper.Info("💰 Starting Transaction Archiving...")
-		logHelper.Info("")
-
-		startTime := time.Now()
-		err := archiveService.ArchiveOldTransactions(ctx, config)
-		duration := time.Since(startTime)
-
-		if err != nil {
-			logHelper.Errorf("❌ Transaction archiving failed: %v", err)
-			totalErrors++
-		} else {
-			logHelper.Info("✅ Transaction Archiving Completed!")
-			logHelper.Infof("  Duration:            %v", duration)
+	} else {
+		// Archive only blocks if requested (sequential execution)
+		if archiveType == "blocks" {
+			logHelper.Info("📦 Starting Block Archiving...")
 			logHelper.Info("")
+
+			blockCtx, blockCancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			startTime := time.Now()
+			metrics, err := archiveService.ArchiveOldBlocks(blockCtx, config)
+			blockCancel()
+			duration := time.Since(startTime)
+
+			if err != nil {
+				logHelper.Errorf("❌ Block archiving failed: %v", err)
+				totalErrors++
+			} else {
+				logHelper.Info("✅ Block Archiving Completed!")
+				logHelper.Infof("  Total Blocks:        %d", metrics.TotalBlocks)
+				logHelper.Infof("  Processed:           %d", metrics.ProcessedBlocks)
+				logHelper.Infof("  Failed:              %d", metrics.FailedBlocks)
+				logHelper.Infof("  Compressed:          %d", metrics.CompressedBlocks)
+				logHelper.Infof("  Uploaded to Storage: %d", metrics.UploadedToStorageBlocks)
+				logHelper.Infof("  Duration:            %v", duration)
+
+				// Show archive progress
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				archived, total, _ := archiveService.GetArchiveProgress(ctx)
+				logHelper.Infof("  Archive Progress:    %d / %d (%.2f%%)",
+					archived, total, float64(archived)*100/float64(total))
+				logHelper.Info("")
+			}
+		}
+
+		// Archive only transactions if requested (sequential execution)
+		if archiveType == "transactions" {
+			logHelper.Info("💰 Starting Transaction Archiving...")
+			logHelper.Info("")
+
+			txCtx, txCancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			startTime := time.Now()
+			err := archiveService.ArchiveOldTransactions(txCtx, config)
+			txCancel()
+			duration := time.Since(startTime)
+
+			if err != nil {
+				logHelper.Errorf("❌ Transaction archiving failed: %v", err)
+				totalErrors++
+			} else {
+				logHelper.Info("✅ Transaction Archiving Completed!")
+				logHelper.Infof("  Duration:            %v", duration)
+				logHelper.Info("")
+			}
 		}
 	}
 

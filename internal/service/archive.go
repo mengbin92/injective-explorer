@@ -16,9 +16,75 @@ import (
 	"injective-explorer/provider/db"
 	"injective-explorer/provider/storage"
 
+	"github.com/go-kratos/kratos/v2/log"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
+
+// Archived status constants for better code readability and maintainability.
+const (
+	// NotArchived indicates that a transaction or block has not been archived yet.
+	NotArchived = false
+	// IsArchived indicates that a transaction or block has been archived.
+	IsArchived = true
+)
+
+// RunArchiveStep executes a single archive step (transaction or block archiving).
+// It encapsulates the common logic of creating a context with timeout, timing the operation,
+// and logging results. This eliminates code duplication between runArchiveMode and executeArchive.
+//
+// Parameters:
+//   - stepName: Name of the archive step (e.g., "transaction", "block")
+//   - logger: Logger instance for logging
+//   - timeout: Timeout duration for this step
+//   - fn: The archive function to execute (takes context and returns error)
+//
+// Returns:
+//   - error: Error if the archive operation failed, nil otherwise
+func RunArchiveStep(stepName string, logger *log.Helper, timeout time.Duration, fn func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	startTime := time.Now()
+	err := fn(ctx)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		logger.Errorf("%s archiving failed: %v", stepName, err)
+		return err
+	}
+	logger.Infof("%s archiving completed successfully in %v", stepName, duration)
+	return nil
+}
+
+// RunArchiveStepWithMetrics executes a single archive step that returns metrics.
+// Like RunArchiveStep, this encapsulates common logic for archive operations that return metrics.
+//
+// Parameters:
+//   - stepName: Name of the archive step (e.g., "block")
+//   - logger: Logger instance for logging
+//   - timeout: Timeout duration for this step
+//   - fn: The archive function to execute (takes context, returns BlockArchiveMetrics and error)
+//
+// Returns:
+//   - error: Error if the archive operation failed, nil otherwise
+func RunArchiveStepWithMetrics(stepName string, logger *log.Helper, timeout time.Duration,
+	fn func(context.Context) (*BlockArchiveMetrics, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	startTime := time.Now()
+	metrics, err := fn(ctx)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		logger.Errorf("%s archiving failed: %v", stepName, err)
+		return err
+	}
+	logger.Infof("%s archiving completed successfully in %v (processed=%d, failed=%d)",
+		stepName, duration, metrics.ProcessedBlocks, metrics.FailedBlocks)
+	return nil
+}
 
 // ArchiveService handles transaction archiving operations.
 // It moves large fields from old transactions to TransactionDataArchive table and optionally to object storage.
@@ -213,7 +279,7 @@ func (s *ArchiveService) ArchiveOldTransactions(ctx context.Context, config *Arc
 	// Count transactions to archive
 	var totalCount int64
 	err := s.db.WithContext(ctx).Model(&models.Transaction{}).
-		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
+		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, NotArchived).
 		Count(&totalCount).Error
 	if err != nil {
 		return errors.Wrap(err, "count transactions to archive")
@@ -232,22 +298,38 @@ func (s *ArchiveService) ArchiveOldTransactions(ctx context.Context, config *Arc
 		return nil
 	}
 
-	// Archive in batches
+	// Archive in batches using cursor-based pagination for better performance.
+	// This approach avoids the performance issues of OFFSET-based pagination,
+	// which degrades linearly as the offset increases.
 	var archivedCount int64
-	var offset int64
 	batchStartTime := time.Now()
 
-	for offset < totalCount {
+	// Track the last processed transaction for cursor-based pagination
+	var lastBlockTimestamp uint64 = 0
+	var lastID uint = 0
+
+	for {
+		// Build query with cursor-based pagination
+		query := s.db.WithContext(ctx).
+			Where("block_unix_timestamp < ?", cutoffTimestamp)
+
+		// Apply cursor filtering for subsequent batches
+		if lastBlockTimestamp > 0 || lastID > 0 {
+			query = query.Where(
+				"(block_unix_timestamp > ? OR (block_unix_timestamp = ? AND id > ?))",
+				lastBlockTimestamp, lastBlockTimestamp, lastID,
+			)
+		}
+
 		// Get batch of transactions to archive
 		var transactions []models.Transaction
-		err := s.db.WithContext(ctx).
-			Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
-			Order("block_unix_timestamp ASC").
+		err := query.
+			Where("archived IS NULL OR archived = ?", NotArchived).
+			Order("block_unix_timestamp ASC, id ASC").
 			Limit(config.BatchSize).
-			Offset(int(offset)).
 			Find(&transactions).Error
 		if err != nil {
-			return errors.Wrapf(err, "fetch batch at offset %d", offset)
+			return errors.Wrapf(err, "fetch batch after cursor (timestamp=%d, id=%d)", lastBlockTimestamp, lastID)
 		}
 
 		if len(transactions) == 0 {
@@ -257,14 +339,18 @@ func (s *ArchiveService) ArchiveOldTransactions(ctx context.Context, config *Arc
 		// Archive batch
 		batchArchived, err := s.archiveBatch(ctx, transactions, cutoffTimestamp, config)
 		if err != nil {
-			return errors.Wrapf(err, "archive batch at offset %d", offset)
+			return errors.Wrapf(err, "archive batch at cursor (timestamp=%d, id=%d)", lastBlockTimestamp, lastID)
 		}
 
 		archivedCount += batchArchived
-		offset += int64(len(transactions))
 		metrics.BatchesProcessed++
 		batchDuration := time.Since(batchStartTime)
 		global.Logger.Infof("archived batch: %d/%d transactions, batch_time=%v", archivedCount, totalCount, batchDuration)
+
+		// Update cursor for next batch
+		lastTx := transactions[len(transactions)-1]
+		lastBlockTimestamp = lastTx.BlockUnixTimestamp
+		lastID = lastTx.ID
 
 		// Call progress callback if provided
 		if config.ProgressCallback != nil {
@@ -616,7 +702,7 @@ func (s *ArchiveService) getCachedArchivedTransactionData(
 func (s *ArchiveService) GetArchivedTransaction(ctx context.Context, hash string) (*models.Transaction, error) {
 	// Query from main table (archived=true)
 	var tx models.Transaction
-	err := s.db.WithContext(ctx).Where("hash = ? AND archived = ?", hash, true).First(&tx).Error
+	err := s.db.WithContext(ctx).Where("hash = ? AND archived = ?", hash, IsArchived).First(&tx).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -757,7 +843,7 @@ func (s *ArchiveService) GetArchivedTransactions(ctx context.Context, limit, off
 
 	// Count total archived transactions from main table
 	err := s.db.WithContext(ctx).Model(&models.Transaction{}).
-		Where("archived = ?", true).
+		Where("archived = ?", IsArchived).
 		Count(&total).Error
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "count archived transactions")
@@ -765,7 +851,7 @@ func (s *ArchiveService) GetArchivedTransactions(ctx context.Context, limit, off
 
 	// Fetch archived transactions from main table
 	err = s.db.WithContext(ctx).
-		Where("archived = ?", true).
+		Where("archived = ?", IsArchived).
 		Order("block_unix_timestamp DESC, tx_number DESC").
 		Limit(limit).
 		Offset(offset).
@@ -944,15 +1030,19 @@ func (s *ArchiveService) GetArchivedTransactions(ctx context.Context, limit, off
 	return result, total, nil
 }
 
-// ArchiveSchedulerService handles periodic archiving of old transactions.
+// ArchiveSchedulerService handles periodic archiving of old transactions and blocks.
 // It runs in the background and periodically executes archiving operations.
 // Similar to SyncService, it provides Start() and Stop() methods for lifecycle management.
+// Uses dependency injection for logger to improve testability and reduce global state coupling.
 type ArchiveSchedulerService struct {
 	// Configuration
 	config *ArchiveConfig
 
 	// Archive execution interval
 	interval time.Duration
+
+	// Logger (injected via dependency injection)
+	logger *log.Helper
 
 	// Control channels
 	ctx    context.Context
@@ -965,20 +1055,25 @@ type ArchiveSchedulerService struct {
 // Parameters:
 //   - config: Archive configuration (can be nil to use defaults)
 //   - interval: Archive execution interval (default: 24 hours)
+//   - logger: Logger instance for logging (uses global logger if nil)
 //
 // Returns:
 //   - *ArchiveSchedulerService: A new archive scheduler service instance
-func NewArchiveSchedulerService(config *ArchiveConfig, interval time.Duration) *ArchiveSchedulerService {
+func NewArchiveSchedulerService(config *ArchiveConfig, interval time.Duration, logger *log.Helper) *ArchiveSchedulerService {
 	if config == nil {
 		config = DefaultArchiveConfig()
 	}
 	if interval <= 0 {
 		interval = 24 * time.Hour // Default: run once per day
 	}
+	if logger == nil {
+		logger = global.Logger
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ArchiveSchedulerService{
 		config:   config,
 		interval: interval,
+		logger:   logger,
 		ctx:      ctx,
 		cancel:   cancel,
 	}
@@ -987,13 +1082,13 @@ func NewArchiveSchedulerService(config *ArchiveConfig, interval time.Duration) *
 // Start starts the archive scheduler service.
 // It runs archiving operations periodically in the background.
 func (s *ArchiveSchedulerService) Start() error {
-	global.Logger.Infof("starting archive scheduler service (interval: %v)", s.interval)
+	s.logger.Infof("starting archive scheduler service (interval: %v)", s.interval)
 
 	// Start archive scheduler goroutine
 	s.wg.Add(1)
 	go s.archiveScheduler()
 
-	global.Logger.Infof("archive scheduler service started")
+	s.logger.Infof("archive scheduler service started")
 	return nil
 }
 
@@ -1008,12 +1103,12 @@ func (s *ArchiveSchedulerService) archiveScheduler() {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
-	global.Logger.Infof("archive scheduler running, next execution in %v", s.interval)
+	s.logger.Infof("archive scheduler running, next execution in %v", s.interval)
 
 	for {
 		select {
 		case <-s.ctx.Done():
-			global.Logger.Infof("archive scheduler stopped")
+			s.logger.Infof("archive scheduler stopped")
 			return
 		case <-ticker.C:
 			s.executeArchive(archiveService)
@@ -1022,39 +1117,72 @@ func (s *ArchiveSchedulerService) archiveScheduler() {
 }
 
 // executeArchive executes a single archiving operation.
+// It runs transaction and block archiving in parallel with independent timeouts.
+// These operations are independent and can run simultaneously to reduce total execution time.
 func (s *ArchiveSchedulerService) executeArchive(archiveService *ArchiveService) {
-	global.Logger.Infof("starting scheduled archive operation")
+	s.logger.Infof("starting scheduled archive operation")
 
-	// Create context with timeout (1 hour should be enough for most cases)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
-	defer cancel()
+	// Run transaction and block archiving in parallel using goroutines
+	// These operations are independent and can run simultaneously
+	var wg sync.WaitGroup
+	var txErr, blockErr error
 
-	// Archive transactions
-	startTime := time.Now()
-	err := archiveService.ArchiveOldTransactions(ctx, s.config)
-	if err != nil {
-		global.Logger.Errorf("scheduled transaction archiving failed: %v", err)
-	} else {
-		duration := time.Since(startTime)
-		global.Logger.Infof("scheduled transaction archiving completed successfully in %v", duration)
+	// Run transaction archiving in parallel
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		txCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		startTime := time.Now()
+		err := archiveService.ArchiveOldTransactions(txCtx, s.config)
+		if err != nil {
+			s.logger.Errorf("scheduled transaction archiving failed: %v", err)
+			txErr = err
+		} else {
+			duration := time.Since(startTime)
+			s.logger.Infof("scheduled transaction archiving completed successfully in %v", duration)
+		}
+	}()
+
+	// Run block archiving in parallel
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		blockCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		startTime := time.Now()
+		metrics, err := archiveService.ArchiveOldBlocks(blockCtx, s.config)
+		if err != nil {
+			s.logger.Errorf("scheduled block archiving failed: %v", err)
+			blockErr = err
+		} else {
+			duration := time.Since(startTime)
+			s.logger.Infof("scheduled block archiving completed successfully in %v (processed=%d, failed=%d)",
+				duration, metrics.ProcessedBlocks, metrics.FailedBlocks)
+		}
+	}()
+
+	// Wait for both operations to complete
+	wg.Wait()
+
+	// Log any errors that occurred
+	if txErr != nil {
+		s.logger.Warnf("scheduled operation completed with transaction archiving error: %v", txErr)
+	}
+	if blockErr != nil {
+		s.logger.Warnf("scheduled operation completed with block archiving error: %v", blockErr)
 	}
 
-	// Archive blocks
-	startTime = time.Now()
-	metrics, err := archiveService.ArchiveOldBlocks(ctx, s.config)
-	if err != nil {
-		global.Logger.Errorf("scheduled block archiving failed: %v", err)
-	} else {
-		duration := time.Since(startTime)
-		global.Logger.Infof("scheduled block archiving completed successfully in %v (processed=%d, failed=%d)",
-			duration, metrics.ProcessedBlocks, metrics.FailedBlocks)
+	// Only log success if both operations succeeded
+	if txErr == nil && blockErr == nil {
+		s.logger.Infof("scheduled archive operation completed successfully (both transaction and block archiving)")
 	}
 }
 
 // Stop stops the archive scheduler service.
 // It cancels the context and waits for the scheduler goroutine to finish.
 func (s *ArchiveSchedulerService) Stop() error {
-	global.Logger.Infof("stopping archive scheduler service")
+	s.logger.Infof("stopping archive scheduler service")
 	s.cancel()
 
 	// Wait for goroutine to finish with timeout
@@ -1066,10 +1194,10 @@ func (s *ArchiveSchedulerService) Stop() error {
 
 	select {
 	case <-done:
-		global.Logger.Infof("archive scheduler service stopped gracefully")
+		s.logger.Infof("archive scheduler service stopped gracefully")
 		return nil
 	case <-time.After(GracefulShutdownTimeout):
-		global.Logger.Warnf("archive scheduler service stop timeout after %v", GracefulShutdownTimeout)
+		s.logger.Warnf("archive scheduler service stop timeout after %v", GracefulShutdownTimeout)
 		return errors.New("timeout waiting for scheduler to stop")
 	}
 }
@@ -1095,7 +1223,8 @@ func LoadArchiveSchedulerConfig(bc *conf.Bootstrap) *ArchiveSchedulerService {
 		interval = bc.Archive.GetInterval().AsDuration()
 	}
 
-	return NewArchiveSchedulerService(archiveConfig, interval)
+	// Use global logger (backward compatible)
+	return NewArchiveSchedulerService(archiveConfig, interval, global.Logger)
 }
 
 // ============================================================================
@@ -1146,7 +1275,7 @@ func (s *ArchiveService) ArchiveOldBlocks(ctx context.Context, config *ArchiveCo
 	// Count blocks to archive
 	var totalCount int64
 	err := s.db.WithContext(ctx).Model(&models.Block{}).
-		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
+		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, NotArchived).
 		Count(&totalCount).Error
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to count blocks to archive")
@@ -1164,7 +1293,7 @@ func (s *ArchiveService) ArchiveOldBlocks(ctx context.Context, config *ArchiveCo
 	var blocks []models.Block
 	batchNum := 0
 	err = s.db.WithContext(ctx).
-		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
+		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, NotArchived).
 		FindInBatches(&blocks, config.BatchSize, func(tx *gorm.DB, batch int) error {
 			batchNum++
 			global.Logger.Infof("processing batch %d with %d blocks", batchNum, len(blocks))
@@ -1354,7 +1483,7 @@ func (s *ArchiveService) GetArchiveProgress(ctx context.Context) (archived, tota
 
 	// Count archived blocks
 	err = s.db.WithContext(ctx).Model(&models.Block{}).
-		Where("archived = ?", true).
+		Where("archived = ?", IsArchived).
 		Count(&archived).Error
 	if err != nil {
 		return 0, 0, errors.Wrap(err, "failed to count archived blocks")

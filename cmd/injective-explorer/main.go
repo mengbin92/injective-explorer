@@ -39,24 +39,12 @@ var (
 	Version string
 	// flagconf is the config flag for specifying the configuration file path.
 	flagconf string
-	// archiveMode enables archive mode (runs archive and exits)
-	archiveMode bool
-	// archiveAgeMonths is the age in months for archiving (only used in archive mode)
-	archiveAgeMonths int
-	// archiveBatchSize is the batch size for archiving (only used in archive mode)
-	archiveBatchSize int
-	// archiveDryRun enables dry run mode for archiving (only used in archive mode)
-	archiveDryRun bool
 
 	id, _ = os.Hostname()
 )
 
 func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
-	flag.BoolVar(&archiveMode, "archive", false, "run archive mode (archive old transactions and exit)")
-	flag.IntVar(&archiveAgeMonths, "archive-age-months", 0, "archive transactions older than N months (0 = use config default, only used with -archive)")
-	flag.IntVar(&archiveBatchSize, "archive-batch-size", 0, "number of transactions per batch (0 = use config default, only used with -archive)")
-	flag.BoolVar(&archiveDryRun, "archive-dry-run", false, "simulate archiving without actually moving data (only used with -archive)")
 }
 
 // newApp creates a new kratos application with the given logger and servers.
@@ -137,12 +125,6 @@ func main() {
 	// Initialize global variables
 	global.Init(&bc, logger)
 
-	// Handle archive mode
-	if archiveMode {
-		runArchiveMode(&bc, logger)
-		return
-	}
-
 	// Enable pprof in development/staging (only if explicitly enabled via environment variable)
 	// In production, this should be disabled for security reasons
 	if os.Getenv("ENABLE_PPROF") == "true" {
@@ -159,7 +141,7 @@ func main() {
 	if enableSync == "" || enableSync == "true" {
 		syncConfig := service.LoadSyncConfig(&bc)
 		syncService := service.NewSyncService(syncConfig, &bc)
-		
+
 		// Try to acquire distributed lock for sync service
 		// This ensures only one instance runs sync even if multiple instances have ENABLE_SYNC=true
 		if acquired, err := syncService.TryAcquireSyncLock(context.Background()); err != nil {
@@ -226,75 +208,4 @@ func main() {
 		log.NewHelper(logger).Errorf("Application run error: %v", err)
 		os.Exit(1)
 	}
-}
-
-// runArchiveMode runs the archive process and exits.
-// This mode is triggered by the -archive flag.
-func runArchiveMode(bc *conf.Bootstrap, logger log.Logger) {
-	logHelper := log.NewHelper(logger)
-	logHelper.Infof("Running in archive mode...")
-
-	// Create archive service
-	archiveService := service.NewArchiveService()
-
-	// Load archive configuration
-	config := service.DefaultArchiveConfig()
-
-	// Override with command-line flags if provided
-	if archiveAgeMonths > 0 {
-		config.ArchiveAgeMonths = archiveAgeMonths
-		logHelper.Infof("Using command-line age-months: %d", archiveAgeMonths)
-	} else {
-		logHelper.Infof("Using configured age-months: %d", config.ArchiveAgeMonths)
-	}
-
-	if archiveBatchSize > 0 {
-		config.BatchSize = archiveBatchSize
-		logHelper.Infof("Using command-line batch-size: %d", archiveBatchSize)
-	} else {
-		logHelper.Infof("Using configured batch-size: %d", config.BatchSize)
-	}
-
-	config.DryRun = archiveDryRun
-	if archiveDryRun {
-		logHelper.Warnf("DRY RUN MODE: No data will be actually archived")
-	}
-
-	// Display configuration summary
-	logHelper.Infof("Archive configuration:")
-	logHelper.Infof("  - Age months: %d", config.ArchiveAgeMonths)
-	logHelper.Infof("  - Batch size: %d", config.BatchSize)
-	logHelper.Infof("  - Dry run: %v", config.DryRun)
-	logHelper.Infof("  - Use object storage: %v", config.UseObjectStorage)
-	logHelper.Infof("  - Storage threshold: %d bytes", config.StorageThreshold)
-
-	// Create context with timeout (1 hour should be enough for most cases)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
-	defer cancel()
-
-	// Execute archiving
-	startTime := time.Now()
-	logHelper.Infof("Starting archive process at %s", startTime.Format(time.RFC3339))
-
-	// Archive transactions
-	err := archiveService.ArchiveOldTransactions(ctx, config)
-	if err != nil {
-		logHelper.Errorf("Transaction archiving failed: %v", err)
-		os.Exit(1)
-	}
-	duration := time.Since(startTime)
-	logHelper.Infof("Transaction archiving completed in %v", duration)
-
-	// Archive blocks
-	startTime = time.Now()
-	metrics, err := archiveService.ArchiveOldBlocks(ctx, config)
-	if err != nil {
-		logHelper.Errorf("Block archiving failed: %v", err)
-		os.Exit(1)
-	}
-	duration = time.Since(startTime)
-	logHelper.Infof("Block archiving completed in %v (processed=%d, failed=%d)",
-		duration, metrics.ProcessedBlocks, metrics.FailedBlocks)
-
-	logHelper.Infof("Finished at %s", time.Now().Format(time.RFC3339))
 }
