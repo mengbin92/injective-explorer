@@ -16,17 +16,16 @@ type MockExplorerClient struct {
 	mock.Mock
 }
 
-func (m *MockExplorerClient) GetBlock(ctx context.Context, height string) (*injective_explorer_rpcpb.GetBlockResponse, error) {
-	args := m.Called(ctx, height)
+func (m *MockExplorerClient) StreamBlocks(ctx context.Context) (<-chan *injective_explorer_rpcpb.StreamBlocksResponse, error) {
+	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*injective_explorer_rpcpb.GetBlockResponse), args.Error(1)
+	return args.Get(0).(<-chan *injective_explorer_rpcpb.StreamBlocksResponse), args.Error(1)
 }
 
-func (m *MockExplorerClient) StreamBlocks(ctx context.Context) (<-chan *injective_explorer_rpcpb.StreamBlocksResponse, error) {
-	args := m.Called(ctx)
-	return args.Get(0).(<-chan *injective_explorer_rpcpb.StreamBlocksResponse), args.Error(1)
+func (m *MockExplorerClient) Close() {
+	m.Called()
 }
 
 // MockChainClient mocks the chain client

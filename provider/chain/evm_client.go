@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"strings"
 	"sync"
 	"time"
 
@@ -327,13 +326,6 @@ func (c *EVMClient) SubscribeFilterLogs(ctx context.Context, query ethereum.Filt
 //   - string: EVM transaction hash (with 0x prefix), or empty string if not found
 //   - error: Error if the operation fails
 func (c *EVMClient) GetEVMHashFromCosmosHash(ctx context.Context, cosmosHash string, blockNumber uint64) (string, error) {
-	// Normalize Cosmos hash (remove 0x prefix if present, as Cosmos hashes typically don't have it)
-	normalizedCosmosHash := cosmosHash
-	if strings.HasPrefix(normalizedCosmosHash, "0x") {
-		normalizedCosmosHash = normalizedCosmosHash[2:]
-	}
-	normalizedCosmosHash = strings.ToUpper(normalizedCosmosHash)
-
 	// If block number is not provided, we need to find it from the database
 	// For now, we'll require block number to be provided
 	// TODO: Add database lookup if block number is 0

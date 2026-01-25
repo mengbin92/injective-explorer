@@ -5277,36 +5277,6 @@ func (s *ExplorerService) updateEVMTransactionDetails(ctx context.Context, evmHa
 	}
 }
 
-// loadEVMTransactionDetailsWithCache loads EVM transaction details with Redis cache support.
-// DEPRECATED: Use loadEVMTransactionDetailsWithCacheFromEVMTx instead.
-// This method is kept for backward compatibility but should not be used with new code.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout
-//   - tx: Transaction model
-//
-// Returns:
-//   - *chain.TransactionDetails: EVM transaction details, or nil if not found
-//   - error: Error if the operation fails
-func (s *ExplorerService) loadEVMTransactionDetailsWithCache(ctx context.Context, tx *models.Transaction) (*chain.TransactionDetails, error) {
-	if tx == nil {
-		return nil, nil
-	}
-
-	// Load from evm_transactions table
-	var evmTx models.EVMTransaction
-	err := db.Get().WithContext(ctx).
-		Where("transaction_hash = ?", tx.Hash).
-		First(&evmTx).Error
-	if err != nil {
-		// EVM transaction not found
-		return nil, nil
-	}
-
-	// Use EVMTransaction model
-	return s.loadEVMTransactionDetailsWithCacheFromEVMTx(ctx, &evmTx, tx)
-}
-
 // loadEVMDetailsBatchParallel loads EVM transaction details for multiple transactions in parallel.
 // It queries the evm_transactions table and uses goroutines with WaitGroup for concurrent loading with Redis cache optimization.
 //

@@ -20,13 +20,11 @@ var (
 	sharedTmClient    tmclient.TendermintClient
 
 	// Mutexes for thread-safe initialization
-	sharedExplorerClientOnce sync.Once
-	sharedChainClientOnce    sync.Once
-	sharedTmClientOnce       sync.Once
+	sharedChainClientOnce sync.Once
+	sharedTmClientOnce    sync.Once
 
 	// Errors from client initialization
-	sharedExplorerClientErr error
-	sharedChainClientErr    error
+	sharedChainClientErr error
 )
 
 // GetSharedChainClient returns a shared chain client instance.

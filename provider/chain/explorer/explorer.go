@@ -12,12 +12,13 @@ import (
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	tmtypes "github.com/cometbft/cometbft/types"
-	cosmogogrpc "github.com/cosmos/gogoproto/grpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
+// NewExplorerClient creates a new ExplorerClient for streaming block data via WebSocket.
+// The client uses Tendermint's WebSocket subscription to receive real-time block updates.
 func NewExplorerClient(network common.Network, options ...common.ClientOption) (ExplorerClient, error) {
 	// process options
 	opts := common.DefaultClientOptions()
@@ -57,11 +58,9 @@ func NewExplorerClient(network common.Network, options ...common.ClientOption) (
 		opts:    opts,
 		network: network,
 		conn:    conn,
-
-		explorerClient: explorerpb.NewInjectiveExplorerRPCClient(conn),
 		logger: log.WithFields(log.Fields{
 			"module": "sdk-go",
-			"svc":    "exchangeClient",
+			"svc":    "explorer-client",
 		}),
 	}
 
@@ -73,124 +72,17 @@ type explorerClient struct {
 	network common.Network
 	conn    *grpc.ClientConn
 	logger  log.Logger
-
-	explorerClient explorerpb.InjectiveExplorerRPCClient
 }
 
+// Close closes the gRPC connection and releases resources.
 func (c *explorerClient) Close() {
-	// TODO: implement cleanup logic (close connection, etc.)
+	if c.conn != nil {
+		c.conn.Close()
+	}
 }
 
-func (c *explorerClient) QueryClient() *cosmogogrpc.ClientConn {
-	// TODO: implement
-	return nil
-}
-
-func (c *explorerClient) GetAccountTxs(ctx context.Context, req *explorerpb.GetAccountTxsRequest) (*explorerpb.GetAccountTxsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) FetchContractTxs(ctx context.Context, req *explorerpb.GetContractTxsRequest) (*explorerpb.GetContractTxsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) FetchContractTxsV2(ctx context.Context, req *explorerpb.GetContractTxsV2Request) (*explorerpb.GetContractTxsV2Response, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetBlocks(ctx context.Context) (*explorerpb.GetBlocksResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetBlock(ctx context.Context, blockHeight string) (*explorerpb.GetBlockResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) FetchValidators(ctx context.Context) (*explorerpb.GetValidatorsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) FetchValidator(ctx context.Context, address string) (*explorerpb.GetValidatorResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) FetchValidatorUptime(ctx context.Context, address string) (*explorerpb.GetValidatorUptimeResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetTxs(ctx context.Context, req *explorerpb.GetTxsRequest) (*explorerpb.GetTxsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetTxByTxHash(ctx context.Context, hash string) (*explorerpb.GetTxByTxHashResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetPeggyDeposits(ctx context.Context, req *explorerpb.GetPeggyDepositTxsRequest) (*explorerpb.GetPeggyDepositTxsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetPeggyWithdrawals(ctx context.Context, req *explorerpb.GetPeggyWithdrawalTxsRequest) (*explorerpb.GetPeggyWithdrawalTxsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetIBCTransfers(ctx context.Context, req *explorerpb.GetIBCTransferTxsRequest) (*explorerpb.GetIBCTransferTxsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetWasmCodes(ctx context.Context, req *explorerpb.GetWasmCodesRequest) (*explorerpb.GetWasmCodesResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetWasmCodeByID(ctx context.Context, req *explorerpb.GetWasmCodeByIDRequest) (*explorerpb.GetWasmCodeByIDResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetWasmContracts(ctx context.Context, req *explorerpb.GetWasmContractsRequest) (*explorerpb.GetWasmContractsResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetWasmContractByAddress(ctx context.Context, req *explorerpb.GetWasmContractByAddressRequest) (*explorerpb.GetWasmContractByAddressResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) GetCW20Balance(ctx context.Context, req *explorerpb.GetCw20BalanceRequest) (*explorerpb.GetCw20BalanceResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) FetchRelayers(ctx context.Context, marketIDs []string) (*explorerpb.RelayersResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) FetchBankTransfers(ctx context.Context, req *explorerpb.GetBankTransfersRequest) (*explorerpb.GetBankTransfersResponse, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (c *explorerClient) StreamTxs(ctx context.Context) (explorerpb.InjectiveExplorerRPC_StreamTxsClient, error) {
-	// TODO: implement
-	return nil, nil
-}
-
+// StreamBlocks establishes a WebSocket connection to stream new block events.
+// It uses Tendermint's WebSocket subscription to listen for NewBlockHeader events.
 func (c *explorerClient) StreamBlocks(ctx context.Context) (explorerpb.InjectiveExplorerRPC_StreamBlocksClient, error) {
 	// Create Tendermint RPC HTTP client with extended timeout for slow endpoints
 	tmClient, err := rpchttp.NewWithTimeout(c.network.TmEndpoint, 30)
