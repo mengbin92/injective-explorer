@@ -17,6 +17,61 @@ import (
 	"gorm.io/gorm"
 )
 
+// recoveryContext provides context for recovery operations in account processing.
+type recoveryContext struct {
+	operation   string // e.g., "extracting pub key information"
+	identifier  string // e.g., account address
+	fallback    string // e.g., "using empty pub key values"
+}
+
+// safeExecuteRecovery executes a function with panic recovery for account processing.
+//
+// This local helper centralizes panic recovery logic for account operations,
+// following the same pattern as the chain package recovery helpers.
+//
+// IMPORTANT: This function recovers from panics and continues execution with fallback values.
+// This is acceptable for:
+//   - Handling corrupted protobuf data from external sources
+//   - Defensive programming against nil pointer access in optional pub key fields
+//   - Graceful degradation when non-critical data is unavailable
+//
+// This is NOT appropriate for:
+//   - Expected errors that should be returned to the caller
+//   - Critical failures where continuing would produce incorrect data
+//
+// Parameters:
+//   - ctx: Recovery context for logging
+//   - fn: Function to execute safely
+//
+// Returns:
+//   - bool: true if a panic was recovered, false otherwise
+func safeExecuteRecovery(ctx *recoveryContext, fn func()) (recovered bool) {
+	if ctx == nil {
+		ctx = &recoveryContext{
+			operation:  "unknown operation",
+			identifier: "unknown",
+			fallback:   "continuing with default values",
+		}
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			recovered = true
+			// Log at warn level for corrupted data (not error, as this is recoverable)
+			fmt.Printf(
+				"[WARN] Recovered from panic during %s for %s: %v. Fallback: %s\n",
+				ctx.operation,
+				ctx.identifier,
+				r,
+				ctx.fallback,
+			)
+		}
+	}()
+
+	fn()
+	return false
+}
+
 // Account represents a blockchain account in the database.
 // It embeds gorm.Model which provides ID, CreatedAt, UpdatedAt, and DeletedAt fields.
 //
@@ -74,28 +129,26 @@ func AccountFromProto(account *types.EthAccount, address string, codec codec.Cod
 			return nil
 		}
 
-		// Safely check if pubKey is nil and extract values
-		// Use recover to handle panics when calling methods on nil interface values
+		// Safely extract pub key information with recovery for corrupted/nil values
 		var pubType string
 		var pubValue string
 		var pubAddress string
 
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					// pubKey is nil or invalid, use empty values
-					pubType = ""
-					pubValue = ""
-					pubAddress = ""
-				}
-			}()
-			pubType = pubKey.Type()
-			pubValue = hex.EncodeToString(pubKey.Bytes())
-			// Pre-calculate lowercase address to avoid repeated ToLower calls
-			addrStr := pubKey.Address().String()
-			lowerAddr := strings.ToLower(addrStr)
-			pubAddress = fmt.Sprintf("0x%s", lowerAddr)
-		}()
+		safeExecuteRecovery(
+			&recoveryContext{
+				operation:  "extracting pub key information",
+				identifier: address,
+				fallback:   "using empty pub key values",
+			},
+			func() {
+				pubType = pubKey.Type()
+				pubValue = hex.EncodeToString(pubKey.Bytes())
+				// Pre-calculate lowercase address to avoid repeated ToLower calls
+				addrStr := pubKey.Address().String()
+				lowerAddr := strings.ToLower(addrStr)
+				pubAddress = fmt.Sprintf("0x%s", lowerAddr)
+			},
+		)
 
 		pub = &PubKey{
 			Type:    pubType,

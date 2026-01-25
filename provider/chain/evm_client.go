@@ -686,19 +686,18 @@ func (c *EVMClient) buildTransactionDetailsFromComponents(
 		maxPriorityFee = tx.GasTipCap()
 		// Base fee must be obtained from block header
 		// Use recovery to handle corrupted block objects with nil headers
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					// Silently recover from panic - block header is nil/corrupted
-					// gasPrice will remain as tx.GasPrice()
+		SafeExecuteWithTxHash(
+			txHash,
+			"accessing block.BaseFee()",
+			"using tx.GasPrice()",
+			func() {
+				if block != nil && block.BaseFee() != nil {
+					baseFee = block.BaseFee()
+					// Actual gas price paid = baseFee + priorityFee
+					gasPrice = new(big.Int).Add(baseFee, maxPriorityFee)
 				}
-			}()
-			if block != nil && block.BaseFee() != nil {
-				baseFee = block.BaseFee()
-				// Actual gas price paid = baseFee + priorityFee
-				gasPrice = new(big.Int).Add(baseFee, maxPriorityFee)
-			}
-		}()
+			},
+		)
 	}
 
 	// Calculate transaction fee
@@ -754,17 +753,16 @@ func (c *EVMClient) buildTransactionDetailsFromComponents(
 	// Build result
 	// Use recovery to handle corrupted block objects with nil headers
 	var timestamp time.Time
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// Silently recover from panic - block header is nil/corrupted
-				// timestamp will remain as zero value
+	SafeExecuteWithTxHash(
+		txHash,
+		"accessing block.Time()",
+		"using zero time value",
+		func() {
+			if block != nil {
+				timestamp = time.Unix(int64(block.Time()), 0)
 			}
-		}()
-		if block != nil {
-			timestamp = time.Unix(int64(block.Time()), 0)
-		}
-	}()
+		},
+	)
 
 	details := &TransactionDetails{
 		Hash:             txHash.Hex(),
