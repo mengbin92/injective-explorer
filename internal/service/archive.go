@@ -4,6 +4,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -896,4 +898,267 @@ func LoadArchiveSchedulerConfig(bc *conf.Bootstrap) *ArchiveSchedulerService {
 	}
 
 	return NewArchiveSchedulerService(archiveConfig, interval)
+}
+
+// ============================================================================
+// BLOCK ARCHIVING
+// ============================================================================
+
+// ArchiveOldBlocks archives blocks older than the specified age.
+// It moves the large txs field to block_data_archives table and optionally to object storage.
+// The main blocks table retains metadata (with archived=true flag) for statistics and queries.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - config: Archive configuration (uses DefaultArchiveConfig if nil)
+//
+// Returns:
+//   - metrics: BlockArchiveMetrics containing statistics about the operation
+//   - error: Error if archiving fails
+func (s *ArchiveService) ArchiveOldBlocks(ctx context.Context, config *ArchiveConfig) (*BlockArchiveMetrics, error) {
+	if config == nil {
+		config = DefaultArchiveConfig()
+	}
+
+	// Set default storage threshold if not specified
+	if config.StorageThreshold <= 0 {
+		config.StorageThreshold = DefaultStorageThreshold
+	}
+
+	// Validate configuration
+	if config.ArchiveAgeMonths <= 0 {
+		return nil, errors.New("archive age months must be greater than 0")
+	}
+	if config.BatchSize <= 0 {
+		return nil, errors.New("batch size must be greater than 0")
+	}
+
+	global.Logger.Infof("starting block archiving: age_months=%d, batch_size=%d, dry_run=%v",
+		config.ArchiveAgeMonths, config.BatchSize, config.DryRun)
+
+	// Initialize metrics
+	metrics := &BlockArchiveMetrics{
+		StartTime: time.Now(),
+	}
+
+	// Calculate cutoff time
+	cutoffTime := time.Now().AddDate(0, -config.ArchiveAgeMonths, 0)
+	cutoffTimestamp := cutoffTime.Unix()
+
+	// Count blocks to archive
+	var totalCount int64
+	err := s.db.WithContext(ctx).Model(&models.Block{}).
+		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
+		Count(&totalCount).Error
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to count blocks to archive")
+	}
+
+	if totalCount == 0 {
+		global.Logger.Info("no blocks to archive")
+		return metrics, nil
+	}
+
+	metrics.TotalBlocks = totalCount
+	global.Logger.Infof("found %d blocks to archive (older than %s)", totalCount, cutoffTime.Format("2006-01-02"))
+
+	// Process blocks in batches
+	var blocks []models.Block
+	batchNum := 0
+	err = s.db.WithContext(ctx).
+		Where("block_unix_timestamp < ? AND (archived IS NULL OR archived = ?)", cutoffTimestamp, false).
+		FindInBatches(&blocks, config.BatchSize, func(tx *gorm.DB, batch int) error {
+			batchNum++
+			global.Logger.Infof("processing batch %d with %d blocks", batchNum, len(blocks))
+
+			// Process each block in this batch
+			for _, block := range blocks {
+				if err := s.archiveBlock(ctx, tx, &block, config, metrics); err != nil {
+					// Log error but continue with next block
+					global.Logger.Errorf("failed to archive block %d: %v", block.Height, err)
+					metrics.FailedBlocks++
+					continue
+				}
+				metrics.ProcessedBlocks++
+			}
+
+			// Call progress callback if provided
+			if config.ProgressCallback != nil {
+				config.ProgressCallback(metrics.ProcessedBlocks, totalCount, len(blocks))
+			}
+
+			global.Logger.Infof("completed batch %d: processed=%d, failed=%d, total=%d",
+				batchNum, metrics.ProcessedBlocks, metrics.FailedBlocks, metrics.ProcessedBlocks+metrics.FailedBlocks)
+			return nil
+		}).Error
+
+	if err != nil {
+		return metrics, errors.Wrap(err, "failed to archive blocks")
+	}
+
+	metrics.EndTime = time.Now()
+	metrics.Duration = metrics.EndTime.Sub(metrics.StartTime)
+
+	global.Logger.Infof("block archiving completed: processed=%d, failed=%d, total=%d, duration=%v",
+		metrics.ProcessedBlocks, metrics.FailedBlocks, totalCount, metrics.Duration)
+
+	return metrics, nil
+}
+
+// archiveBlock archives a single block.
+func (s *ArchiveService) archiveBlock(ctx context.Context, tx *gorm.DB, block *models.Block, config *ArchiveConfig, metrics *BlockArchiveMetrics) error {
+	// Start database transaction for this block
+	return tx.Transaction(func(txDB *gorm.DB) error {
+		// Prepare block archive record
+		archive := &models.BlockDataArchive{
+			BlockID:    uint64(block.ID),
+			ArchivedAt: time.Now(),
+		}
+
+		// Compress txs field
+		txsJSONBytes, err := json.Marshal(block.Txs)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal txs to JSON")
+		}
+		txsJSON := string(txsJSONBytes)
+
+		// Compress data
+		compressedTxs, wasCompressed, compressErr := models.CompressDataToBytes([]byte(txsJSON))
+		if compressErr != nil {
+			global.Logger.Warnf("failed to compress txs for block %d: %v, using uncompressed data", block.Height, compressErr)
+			archive.Txs = txsJSON
+		} else {
+			archive.Txs = string(compressedTxs)
+			if wasCompressed {
+				metrics.CompressedBlocks++
+			}
+		}
+
+		// Upload to object storage if enabled and data is large enough
+		if config.UseObjectStorage && len(compressedTxs) > config.StorageThreshold {
+			storageKey := fmt.Sprintf("blocks/archive/txs/%d", block.Height)
+			if err := s.storage.PutObject(ctx, storageKey, compressedTxs); err != nil {
+				return errors.Wrap(err, "failed to upload txs to object storage")
+			}
+			archive.TxsStorageKey = storageKey
+			archive.Txs = "" // Clear local data after upload
+			metrics.UploadedToStorageBlocks++
+		}
+
+		// Create archive record
+		if err := txDB.Create(archive).Error; err != nil {
+			return errors.Wrap(err, "failed to create block archive record")
+		}
+
+		// Update main block table (mark as archived and clear txs)
+		updates := map[string]interface{}{
+			"archived": true,
+			"txs":      nil,
+		}
+		if config.UseObjectStorage && archive.TxsStorageKey != "" {
+			updates["txs_storage_key"] = archive.TxsStorageKey
+		}
+
+		if err := txDB.Model(block).Updates(updates).Error; err != nil {
+			return errors.Wrap(err, "failed to update block record")
+		}
+
+		return nil
+	})
+}
+
+// LoadArchivedBlockTxs loads archived block transaction data.
+// It retrieves the txs data from either object storage or the block_data_archives table.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - blockID: The block ID to load archived data for
+//
+// Returns:
+//   - txs: List of transaction hashes in the block
+//   - error: Error if loading fails
+func (s *ArchiveService) LoadArchivedBlockTxs(ctx context.Context, blockID uint64) ([]string, error) {
+	var archive models.BlockDataArchive
+	err := s.db.WithContext(ctx).
+		Where("block_id = ?", blockID).
+		First(&archive).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("archived block data not found")
+		}
+		return nil, errors.Wrap(err, "failed to query block archive")
+	}
+
+	// If data is in object storage, load it
+	if archive.TxsStorageKey != "" {
+		storageData, err := s.storage.GetObject(ctx, archive.TxsStorageKey)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load txs from object storage")
+		}
+
+		// Decompress data
+		decompressed, decompressErr := models.DecompressDataFromBytes(storageData)
+		if decompressErr != nil {
+			// If decompression fails, assume it's uncompressed (backward compatibility)
+			global.Logger.Warnf("failed to decompress block txs, using raw data: %v", decompressErr)
+			return unmarshalStringSlice(storageData)
+		}
+
+		return unmarshalStringSlice(decompressed)
+	}
+
+	// Otherwise, load from archive table (data is already compressed)
+	if archive.Txs != "" {
+		decompressed, decompressErr := models.DecompressData(archive.Txs)
+		if decompressErr != nil {
+			// If decompression fails, assume it's uncompressed (backward compatibility)
+			global.Logger.Warnf("failed to decompress block txs, using raw data: %v", decompressErr)
+			return unmarshalStringSlice([]byte(archive.Txs))
+		}
+
+		return unmarshalStringSlice(decompressed)
+	}
+
+	return nil, errors.New("no txs data found in archive")
+}
+
+// BlockArchiveMetrics contains statistics about block archiving operations.
+type BlockArchiveMetrics struct {
+	StartTime    time.Time // Start time of the archiving operation
+	EndTime      time.Time // End time of the archiving operation
+	Duration     time.Duration // Total time taken for the operation
+	TotalBlocks  int64 // Total number of blocks that were candidates for archiving
+	ProcessedBlocks int64 // Number of blocks successfully archived
+	FailedBlocks int64 // Number of blocks that failed to archive
+	CompressedBlocks int64 // Number of blocks with compressed data
+	UploadedToStorageBlocks int64 // Number of blocks uploaded to object storage
+}
+
+// GetArchiveProgress returns the current progress of block archiving.
+// Returns the number of blocks that are archived vs total blocks.
+func (s *ArchiveService) GetArchiveProgress(ctx context.Context) (archived, total int64, err error) {
+	// Count total blocks
+	err = s.db.WithContext(ctx).Model(&models.Block{}).Count(&total).Error
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "failed to count total blocks")
+	}
+
+	// Count archived blocks
+	err = s.db.WithContext(ctx).Model(&models.Block{}).
+		Where("archived = ?", true).
+		Count(&archived).Error
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "failed to count archived blocks")
+	}
+
+	return archived, total, nil
+}
+
+// unmarshalStringSlice is a helper function to unmarshal a JSON byte array to []string.
+func unmarshalStringSlice(data []byte) ([]string, error) {
+	var result []string
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal txs JSON")
+	}
+	return result, nil
 }

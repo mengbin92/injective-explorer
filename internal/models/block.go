@@ -23,17 +23,19 @@ import (
 type Block struct {
 	gorm.Model
 
-	Height             uint64   `json:"height" gorm:"column:height"`                             // Height is the block height on the blockchain
-	Proposer           string   `json:"proposer" gorm:"column:proposer"`                         // Proposer is the address of the block proposer
-	Moniker            string   `json:"moniker" gorm:"column:moniker"`                           // Moniker is the moniker (name) of the block proposer
-	BlockHash          string   `json:"block_hash" gorm:"column:block_hash"`                     // BlockHash is the hash of the current block
-	ParentHash         string   `json:"parent_hash" gorm:"column:parent_hash"`                   // ParentHash is the hash of the parent block
-	NumPrecommits      int64    `json:"num_precommits" gorm:"column:num_precommits"`             // NumPrecommits is the number of precommits for this block
-	NumTxs             int64    `json:"num_txs" gorm:"column:num_txs"`                           // NumTxs is the number of transactions in this block
-	TotalTxs           int64    `json:"total_txs" gorm:"column:total_txs"`                       // TotalTxs is the total number of transactions in the blockchain up to this block
-	Txs                []string `json:"txs" gorm:"column:txs;serializer:json"`                   // Txs is a list of transactions in this block (not stored in database)
-	Timestamp          string   `json:"timestamp" gorm:"column:timestamp"`                       // Timestamp is the human-readable timestamp of the block
-	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp"` // BlockUnixTimestamp is the Unix timestamp of the block
+	Height             uint64   `json:"height" gorm:"column:height"`                             // Block height
+	Proposer           string   `json:"proposer" gorm:"column:proposer"`                         // Block proposer address
+	Moniker            string   `json:"moniker" gorm:"column:moniker"`                           // Validator moniker
+	BlockHash          string   `json:"block_hash" gorm:"column:block_hash"`                     // Block hash
+	ParentHash         string   `json:"parent_hash" gorm:"column:parent_hash"`                   // Parent block hash
+	NumPrecommits      int64    `json:"num_precommits" gorm:"column:num_precommits"`             // Number of precommits
+	NumTxs             int64    `json:"num_txs" gorm:"column:num_txs"`                           // Number of transactions in this block
+	TotalTxs           int64    `json:"total_txs" gorm:"column:total_txs"`                       // Total transactions up to this block
+	Txs                []string `json:"txs" gorm:"column:txs;serializer:json"`                   // Transaction hashes list
+	Timestamp          string   `json:"timestamp" gorm:"column:timestamp"`                       // Human-readable timestamp
+	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp"` // Unix timestamp
+	Archived           bool     `json:"archived" gorm:"column:archived;default:0"`               // Whether block txs are archived
+	TxsStorageKey      string   `json:"txs_storage_key" gorm:"column:txs_storage_key"`           // Object storage key for archived txs
 }
 
 // BlockFromProto converts a protobuf BlockDetailInfo to a Block model.

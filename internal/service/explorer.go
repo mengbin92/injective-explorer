@@ -207,6 +207,42 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 	return ErrorReply(http.StatusNotFound, "database query error", err), err
 }
 
+// loadArchivedBlockTxs loads archived block transaction data if the block is archived.
+// This function checks if a block has been archived and loads the txs data from archive storage.
+// It modifies the block in place.
+//
+// Parameters:
+//   - ctx: Context for cancellation
+//   - block: The block to load archived data for (modified in place)
+//
+// Returns:
+//   - error: Error if loading fails (non-blocking, logs warning)
+func (s *ExplorerService) loadArchivedBlockTxs(ctx context.Context, block *models.Block) error {
+	if block == nil || !block.Archived {
+		return nil
+	}
+
+	// If block is archived but txs are already loaded (non-empty), no need to load
+	if len(block.Txs) > 0 {
+		return nil
+	}
+
+	global.Logger.Debugf("loading archived txs for block %d", block.Height)
+
+	// Use archive service to load archived data
+	archiveService := NewArchiveService()
+	txs, err := archiveService.LoadArchivedBlockTxs(ctx, uint64(block.ID))
+	if err != nil {
+		global.Logger.Warnf("failed to load archived txs for block %d: %v", block.Height, err)
+		// Don't fail the request, just log warning
+		return nil
+	}
+
+	block.Txs = txs
+	global.Logger.Debugf("loaded %d archived txs for block %d", len(txs), block.Height)
+	return nil
+}
+
 // GetBlockByHeight retrieves a specific block by its height.
 //
 // Parameters:
@@ -261,6 +297,11 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	if err == nil {
 		// Found in database, convert to DTO and return
 		global.Logger.Debugf("block found in database: height=%d, query_time=%v", req.Height, queryDuration)
+
+		// Load archived txs if block is archived
+		if dbBlock.Archived && len(dbBlock.Txs) == 0 {
+			s.loadArchivedBlockTxs(queryCtx, &dbBlock)
+		}
 
 		// Cache the block for future queries (async to avoid blocking)
 		go cacheBlock(context.Background(), &dbBlock)

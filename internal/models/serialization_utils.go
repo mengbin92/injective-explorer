@@ -4,6 +4,7 @@ package models
 
 import (
 	"fmt"
+	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -174,4 +175,105 @@ func UnmarshalProtoSliceFromJSON(jsonStrs []string, factory func() proto.Message
 	}
 
 	return result, firstErr
+}
+
+// MarshalStringSliceToJSON marshals a slice of strings to a JSON string.
+// This is useful for storing simple string slices (like transaction hashes) in the database.
+//
+// Parameters:
+//   - strs: The slice of strings to marshal
+//
+// Returns:
+//   - string: The JSON string representation (e.g., `["hash1","hash2"]`)
+//   - error: Error if marshaling fails
+func MarshalStringSliceToJSON(strs []string) (string, error) {
+	if strs == nil {
+		return "[]", nil
+	}
+
+	// Simple JSON marshaling for string slices
+	result := "["
+	for i, str := range strs {
+		if i > 0 {
+			result += ","
+		}
+		// Escape quotes in string
+		escaped := strings.ReplaceAll(str, "\\", "\\\\")
+		escaped = strings.ReplaceAll(escaped, "\"", "\\\"")
+		result += "\"" + escaped + "\""
+	}
+	result += "]"
+
+	return result, nil
+}
+
+// UnmarshalStringSliceFromJSON unmarshals a JSON string back to a slice of strings.
+//
+// Parameters:
+//   - jsonStr: The JSON string representation (e.g., `["hash1","hash2"]`)
+//
+// Returns:
+//   - []string: The slice of strings
+//   - error: Error if unmarshaling fails
+func UnmarshalStringSliceFromJSON[T string](jsonStr string) ([]T, error) {
+	if jsonStr == "" || jsonStr == "[]" {
+		return nil, nil
+	}
+
+	// Simple JSON parsing for string slices
+	// This is a simplified parser that works for our use case
+	var result []T
+	jsonStr = strings.TrimSpace(jsonStr)
+
+	if !strings.HasPrefix(jsonStr, "[") || !strings.HasSuffix(jsonStr, "]") {
+		return nil, fmt.Errorf("invalid JSON array format")
+	}
+
+	// Remove brackets
+	inner := jsonStr[1 : len(jsonStr)-1]
+	if inner == "" {
+		return result, nil
+	}
+
+	// Parse comma-separated values
+	var current strings.Builder
+	inString := false
+	escaped := false
+
+	for _, r := range inner {
+		switch r {
+		case '\\':
+			if escaped {
+				current.WriteRune(r)
+				escaped = false
+			} else {
+				escaped = true
+			}
+		case '"':
+			if escaped {
+				current.WriteRune(r)
+				escaped = false
+			} else {
+				inString = !inString
+			}
+		case ',':
+			if !inString {
+				result = append(result, T(current.String()))
+				current.Reset()
+			} else {
+				current.WriteRune(r)
+			}
+		default:
+			if inString || escaped {
+				current.WriteRune(r)
+			}
+		}
+	}
+
+	// Add the last element
+	if current.Len() > 0 || inString {
+		result = append(result, T(current.String()))
+	}
+
+	return result, nil
 }

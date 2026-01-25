@@ -182,12 +182,15 @@ CREATE TABLE `blocks` (
   `txs` longtext,
   `timestamp` longtext,
   `block_unix_timestamp` bigint unsigned DEFAULT NULL,
+  `archived` tinyint(1) DEFAULT '0' COMMENT '是否已归档（0=未归档，1=已归档）',
+  `txs_storage_key` varchar(255) DEFAULT NULL COMMENT 'txs字段的对象存储key，格式: blocks/archive/txs/{height}',
   PRIMARY KEY (`id`),
   KEY `idx_blocks_deleted_at` (`deleted_at`),
   KEY `idx_height` (`height`),
   KEY `idx_height_desc` (`height`),
   KEY `idx_blocks_block_hash` (`block_hash`),
-  KEY `idx_timestamp_desc` (`block_unix_timestamp`)
+  KEY `idx_timestamp_desc` (`block_unix_timestamp`),
+  KEY `idx_blocks_archived_timestamp` (`archived`, `block_unix_timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
@@ -289,6 +292,20 @@ CREATE TABLE `transaction_data_archives` (
   KEY `idx_transaction_data_archives_messages_storage_key` (`messages_storage_key`),
   KEY `idx_transaction_data_archives_logs_storage_key` (`logs_storage_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for block_data_archives
+-- ----------------------------
+DROP TABLE IF EXISTS `block_data_archives`;
+CREATE TABLE `block_data_archives` (
+  `block_id` bigint unsigned NOT NULL COMMENT '关联blocks.id',
+  `txs` longtext COMMENT '区块交易列表（压缩后的JSON）',
+  `txs_storage_key` varchar(255) DEFAULT NULL COMMENT 'txs字段的对象存储key（如果已上传到对象存储）',
+  `archived_at` datetime(3) DEFAULT NULL COMMENT '归档时间',
+  PRIMARY KEY (`block_id`),
+  KEY `idx_block_data_archives_txs_storage_key` (`txs_storage_key`),
+  KEY `idx_block_data_archives_archived_at` (`archived_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='区块数据归档表';
 
 -- ----------------------------
 -- Table structure for transactions
