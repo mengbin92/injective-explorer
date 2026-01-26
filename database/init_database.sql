@@ -243,6 +243,27 @@ CREATE TABLE `contract_tags` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
+-- Table structure for global_tags
+-- ----------------------------
+DROP TABLE IF EXISTS `global_tags`;
+CREATE TABLE `global_tags` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `chain_id` varchar(50) NOT NULL,
+  `tag_type` varchar(50) NOT NULL,
+  `tag_value` varchar(255) DEFAULT NULL,
+  `tag_color` varchar(20) DEFAULT NULL,
+  `description` text,
+  `created_by` varchar(128) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_global_tag` (`chain_id`,`tag_type`),
+  KEY `idx_global_tags_deleted_at` (`deleted_at`),
+  KEY `idx_global_tags_tag_type` (`tag_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
 -- Table structure for contract_source_files
 -- ----------------------------
 DROP TABLE IF EXISTS `contract_source_files`;

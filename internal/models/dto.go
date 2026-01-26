@@ -327,6 +327,41 @@ func ToContractTagInfoDTOs(tags []ContractTag) []*pb.ContractTagInfoDTO {
 	return dtos
 }
 
+// ToGlobalTagInfoDTO converts a GlobalTag model to GlobalTagInfoDTO proto message.
+func ToGlobalTagInfoDTO(tag *GlobalTag) *pb.GlobalTagInfoDTO {
+	if tag == nil {
+		return nil
+	}
+
+	var createdAt string
+	if !tag.CreatedAt.IsZero() {
+		createdAt = tag.CreatedAt.Format(time.RFC3339)
+	}
+
+	return &pb.GlobalTagInfoDTO{
+		Id:          uint64(tag.ID),
+		ChainId:     tag.ChainID,
+		TagType:     tag.TagType,
+		TagValue:    tag.TagValue,
+		TagColor:    tag.TagColor,
+		Description: tag.Description,
+		CreatedBy:   tag.CreatedBy,
+		CreatedAt:   createdAt,
+	}
+}
+
+// ToGlobalTagInfoDTOs converts a slice of GlobalTag models to proto GlobalTagInfoDTOs.
+func ToGlobalTagInfoDTOs(tags []GlobalTag) []*pb.GlobalTagInfoDTO {
+	if tags == nil {
+		return nil
+	}
+	dtos := make([]*pb.GlobalTagInfoDTO, 0, len(tags))
+	for _, tag := range tags {
+		dtos = append(dtos, ToGlobalTagInfoDTO(&tag))
+	}
+	return dtos
+}
+
 // ToAddressLabelDTO converts an AddressLabel model to AddressLabelDTO proto message.
 func ToAddressLabelDTO(label *AddressLabel) *pb.AddressLabelDTO {
 	if label == nil {

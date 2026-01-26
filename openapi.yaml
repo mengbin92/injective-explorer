@@ -1566,6 +1566,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/global/tag:
+        post:
+            tags:
+                - Explorer
+            description: AddGlobalTag adds a global tag (not bound to a specific contract)
+            operationId: Explorer_AddGlobalTag
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.AddGlobalTagRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        delete:
+            tags:
+                - Explorer
+            description: RemoveGlobalTag removes a global tag
+            operationId: Explorer_RemoveGlobalTag
+            parameters:
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+                - name: tag_type
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/health:
         get:
             tags:
@@ -2030,6 +2070,22 @@ components:
                     type: string
                 note:
                     type: string
+        api.explorer.v1.AddGlobalTagRequest:
+            type: object
+            properties:
+                chain_id:
+                    type: string
+                tag_type:
+                    type: string
+                tag_value:
+                    type: string
+                tag_color:
+                    type: string
+                description:
+                    type: string
+                created_by:
+                    type: string
+            description: AddGlobalTagRequest requests adding a global tag
         api.explorer.v1.AddIPToBlacklistRequest:
             type: object
             properties:

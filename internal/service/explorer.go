@@ -5870,3 +5870,97 @@ func (s *ExplorerService) GetAllContractTags(ctx context.Context, req *pb.GetAll
 
 	return MarshalAndReply(response, "marshal contract tags error")
 }
+
+// AddGlobalTag adds a global tag (not bound to a specific contract).
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing global tag information
+//
+// Returns:
+//   - *pb.Reply: Response containing the created global tag
+//   - error: Error if the operation fails
+func (s *ExplorerService) AddGlobalTag(ctx context.Context, req *pb.AddGlobalTagRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	if req.ChainId == "" {
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	}
+
+	if req.TagType == "" {
+		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
+	}
+
+	// Create or update global tag
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	tag := &models.GlobalTag{
+		ChainID:     req.ChainId,
+		TagType:     req.TagType,
+		TagValue:    req.TagValue,
+		TagColor:    req.TagColor,
+		Description: req.Description,
+		CreatedBy:   req.CreatedBy,
+	}
+
+	// Use FirstOrCreate to avoid duplicates based on chain_id and tag_type
+	err := db.Get().WithContext(queryCtx).
+		Where("chain_id = ? AND tag_type = ?", req.ChainId, req.TagType).
+		FirstOrCreate(tag).Error
+
+	if err != nil {
+		global.Logger.Errorf("failed to add global tag: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to add global tag", err), err
+	}
+
+	// Convert to response
+	tagInfo := models.ToGlobalTagInfoDTO(tag)
+	return MarshalAndReply(tagInfo, "marshal global tag error")
+}
+
+// RemoveGlobalTag removes a global tag.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing chain ID and tag type
+//
+// Returns:
+//   - *pb.Reply: Response indicating success
+//   - error: Error if the operation fails
+func (s *ExplorerService) RemoveGlobalTag(ctx context.Context, req *pb.RemoveGlobalTagRequest) (*pb.Reply, error) {
+	// Input validation
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	if req.ChainId == "" {
+		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	}
+
+	if req.TagType == "" {
+		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
+	}
+
+	// Delete global tag
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	err := db.Get().WithContext(queryCtx).
+		Where("chain_id = ? AND tag_type = ?", req.ChainId, req.TagType).
+		Delete(&models.GlobalTag{}).Error
+
+	if err != nil {
+		global.Logger.Errorf("failed to remove global tag: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to remove global tag", err), err
+	}
+
+	// Return success response
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "success",
+	}, nil
+}
