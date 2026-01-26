@@ -1,0 +1,6 @@
+地址,标签名称,标签类型,标签颜色,描述,是否显示,备注
+0x1234567890abcdef1234567890abcdef12345678,Binance,exchange,#FF5733,币安交易所,true,主要充值地址
+0x1234567890abcdef1234567890abcdef12345678,热钱包,wallet,#ffc107,热钱包,true,内部编号001
+0xabcdef1234567890abcdef1234567890abcdef12,项目方,project,#28a745,项目方地址,true,官方团队
+0x567890abcdef1234567890abcdef1234567890ab,内部备注,custom,#6c757d,内部备注,false,内部编号002
+0xFEDCBA0987654321FEDCBA0987654321FEDCBA09,做市商,exchange,#17a2b8,做市商A,true,主要做市商

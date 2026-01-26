@@ -1,0 +1,52 @@
+[
+  {
+    "address": "0x1234567890abcdef1234567890abcdef12345678",
+    "chain_id": "injective-1",
+    "label_type": "exchange",
+    "label_value": "Binance",
+    "label_color": "#FF5733",
+    "description": "币安交易所",
+    "visible": true,
+    "created_by": "admin"
+  },
+  {
+    "address": "0x1234567890abcdef1234567890abcdef12345678",
+    "chain_id": "injective-1",
+    "label_type": "wallet",
+    "label_value": "热钱包",
+    "label_color": "#ffc107",
+    "description": "热钱包",
+    "visible": true,
+    "created_by": "admin"
+  },
+  {
+    "address": "0xabcdef1234567890abcdef1234567890abcdef12",
+    "chain_id": "injective-1",
+    "label_type": "project",
+    "label_value": "项目方",
+    "label_color": "#28a745",
+    "description": "项目方地址",
+    "visible": true,
+    "created_by": "admin"
+  },
+  {
+    "address": "0x567890abcdef1234567890abcdef1234567890ab",
+    "chain_id": "injective-1",
+    "label_type": "custom",
+    "label_value": "内部备注",
+    "label_color": "#6c757d",
+    "description": "内部备注",
+    "visible": false,
+    "created_by": "admin"
+  },
+  {
+    "address": "0xFEDCBA0987654321FEDCBA0987654321FEDCBA09",
+    "chain_id": "injective-1",
+    "label_type": "exchange",
+    "label_value": "做市商",
+    "label_color": "#17a2b8",
+    "description": "做市商A",
+    "visible": true,
+    "created_by": "admin"
+  }
+]

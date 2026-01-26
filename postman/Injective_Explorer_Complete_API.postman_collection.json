@@ -1387,18 +1387,34 @@
                 ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/info?contract_address={{contract_address}}&chain_id={{chain_id}}",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "info"],
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "info"
+                  ],
                   "query": [
-                    {"key": "contract_address", "value": "{{contract_address}}"},
-                    {"key": "chain_id", "value": "{{chain_id}}"}
+                    {
+                      "key": "contract_address",
+                      "value": "{{contract_address}}"
+                    },
+                    {
+                      "key": "chain_id",
+                      "value": "{{chain_id}}"
+                    }
                   ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": null\n}"
             }
@@ -1433,7 +1449,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"contract_address\": \"{{contract_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"tag_type\": \"category\",\n    \"tag_value\": \"DeFi\",\n    \"tag_color\": \"#FF5733\",\n    \"description\": \"DeFi category tag\",\n    \"created_by\": \"test_user\"\n}",
+              "raw": "{\n    \"contract_address\": \"{{contract_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"tag_type\": \"category\",\n    \"tag_value\": \"DeFi\",\n    \"tag_color\": \"#FF5733\",\n    \"description\": \"DeFi category tag\",\n    \"created_by\": \"test_user\"\n,\n    \"visible\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1454,6 +1470,65 @@
               ]
             },
             "description": "添加合约标签"
+          },
+          "response": []
+        },
+        {
+          "name": "添加合约标签（从预设标签选择）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has added tag with preset fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('is_preset');",
+                  "        pm.expect(jsonData.data.is_preset).to.eql(true);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"contract_address\": \"{{contract_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"tag_definition_id\": 1,\n    \"visible\": true,\n    \"created_by\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/contract/info/tag",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contract",
+                "info",
+                "tag"
+              ]
+            },
+            "description": "添加合约标签（通过tag_definition_id从预设标签选择）"
           },
           "response": []
         },
@@ -1532,19 +1607,39 @@
                 ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/info/tag?contract_address={{contract_address}}&chain_id={{chain_id}}&tag_type=category",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "info", "tag"],
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "info",
+                    "tag"
+                  ],
                   "query": [
-                    {"key": "contract_address", "value": "{{contract_address}}"},
-                    {"key": "chain_id", "value": "{{chain_id}}"},
-                    {"key": "tag_type", "value": "category"}
+                    {
+                      "key": "contract_address",
+                      "value": "{{contract_address}}"
+                    },
+                    {
+                      "key": "chain_id",
+                      "value": "{{chain_id}}"
+                    },
+                    {
+                      "key": "tag_type",
+                      "value": "category"
+                    }
                   ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": null\n}"
             }
@@ -1706,18 +1801,35 @@
                 ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/info/export?format=csv&chain_id={{chain_id}}",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "info", "export"],
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "info",
+                    "export"
+                  ],
                   "query": [
-                    {"key": "format", "value": "csv"},
-                    {"key": "chain_id", "value": "{{chain_id}}"}
+                    {
+                      "key": "format",
+                      "value": "csv"
+                    },
+                    {
+                      "key": "chain_id",
+                      "value": "{{chain_id}}"
+                    }
                   ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"format\": \"csv\",\n    \"content\": \"contract_address,chain_id,name,token_name,token_symbol,contract_type,...\\n0x...\",\n    \"filename\": \"contract_info_export_20250109.csv\",\n    \"record_count\": 100\n  }\n}"
             }
@@ -1812,14 +1924,25 @@
                 },
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/info/import",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "info", "import"]
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "info",
+                    "import"
+                  ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"total_count\": 50,\n    \"success_count\": 48,\n    \"failed_count\": 2,\n    \"errors\": [\n      {\n        \"row\": 15,\n        \"contract_address\": \"invalid_address\",\n        \"error\": \"Invalid address format\"\n      },\n      {\n        \"row\": 32,\n        \"contract_address\": \"0x123\",\n        \"error\": \"Duplicate contract address\"\n      }\n    ]\n  }\n}"
             }
@@ -1913,14 +2036,25 @@
                 },
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/files/upload",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "files", "upload"]
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "files",
+                    "upload"
+                  ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"contract_address\": \"0x1234567890abcdef1234567890abcdef12345678\",\n    \"chain_id\": \"injective-1\",\n    \"uploaded_files\": [\n      {\n        \"file_type\": \"source\",\n        \"file_name\": \"Token.sol\",\n        \"file_id\": 123,\n        \"file_size\": 1024,\n        \"storage_type\": \"database\"\n      },\n      {\n        \"file_type\": \"abi\",\n        \"file_name\": \"abi.json\",\n        \"file_id\": 124,\n        \"file_size\": 512,\n        \"storage_type\": \"database\"\n      }\n    ],\n    \"uploaded_at\": \"2024-01-15T10:30:00Z\"\n  }\n}"
             },
@@ -1949,14 +2083,25 @@
                 },
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/files/upload",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "files", "upload"]
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "files",
+                    "upload"
+                  ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"contract_address\": \"0x1234567890abcdef1234567890abcdef12345678\",\n    \"chain_id\": \"injective-1\",\n    \"uploaded_files\": [\n      {\n        \"file_type\": \"source\",\n        \"file_name\": \"Token.sol\",\n        \"file_id\": 125,\n        \"file_size\": 1024,\n        \"storage_type\": \"object_storage\"\n      }\n    ],\n    \"uploaded_at\": \"2024-01-15T10:31:00Z\"\n  }\n}"
             },
@@ -1985,14 +2130,25 @@
                 },
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/files/upload",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "files", "upload"]
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "files",
+                    "upload"
+                  ]
                 }
               },
               "status": "Not Found",
               "code": 404,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 404,\n  \"message\": \"contract not found\",\n  \"data\": null\n}"
             },
@@ -2021,14 +2177,25 @@
                 },
                 "url": {
                   "raw": "{{base_url}}/api/v1/contract/files/upload",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "contract", "files", "upload"]
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "contract",
+                    "files",
+                    "upload"
+                  ]
                 }
               },
               "status": "Bad Request",
               "code": 400,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 400,\n  \"message\": \"invalid source code file: invalid base64 encoding\",\n  \"data\": null\n}"
             }
@@ -2078,7 +2245,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_type\": \"exchange\",\n    \"label_value\": \"Binance\",\n    \"label_color\": \"#F59E0B\",\n    \"description\": \"Major cryptocurrency exchange\",\n    \"created_by\": \"admin\"\n}",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_type\": \"exchange\",\n    \"label_value\": \"Binance\",\n    \"label_color\": \"#F59E0B\",\n    \"visible\": true,\n    \"description\": \"Major cryptocurrency exchange\",\n    \"created_by\": \"admin\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2136,7 +2303,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_type\": \"exchange\",\n    \"label_value\": \"Updated Exchange Name\",\n    \"label_color\": \"#10B981\",\n    \"description\": \"Updated description\"\n}",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_type\": \"exchange\",\n    \"label_value\": \"Updated Exchange Name\",\n    \"label_color\": \"#10B981\",\n    \"visible\": false,\n    \"description\": \"Updated description\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2233,19 +2400,38 @@
                 ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/address/label?address={{account_address}}&chain_id={{chain_id}}&label_type=exchange",
-                  "host": ["{{base_url}}"],
-                  "path": ["api", "v1", "address", "label"],
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "address",
+                    "label"
+                  ],
                   "query": [
-                    {"key": "address", "value": "{{account_address}}"},
-                    {"key": "chain_id", "value": "{{chain_id}}"},
-                    {"key": "label_type", "value": "exchange"}
+                    {
+                      "key": "address",
+                      "value": "{{account_address}}"
+                    },
+                    {
+                      "key": "chain_id",
+                      "value": "{{chain_id}}"
+                    },
+                    {
+                      "key": "label_type",
+                      "value": "exchange"
+                    }
                   ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                {"key": "Content-Type", "value": "application/json"}
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": null\n}"
             }
@@ -2397,6 +2583,706 @@
               ]
             },
             "description": "列出地址标签（支持过滤条件和分页）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取地址标签统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has statistics data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_labeled_addresses');",
+                  "        pm.expect(jsonData.data).to.have.property('visible_labels_count');",
+                  "        pm.expect(jsonData.data).to.have.property('hidden_labels_count');",
+                  "        pm.expect(jsonData.data).to.have.property('total_labels_count');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels/stats?chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "链ID (可选)"
+                }
+              ]
+            },
+            "description": "获取地址标签统计信息"
+          },
+          "response": []
+        },
+        {
+          "name": "批量导入地址标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has import result\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('success_count');",
+                  "        pm.expect(jsonData.data).to.have.property('failed_count');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/address_labels_simple.csv",
+                  "description": "CSV文件（简单格式：地址,标签名称,备注）"
+                },
+                {
+                  "key": "csv_format",
+                  "value": "simple",
+                  "type": "text",
+                  "description": "CSV格式: simple（简单格式）, full（完整格式）"
+                },
+                {
+                  "key": "import_mode",
+                  "value": "create",
+                  "type": "text",
+                  "description": "导入模式: create（仅创建）, update（更新）, upsert（创建或更新）"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels/batch-import",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels",
+                "batch-import"
+              ]
+            },
+            "description": "批量导入地址标签（支持CSV/JSON）"
+          },
+          "response": []
+        },
+        {
+          "name": "批量导出地址标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has CSV or JSON file\", function () {",
+                  "    var contentType = pm.response.headers.get('Content-Type');",
+                  "    pm.expect(contentType).to.match(/csv|json/);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"chain_id\": \"{{chain_id}}\",\n    \"format\": \"csv\",\n    \"label_type\": \"\",\n    \"visible\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels/batch-export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels",
+                "batch-export"
+              ]
+            },
+            "description": "批量导出地址标签（支持CSV/JSON格式）"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "预设标签管理 (TagDefinitionService)",
+      "item": [
+        {
+          "name": "列表查询标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tag definitions\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definitions?tag_type=contract&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definitions"
+              ],
+              "query": [
+                {
+                  "key": "tag_type",
+                  "value": "contract",
+                  "description": "标签类型: contract, address (可选)"
+                },
+                {
+                  "key": "tag_category",
+                  "value": "",
+                  "description": "标签分类: normal, abnormal (可选)",
+                  "disabled": true
+                },
+                {
+                  "key": "is_system",
+                  "value": "",
+                  "description": "是否系统预置 (可选)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "页码 (默认1)"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "每页数量 (默认20)"
+                }
+              ]
+            },
+            "description": "查询预设标签定义列表，支持分页和过滤"
+          },
+          "response": []
+        },
+        {
+          "name": "创建标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has created tag definition\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('id');",
+                  "        pm.expect(jsonData.data).to.have.property('tag_name');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tag_type\": \"contract\",\n    \"tag_name\": \"GameFi\",\n    \"tag_category\": \"normal\",\n    \"tag_color\": \"#8B5CF6\",\n    \"description\": \"GameFi相关项目\",\n    \"sort_order\": 10,\n    \"created_by\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definition"
+              ]
+            },
+            "description": "创建新的预设标签定义"
+          },
+          "response": []
+        },
+        {
+          "name": "更新标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has updated tag definition\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1,\n    \"tag_name\": \"官方更新\",\n    \"tag_color\": \"#52c41a\",\n    \"description\": \"官方项目标签（已更新）\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definition"
+              ]
+            },
+            "description": "更新预设标签定义（只能更新用户创建的标签）"
+          },
+          "response": []
+        },
+        {
+          "name": "删除标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definition?id=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definition"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "标签定义ID"
+                }
+              ]
+            },
+            "description": "删除预设标签定义（软删除）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取标签使用统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has usage stats\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/usage-stats?tag_type=contract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "usage-stats"
+              ],
+              "query": [
+                {
+                  "key": "tag_type",
+                  "value": "contract",
+                  "description": "标签类型 (可选)"
+                }
+              ]
+            },
+            "description": "获取标签使用统计"
+          },
+          "response": []
+        },
+        {
+          "name": "获取可选标签列表（前端选择器）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has selectable tags\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definitions/selection?tag_type=contract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definitions",
+                "selection"
+              ],
+              "query": [
+                {
+                  "key": "tag_type",
+                  "value": "contract",
+                  "description": "标签类型: contract, address"
+                }
+              ]
+            },
+            "description": "获取可选标签列表（用于前端下拉框）"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "地址备注管理 (AddressRemarkService)",
+      "item": [
+        {
+          "name": "设置/更新地址备注",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has success message\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"remark\": \"主要充值地址，日交易量大，需要重点关注\",\n    \"created_by\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/remark",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "remark"
+              ]
+            },
+            "description": "设置或更新地址备注"
+          },
+          "response": []
+        },
+        {
+          "name": "获取地址备注",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has remark data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/remark?address={{account_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "remark"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "{{account_address}}"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}"
+                }
+              ]
+            },
+            "description": "获取地址备注"
+          },
+          "response": []
+        },
+        {
+          "name": "删除地址备注",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/remark?address={{account_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "remark"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "{{account_address}}"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}"
+                }
+              ]
+            },
+            "description": "删除地址备注（软删除）"
           },
           "response": []
         }
