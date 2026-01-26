@@ -1201,6 +1201,85 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	return MarshalAndReply(accountDTO, "marshal account error")
 }
 
+// normalizeMessageType converts a short message type name to its full type URL.
+// If the input is already a full type URL (starts with "/"), it returns as is.
+// Otherwise, it looks up the full type URL from a predefined mapping.
+// If no mapping is found, it returns the input as is (for forward compatibility).
+func normalizeMessageType(msgType string) string {
+	// If it's already a full type URL, return as is
+	if strings.HasPrefix(msgType, "/") {
+		return msgType
+	}
+
+	// Mapping of short type names to full type URLs
+	shortToFullMap := map[string]string{
+		// Bank module
+		"MsgSend": "/cosmos.bank.v1beta1.MsgSend",
+		"MsgMultiSend": "/cosmos.bank.v1beta1.MsgMultiSend",
+
+		// Distribution module
+		"MsgSetWithdrawAddress": "/cosmos.distribution.v1beta1.MsgSetWithdrawAddress",
+		"MsgWithdrawDelegatorReward": "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
+		"MsgWithdrawValidatorCommission": "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission",
+		"MsgFundCommunityPool": "/cosmos.distribution.v1beta1.MsgFundCommunityPool",
+
+		// Staking module
+		"MsgDelegate": "/cosmos.staking.v1beta1.MsgDelegate",
+		"MsgUndelegate": "/cosmos.staking.v1beta1.MsgUndelegate",
+		"MsgRedelegate": "/cosmos.staking.v1beta1.MsgRedelegate",
+		"MsgCreateValidator": "/cosmos.staking.v1beta1.MsgCreateValidator",
+		"MsgEditValidator": "/cosmos.staking.v1beta1.MsgEditValidator",
+
+		// IBC transfer
+		"MsgTransfer": "/ibc.applications.transfer.v1.MsgTransfer",
+
+		// Exchange module (Injective)
+		"MsgDeposit": "/injective.exchange.v1beta1.MsgDeposit",
+		"MsgWithdraw": "/injective.exchange.v1beta1.MsgWithdraw",
+		"MsgSubaccountTransfer": "/injective.exchange.v1beta1.MsgSubaccountTransfer",
+		"MsgExternalTransfer": "/injective.exchange.v1beta1.MsgExternalTransfer",
+		"MsgCreateSpotLimitOrder": "/injective.exchange.v1beta1.MsgCreateSpotLimitOrder",
+		"MsgCreateSpotMarketOrder": "/injective.exchange.v1beta1.MsgCreateSpotMarketOrder",
+		"MsgCancelSpotOrder": "/injective.exchange.v1beta1.MsgCancelSpotOrder",
+		"MsgCreateDerivativeLimitOrder": "/injective.exchange.v1beta1.MsgCreateDerivativeLimitOrder",
+		"MsgCreateDerivativeMarketOrder": "/injective.exchange.v1beta1.MsgCreateDerivativeMarketOrder",
+		"MsgCancelDerivativeOrder": "/injective.exchange.v1beta1.MsgCancelDerivativeOrder",
+
+		// TokenFactory module
+		"MsgCreateDenom": "/injective.tokenfactory.v1beta1.MsgCreateDenom",
+		"MsgMint": "/injective.tokenfactory.v1beta1.MsgMint",
+		"MsgBurn": "/injective.tokenfactory.v1beta1.MsgBurn",
+
+		// WasmX module
+		"MsgExecuteContractCompat": "/injective.wasmx.v1.MsgExecuteContractCompat",
+
+		// CosmWasm
+		"MsgStoreCode": "/cosmwasm.wasm.v1.MsgStoreCode",
+		"MsgInstantiateContract": "/cosmwasm.wasm.v1.MsgInstantiateContract",
+		"MsgExecuteContract": "/cosmwasm.wasm.v1.MsgExecuteContract",
+		"MsgMigrateContract": "/cosmwasm.wasm.v1.MsgMigrateContract",
+
+		// Gov module
+		"MsgSubmitProposal": "/cosmos.gov.v1.MsgSubmitProposal",
+		"MsgVote": "/cosmos.gov.v1.MsgVote",
+		"MsgGovDeposit": "/cosmos.gov.v1.MsgDeposit",
+
+		// Authz module
+		"MsgGrant": "/cosmos.authz.v1beta1.MsgGrant",
+		"MsgRevoke": "/cosmos.authz.v1beta1.MsgRevoke",
+		"MsgExec": "/cosmos.authz.v1beta1.MsgExec",
+	}
+
+	// Look up the full type URL
+	if fullType, ok := shortToFullMap[msgType]; ok {
+		return fullType
+	}
+
+	// If no mapping found, return the input as is
+	// This allows for forward compatibility with new message types
+	return msgType
+}
+
 // GetAccountTransactions retrieves transactions for a given account address with pagination.
 // This function queries transactions where the address is either the signer (transaction initiator)
 // or the recipient (to field). It supports both page-based and cursor-based pagination.
@@ -1276,15 +1355,18 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		args := make([]interface{}, 0, len(req.TxTypes)*2)
 
 		for _, msgType := range req.TxTypes {
+			// Normalize message type: convert short name to full type URL
+			normalizedType := normalizeMessageType(msgType)
+
 			if dbType == "mysql" {
 				conditions = append(conditions, "(JSON_CONTAINS(message_types, ?) OR JSON_SEARCH(message_types, 'one', ?) IS NOT NULL)")
-				args = append(args, fmt.Sprintf(`"%s"`, msgType), fmt.Sprintf(`%%"%s"%%`, msgType))
+				args = append(args, fmt.Sprintf(`"%s"`, normalizedType), fmt.Sprintf(`%%"%s"%%`, normalizedType))
 			} else if dbType == "postgres" {
 				conditions = append(conditions, "(message_types @> ?::jsonb OR message_types::text LIKE ?)")
-				args = append(args, fmt.Sprintf(`["%s"]`, msgType), fmt.Sprintf(`%%"%s"%%`, msgType))
+				args = append(args, fmt.Sprintf(`["%s"]`, normalizedType), fmt.Sprintf(`%%"%s"%%`, normalizedType))
 			} else {
 				conditions = append(conditions, "message_types LIKE ?")
-				args = append(args, fmt.Sprintf(`%%"%s"%%`, msgType))
+				args = append(args, fmt.Sprintf(`%%"%s"%%`, normalizedType))
 			}
 		}
 
@@ -1338,7 +1420,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	}
 
 	global.Logger.Debugf("no account transactions found in database: address=%s", address)
-	return ErrorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
+	return ErrorReply(http.StatusNotFound, "no transactions found", nil), nil
 }
 
 // GetAccountBalances retrieves account balances for a given address.

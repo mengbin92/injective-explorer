@@ -42,12 +42,20 @@ func MarshalAndReply(v interface{}, errorMsg string) (*pb.Reply, error) {
 
 // ErrorReply returns an error reply with the given code, message, and error details.
 func ErrorReply(code int, message string, err error) *pb.Reply {
-	// Sanitize error message to prevent sensitive information leakage
-	sanitizedErr := utils.SanitizeError(err, MaxErrorLength)
-	return &pb.Reply{
-		Code:    int32(code),
-		Message: fmt.Sprintf("%s: %s", message, sanitizedErr),
+	reply := &pb.Reply{
+		Code: int32(code),
 	}
+
+	// Only append error details if err is not nil
+	if err != nil {
+		// Sanitize error message to prevent sensitive information leakage
+		sanitizedErr := utils.SanitizeError(err, MaxErrorLength)
+		reply.Message = fmt.Sprintf("%s: %s", message, sanitizedErr)
+	} else {
+		reply.Message = message
+	}
+
+	return reply
 }
 
 // ToStruct converts any value to google.protobuf.Struct.
