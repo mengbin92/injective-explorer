@@ -48,6 +48,29 @@ service AddressLabelService {
       get: "/api/v1/address/label/list"
     };
   }
+
+  // GetAddressLabelStats gets statistics for address labels.
+  rpc GetAddressLabelStats(GetAddressLabelStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/address/labels/stats"
+    };
+  }
+
+  // BatchImportAddressLabels imports address labels from CSV/JSON file.
+  rpc BatchImportAddressLabels(BatchImportAddressLabelsRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/address/labels/batch-import"
+      body: "*"
+    };
+  }
+
+  // BatchExportAddressLabels exports address labels to CSV/JSON file.
+  rpc BatchExportAddressLabels(BatchExportAddressLabelsRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/address/labels/batch-export"
+      body: "*"
+    };
+  }
 }
 
 // Request messages
@@ -61,6 +84,7 @@ message CreateAddressLabelRequest {
   string label_color = 5 [json_name = "label_color"];   // Label color (optional, e.g., #FF5733)
   string description = 6;   // Description (optional)
   string created_by = 7 [json_name = "created_by"];    // Creator (optional)
+  bool visible = 8 [json_name = "visible"];            // Whether to display in frontend (default: true)
 }
 
 // UpdateAddressLabelRequest is the request message for updating an address label.
@@ -71,6 +95,7 @@ message UpdateAddressLabelRequest {
   string label_value = 4 [json_name = "label_value"];   // Label value (optional)
   string label_color = 5 [json_name = "label_color"];   // Label color (optional)
   string description = 6;   // Description (optional)
+  bool visible = 7 [json_name = "visible"];            // Whether to display in frontend
 }
 
 // DeleteAddressLabelRequest is the request message for deleting an address label.
@@ -109,4 +134,54 @@ message AddressLabelDTO {
   string created_by = 8 [json_name = "created_by"];
   string created_at = 9 [json_name = "created_at"];  // ISO 8601 format timestamp
   string updated_at = 10 [json_name = "updated_at"];  // ISO 8601 format timestamp
+  bool visible = 11 [json_name = "visible"];         // Whether to display in frontend
+}
+
+// GetAddressLabelStatsRequest is the request message for getting address label statistics.
+message GetAddressLabelStatsRequest {
+  string chain_id = 1 [json_name = "chain_id"];  // Chain ID (optional, empty means all chains)
+}
+
+// AddressLabelStatsDTO represents address label statistics.
+message AddressLabelStatsDTO {
+  int32 total_labeled_addresses = 1 [json_name = "total_labeled_addresses"];  // Total number of labeled addresses
+  int32 visible_labels_count = 2 [json_name = "visible_labels_count"];        // Number of visible labels
+  int32 hidden_labels_count = 3 [json_name = "hidden_labels_count"];          // Number of hidden labels
+  int32 total_labels_count = 4 [json_name = "total_labels_count"];            // Total number of labels
+}
+
+// BatchImportAddressLabelsRequest is the request message for batch importing address labels.
+message BatchImportAddressLabelsRequest {
+  string chain_id = 1 [json_name = "chain_id"];  // Chain ID (required)
+  string file_content_base64 = 2 [json_name = "file_content_base64"];  // File content (base64 encoded)
+  string format = 3;  // File format: csv/json (required)
+  string import_mode = 4 [json_name = "import_mode"];  // Import mode: create/update/upsert (default: upsert)
+  bool skip_errors = 5 [json_name = "skip_errors"];  // Skip errors and continue importing (default: false)
+  string csv_format = 6 [json_name = "csv_format"];  // CSV format: simple/full (default: full)
+  // simple: address,label_name,remark (compatible with INJ data monitoring)
+  // full: address,label_name,label_type,label_color,description,visible,remark
+}
+
+// BatchImportAddressLabelsResponse represents the response of batch import.
+message BatchImportAddressLabelsResponse {
+  int32 total_count = 1 [json_name = "total_count"];       // Total records
+  int32 success_count = 2 [json_name = "success_count"];   // Successfully imported
+  int32 skipped_count = 3 [json_name = "skipped_count"];   // Skipped records
+  int32 failed_count = 4 [json_name = "failed_count"];     // Failed records
+  repeated string errors = 5;  // List of error messages
+}
+
+// BatchExportAddressLabelsRequest is the request message for batch exporting address labels.
+message BatchExportAddressLabelsRequest {
+  string chain_id = 1 [json_name = "chain_id"];  // Chain ID (optional)
+  string format = 2;  // Export format: csv/json (required)
+  repeated string addresses = 3;  // Specific addresses to export (optional)
+  bool include_hidden = 4 [json_name = "include_hidden"];  // Include hidden labels (default: true)
+}
+
+// BatchExportAddressLabelsResponse represents the response of batch export.
+message BatchExportAddressLabelsResponse {
+  string file_content_base64 = 1 [json_name = "file_content_base64"];  // File content (base64 encoded)
+  string file_name = 2 [json_name = "file_name"];  // File name
+  int32 record_count = 3 [json_name = "record_count"];  // Number of records
 }

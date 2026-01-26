@@ -166,11 +166,14 @@ message DeleteContractInfoRequest {
 message AddContractTagRequest {
   string contract_address = 1; // Contract address (required)
   string chain_id = 2;         // Chain ID (required)
-  string tag_type = 3;         // Tag type (required)
-  string tag_value = 4;        // Tag value (optional)
-  string tag_color = 5;        // Tag color (optional)
+  string tag_type = 3;         // Tag type (optional, used when tag_definition_id is not set)
+  string tag_value = 4;        // Tag value (optional, auto-filled from tag_definition if set)
+  string tag_color = 5;        // Tag color (optional, auto-filled from tag_definition if set)
   string description = 6;      // Tag description (optional)
   string created_by = 7;       // Creator (optional)
+  bool visible = 8 [json_name = "visible"];            // Whether to display in frontend (default: true)
+  uint64 tag_definition_id = 9 [json_name = "tag_definition_id"];  // Preset tag definition ID (optional)
+  // If tag_definition_id is set, tag_value, tag_color, tag_category will be auto-filled from tag_definitions
 }
 
 message RemoveContractTagRequest {
@@ -298,4 +301,9 @@ message ContractTagInfoDTO {
   string description = 7;
   string created_by = 8 [ json_name = "created_by" ];
   string created_at = 9 [ json_name = "created_at" ];
+  bool visible = 10 [json_name = "visible"];         // Whether to display in frontend
+  bool is_preset = 11 [json_name = "is_preset"];       // Whether from preset tag definitions
+  uint64 tag_definition_id = 12 [json_name = "tag_definition_id"];  // Preset tag definition ID
+  string tag_category = 13 [json_name = "tag_category"];  // Tag category: normal/abnormal
+  int32 usage_count = 14 [json_name = "usage_count"];  // Usage count (from tag_definitions)
 }

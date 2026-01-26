@@ -151,6 +151,12 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	addressLabelService := service.NewAddressLabelService()
 	v1.RegisterAddressLabelServiceHTTPServer(srv, addressLabelService)
 
+	tagDefinitionService := service.NewTagDefinitionService()
+	v1.RegisterTagDefinitionServiceHTTPServer(srv, tagDefinitionService)
+
+	addressRemarkService := service.NewAddressRemarkService()
+	v1.RegisterAddressRemarkServiceHTTPServer(srv, addressRemarkService)
+
 	registerExportRoutes(srv, apiTokenService, logger)
 
 	// Register Prometheus metrics endpoint

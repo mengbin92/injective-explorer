@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "google/api/annotations.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// AddressRemarkService manages address remarks.
+// This service provides CRUD operations for address-level remarks (backend only, not visible in frontend explorer).
+service AddressRemarkService {
+  // SetAddressRemark sets or updates an address remark.
+  rpc SetAddressRemark(SetAddressRemarkRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/address/remark"
+      body: "*"
+    };
+  }
+
+  // GetAddressRemark gets an address remark.
+  rpc GetAddressRemark(GetAddressRemarkRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/address/remark"
+    };
+  }
+
+  // DeleteAddressRemark deletes an address remark.
+  rpc DeleteAddressRemark(DeleteAddressRemarkRequest) returns (Reply) {
+    option (google.api.http) = {
+      delete: "/api/v1/address/remark"
+    };
+  }
+}
+
+// Request messages
+
+// SetAddressRemarkRequest is the request message for setting an address remark.
+message SetAddressRemarkRequest {
+  string address = 1;          // Address (required)
+  string chain_id = 2 [json_name = "chain_id"];  // Chain ID (required)
+  string remark = 3;           // Remark (required)
+  string created_by = 4 [json_name = "created_by"];  // Creator (optional)
+}
+
+// GetAddressRemarkRequest is the request message for getting an address remark.
+message GetAddressRemarkRequest {
+  string address = 1;          // Address (required)
+  string chain_id = 2 [json_name = "chain_id"];  // Chain ID (required)
+}
+
+// DeleteAddressRemarkRequest is the request message for deleting an address remark.
+message DeleteAddressRemarkRequest {
+  string address = 1;          // Address (required)
+  string chain_id = 2 [json_name = "chain_id"];  // Chain ID (required)
+}
+
+// Response data messages (used in Reply.data as Struct)
+
+// AddressRemarkDTO represents address remark information in the response.
+message AddressRemarkDTO {
+  uint64 id = 1;
+  string address = 2;
+  string chain_id = 3 [json_name = "chain_id"];
+  string remark = 4;           // Remark content
+  string created_by = 5 [json_name = "created_by"];
+  string created_at = 6 [json_name = "created_at"];  // ISO 8601 format timestamp
+  string updated_at = 7 [json_name = "updated_at"];  // ISO 8601 format timestamp
+}

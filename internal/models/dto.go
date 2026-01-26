@@ -302,7 +302,7 @@ func ToContractTagInfoDTO(tag *ContractTag) *pb.ContractTagInfoDTO {
 		createdAt = tag.CreatedAt.Format(time.RFC3339)
 	}
 
-	return &pb.ContractTagInfoDTO{
+	dto := &pb.ContractTagInfoDTO{
 		Id:              uint64(tag.ID),
 		ContractAddress: tag.ContractAddress,
 		ChainId:         tag.ChainID,
@@ -312,7 +312,16 @@ func ToContractTagInfoDTO(tag *ContractTag) *pb.ContractTagInfoDTO {
 		Description:     tag.Description,
 		CreatedBy:       tag.CreatedBy,
 		CreatedAt:       createdAt,
+		Visible:         tag.Visible, // Whether to display in frontend
+		IsPreset:        tag.IsPreset, // Whether from preset definitions
 	}
+
+	// Set TagDefinitionID if present
+	if tag.TagDefinitionID != nil {
+		dto.TagDefinitionId = *tag.TagDefinitionID
+	}
+
+	return dto
 }
 
 // ToContractTagInfoDTOs converts a slice of ContractTag models to proto ContractTagInfoDTOs.
@@ -389,6 +398,7 @@ func ToAddressLabelDTO(label *AddressLabel) *pb.AddressLabelDTO {
 		CreatedBy:   label.CreatedBy,
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
+		Visible:     label.Visible, // Whether to display in frontend
 	}
 }
 

@@ -225,6 +225,123 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/address/labels/batch-export:
+        post:
+            tags:
+                - AddressLabelService
+            description: BatchExportAddressLabels exports address labels to CSV/JSON file.
+            operationId: AddressLabelService_BatchExportAddressLabels
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.BatchExportAddressLabelsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/address/labels/batch-import:
+        post:
+            tags:
+                - AddressLabelService
+            description: BatchImportAddressLabels imports address labels from CSV/JSON file.
+            operationId: AddressLabelService_BatchImportAddressLabels
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.BatchImportAddressLabelsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/address/labels/stats:
+        get:
+            tags:
+                - AddressLabelService
+            description: GetAddressLabelStats gets statistics for address labels.
+            operationId: AddressLabelService_GetAddressLabelStats
+            parameters:
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/address/remark:
+        get:
+            tags:
+                - AddressRemarkService
+            description: GetAddressRemark gets an address remark.
+            operationId: AddressRemarkService_GetAddressRemark
+            parameters:
+                - name: address
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        post:
+            tags:
+                - AddressRemarkService
+            description: SetAddressRemark sets or updates an address remark.
+            operationId: AddressRemarkService_SetAddressRemark
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.SetAddressRemarkRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        delete:
+            tags:
+                - AddressRemarkService
+            description: DeleteAddressRemark deletes an address remark.
+            operationId: AddressRemarkService_DeleteAddressRemark
+            parameters:
+                - name: address
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/email/blacklist:
         get:
             tags:
@@ -1697,6 +1814,148 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.TransactionUpdate'
+    /api/v1/tag/definition:
+        put:
+            tags:
+                - TagDefinitionService
+            description: UpdateTagDefinition updates an existing tag definition.
+            operationId: TagDefinitionService_UpdateTagDefinition
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdateTagDefinitionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        post:
+            tags:
+                - TagDefinitionService
+            description: CreateTagDefinition creates a new tag definition.
+            operationId: TagDefinitionService_CreateTagDefinition
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.CreateTagDefinitionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        delete:
+            tags:
+                - TagDefinitionService
+            description: DeleteTagDefinition deletes a tag definition.
+            operationId: TagDefinitionService_DeleteTagDefinition
+            parameters:
+                - name: id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tag/definitions:
+        get:
+            tags:
+                - TagDefinitionService
+            description: ListTagDefinitions lists tag definitions with filters.
+            operationId: TagDefinitionService_ListTagDefinitions
+            parameters:
+                - name: tag_type
+                  in: query
+                  schema:
+                    type: string
+                - name: tag_category
+                  in: query
+                  schema:
+                    type: string
+                - name: is_system
+                  in: query
+                  schema:
+                    type: boolean
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tag/definitions/selection:
+        get:
+            tags:
+                - TagDefinitionService
+            description: |-
+                GetTagDefinitionsForSelection gets tag definitions for frontend selection.
+                 This is used in contract/address tag forms to display available preset tags.
+            operationId: TagDefinitionService_GetTagDefinitionsForSelection
+            parameters:
+                - name: tag_type
+                  in: query
+                  schema:
+                    type: string
+                - name: tag_category
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tag/usage-stats:
+        get:
+            tags:
+                - TagDefinitionService
+            description: GetTagUsageStats gets usage statistics for tags.
+            operationId: TagDefinitionService_GetTagUsageStats
+            parameters:
+                - name: tag_type
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/token/price-marketcap:
         get:
             tags:
@@ -2061,6 +2320,10 @@ components:
                     type: string
                 createdBy:
                     type: string
+                visible:
+                    type: boolean
+                tag_definition_id:
+                    type: string
         api.explorer.v1.AddEmailDomainRequest:
             type: object
             properties:
@@ -2125,6 +2388,36 @@ components:
                     type: array
                     items:
                         type: string
+        api.explorer.v1.BatchExportAddressLabelsRequest:
+            type: object
+            properties:
+                chain_id:
+                    type: string
+                format:
+                    type: string
+                addresses:
+                    type: array
+                    items:
+                        type: string
+                include_hidden:
+                    type: boolean
+            description: BatchExportAddressLabelsRequest is the request message for batch exporting address labels.
+        api.explorer.v1.BatchImportAddressLabelsRequest:
+            type: object
+            properties:
+                chain_id:
+                    type: string
+                file_content_base64:
+                    type: string
+                format:
+                    type: string
+                import_mode:
+                    type: string
+                skip_errors:
+                    type: boolean
+                csv_format:
+                    type: string
+            description: BatchImportAddressLabelsRequest is the request message for batch importing address labels.
         api.explorer.v1.BatchImportEmailDomainsRequest:
             type: object
             properties:
@@ -2215,6 +2508,8 @@ components:
                     type: string
                 created_by:
                     type: string
+                visible:
+                    type: boolean
             description: CreateAddressLabelRequest is the request message for creating an address label.
         api.explorer.v1.CreateContractInfoRequest:
             type: object
@@ -2266,6 +2561,25 @@ components:
                     type: string
                 description:
                     type: string
+        api.explorer.v1.CreateTagDefinitionRequest:
+            type: object
+            properties:
+                tag_type:
+                    type: string
+                tag_name:
+                    type: string
+                tag_category:
+                    type: string
+                tag_color:
+                    type: string
+                description:
+                    type: string
+                sort_order:
+                    type: integer
+                    format: int32
+                created_by:
+                    type: string
+            description: CreateTagDefinitionRequest is the request message for creating a tag definition.
         api.explorer.v1.CreateTokenRequest:
             type: object
             properties:
@@ -2428,6 +2742,18 @@ components:
                     type: object
                     description: Response data (using Struct type to directly return JSON objects, more intuitive)
             description: Generic response structure
+        api.explorer.v1.SetAddressRemarkRequest:
+            type: object
+            properties:
+                address:
+                    type: string
+                chain_id:
+                    type: string
+                remark:
+                    type: string
+                created_by:
+                    type: string
+            description: SetAddressRemarkRequest is the request message for setting an address remark.
         api.explorer.v1.ToggleEmailDomainStatusRequest:
             type: object
             properties:
@@ -2536,6 +2862,8 @@ components:
                     type: string
                 description:
                     type: string
+                visible:
+                    type: boolean
             description: UpdateAddressLabelRequest is the request message for updating an address label.
         api.explorer.v1.UpdateContractInfoRequest:
             type: object
@@ -2593,6 +2921,23 @@ components:
                 max_tokens:
                     type: integer
                     format: int32
+        api.explorer.v1.UpdateTagDefinitionRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                tag_name:
+                    type: string
+                tag_category:
+                    type: string
+                tag_color:
+                    type: string
+                description:
+                    type: string
+                sort_order:
+                    type: integer
+                    format: int32
+            description: UpdateTagDefinitionRequest is the request message for updating a tag definition.
         api.explorer.v1.UpdateWebhookRequest:
             type: object
             properties:
@@ -2646,6 +2991,10 @@ tags:
       description: |-
         AddressLabelService provides address label management services.
          This service allows users to add, edit, delete, and query labels for blockchain addresses.
+    - name: AddressRemarkService
+      description: |-
+        AddressRemarkService manages address remarks.
+         This service provides CRUD operations for address-level remarks (backend only, not visible in frontend explorer).
     - name: AdminService
       description: |-
         AdminService provides admin management services for API plans, IP management,
@@ -2656,6 +3005,10 @@ tags:
          services. This service supports various contract types (token contracts, NFT
          contracts, etc.), with token contracts being the primary use case currently.
     - name: Explorer
+    - name: TagDefinitionService
+      description: |-
+        TagDefinitionService manages predefined tag definitions.
+         This service provides CRUD operations for system-preset tags that can be used for addresses and contracts.
     - name: WebhookService
       description: |-
         WebhookService provides webhook management (for paid tokens only).

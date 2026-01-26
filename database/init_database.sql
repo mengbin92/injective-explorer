@@ -50,12 +50,15 @@ CREATE TABLE `address_labels` (
   `label_value` varchar(255) DEFAULT NULL COMMENT '标签值（标签的具体内容）',
   `label_color` varchar(20) DEFAULT NULL COMMENT '标签颜色（用于前端显示，如#FF5733）',
   `description` text COMMENT '标签描述',
+  `visible` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否在前端显示（1=显示，0=隐藏）',
   `created_by` varchar(128) DEFAULT NULL COMMENT '创建者地址或用户名',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_address_label` (`chain_id`,`address`,`label_type`),
+  UNIQUE KEY `uk_address_label_value` (`chain_id`,`address`,`label_value`,`deleted_at`),
   KEY `idx_address_labels_deleted_at` (`deleted_at`),
   KEY `idx_address_labels_address` (`chain_id`,`address`),
   KEY `idx_address_labels_label_type` (`label_type`),
+  KEY `idx_address_labels_label_value` (`label_value`),
+  KEY `idx_address_labels_visible` (`visible`),
   KEY `idx_address_labels_created_by` (`created_by`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -236,10 +239,61 @@ CREATE TABLE `contract_tags` (
   `tag_value` varchar(255) DEFAULT NULL,
   `tag_color` varchar(20) DEFAULT NULL,
   `description` text,
+  `visible` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否在前端显示（1=显示，0=隐藏）',
+  `tag_definition_id` bigint unsigned DEFAULT NULL COMMENT '关联的预置标签定义ID（可选，如果从预设标签选择则填写）',
+  `is_preset` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否为系统预置标签（1=是，0=否）',
   `created_by` varchar(128) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_contract_tags_deleted_at` (`deleted_at`),
-  KEY `idx_contract_tags_tag_type` (`tag_type`)
+  KEY `idx_contract_tags_tag_type` (`tag_type`),
+  KEY `idx_contract_tags_visible` (`visible`),
+  KEY `idx_contract_tags_is_preset` (`is_preset`),
+  KEY `idx_contract_tags_tag_definition_id` (`tag_definition_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for tag_definitions
+-- ----------------------------
+DROP TABLE IF EXISTS `tag_definitions`;
+CREATE TABLE `tag_definitions` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `tag_type` varchar(20) NOT NULL COMMENT 'Tag type: contract, address',
+  `tag_name` varchar(50) NOT NULL COMMENT 'Tag name',
+  `tag_category` varchar(20) NOT NULL COMMENT 'Tag category: normal, abnormal',
+  `tag_color` varchar(20) DEFAULT NULL COMMENT 'Tag color (hex code)',
+  `description` text COMMENT 'Tag description',
+  `is_system` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Is system preset tag (1: yes, 0: no)',
+  `usage_count` int NOT NULL DEFAULT '0' COMMENT 'Usage count (how many times this tag is used)',
+  `sort_order` int NOT NULL DEFAULT '0' COMMENT 'Sort order (for display ordering)',
+  `created_by` varchar(128) DEFAULT NULL COMMENT 'Creator',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_tag_type_name` (`tag_type`,`tag_name`,`deleted_at`),
+  KEY `idx_tag_definitions_deleted_at` (`deleted_at`),
+  KEY `idx_tag_type` (`tag_type`),
+  KEY `idx_tag_category` (`tag_category`),
+  KEY `idx_is_system` (`is_system`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Table structure for address_remarks
+-- ----------------------------
+DROP TABLE IF EXISTS `address_remarks`;
+CREATE TABLE `address_remarks` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `address` varchar(128) NOT NULL COMMENT 'Address',
+  `chain_id` varchar(50) NOT NULL COMMENT 'Chain ID',
+  `remark` text NOT NULL COMMENT 'Remark content',
+  `created_by` varchar(128) DEFAULT NULL COMMENT 'Creator',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_address_remark` (`chain_id`,`address`,`deleted_at`),
+  KEY `idx_address_remarks_deleted_at` (`deleted_at`),
+  KEY `idx_address` (`chain_id`,`address`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
@@ -618,6 +672,35 @@ CREATE TABLE `validator_block_stats` (
   KEY `idx_validator_stats_validator` (`validator_operator_address`),
   KEY `idx_validator_stats_period` (`period_start_height`, `period_end_height`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Validator block statistics by period (aggregated)';
+
+
+-- ============================================================================
+-- PRESET TAG DEFINITIONS DATA
+-- ============================================================================
+
+-- Insert preset contract tags - normal (green) category
+INSERT INTO `tag_definitions` (`tag_type`, `tag_name`, `tag_category`, `tag_color`, `description`, `is_system`, `sort_order`, `created_by`) VALUES
+('contract', '官方', 'normal', '#52c41a', '官方项目标签', 1, 1, 'system'),
+('contract', '稳定币', 'normal', '#52c41a', '稳定币标签', 1, 2, 'system'),
+('contract', 'DeFi', 'normal', '#52c41a', 'DeFi协议标签', 1, 3, 'system'),
+('contract', 'CEX', 'normal', '#52c41a', '中心化交易所标签', 1, 4, 'system'),
+('contract', '跨链桥', 'normal', '#52c41a', '跨链桥标签', 1, 5, 'system'),
+('contract', 'DEX', 'normal', '#52c41a', '去中心化交易所标签', 1, 6, 'system'),
+('contract', 'NFT', 'normal', '#52c41a', 'NFT相关标签', 1, 7, 'system');
+
+-- Insert preset contract tags - abnormal (red) category
+INSERT INTO `tag_definitions` (`tag_type`, `tag_name`, `tag_category`, `tag_color`, `description`, `is_system`, `sort_order`, `created_by`) VALUES
+('contract', '诈骗', 'abnormal', '#ff4d4f', '诈骗项目标签', 1, 100, 'system'),
+('contract', '洗钱', 'abnormal', '#ff4d4f', '洗钱相关标签', 1, 101, 'system'),
+('contract', '高风险', 'abnormal', '#ff4d4f', '高风险项目标签', 1, 102, 'system'),
+('contract', '已废弃', 'abnormal', '#ff4d4f', '已废弃项目标签', 1, 103, 'system');
+
+-- Insert preset address tags
+INSERT INTO `tag_definitions` (`tag_type`, `tag_name`, `tag_category`, `tag_color`, `description`, `is_system`, `sort_order`, `created_by`) VALUES
+('address', '交易所', 'normal', '#1890ff', '交易所地址', 1, 1, 'system'),
+('address', '做市商', 'normal', '#1890ff', '做市商地址', 1, 2, 'system'),
+('address', '巨鲸', 'normal', '#1890ff', '巨鲸地址', 1, 3, 'system'),
+('address', '内部账户', 'normal', '#1890ff', '内部账户', 1, 4, 'system');
 
 
 -- ============================================================================

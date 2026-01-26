@@ -601,8 +601,10 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
-	if req.TagType == "" {
-		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
+	// Validation: tag_type is optional if tag_definition_id is provided
+	if req.TagType == "" && req.TagDefinitionId == 0 {
+		return ErrorReply(http.StatusBadRequest, "either tag_type or tag_definition_id is required",
+			errors.New("either tag_type or tag_definition_id is required")), errors.New("either tag_type or tag_definition_id is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -612,24 +614,78 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	tag := &models.ContractTag{
-		ContractAddress: contractAddress,
-		ChainID:         req.ChainId,
-		TagType:         req.TagType,
-		TagValue:        req.TagValue,
-		TagColor:        req.TagColor,
-		Description:     req.Description,
-		CreatedBy:       req.CreatedBy,
+	var tag *models.ContractTag
+
+	// If tag_definition_id is provided, use preset tag definition
+	if req.TagDefinitionId > 0 {
+		// Query tag definition
+		var tagDef models.TagDefinition
+		err := db.Get().WithContext(queryCtx).
+			Where("id = ? AND tag_type = ?", req.TagDefinitionId, "contract").
+			First(&tagDef).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrorReply(http.StatusNotFound, "tag definition not found", err), err
+			}
+			global.Logger.Errorf("failed to query tag definition: %v", err)
+			return ErrorReply(http.StatusInternalServerError, "failed to query tag definition", err), err
+		}
+
+		// Create tag from preset definition
+		tag = &models.ContractTag{
+			ContractAddress:  contractAddress,
+			ChainID:          req.ChainId,
+			TagType:          tagDef.TagCategory, // Use tag_category from definition
+			TagValue:         tagDef.TagName,     // Use tag_name from definition
+			TagColor:         tagDef.TagColor,    // Use tag_color from definition
+			Description:      tagDef.Description, // Use description from definition
+			TagDefinitionID:  &req.TagDefinitionId,
+			IsPreset:         true,               // Mark as preset
+			Visible:          req.Visible,        // Use visible from request
+			CreatedBy:        req.CreatedBy,
+		}
+	} else {
+		// Custom tag
+		tag = &models.ContractTag{
+			ContractAddress: contractAddress,
+			ChainID:         req.ChainId,
+			TagType:         req.TagType,
+			TagValue:        req.TagValue,
+			TagColor:        req.TagColor,
+			Description:     req.Description,
+			TagDefinitionID:  nil,
+			IsPreset:        false,
+			Visible:         req.Visible,
+			CreatedBy:       req.CreatedBy,
+		}
 	}
 
 	// Use FirstOrCreate to avoid duplicates
+	// Note: Unique constraint is (chain_id, contract_address, tag_type, tag_value)
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND contract_address = ? AND tag_type = ?", req.ChainId, contractAddress, req.TagType).
+		Where("chain_id = ? AND contract_address = ? AND tag_type = ? AND tag_value = ?",
+			req.ChainId, contractAddress, tag.TagType, tag.TagValue).
 		FirstOrCreate(tag).Error
 
 	if err != nil {
 		global.Logger.Errorf("failed to add contract tag: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to add contract tag", err), err
+	}
+
+	// If this is a newly created preset tag, update usage_count
+	if req.TagDefinitionId > 0 {
+		// Check if this is a newly created record by comparing CreatedAt and UpdatedAt
+		// If they are equal or very close (within 1 second), it's a new record
+		if tag.CreatedAt.Equal(tag.UpdatedAt) || tag.UpdatedAt.Sub(tag.CreatedAt) < time.Second {
+			// This is a newly created tag, update usage_count
+			err = db.Get().WithContext(queryCtx).
+				Model(&models.TagDefinition{}).
+				Where("id = ?", req.TagDefinitionId).
+				Update("usage_count", gorm.Expr("usage_count + ?", 1)).Error
+			if err != nil {
+				global.Logger.Warnf("failed to update usage count: %v", err)
+			}
+		}
 	}
 
 	// Clear cache
@@ -670,11 +726,29 @@ func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.Rem
 	// Convert address to Ethereum format for storage
 	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
 
-	// Delete tag
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
+	// Before deletion, query the tag to check if it's a preset tag
+	var tag models.ContractTag
 	err := db.Get().WithContext(queryCtx).
+		Where("chain_id = ? AND contract_address = ? AND tag_type = ?", req.ChainId, contractAddress, req.TagType).
+		First(&tag).Error
+
+	if err == nil && tag.TagDefinitionID != nil {
+		// If this is a preset tag, decrement usage_count in tag_definitions table
+		err = db.Get().WithContext(queryCtx).
+			Model(&models.TagDefinition{}).
+			Where("id = ?", *tag.TagDefinitionID).
+			Update("usage_count", gorm.Expr("GREATEST(usage_count - 1, 0)")).Error
+		if err != nil {
+			global.Logger.Warnf("failed to decrease usage count: %v", err)
+			// Continue with deletion even if usage_count update fails
+		}
+	}
+
+	// Delete tag
+	err = db.Get().WithContext(queryCtx).
 		Where("chain_id = ? AND contract_address = ? AND tag_type = ?", req.ChainId, contractAddress, req.TagType).
 		Delete(&models.ContractTag{}).Error
 
