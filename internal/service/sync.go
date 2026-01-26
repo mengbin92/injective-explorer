@@ -820,9 +820,10 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 
 	// Fetch all blocks concurrently
 	type blockResult struct {
-		height uint64
-		block  *models.Block
-		err    error
+		height    uint64
+		block     *models.Block
+		blockResp *coretypes.ResultBlock // Store blockResp for saving signers
+		err       error
 	}
 
 	results := make(chan blockResult, len(heights))
@@ -867,7 +868,7 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 			}
 			// Note: blockModel will be returned to pool after use in the caller
 
-			results <- blockResult{height: h, block: blockModel}
+			results <- blockResult{height: h, block: blockModel, blockResp: blockResp}
 			// Note: blockModel came from pool, will be returned after use
 		}(height)
 	}
@@ -879,19 +880,21 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 
 	// Collect results first
 	type blockData struct {
-		height   uint64
-		block    *models.Block
-		err      error
-		fromPool bool // Track if block came from pool
+		height    uint64
+		block     *models.Block
+		blockResp *coretypes.ResultBlock // Store blockResp for saving signers
+		err       error
+		fromPool  bool // Track if block came from pool
 	}
 	// Pre-allocate slice with known capacity to avoid reallocation
 	collectedBlocks := make([]blockData, 0, len(heights))
 	for result := range results {
 		collectedBlocks = append(collectedBlocks, blockData{
-			height:   result.height,
-			block:    result.block,
-			err:      result.err,
-			fromPool: true, // All blocks in processBlocksBatch come from pool
+			height:    result.height,
+			block:     result.block,
+			blockResp: result.blockResp,
+			err:       result.err,
+			fromPool:  true, // All blocks in processBlocksBatch come from pool
 		})
 	}
 
@@ -996,6 +999,19 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 	go func() {
 		for _, block := range poolBlocksToReturn {
 			PutBlockToPool(block)
+		}
+	}()
+
+	// Save block signers information asynchronously (proposer and signers)
+	// This is done in background to avoid blocking batch processing
+	go func() {
+		for _, bd := range collectedBlocks {
+			if bd.err == nil && bd.blockResp != nil {
+				if err := models.SaveBlockSigners(bd.blockResp); err != nil {
+					global.Logger.Warnf("failed to save block signers for height %d: %v", bd.height, err)
+					// Don't fail batch processing if signer saving fails
+				}
+			}
 		}
 	}()
 
@@ -1127,6 +1143,15 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 
 	// Cache block to Redis
 	cacheBlock(ctx, blockModel)
+
+	// Save block signers information (proposer and signers)
+	// This is done asynchronously to avoid blocking block processing
+	go func() {
+		if err := models.SaveBlockSigners(blockResp); err != nil {
+			global.Logger.Warnf("failed to save block signers for height %d: %v", height, err)
+			// Don't fail block processing if signer saving fails
+		}
+	}()
 
 	return nil
 }

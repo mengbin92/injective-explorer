@@ -52,22 +52,22 @@ paths:
                     type: string
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
                 - name: tx_types
@@ -178,22 +178,22 @@ paths:
                     type: string
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -236,22 +236,22 @@ paths:
             parameters:
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
                 - name: domain
@@ -420,22 +420,22 @@ paths:
             parameters:
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
                 - name: ip_address
@@ -639,22 +639,22 @@ paths:
             parameters:
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
                 - name: ip_address
@@ -728,22 +728,22 @@ paths:
             parameters:
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
                 - name: plan_type
@@ -824,22 +824,22 @@ paths:
             parameters:
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
                 - name: status_code
@@ -891,22 +891,22 @@ paths:
                     type: string
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -954,22 +954,22 @@ paths:
             parameters:
                 - name: page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -1003,22 +1003,22 @@ paths:
                     type: string
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -1171,22 +1171,22 @@ paths:
                     type: string
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -1309,22 +1309,22 @@ paths:
                     type: string
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -1400,6 +1400,55 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/contract/tags/all:
+        get:
+            tags:
+                - Explorer
+            description: GetAllContractTags retrieves all contract tags (supports filtering and pagination)
+            operationId: Explorer_GetAllContractTags
+            parameters:
+                - name: chain_id
+                  in: query
+                  description: Chain ID filter (optional)
+                  schema:
+                    type: string
+                - name: tag_type
+                  in: query
+                  description: Tag type filter (optional)
+                  schema:
+                    type: string
+                - name: contract_address
+                  in: query
+                  description: Contract address filter (optional)
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/dashboard/stats:
         get:
             tags:
@@ -1456,7 +1505,7 @@ paths:
             tags:
                 - Explorer
             description: |-
-                EVM 交易相关 API
+                EVM transaction related APIs
                  Get EVM transaction by hash
             operationId: Explorer_GetEVMTransaction
             parameters:
@@ -1736,22 +1785,22 @@ paths:
             parameters:
                 - name: pagination.page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: pagination.cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -1769,22 +1818,22 @@ paths:
             parameters:
                 - name: page
                   in: query
-                  description: 页码，从1开始，默认1（基于页数的分页）
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
                   schema:
                     type: integer
                     format: int32
                 - name: page_size
                   in: query
-                  description: 每页大小，默认20，最大100
+                  description: Page size, default 20, maximum 100
                   schema:
                     type: integer
                     format: int32
                 - name: cursor
                   in: query
                   description: |-
-                    游标（基于游标的分页，用于大数据集优化，优先级高于 page）
-                     对于区块：使用区块高度(height)
-                     对于交易：使用交易号(tx_number)或区块高度+交易号的组合
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
                   schema:
                     type: string
             responses:
@@ -1818,6 +1867,25 @@ paths:
                         schema:
                             $ref: '#/components/schemas/api.explorer.v1.GetTransactionsBatchRequest'
                 required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/validator/block-stats:
+        get:
+            tags:
+                - Explorer
+            description: Get validator block statistics (proposed, signed, missed blocks)
+            operationId: Explorer_GetValidatorBlockStats
+            parameters:
+                - name: validator_address
+                  in: query
+                  description: Validator operator address (required)
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -2295,15 +2363,15 @@ components:
             properties:
                 code:
                     type: integer
-                    description: 响应状态码，0表示成功，非0表示失败
+                    description: Response status code, 0 indicates success, non-zero indicates failure
                     format: int32
                 message:
                     type: string
-                    description: 响应消息
+                    description: Response message
                 data:
                     type: object
-                    description: 响应数据（使用 Struct 类型，可以直接返回 JSON 对象，更直观）
-            description: 通用响应结构
+                    description: Response data (using Struct type to directly return JSON objects, more intuitive)
+            description: Generic response structure
         api.explorer.v1.ToggleEmailDomainStatusRequest:
             type: object
             properties:

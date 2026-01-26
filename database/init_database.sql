@@ -568,6 +568,36 @@ CREATE TABLE `validators` (
   KEY `idx_validators_jailed` (`jailed`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Validator information table';
 
+-- Note: block_signers table has been removed in favor of validator_block_stats (aggregated statistics table)
+-- This reduces data volume by 99.8% (100 records per period vs 50,000 records per 1000 blocks)
+-- If detailed block-by-block query is needed in the future, this table can be re-added
+
+-- ----------------------------
+-- Table structure for validator_block_stats
+-- ----------------------------
+-- This table stores aggregated validator block statistics by period.
+-- This is the most optimized approach: only stores aggregated counts, not individual block records.
+-- Each period (e.g., 1000 blocks) aggregates statistics for all validators.
+-- Data volume: For 100 validators, 1000 blocks per period = 100 records per period (vs 50,000 in block_signers)
+DROP TABLE IF EXISTS `validator_block_stats`;
+CREATE TABLE `validator_block_stats` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `validator_operator_address` varchar(128) NOT NULL COMMENT 'Validator operator address',
+  `period_start_height` bigint unsigned NOT NULL COMMENT 'Period start block height',
+  `period_end_height` bigint unsigned NOT NULL COMMENT 'Period end block height',
+  `proposed_count` bigint unsigned DEFAULT 0 COMMENT 'Number of blocks proposed in this period',
+  `signed_count` bigint unsigned DEFAULT 0 COMMENT 'Number of blocks signed in this period',
+  `should_sign_count` bigint unsigned DEFAULT 0 COMMENT 'Number of blocks validator should have signed (based on validator set)',
+  `missed_count` bigint unsigned DEFAULT 0 COMMENT 'Number of blocks missed in this period',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_validator_period` (`validator_operator_address`, `period_start_height`),
+  KEY `idx_validator_stats_validator` (`validator_operator_address`),
+  KEY `idx_validator_stats_period` (`period_start_height`, `period_end_height`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Validator block statistics by period (aggregated)';
+
 
 -- ============================================================================
 -- ADDITIONAL INDEXES FOR QUERY OPTIMIZATION

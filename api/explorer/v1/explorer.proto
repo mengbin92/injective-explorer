@@ -167,6 +167,22 @@ service Explorer {
       get : "/api/v1/token/price-marketcap"
     };
   }
+
+  // Get validator block statistics (proposed, signed, missed blocks)
+  rpc GetValidatorBlockStats(GetValidatorBlockStatsRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/validator/block-stats"
+    };
+  }
+
+  // GetAllContractTags retrieves all contract tags (supports filtering and pagination)
+  rpc GetAllContractTags(GetAllContractTagsRequest)
+      returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/contract/tags/all"
+    };
+  }
 }
 
 message GetBlockByHeightRequest { int64 height = 1; }
@@ -209,6 +225,40 @@ message GetTokenPriceAndMarketCapRequest {
   // Token symbol (e.g., "inj", "mycoin"). If not specified, uses default token
   // from configuration
   string token_symbol = 1 [ json_name = "token_symbol" ];
+}
+
+// GetValidatorBlockStatsRequest requests validator block statistics
+message GetValidatorBlockStatsRequest {
+  // Validator operator address (required)
+  string validator_address = 1 [ json_name = "validator_address" ];
+}
+
+// ValidatorBlockStatsResponse contains validator block statistics
+message ValidatorBlockStatsResponse {
+  // Validator operator address
+  string validator_address = 1 [ json_name = "validator_address" ];
+  // Validator moniker
+  string moniker = 2;
+  // Number of blocks proposed
+  uint64 proposed = 3;
+  // Number of blocks signed
+  uint64 signed = 4;
+  // Number of blocks missed
+  uint64 missed = 5;
+  // Uptime percentage (calculated from signed/missed)
+  double uptime_percentage = 6 [ json_name = "uptime_percentage" ];
+}
+
+// GetAllContractTagsRequest requests all contract tags with optional filters
+message GetAllContractTagsRequest {
+  // Chain ID filter (optional)
+  string chain_id = 1 [ json_name = "chain_id" ];
+  // Tag type filter (optional)
+  string tag_type = 2 [ json_name = "tag_type" ];
+  // Contract address filter (optional)
+  string contract_address = 3 [ json_name = "contract_address" ];
+  // Pagination parameters
+  PaginationRequest pagination = 4;
 }
 
 // GetFailedTransactions24hRequest requests failed transactions in the last 24

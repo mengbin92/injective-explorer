@@ -88,6 +88,11 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	scheduler.Start(ctx)
 	log.NewHelper(logger).Info("Background scheduler started")
 
+	// Start validator statistics service
+	validatorStatsService := service.NewValidatorStatsService(ctx)
+	go validatorStatsService.Start()
+	log.NewHelper(logger).Info("Validator statistics service started")
+
 	testMode := false
 	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.GetTestMode() {
 		log.NewHelper(logger).Warn("WARNING: Test mode is enabled! All authentication and rate limiting restrictions are disabled.")

@@ -5716,3 +5716,157 @@ func (s *ExplorerService) GetBlocksBatch(ctx context.Context, req *pb.GetBlocksB
 
 	return MarshalAndReply(response, "marshal blocks batch error")
 }
+
+// GetValidatorBlockStats retrieves validator block statistics (proposed, signed, missed blocks).
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing validator operator address
+//
+// Returns:
+//   - *pb.Reply: Response containing validator block statistics
+//   - error: Error if the operation fails
+func (s *ExplorerService) GetValidatorBlockStats(ctx context.Context, req *pb.GetValidatorBlockStatsRequest) (*pb.Reply, error) {
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	if req.ValidatorAddress == "" {
+		return ErrorReply(http.StatusBadRequest, "validator address is required", errors.New("empty validator address")), errors.New("empty validator address")
+	}
+
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Get validator information
+	var validator models.Validator
+	err := db.Get().WithContext(queryCtx).
+		Where("operator_address = ?", req.ValidatorAddress).
+		First(&validator).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrorReply(http.StatusNotFound, "validator not found", err), err
+		}
+		global.Logger.Errorf("failed to query validator: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query validator", err), err
+	}
+
+	// Get statistics from aggregated statistics table (方案3: 聚合统计表)
+	proposed, signed, missed, err := models.GetValidatorStatsAggregated(req.ValidatorAddress)
+	if err != nil {
+		// Fallback: use validator's statistics from database (updated by ValidatorStatsService)
+		global.Logger.Warnf("failed to get aggregated stats for %s: %v, using validator table stats", req.ValidatorAddress, err)
+		proposed = validator.Proposed
+		signed = validator.Signed
+		missed = validator.Missed
+	}
+
+	// Calculate uptime percentage
+	var uptimePercentage float64
+	totalBlocks := int64(signed) + int64(missed)
+	if totalBlocks > 0 {
+		uptimePercentage = float64(signed) / float64(totalBlocks) * 100.0
+	}
+
+	// Build response
+	response := &pb.ValidatorBlockStatsResponse{
+		ValidatorAddress: validator.OperatorAddress,
+		Moniker:          validator.Moniker,
+		Proposed:         proposed,
+		Signed:           signed,
+		Missed:           missed,
+		UptimePercentage: uptimePercentage,
+	}
+
+	return MarshalAndReply(response, "marshal validator block stats error")
+}
+
+// GetAllContractTags retrieves all contract tags with optional filters and pagination.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing optional filters (chain_id, tag_type, contract_address) and pagination
+//
+// Returns:
+//   - *pb.Reply: Response containing list of contract tags
+//   - error: Error if the operation fails
+func (s *ExplorerService) GetAllContractTags(ctx context.Context, req *pb.GetAllContractTagsRequest) (*pb.Reply, error) {
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	// Create independent context for queries
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Build query with filters
+	query := db.Get().WithContext(queryCtx).Model(&models.ContractTag{})
+
+	// Apply filters
+	if req.ChainId != "" {
+		query = query.Where("chain_id = ?", req.ChainId)
+	}
+	if req.TagType != "" {
+		query = query.Where("tag_type = ?", req.TagType)
+	}
+	if req.ContractAddress != "" {
+		// Convert address to Ethereum format for storage
+		contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+		query = query.Where("contract_address = ?", contractAddress)
+	}
+
+	// Apply pagination
+	page := int32(1)
+	pageSize := int32(20)
+	if req.Pagination != nil {
+		if req.Pagination.Page > 0 {
+			page = req.Pagination.Page
+		}
+		if req.Pagination.PageSize > 0 {
+			pageSize = req.Pagination.PageSize
+			// Limit max page size
+			if pageSize > 100 {
+				pageSize = 100
+			}
+		}
+	}
+
+	// Count total records
+	var totalCount int64
+	err := query.Count(&totalCount).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count contract tags: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to count contract tags", err), err
+	}
+
+	// Query tags with pagination
+	var tags []models.ContractTag
+	offset := (page - 1) * pageSize
+	err = query.Order("created_at DESC").
+		Offset(int(offset)).
+		Limit(int(pageSize)).
+		Find(&tags).Error
+
+	if err != nil {
+		global.Logger.Errorf("failed to get contract tags: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to get contract tags", err), err
+	}
+
+	// Convert to DTOs
+	tagInfos := models.ToContractTagInfoDTOs(tags)
+
+	// Build response with pagination info
+	response := map[string]interface{}{
+		"tags": tagInfos,
+		"pagination": map[string]interface{}{
+			"page":       page,
+			"page_size":  pageSize,
+			"total":      totalCount,
+			"total_pages": (totalCount + int64(pageSize) - 1) / int64(pageSize),
+		},
+	}
+
+	return MarshalAndReply(response, "marshal contract tags error")
+}
