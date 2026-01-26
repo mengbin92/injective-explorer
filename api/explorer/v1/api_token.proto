@@ -51,6 +51,20 @@ service APITokenService {
       get : "/api/v1/export/logs"
     };
   }
+
+  // GetActiveTokenCount gets the count of active tokens for a user
+  rpc GetActiveTokenCount(GetActiveTokenCountRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/active-count"
+    };
+  }
+
+  // GetErrorCodeAnalysis gets error code analysis for a user or token
+  rpc GetErrorCodeAnalysis(GetErrorCodeAnalysisRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/stats/error-analysis"
+    };
+  }
 }
 
 // CreateTokenRequest creates a new token
@@ -144,4 +158,35 @@ message ExportUsageLogsResponse {
   string download_url = 1
       [ json_name = "download_url" ]; // Download URL (if using file storage)
   string message = 2 [ json_name = "message" ]; // Success message
+}
+
+// GetActiveTokenCountRequest gets active token count
+message GetActiveTokenCountRequest {
+  int32 days = 1 [ json_name = "days" ]; // Days threshold (default: 30)
+}
+
+// GetActiveTokenCountResponse returns active token count
+message GetActiveTokenCountResponse {
+  int32 total_tokens = 1 [ json_name = "total_tokens" ]; // Total tokens
+  int32 active_tokens = 2 [ json_name = "active_tokens" ]; // Active tokens (used within N days)
+}
+
+// GetErrorCodeAnalysisRequest gets error code analysis
+message GetErrorCodeAnalysisRequest {
+  int64 token_id = 1 [ json_name = "token_id" ]; // Optional: filter by token
+  int32 days = 2 [ json_name = "days" ]; // Days to query (default: 30)
+}
+
+// GetErrorCodeAnalysisResponse returns error code analysis
+message GetErrorCodeAnalysisResponse {
+  repeated ErrorCodeStats error_stats = 1 [ json_name = "error_stats" ];
+  int64 total_errors = 2 [ json_name = "total_errors" ]; // Total error count
+}
+
+// ErrorCodeStats represents statistics for a specific error code
+message ErrorCodeStats {
+  int32 status_code = 1 [ json_name = "status_code" ]; // HTTP status code
+  int64 count = 2 [ json_name = "count" ]; // Number of occurrences
+  double percentage = 3 [ json_name = "percentage" ]; // Percentage of total errors
+  string most_common_message = 4 [ json_name = "most_common_message" ]; // Most common error message
 }

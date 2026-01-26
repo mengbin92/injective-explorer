@@ -584,3 +584,170 @@ func (s *APITokenService) ExportUsageLogs(ctx context.Context, req *pb.ExportUsa
 		Data:    data,
 	}, nil
 }
+
+// GetActiveTokenCount gets the count of active tokens for the authenticated user.
+// A token is considered active if it has been used within the specified number of days.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing days threshold (default: 30)
+//
+// Returns:
+//   - *pb.Reply: Response containing total and active token counts
+//   - error: Error if the operation fails
+func (s *APITokenService) GetActiveTokenCount(ctx context.Context, req *pb.GetActiveTokenCountRequest) (*pb.Reply, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	// Get user ID from HTTP header
+	userID := s.getUserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
+	}
+
+	// Default to 30 days if not specified
+	days := int(req.Days)
+	if days <= 0 {
+		days = 30
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryTimeout)
+	defer queryCancel()
+
+	// Calculate the threshold date
+	thresholdDate := time.Now().AddDate(0, 0, -days)
+
+	// Count total tokens (not deleted)
+	var totalTokens int64
+	err := db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Count(&totalTokens).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count total tokens: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query tokens")
+	}
+
+	// Count active tokens (used within N days)
+	var activeTokens int64
+	err = db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
+		Where("user_id = ? AND deleted_at IS NULL AND status = ? AND last_used_at IS NOT NULL AND last_used_at >= ?",
+			userID, "active", thresholdDate).
+		Count(&activeTokens).Error
+	if err != nil {
+		global.Logger.Errorf("failed to count active tokens: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query active tokens")
+	}
+
+	response := &pb.GetActiveTokenCountResponse{
+		TotalTokens:  int32(totalTokens),
+		ActiveTokens: int32(activeTokens),
+	}
+
+	return MarshalAndReply(response, "marshal active token count response error")
+}
+
+// GetErrorCodeAnalysis gets error code analysis for the authenticated user.
+// Returns statistics grouped by HTTP status code, including count, percentage,
+// and most common error message for each error code.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - req: Request containing optional token_id filter and days threshold
+//
+// Returns:
+//   - *pb.Reply: Response containing error code statistics
+//   - error: Error if the operation fails
+func (s *APITokenService) GetErrorCodeAnalysis(ctx context.Context, req *pb.GetErrorCodeAnalysisRequest) (*pb.Reply, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	// Get user ID from HTTP header
+	userID := s.getUserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Error(codes.Unauthenticated, "user_id not found. Please provide X-User-ID header")
+	}
+
+	// Default to 30 days if not specified
+	days := int(req.Days)
+	if days <= 0 {
+		days = 30
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), apiTokenQueryLongTimeout)
+	defer queryCancel()
+
+	// Calculate the date range
+	endDate := time.Now()
+	startDate := endDate.AddDate(0, 0, -days)
+
+	// Build query
+	query := db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
+		Where("user_id = ? AND created_at >= ? AND created_at < ? AND status_code >= 400",
+			userID, startDate, endDate)
+
+	// Filter by token if specified
+	if req.TokenId > 0 {
+		// Verify token ownership
+		var token models.APIToken
+		err := db.Get().WithContext(queryCtx).
+			Where("id = ? AND user_id = ?", req.TokenId, userID).
+			First(&token).Error
+		if err == gorm.ErrRecordNotFound {
+			return nil, status.Error(codes.NotFound, "Token not found")
+		}
+		if err != nil {
+			global.Logger.Errorf("failed to verify token ownership: %v", err)
+			return nil, status.Error(codes.Internal, "failed to verify token")
+		}
+		query = query.Where("token_id = ?", req.TokenId)
+	}
+
+	// Query error code statistics with most common message
+	type ErrorCodeResult struct {
+		StatusCode        int
+		Count             int64
+		MostCommonMessage string
+	}
+
+	var results []ErrorCodeResult
+	err := query.Select("status_code, COUNT(*) as count, "+
+		"SUBSTRING_INDEX(GROUP_CONCAT(error_message ORDER BY created_at DESC SEPARATOR '||'), '||', 1) as most_common_message").
+		Group("status_code").
+		Order("count DESC").
+		Find(&results).Error
+	if err != nil {
+		global.Logger.Errorf("failed to query error code analysis: %v", err)
+		return nil, status.Error(codes.Internal, "failed to query error statistics")
+	}
+
+	// Calculate total errors for percentage calculation
+	var totalErrors int64
+	for _, result := range results {
+		totalErrors += result.Count
+	}
+
+	// Build response
+	errorStats := make([]*pb.ErrorCodeStats, 0, len(results))
+	for _, result := range results {
+		percentage := 0.0
+		if totalErrors > 0 {
+			percentage = float64(result.Count) / float64(totalErrors) * 100
+		}
+
+		errorStats = append(errorStats, &pb.ErrorCodeStats{
+			StatusCode:         int32(result.StatusCode),
+			Count:              result.Count,
+			Percentage:         percentage,
+			MostCommonMessage:  result.MostCommonMessage,
+		})
+	}
+
+	response := &pb.GetErrorCodeAnalysisResponse{
+		ErrorStats:  errorStats,
+		TotalErrors: totalErrors,
+	}
+
+	return MarshalAndReply(response, "marshal error code analysis response error")
+}
