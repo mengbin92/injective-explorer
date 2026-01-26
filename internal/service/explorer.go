@@ -1202,6 +1202,8 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 }
 
 // GetAccountTransactions retrieves transactions for a given account address with pagination.
+// This function queries transactions where the address is either the signer (transaction initiator)
+// or the recipient (to field). It supports both page-based and cursor-based pagination.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
@@ -1245,34 +1247,29 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		return ErrorReply(http.StatusBadRequest, "invalid address format", err), err
 	}
 
-	// First, try to query from Redis cache (only for first page without cursor and without tx type filter)
-	// Skip cache if tx type filter is specified, as cache key doesn't include tx types
+	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
+		Where("(signer = ? OR `to` = ?)", dbQueryAddress, dbQueryAddress)
+
 	if !useCursor && page == MinPage && !hasTxTypeFilter {
 		cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
 		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
 		if err == nil && len(cachedTxs) > 0 {
 			global.Logger.Debugf("account transactions found in cache: address=%s, count=%d", address, len(cachedTxs))
+			cachedTotal, cachedIsExact, cachedCountErr := getApproximateCountForAddressWithError(baseQuery, dbQueryAddress)
+			if cachedCountErr != nil {
+				global.Logger.Debugf("failed to get count for cached account transactions: %v, using approximate", cachedCountErr)
+				cachedTotal = ApproximateCountForAddress
+				cachedIsExact = false
+			}
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 			txDTOs := models.ToTransactionDTOs(cachedTxs)
-			// Use approximate count for cached data
-			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, ApproximateCountForAddress, false, useCursor, cursorValue, nextCursor, len(cachedTxs))
+			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, cachedTotal, cachedIsExact, useCursor, cursorValue, nextCursor, len(cachedTxs))
 			return MarshalAndReply(txsResp, "marshal transactions error")
 		}
 	}
 
-	// Second, try to query from database with pagination
-	// Note: For better performance, we use LIKE query on messages/events fields
-	// In production, consider creating a separate account_transactions table for better indexing
 	var dbTxs []models.Transaction
 
-	// Build base query with Ethereum format address filter
-	// Database stores addresses in Ethereum format (0x...)
-	// Use composite index idx_signer_timestamp for optimal performance
-	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
-		Where("signer = ?", dbQueryAddress)
-
-	// Add message type filter if specified
-	// Filter by message_types JSON array field using database-native JSON functions
 	if hasTxTypeFilter {
 		dbType := db.Get().Dialector.Name()
 		conditions := make([]string, 0, len(req.TxTypes))
@@ -1280,16 +1277,12 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 
 		for _, msgType := range req.TxTypes {
 			if dbType == "mysql" {
-				// MySQL: JSON_CONTAINS checks if the array contains the value
-				// Also support short type name matching using JSON_SEARCH
 				conditions = append(conditions, "(JSON_CONTAINS(message_types, ?) OR JSON_SEARCH(message_types, 'one', ?) IS NOT NULL)")
 				args = append(args, fmt.Sprintf(`"%s"`, msgType), fmt.Sprintf(`%%"%s"%%`, msgType))
 			} else if dbType == "postgres" {
-				// PostgreSQL: Use JSONB containment operator @>
 				conditions = append(conditions, "(message_types @> ?::jsonb OR message_types::text LIKE ?)")
 				args = append(args, fmt.Sprintf(`["%s"]`, msgType), fmt.Sprintf(`%%"%s"%%`, msgType))
 			} else {
-				// Fallback for SQLite and others: Use LIKE pattern matching
 				conditions = append(conditions, "message_types LIKE ?")
 				args = append(args, fmt.Sprintf(`%%"%s"%%`, msgType))
 			}
@@ -1300,41 +1293,22 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		}
 	}
 
-	// Optimize COUNT query: use shorter timeout and skip if it takes too long
-	// For better performance, we'll get count in parallel with data query or skip it
 	var total int64
 	var isExactCount bool
 	var countErr error
-
-	// Only get count if not using cursor (cursor-based pagination doesn't need total)
-	// For first page, we can skip count to improve response time
-	if !useCursor && page > MinPage {
-		// Only get count for non-first pages to determine pagination
-		total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, dbQueryAddress)
-		if countErr != nil {
-			global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", dbQueryAddress, countErr)
-			total = ApproximateCountForAddress
-			isExactCount = false
-		}
-	} else {
-		// For first page or cursor-based pagination, skip count query for faster response
+	total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, dbQueryAddress)
+	if countErr != nil {
+		global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", dbQueryAddress, countErr)
 		total = ApproximateCountForAddress
 		isExactCount = false
 	}
 
-	// Build query based on pagination type
-	// Use composite index idx_signer_timestamp for optimal performance
 	query := baseQuery
-
 	if useCursor {
-		// Use cursor-based pagination (more efficient for large datasets)
-		// Simple tx_number comparison is sufficient with proper indexing
 		query = query.Where("tx_number < ?", cursorValue).
 			Order("block_unix_timestamp DESC, tx_number DESC").
 			Limit(int(pageSize))
 	} else {
-		// Use page-based pagination
-		// Use composite index: signer + block_unix_timestamp
 		query = query.Order("block_unix_timestamp DESC, tx_number DESC").
 			Offset(offset).
 			Limit(int(pageSize))
@@ -1347,37 +1321,24 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	if err == nil && len(dbTxs) > 0 {
 		global.Logger.Debugf("account transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
 
-		// Message type filtering is now done at database level for better performance
-		// No need for in-memory filtering when MessageTypes field is populated
-
-		// Cache the results for first page to improve subsequent queries (only if no message type filter)
 		if !useCursor && page == MinPage && !hasTxTypeFilter {
 			cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
 			cacheAccountTransactions(dbCtx, cacheKey, dbTxs)
 		}
 
-		if len(dbTxs) > 0 {
-			nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-			txDTOs := models.ToTransactionDTOs(dbTxs)
-			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-			return MarshalAndReply(txsResp, "marshal transactions error")
-		}
-	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		// Database error
+		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+		txDTOs := models.ToTransactionDTOs(dbTxs)
+		txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
+		return MarshalAndReply(txsResp, "marshal transactions error")
+	}
+
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		global.Logger.Errorf("database query error: address=%s, error=%v", address, err)
 		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 	}
 
-	// No transactions found or empty result set
-	if len(dbTxs) == 0 {
-		global.Logger.Debugf("no account transactions found in database: address=%s", address)
-		return ErrorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
-	}
-
-	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-	txDTOs := models.ToTransactionDTOs(dbTxs)
-	transactionsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-	return MarshalAndReply(transactionsResp, "marshal transactions error")
+	global.Logger.Debugf("no account transactions found in database: address=%s", address)
+	return ErrorReply(http.StatusNotFound, "no transactions found", errors.New("no transactions found")), errors.New("no transactions found")
 }
 
 // GetAccountBalances retrieves account balances for a given address.
@@ -1788,34 +1749,18 @@ func getCountFromDatabaseStats(db *gorm.DB, model interface{}, ctx context.Conte
 	return count, nil
 }
 
-// getApproximateCountForAddressWithError gets an approximate count for address-specific queries and returns errors.
-// This function properly handles and returns errors instead of ignoring them.
-//
-// Parameters:
-//   - baseQuery: The base query with address filter
-//   - address: The address to count
-//
-// Returns:
-//   - approximate count
-//   - whether it's an exact count
-//   - error if the count query failed (caller should handle this error)
 func getApproximateCountForAddressWithError(baseQuery *gorm.DB, address string) (int64, bool, error) {
 	var count int64
-
-	// Try to get exact count first (with timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), CountQueryTimeout)
 	defer cancel()
 
 	err := baseQuery.WithContext(ctx).Count(&count).Error
-	if err == nil && count < ApproximateCountThreshold {
-		// If count is reasonable, return exact count
-		return count, true, nil
+	if err == nil {
+		isExact := count < ApproximateCountThreshold
+		return count, isExact, nil
 	}
 
-	// For larger datasets or timeouts, return approximate
-	if err != nil {
-		global.Logger.Warnf("exact count for address failed, using approximate: %v", err)
-	}
+	global.Logger.Warnf("exact count for address failed, using approximate: %v", err)
 	return ApproximateCountForAddress, false, err
 }
 
