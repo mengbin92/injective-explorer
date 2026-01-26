@@ -15,9 +15,12 @@ import (
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	"github.com/cosmos/cosmos-sdk/codec"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
 
@@ -141,7 +144,7 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	// Extract to and value from transaction
 	to, value := extractToAndValueFromProto(detail.Messages, detail.Events, detail.Logs, detail.Signatures, detail.GasFee)
 
-	// Extract message types from Messages for efficient filtering (before compressing)
+	// Extract message types from Messages for efficient filtering (before converting to JSON)
 	messageTypes := extractMessageTypesFromBytes(detail.Messages)
 	if len(messageTypes) == 0 && len(detail.Messages) > 0 {
 		global.Logger.Warnf("WARN: failed to extract message types for transaction %s, messages length: %d", detail.Hash, len(detail.Messages))
@@ -153,9 +156,15 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 		dataStr = encodeBinaryData(detail.Data)
 	}
 
-	messagesStr, err := CompressData(detail.Messages)
-	if err != nil {
-		messagesStr = encodeBinaryData(detail.Messages)
+	// Convert Messages to JSON string (same logic as Events and Signatures)
+	messagesStr := marshalMessagesToJSON(detail.Messages)
+	// Debug: log the format of messages string
+	if len(messagesStr) > 0 {
+		if messagesStr[0] == '{' || messagesStr[0] == '[' {
+			global.Logger.Debugf("DEBUG: Messages converted to JSON format, length: %d", len(messagesStr))
+		} else {
+			global.Logger.Warnf("WARN: Messages is not JSON format (starts with: %c), might be base64", messagesStr[0])
+		}
 	}
 
 	logsStr, err := CompressData(detail.Logs)
@@ -217,9 +226,21 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 		}
 
 		// Process Messages field
-		if storageKey := processLargeField(ctx, storageClient, "messages", detail.Hash, detail.Messages, messagesStr, threshold); storageKey != "" {
-			tx.MessagesStorageKey = storageKey
-			tx.Messages = ""
+		// Note: messagesStr is now JSON string, so we use its length for threshold check
+		// But we still upload the original binary data to object storage
+		if len(messagesStr) > threshold {
+			storageKey := storage.BuildStorageKey("messages", detail.Hash)
+			dataToUpload, _, compressErr := CompressDataToBytes(detail.Messages)
+			if compressErr == nil {
+				if err := storageClient.PutObject(ctx, storageKey, dataToUpload); err == nil {
+					tx.MessagesStorageKey = storageKey
+					tx.Messages = ""
+				} else {
+					global.Logger.Warnf("WARN: failed to upload messages field to object storage for transaction %s: %v. Falling back to database storage.", detail.Hash, err)
+				}
+			} else {
+				global.Logger.Warnf("WARN: failed to compress messages field for transaction %s: %v. Data will remain in database.", detail.Hash, compressErr)
+			}
 		}
 
 		// Process Logs field
@@ -280,6 +301,202 @@ func processLargeField(ctx context.Context, storageClient storage.Storage, field
 
 	// Upload successful, return storage key
 	return key
+}
+
+// marshalMessagesToStructPB converts Messages bytes to structpb.Struct and then to JSON string.
+// Supports multiple formats:
+//   - Protobuf-encoded TxRaw (contains BodyBytes which is TxBody)
+//   - Protobuf-encoded TxBody directly
+//   - JSON format (already JSON, returns as-is)
+//
+// Parameters:
+//   - messagesBytes: The Messages bytes to convert
+//
+// Returns:
+//   - string: JSON string representation of Messages (via structpb), or empty string if conversion fails
+func marshalMessagesToJSON(messagesBytes []byte) string {
+	if len(messagesBytes) == 0 {
+		return ""
+	}
+
+	// Check if already JSON format
+	if len(messagesBytes) > 0 && (messagesBytes[0] == '[' || messagesBytes[0] == '{') {
+		// Already JSON, return as-is
+		return string(messagesBytes)
+	}
+
+	// Try parsing as TxRaw first (most common format from explorer API)
+	var txRaw cosmostxpb.TxRaw
+	if err := txRaw.Unmarshal(messagesBytes); err == nil && len(txRaw.BodyBytes) > 0 {
+		// Successfully parsed as TxRaw, parse BodyBytes as TxBody
+		var txBody cosmostxpb.TxBody
+		if err := txBody.Unmarshal(txRaw.BodyBytes); err == nil {
+			return marshalTxBodyToStructPBJSON(&txBody)
+		} else {
+			global.Logger.Warnf("WARN: failed to unmarshal TxBody from TxRaw.BodyBytes, error: %v", err)
+		}
+	} else {
+		global.Logger.Debugf("DEBUG: failed to unmarshal Messages as TxRaw, error: %v", err)
+	}
+
+	// Try parsing as TxBody directly (fallback)
+	txBody := &cosmostxpb.TxBody{}
+	if err := txBody.Unmarshal(messagesBytes); err == nil {
+		return marshalTxBodyToStructPBJSON(txBody)
+	} else {
+		global.Logger.Debugf("DEBUG: failed to unmarshal Messages as TxBody, error: %v", err)
+	}
+
+	// Both protobuf parsing failed, wrap the raw bytes in a structpb structure
+	global.Logger.Warnf("WARN: failed to parse Messages as TxRaw or TxBody, wrapping raw bytes in structpb")
+	jsonObj := map[string]interface{}{
+		"rawBytes": base64.StdEncoding.EncodeToString(messagesBytes),
+		"format":   "raw",
+	}
+	if structData, err := structpb.NewStruct(jsonObj); err == nil {
+		// Marshal structpb.Struct to JSON
+		marshaler := protojson.MarshalOptions{
+			EmitUnpopulated: true,
+		}
+		if jsonBytes, err := marshaler.Marshal(structData); err == nil {
+			return string(jsonBytes)
+		} else {
+			global.Logger.Warnf("WARN: failed to marshal structpb.Struct to JSON, error: %v", err)
+		}
+	} else {
+		global.Logger.Warnf("WARN: failed to create structpb.Struct from raw bytes, error: %v", err)
+	}
+	
+	// If all methods fail, return empty string
+	global.Logger.Errorf("ERROR: failed to marshal Messages to structpb JSON, returning empty string")
+	return ""
+}
+
+// marshalTxBodyToStructPBJSON converts TxBody to structpb.Struct and then to JSON string.
+func marshalTxBodyToStructPBJSON(txBody *cosmostxpb.TxBody) string {
+	// Build a map structure from TxBody
+	jsonObj := make(map[string]interface{})
+	
+	// Add memo
+	if txBody.Memo != "" {
+		jsonObj["memo"] = txBody.Memo
+	}
+	
+	// Convert messages to array of structpb values
+	messages := make([]interface{}, 0, len(txBody.Messages))
+	for _, msgAny := range txBody.Messages {
+		if msgAny != nil {
+			msgObj := map[string]interface{}{
+				"@type": msgAny.TypeUrl,
+			}
+			// Encode value as base64 string
+			if len(msgAny.Value) > 0 {
+				msgObj["value"] = base64.StdEncoding.EncodeToString(msgAny.Value)
+			}
+			messages = append(messages, msgObj)
+		}
+	}
+	if len(messages) > 0 {
+		jsonObj["messages"] = messages
+	}
+	
+	// Convert to structpb.Struct
+	structData, err := structpb.NewStruct(jsonObj)
+	if err != nil {
+		global.Logger.Warnf("WARN: failed to create structpb.Struct from TxBody, error: %v", err)
+		return ""
+	}
+	
+	// Marshal structpb.Struct to JSON
+	marshaler := protojson.MarshalOptions{
+		EmitUnpopulated: true,
+		UseProtoNames:   true,
+	}
+	jsonBytes, err := marshaler.Marshal(structData)
+	if err != nil {
+		global.Logger.Warnf("WARN: failed to marshal structpb.Struct to JSON, error: %v", err)
+		return ""
+	}
+	
+	return string(jsonBytes)
+}
+
+// unmarshalMessagesFromJSON converts JSON string back to Messages bytes.
+// Supports multiple formats:
+//   - JSON format (structpb.Struct JSON format with messages array)
+//   - JSON format (TxBody JSON with bodyBytes field, legacy)
+//   - Base64-encoded protobuf (backward compatibility)
+//
+// Parameters:
+//   - jsonStr: The JSON string to convert
+//
+// Returns:
+//   - []byte: Messages bytes, or nil if conversion fails
+func unmarshalMessagesFromJSON(jsonStr string) []byte {
+	if jsonStr == "" {
+		return nil
+	}
+
+	// Try parsing as JSON first (new format)
+	var jsonObj map[string]interface{}
+	if err := sonic.Unmarshal([]byte(jsonStr), &jsonObj); err == nil {
+		// Check if it's raw bytes format (fallback format)
+		if rawBytesStr, ok := jsonObj["rawBytes"].(string); ok {
+			if decoded, err := base64.StdEncoding.DecodeString(rawBytesStr); err == nil {
+				return decoded
+			}
+		}
+		// Check if it has bodyBytes field (new format)
+		if bodyBytesStr, ok := jsonObj["bodyBytes"].(string); ok {
+			if decoded, err := base64.StdEncoding.DecodeString(bodyBytesStr); err == nil {
+				// Verify it's a valid TxBody
+				var txBody cosmostxpb.TxBody
+				if err := txBody.Unmarshal(decoded); err == nil {
+					return decoded
+				}
+			}
+		}
+		// If no bodyBytes field, try to reconstruct from messages array
+		if messagesArr, ok := jsonObj["messages"].([]interface{}); ok {
+			txBody := &cosmostxpb.TxBody{}
+			if memo, ok := jsonObj["memo"].(string); ok {
+				txBody.Memo = memo
+			}
+			// Reconstruct messages
+			for _, msgInterface := range messagesArr {
+				if msgMap, ok := msgInterface.(map[string]interface{}); ok {
+					typeURL, _ := msgMap["@type"].(string)
+					valueStr, _ := msgMap["value"].(string)
+					if typeURL != "" && valueStr != "" {
+						if valueBytes, err := base64.StdEncoding.DecodeString(valueStr); err == nil {
+							msgAny := &codectypes.Any{
+								TypeUrl: typeURL,
+								Value:   valueBytes,
+							}
+							txBody.Messages = append(txBody.Messages, msgAny)
+						}
+					}
+				}
+			}
+			if bytes, err := txBody.Marshal(); err == nil {
+				return bytes
+			}
+		}
+	}
+
+	// JSON parsing failed, try base64 decode (backward compatibility with old data)
+	if decoded, err := base64.StdEncoding.DecodeString(jsonStr); err == nil {
+		return decoded
+	}
+
+	// If not base64, check if it's already valid JSON string (for backward compatibility)
+	if len(jsonStr) > 0 && (jsonStr[0] == '[' || jsonStr[0] == '{') {
+		return []byte(jsonStr)
+	}
+
+	// All parsing failed, return empty
+	global.Logger.Warnf("WARN: failed to unmarshal Messages from JSON or base64")
+	return nil
 }
 
 // encodeBinaryData encodes binary data to base64 if it contains invalid UTF-8 characters.
@@ -390,16 +607,26 @@ func TransactionToProto(tx *Transaction) *injective_explorer_rpcpb.TxDetailData 
 			}
 		} else {
 			// Object storage failed, fall back to database field
-			messagesBytes, _ = DecompressData(tx.Messages)
+			// Try to unmarshal from JSON (new format) or decode from base64 (old format)
+			messagesBytes = unmarshalMessagesFromJSON(tx.Messages)
 			if len(messagesBytes) == 0 {
-				messagesBytes = decodeBinaryData(tx.Messages)
+				// Fallback to old decompression logic for backward compatibility
+				messagesBytes, _ = DecompressData(tx.Messages)
+				if len(messagesBytes) == 0 {
+					messagesBytes = decodeBinaryData(tx.Messages)
+				}
 			}
 		}
 	} else {
-		var err error
-		messagesBytes, err = DecompressData(tx.Messages)
-		if err != nil {
-			messagesBytes = decodeBinaryData(tx.Messages)
+		// Try to unmarshal from JSON (new format) or decode from base64 (old format)
+		messagesBytes = unmarshalMessagesFromJSON(tx.Messages)
+		if len(messagesBytes) == 0 {
+			// Fallback to old decompression logic for backward compatibility
+			var err error
+			messagesBytes, err = DecompressData(tx.Messages)
+			if err != nil {
+				messagesBytes = decodeBinaryData(tx.Messages)
+			}
 		}
 	}
 
@@ -521,16 +748,27 @@ func ExtractMessageTypes(tx *Transaction) []string {
 				messagesBytes = storageMessages
 			}
 		} else {
-			messagesBytes, _ = DecompressData(tx.Messages)
+			// Object storage failed, fall back to database field
+			// Try to unmarshal from JSON (new format) or decode from base64 (old format)
+			messagesBytes = unmarshalMessagesFromJSON(tx.Messages)
 			if len(messagesBytes) == 0 {
-				messagesBytes = decodeBinaryData(tx.Messages)
+				// Fallback to old decompression logic for backward compatibility
+				messagesBytes, _ = DecompressData(tx.Messages)
+				if len(messagesBytes) == 0 {
+					messagesBytes = decodeBinaryData(tx.Messages)
+				}
 			}
 		}
 	} else {
-		var err error
-		messagesBytes, err = DecompressData(tx.Messages)
-		if err != nil {
-			messagesBytes = decodeBinaryData(tx.Messages)
+		// Try to unmarshal from JSON (new format) or decode from base64 (old format)
+		messagesBytes = unmarshalMessagesFromJSON(tx.Messages)
+		if len(messagesBytes) == 0 {
+			// Fallback to old decompression logic for backward compatibility
+			var err error
+			messagesBytes, err = DecompressData(tx.Messages)
+			if err != nil {
+				messagesBytes = decodeBinaryData(tx.Messages)
+			}
 		}
 	}
 
