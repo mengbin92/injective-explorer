@@ -59,6 +59,22 @@ service AdminService {
     };
   }
 
+  // PublishPlan publishes a plan (set status to active)
+  rpc PublishPlan(PublishPlanRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/plans/publish"
+      body : "*"
+    };
+  }
+
+  // UnpublishPlan unpublishes a plan (set status to inactive)
+  rpc UnpublishPlan(UnpublishPlanRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/plans/unpublish"
+      body : "*"
+    };
+  }
+
   // ========== IP Management ==========
   // ListIPRegistrationRecords lists IP registration records
   rpc ListIPRegistrationRecords(ListIPRegistrationRecordsRequest)
@@ -322,6 +338,14 @@ message GetPlanStatsRequest { uint64 id = 1; }
 message SwitchPlanRequest {
   string user_id = 1 [ json_name = "user_id" ]; // User ID to switch plan for
   uint64 plan_id = 2 [ json_name = "plan_id" ]; // Target plan ID
+}
+
+message PublishPlanRequest {
+  uint64 id = 1; // Plan ID to publish
+}
+
+message UnpublishPlanRequest {
+  uint64 id = 1; // Plan ID to unpublish
 }
 
 message PlanStatsDTO {

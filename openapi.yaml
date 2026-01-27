@@ -914,6 +914,25 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/plans/publish:
+        put:
+            tags:
+                - AdminService
+            description: PublishPlan publishes a plan (set status to active)
+            operationId: AdminService_PublishPlan
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.PublishPlanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/plans/stats:
         get:
             tags:
@@ -943,6 +962,25 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/api.explorer.v1.SwitchPlanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/plans/unpublish:
+        put:
+            tags:
+                - AdminService
+            description: UnpublishPlan unpublishes a plan (set status to inactive)
+            operationId: AdminService_UnpublishPlan
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UnpublishPlanRequest'
                 required: true
             responses:
                 "200":
@@ -2870,6 +2908,11 @@ components:
                     type: array
                     items:
                         type: string
+        api.explorer.v1.PublishPlanRequest:
+            type: object
+            properties:
+                id:
+                    type: string
         api.explorer.v1.Reply:
             type: object
             properties:
@@ -2996,6 +3039,11 @@ components:
                 timestamp:
                     type: string
                     description: Timestamp of the update
+        api.explorer.v1.UnpublishPlanRequest:
+            type: object
+            properties:
+                id:
+                    type: string
         api.explorer.v1.UpdateAddressLabelRequest:
             type: object
             properties:

@@ -402,3 +402,101 @@ func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
+
+// PublishPlan publishes a plan (set status to active)
+func (s *AdminService) PublishPlan(ctx context.Context, req *pb.PublishPlanRequest) (*pb.Reply, error) {
+	if req == nil {
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	var plan models.APIPlan
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrorReply(http.StatusNotFound, "plan not found", err), err
+		}
+		global.Logger.Errorf("failed to get plan: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
+	}
+
+	// Check if already active
+	if plan.Status == "active" {
+		err := errors.New("plan is already active")
+		return ErrorReply(http.StatusBadRequest, "plan is already active", err), err
+	}
+
+	// Update status to active
+	err = db.Get().WithContext(queryCtx).Model(&plan).Update("status", "active").Error
+	if err != nil {
+		global.Logger.Errorf("failed to publish plan: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to publish plan", err), err
+	}
+
+	// Reload plan
+	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	if err != nil {
+		global.Logger.Errorf("failed to reload plan: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to reload plan", err), err
+	}
+
+	// Get plan statistics
+	tokenCount, userCount, _ := s.getPlanStats(queryCtx, plan.ID)
+
+	// Convert to DTO
+	planInfo := models.ToPlanDTO(&plan, tokenCount, userCount)
+
+	return MarshalAndReply(planInfo, "failed to marshal response")
+}
+
+// UnpublishPlan unpublishes a plan (set status to inactive)
+func (s *AdminService) UnpublishPlan(ctx context.Context, req *pb.UnpublishPlanRequest) (*pb.Reply, error) {
+	if req == nil {
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	var plan models.APIPlan
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrorReply(http.StatusNotFound, "plan not found", err), err
+		}
+		global.Logger.Errorf("failed to get plan: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
+	}
+
+	// Check if already inactive
+	if plan.Status == "inactive" {
+		err := errors.New("plan is already inactive")
+		return ErrorReply(http.StatusBadRequest, "plan is already inactive", err), err
+	}
+
+	// Update status to inactive
+	err = db.Get().WithContext(queryCtx).Model(&plan).Update("status", "inactive").Error
+	if err != nil {
+		global.Logger.Errorf("failed to unpublish plan: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to unpublish plan", err), err
+	}
+
+	// Reload plan
+	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	if err != nil {
+		global.Logger.Errorf("failed to reload plan: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to reload plan", err), err
+	}
+
+	// Get plan statistics
+	tokenCount, userCount, _ := s.getPlanStats(queryCtx, plan.ID)
+
+	// Convert to DTO
+	planInfo := models.ToPlanDTO(&plan, tokenCount, userCount)
+
+	return MarshalAndReply(planInfo, "failed to marshal response")
+}
