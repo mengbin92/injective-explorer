@@ -425,6 +425,8 @@ func extractFromToValue(tx *TxJSON) (*ExtractResult, error) {
 
 // extractFromEventsJSON scans logs/events and tries to populate res. It returns true if
 // any transfer-related event was found and applied.
+// It prioritizes transfer events with valid msg_index (actual message transfers)
+// and excludes events without msg_index (typically gas fee transfers).
 func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 	transferFound := false
 
@@ -433,17 +435,45 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 		From     string
 		To       string
 		Amount   []Coin
-		Priority int // lower is higher priority
+		Priority int    // lower is higher priority
+		MsgIndex string // msg_index from log, empty means gas fee or transaction-level event
+		HasMsgIndex bool // true if msg_index is valid (not empty and not "0" for gas fee)
 	}
 
 	cands := []transferCandidate{}
 
 	for _, log := range tx.Logs {
+		// Process events in this log
+		// Gas fee events typically don't have msg_index or have empty msg_index
+		// Actual message transfer events have msg_index like "0", "1", etc.
+		// Note: log.MsgIndex might be "0" for protobuf events (hardcoded), so we need to check
+		// if the event itself has msg_index attribute, or if log.MsgIndex is from logsBytes (structured)
 		for _, ev := range log.Events {
+			// Check if event has msg_index attribute (more reliable indicator)
+			eventMsgIndex := ""
+			for _, attr := range ev.Attributes {
+				if attr.Key == "msg_index" {
+					eventMsgIndex = stringifyAttrValue(attr.Value)
+					break
+				}
+			}
+			
+			// Use event-level msg_index if available, otherwise use log-level msg_index
+			effectiveMsgIndex := eventMsgIndex
+			if effectiveMsgIndex == "" {
+				effectiveMsgIndex = log.MsgIndex
+			}
+			
+			// Consider msg_index valid if it's not empty and not "-1"
+			// Empty or "-1" typically indicates gas fee or transaction-level events
+			eventHasValidMsgIndex := effectiveMsgIndex != "" && effectiveMsgIndex != "-1"
+			
 			switch ev.Type {
 			case "transfer":
 				// attributes: recipient, sender, amount
 				var t transferCandidate
+				t.MsgIndex = effectiveMsgIndex
+				t.HasMsgIndex = eventHasValidMsgIndex
 				for _, attr := range ev.Attributes {
 					k := attr.Key
 					v := stringifyAttrValue(attr.Value)
@@ -464,6 +494,8 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 
 			case "coin_spent":
 				var t transferCandidate
+				t.MsgIndex = effectiveMsgIndex
+				t.HasMsgIndex = eventHasValidMsgIndex
 				for _, attr := range ev.Attributes {
 					k := attr.Key
 					v := stringifyAttrValue(attr.Value)
@@ -482,6 +514,8 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 
 			case "coin_received":
 				var t transferCandidate
+				t.MsgIndex = effectiveMsgIndex
+				t.HasMsgIndex = eventHasValidMsgIndex
 				for _, attr := range ev.Attributes {
 					k := attr.Key
 					v := stringifyAttrValue(attr.Value)
@@ -518,16 +552,44 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 		return false
 	}
 
+	// Filter out gas fee transfers: prefer events with valid msg_index
+	// If we have events with msg_index, only consider those
+	hasMsgIndexEvents := false
+	for _, c := range cands {
+		if c.HasMsgIndex {
+			hasMsgIndexEvents = true
+			break
+		}
+	}
+
+	// If we have events with msg_index, filter to only those
+	if hasMsgIndexEvents {
+		filteredCands := []transferCandidate{}
+		for _, c := range cands {
+			if c.HasMsgIndex {
+				filteredCands = append(filteredCands, c)
+			}
+		}
+		if len(filteredCands) > 0 {
+			cands = filteredCands
+		}
+	}
+
 	// Choose highest priority candidate (smallest Priority value) and prefer the one with both from & to.
 	if len(cands) == 0 {
 		return false
 	}
 
 	sort.SliceStable(cands, func(i, j int) bool {
+		// First priority: prefer events with valid msg_index
+		if cands[i].HasMsgIndex != cands[j].HasMsgIndex {
+			return cands[i].HasMsgIndex // true (has msg_index) comes before false (no msg_index)
+		}
+		// Second priority: smaller Priority value (transfer=10 < coin_spent/coin_received=20)
 		if cands[i].Priority != cands[j].Priority {
 			return cands[i].Priority < cands[j].Priority
 		}
-		// prefer entries that have both from&to
+		// Third priority: prefer entries that have both from&to
 		iScore := 0
 		jScore := 0
 		if cands[i].From != "" && cands[i].To != "" {
@@ -548,6 +610,11 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 	}
 	res.Values = mergeCoins(res.Values, best.Amount)
 	res.Notes = append(res.Notes, "extracted from events (transfer/coin_spent/coin_received)")
+	if best.HasMsgIndex {
+		res.Notes = append(res.Notes, "selected event with msg_index="+best.MsgIndex)
+	} else {
+		res.Notes = append(res.Notes, "selected event without msg_index (may be gas fee)")
+	}
 	return true
 }
 
