@@ -10,6 +10,7 @@ package models
 import (
 	"encoding/json" // Only for json.RawMessage type
 	"errors"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -132,7 +133,7 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 	// First, try to convert events to JSON and parse them
 	if len(events) > 0 {
 		log := LogRaw{
-			MsgIndex: "0",
+			MsgIndex: "-1", // Use "-1" to mark events from protobuf (distinguish from logsBytes)
 			Events:   []EventRaw{},
 		}
 		for _, event := range events {
@@ -463,10 +464,12 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 			if effectiveMsgIndex == "" {
 				effectiveMsgIndex = log.MsgIndex
 			}
-			
-			// Consider msg_index valid if it's not empty and not "-1"
-			// Empty or "-1" typically indicates gas fee or transaction-level events
-			eventHasValidMsgIndex := effectiveMsgIndex != "" && effectiveMsgIndex != "-1"
+
+			// Consider msg_index valid based on the source:
+			// 1. If event has msg_index attribute (explicit), it's valid
+			// 2. If event is from logsBytes (log.MsgIndex != "-1"), it's valid (even without msg_index attribute)
+			// 3. If event is from protobuf (log.MsgIndex == "-1") and has no msg_index attribute, it's invalid (gas fee)
+			eventHasValidMsgIndex := (eventMsgIndex != "" && eventMsgIndex != "-1") || (log.MsgIndex != "" && log.MsgIndex != "-1")
 			
 			switch ev.Type {
 			case "transfer":
@@ -563,6 +566,8 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 	}
 
 	// If we have events with msg_index, filter to only those
+	// This is critical: if there are events with msg_index, events without msg_index are gas fees
+	// Backward compatibility: if ALL events lack msg_index (old format), keep all events
 	if hasMsgIndexEvents {
 		filteredCands := []transferCandidate{}
 		for _, c := range cands {
@@ -601,6 +606,7 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 		return iScore > jScore
 	})
 
+	// Use the best candidate for from/to
 	best := cands[0]
 	if best.From != "" {
 		res.From = best.From
@@ -608,7 +614,64 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 	if best.To != "" {
 		res.To = best.To
 	}
-	res.Values = mergeCoins(res.Values, best.Amount)
+
+	// Merge amounts from multiple messages (different msg_index)
+	// Avoid double-counting: for each msg_index, only use the best candidate
+	// Special case: if ALL candidates lack msg_index (old format), merge all candidates (backward compatibility)
+
+	// Check if we have any candidates with msg_index
+	hasAnyMsgIndex := false
+	for _, c := range cands {
+		if c.HasMsgIndex {
+			hasAnyMsgIndex = true
+			break
+		}
+	}
+
+	if hasAnyMsgIndex {
+		// Modern format: group by msg_index and take the best from each group
+		msgIndexCandidates := map[string]*transferCandidate{} // msg_index -> best candidate for that msg_index
+		for _, c := range cands {
+			if !c.HasMsgIndex {
+				continue // Skip gas fee events when we have msg_index events
+			}
+			if existing, ok := msgIndexCandidates[c.MsgIndex]; !ok {
+				msgIndexCandidates[c.MsgIndex] = &c
+			} else {
+				// Prefer the one with lower Priority (transfer over coin_spent/coin_received)
+				if c.Priority < existing.Priority {
+					msgIndexCandidates[c.MsgIndex] = &c
+				}
+			}
+		}
+
+		// Merge amounts from the best candidate of each msg_index
+		for _, c := range msgIndexCandidates {
+			res.Values = mergeCoins(res.Values, c.Amount)
+		}
+	} else {
+		// Old format (all candidates lack msg_index): merge all candidates to avoid double-counting
+		// Group by (from, to, denom) to avoid counting duplicate events (transfer + coin_spent + coin_received)
+		uniqueTransfers := map[string]Coin{} // key: "from:to:denom" -> coin
+		for _, c := range cands {
+			for _, coin := range c.Amount {
+				key := fmt.Sprintf("%s:%s:%s", c.From, c.To, coin.Denom)
+				if existing, ok := uniqueTransfers[key]; ok {
+					// Sum amounts for same denom
+					existing.Amount = addDecimalStrings(existing.Amount, coin.Amount)
+					uniqueTransfers[key] = existing
+				} else {
+					uniqueTransfers[key] = coin
+				}
+			}
+		}
+
+		// Merge unique transfers into result
+		for _, coin := range uniqueTransfers {
+			res.Values = mergeCoins(res.Values, []Coin{coin})
+		}
+	}
+
 	res.Notes = append(res.Notes, "extracted from events (transfer/coin_spent/coin_received)")
 	if best.HasMsgIndex {
 		res.Notes = append(res.Notes, "selected event with msg_index="+best.MsgIndex)
@@ -687,7 +750,16 @@ func mergeCoins(a, b []Coin) []Coin {
 	for denom, amt := range m {
 		out = append(out, Coin{Denom: denom, Amount: amt})
 	}
+	// Sort coins: native token (inj) first, then others alphabetically
 	sort.Slice(out, func(i, j int) bool {
+		// Native token "inj" always comes first
+		if out[i].Denom == "inj" && out[j].Denom != "inj" {
+			return true
+		}
+		if out[i].Denom != "inj" && out[j].Denom == "inj" {
+			return false
+		}
+		// For non-native tokens, sort alphabetically
 		return out[i].Denom < out[j].Denom
 	})
 	return out

@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
@@ -199,9 +200,6 @@ func TestExtractFromToValue_MsgSend(t *testing.T) {
 				Message: msgJSON,
 			},
 		},
-		Signatures: []SignatureRaw{
-			{Address: "inj1from"},
-		},
 	}
 
 	result, err := extractFromToValue(tx)
@@ -213,6 +211,124 @@ func TestExtractFromToValue_MsgSend(t *testing.T) {
 	assert.Equal(t, "1000", result.Values[0].Amount)
 	assert.Equal(t, "inj", result.Values[0].Denom)
 	assert.True(t, result.ShouldShowValue, "MsgSend should show to/value")
+}
+
+func TestExtractFromToValue_FaucetTransferWithGasFee(t *testing.T) {
+	// Test case: Faucet transfer that sends both native token and ERC20 token
+	// The transaction should show the actual transfer, NOT the gas fee transfer
+	// Bug: When gas fee event doesn't have msg_index attribute but log.MsgIndex is hardcoded to "0",
+	// the gas fee event gets incorrectly selected instead of the actual transfer events
+
+	// Simulate the scenario where events come from protobuf (no logsBytes)
+	// and gas fee events are mixed with actual transfer events
+	events := []*injective_explorer_rpcpb.Event{
+		// Gas fee events (no msg_index attribute)
+		{
+			Type: "coin_spent",
+			Attributes: map[string]string{
+				"amount":  "64000000000000inj",
+				"spender": "inj1ur4tlhwy6e0jw9txmn5slvnkgahlqcq7akjvau",
+				// NO msg_index attribute
+			},
+		},
+		{
+			Type: "coin_received",
+			Attributes: map[string]string{
+				"amount":   "64000000000000inj",
+				"receiver": "inj17xpfvakm2amg962yls6f84z3kell8c5l8vkrh5",
+				// NO msg_index attribute
+			},
+		},
+		{
+			Type: "transfer",
+			Attributes: map[string]string{
+				"amount":    "64000000000000inj",
+				"recipient": "inj17xpfvakm2amg962yls6f84z3kell8c5l8vkrh5",
+				"sender":    "inj1ur4tlhwy6e0jw9txmn5slvnkgahlqcq7akjvau",
+				// NO msg_index attribute
+			},
+		},
+		// Actual transfer events (with msg_index attribute)
+		{
+			Type: "coin_received",
+			Attributes: map[string]string{
+				"amount":    "1000000000000000000inj",
+				"msg_index": "0",
+				"receiver":  "inj18dwpfhk5ajy9kpp3wfpr2f9jtdmmukjh86cptn",
+			},
+		},
+		{
+			Type: "transfer",
+			Attributes: map[string]string{
+				"amount":    "1000000000000000000inj",
+				"msg_index": "0",
+				"recipient": "inj18dwpfhk5ajy9kpp3wfpr2f9jtdmmukjh86cptn",
+				"sender":    "inj1ur4tlhwy6e0jw9txmn5slvnkgahlqcq7akjvau",
+			},
+		},
+		{
+			Type: "coin_received",
+			Attributes: map[string]string{
+				"amount":    "10000000peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+				"msg_index": "1",
+				"receiver":  "inj18dwpfhk5ajy9kpp3wfpr2f9jtdmmukjh86cptn",
+			},
+		},
+		{
+			Type: "transfer",
+			Attributes: map[string]string{
+				"amount":    "10000000peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+				"msg_index": "1",
+				"recipient": "inj18dwpfhk5ajy9kpp3wfpr2f9jtdmmukjh86cptn",
+				"sender":    "inj1ur4tlhwy6e0jw9txmn5slvnkgahlqcq7akjvau",
+			},
+		},
+	}
+
+	to, value := extractToAndValueFromProto(nil, events, nil, nil, nil)
+
+	// Debug output
+	t.Logf("Extracted To: %s", to)
+	t.Logf("Extracted Value: %s", value)
+
+	// Should extract the actual transfer, NOT the gas fee
+	assert.Equal(t, "inj18dwpfhk5ajy9kpp3wfpr2f9jtdmmukjh86cptn", to, "should extract actual transfer recipient, not gas fee recipient")
+	// Value should contain both INJ and ERC20 tokens
+	assert.Contains(t, value, "1000000000000000000inj", "should contain INJ amount")
+	assert.Contains(t, value, "10000000peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", "should contain ERC20 amount")
+	// INJ should come BEFORE ERC20 (native token priority)
+	injIndex := strings.Index(value, "1000000000000000000inj")
+	erc20Index := strings.Index(value, "10000000peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238")
+	assert.True(t, injIndex < erc20Index, "INJ should appear before ERC20 in value string")
+	// Should NOT contain gas fee amount
+	assert.NotContains(t, value, "64000000000000inj", "should NOT contain gas fee amount")
+}
+
+func TestMergeCoins_NativeTokenPriority(t *testing.T) {
+	// Test that INJ (native token) always comes first in the value string
+	coins := []Coin{
+		{Denom: "peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", Amount: "10000000"},
+		{Denom: "usdt", Amount: "500000000"},
+		{Denom: "inj", Amount: "1000000000000000000"},
+	}
+
+	merged := mergeCoins([]Coin{}, coins)
+
+	require.Len(t, merged, 3, "should have 3 different tokens")
+	// INJ should be first
+	assert.Equal(t, "inj", merged[0].Denom, "INJ should be first")
+	assert.Equal(t, "1000000000000000000", merged[0].Amount, "INJ amount should be correct")
+
+	// Build value string like extractToAndValueFromProto does
+	valueParts := make([]string, 0, len(merged))
+	for _, coin := range merged {
+		valueParts = append(valueParts, coin.Amount+coin.Denom)
+	}
+	value := strings.Join(valueParts, ",")
+
+	t.Logf("Value string: %s", value)
+	// Check INJ comes first
+	assert.True(t, strings.HasPrefix(value, "1000000000000000000inj,"), "INJ should be at the beginning of value string")
 }
 
 func TestExtractFromToValue_WasmExecuteContract(t *testing.T) {
