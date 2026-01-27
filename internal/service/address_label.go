@@ -112,6 +112,8 @@ func (s *AddressLabelService) CreateAddressLabel(ctx context.Context, req *pb.Cr
 }
 
 // UpdateAddressLabel updates an existing address label.
+// Note: The label is located using (chain_id, address, label_value) based on the database unique constraint.
+// You can update label_type, label_color, description, and visible fields.
 //
 // Parameters:
 //   - ctx: Context for request cancellation and timeout
@@ -134,8 +136,8 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
 	}
 
-	if req.LabelType == "" {
-		return ErrorReply(http.StatusBadRequest, "label_type is required", errors.New("label_type is required")), errors.New("label_type is required")
+	if req.LabelValue == "" {
+		return ErrorReply(http.StatusBadRequest, "label_value is required", errors.New("label_value is required")), errors.New("label_value is required")
 	}
 
 	// Convert address to Ethereum format for storage
@@ -146,8 +148,8 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 	defer queryCancel()
 
 	updates := make(map[string]interface{})
-	if req.LabelValue != "" {
-		updates["label_value"] = req.LabelValue
+	if req.LabelType != "" {
+		updates["label_type"] = req.LabelType
 	}
 	if req.LabelColor != "" {
 		updates["label_color"] = req.LabelColor

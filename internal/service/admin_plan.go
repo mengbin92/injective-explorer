@@ -236,6 +236,20 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 	if req.MaxTokens > 0 {
 		updates["max_tokens"] = req.MaxTokens
 	}
+	// Support updating price field (can be 0 for free plans)
+	if req.Price >= 0 {
+		updates["price"] = req.Price
+	}
+	// Support updating status field
+	if req.Status != "" {
+		if req.Status != "active" && req.Status != "inactive" {
+			err := errors.New("invalid status")
+			return ErrorReply(http.StatusBadRequest, "status must be 'active' or 'inactive'", err), err
+		}
+		updates["status"] = req.Status
+	}
+	// Support updating enable_webhook field
+	updates["enable_webhook"] = req.EnableWebhook
 
 	if len(updates) == 0 {
 		err := errors.New("no fields to update")
@@ -396,6 +410,7 @@ func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest
 		MaxTokens:        int32(targetPlan.MaxTokens),
 		Price:            targetPlan.Price,
 		Status:           targetPlan.Status,
+		IsEnabled:        targetPlan.Status == "active",
 		TokenCount:       int64(len(tokens)),
 		UserCount:        1, // Switched for one user
 	}

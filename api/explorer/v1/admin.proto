@@ -331,6 +331,9 @@ message UpdatePlanRequest {
   int32 rate_limit_per_second = 4
       [ json_name = "rate_limit_per_second" ];       // Rate limit per second
   int32 max_tokens = 5 [ json_name = "max_tokens" ]; // Maximum number of tokens
+  double price = 6;                                  // Plan price
+  string status = 7;                                 // Plan status: active/inactive
+  bool enable_webhook = 8 [ json_name = "enable_webhook" ]; // Enable webhook feature
 }
 
 message GetPlanStatsRequest { uint64 id = 1; }
@@ -415,7 +418,8 @@ message PlanDTO {
   int32 rate_limit_per_second = 6 [ json_name = "rate_limit_per_second" ];
   int32 max_tokens = 7 [ json_name = "max_tokens" ];
   double price = 8;
-  string status = 9;
+  string status = 9;                                      // Plan status: active/inactive
+  bool is_enabled = 14 [ json_name = "is_enabled" ];     // Boolean flag: true if status is active
   int64 token_count = 10
       [ json_name = "token_count" ]; // Number of tokens using this plan
   int64 user_count = 11

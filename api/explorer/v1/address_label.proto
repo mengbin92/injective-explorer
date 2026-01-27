@@ -88,11 +88,12 @@ message CreateAddressLabelRequest {
 }
 
 // UpdateAddressLabelRequest is the request message for updating an address label.
+// Note: label_value (not label_type) is used to locate the record based on unique constraint (chain_id, address, label_value)
 message UpdateAddressLabelRequest {
   string address = 1;        // Address (required)
   string chain_id = 2 [json_name = "chain_id"];      // Chain ID (required)
-  string label_type = 3 [json_name = "label_type"];    // Label type (required)
-  string label_value = 4 [json_name = "label_value"];   // Label value (optional)
+  string label_type = 3 [json_name = "label_type"];    // Label type (optional, can be updated)
+  string label_value = 4 [json_name = "label_value"];   // Label value (required, used to locate the record)
   string label_color = 5 [json_name = "label_color"];   // Label color (optional)
   string description = 6;   // Description (optional)
   bool visible = 7 [json_name = "visible"];            // Whether to display in frontend

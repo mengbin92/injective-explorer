@@ -2303,7 +2303,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_type\": \"exchange\",\n    \"label_value\": \"Updated Exchange Name\",\n    \"label_color\": \"#10B981\",\n    \"visible\": false,\n    \"description\": \"Updated description\"\n}",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_value\": \"Binance\",\n    \"label_type\": \"wallet\",\n    \"label_color\": \"#10B981\",\n    \"description\": \"Updated to wallet type\",\n    \"visible\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2322,7 +2322,7 @@
                 "label"
               ]
             },
-            "description": "更新地址标签"
+            "description": "更新地址标签\n\n重要说明：\n- label_value（必填）：用于定位要更新的记录（基于唯一约束：chain_id + address + label_value）\n- label_type（可选）：可以更新的字段\n- label_color（可选）：可以更新的字段\n- description（可选）：可以更新的字段\n- visible（可选）：可以更新的字段\n\n示例：更新一个已存在的标签，将其 label_type 从 'exchange' 改为 'wallet'"
           },
           "response": []
         },
@@ -4352,7 +4352,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": 1,\n    \"description\": \"Updated plan description\",\n    \"monthly_limit\": 100000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5\n}",
+              "raw": "{\n    \"id\": 1,\n    \"description\": \"更新后的套餐描述\",\n    \"monthly_limit\": 100000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5,\n    \"price\": 99.99,\n    \"status\": \"active\",\n    \"enable_webhook\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4371,7 +4371,7 @@
                 "plans"
               ]
             },
-            "description": "编辑套餐配置。字段：id（必填）、description（可选）、monthly_limit（可选）、rate_limit_per_second（可选）、max_tokens（可选）。"
+            "description": "编辑套餐配置\n\n可更新字段：\n- description: 套餐描述\n- monthly_limit: 每月调用限制\n- rate_limit_per_second: 每秒速率限制\n- max_tokens: 最大令牌数\n- price: 价格（支持更新，可以为0表示免费）\n- status: 状态（active/inactive，用于启用/禁用套餐）\n- enable_webhook: 是否启用webhook功能"
           },
           "response": []
         },
@@ -4525,6 +4525,116 @@
               ]
             },
             "description": "下架套餐"
+          },
+          "response": []
+        },
+        {
+          "name": "启用套餐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Plan is enabled\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('active');",
+                  "    pm.expect(jsonData.data.is_enabled).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plans/publish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plans",
+                "publish"
+              ]
+            },
+            "description": "启用套餐（将状态设置为 active）\n\n该接口会将套餐状态设置为 active，使其可以被用户选择使用。\n\n返回的数据中：\n- status: \"active\"\n- is_enabled: true"
+          },
+          "response": []
+        },
+        {
+          "name": "禁用套餐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Plan is disabled\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('inactive');",
+                  "    pm.expect(jsonData.data.is_enabled).to.eql(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plans/unpublish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plans",
+                "unpublish"
+              ]
+            },
+            "description": "禁用套餐（将状态设置为 inactive）\n\n该接口会将套餐状态设置为 inactive，禁止用户选择该套餐。\n已使用该套餐的用户不受影响。\n\n返回的数据中：\n- status: \"inactive\"\n- is_enabled: false"
           },
           "response": []
         }

@@ -620,6 +620,9 @@ func ToPlanDTO(plan *APIPlan, tokenCount, userCount int64) *pb.PlanDTO {
 		updatedAt = plan.UpdatedAt.Format(time.RFC3339)
 	}
 
+	// Calculate is_enabled based on status
+	isEnabled := plan.Status == "active"
+
 	return &pb.PlanDTO{
 		Id:                 uint64(plan.ID),
 		Name:               plan.Name,
@@ -630,6 +633,7 @@ func ToPlanDTO(plan *APIPlan, tokenCount, userCount int64) *pb.PlanDTO {
 		MaxTokens:          int32(plan.MaxTokens),
 		Price:              plan.Price,
 		Status:             plan.Status,
+		IsEnabled:          isEnabled,
 		TokenCount:         tokenCount,
 		UserCount:          userCount,
 		CreatedAt:          createdAt,

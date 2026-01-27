@@ -3061,7 +3061,9 @@ components:
                     type: string
                 visible:
                     type: boolean
-            description: UpdateAddressLabelRequest is the request message for updating an address label.
+            description: |-
+                UpdateAddressLabelRequest is the request message for updating an address label.
+                 Note: label_value (not label_type) is used to locate the record based on unique constraint (chain_id, address, label_value)
         api.explorer.v1.UpdateContractInfoRequest:
             type: object
             properties:
@@ -3118,6 +3120,13 @@ components:
                 max_tokens:
                     type: integer
                     format: int32
+                price:
+                    type: number
+                    format: double
+                status:
+                    type: string
+                enable_webhook:
+                    type: boolean
         api.explorer.v1.UpdateTagDefinitionRequest:
             type: object
             properties:

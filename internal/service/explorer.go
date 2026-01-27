@@ -732,6 +732,78 @@ func (s *ExplorerService) GetBlockGasUtilization(ctx context.Context, req *empty
 	return MarshalAndReply(response, "marshal block gas utilization error")
 }
 
+// deduplicateTransactions removes duplicate transactions by hash, keeping only the complete ones.
+// For transactions with the same hash, it prioritizes records that have signer, to, and value fields.
+// If multiple records have these fields, it keeps the one with the highest tx_number (most recent).
+//
+// Parameters:
+//   - txs: List of transactions that may contain duplicates
+//
+// Returns:
+//   - []models.Transaction: Deduplicated list of transactions
+func deduplicateTransactions(txs []models.Transaction) []models.Transaction {
+	if len(txs) == 0 {
+		return txs
+	}
+
+	// Map to store the best transaction for each hash
+	txMap := make(map[string]*models.Transaction)
+
+	for i := range txs {
+		tx := &txs[i]
+		hash := tx.Hash
+		// Skip transactions with empty hash (should not happen, but handle gracefully)
+		if hash == "" {
+			continue
+		}
+		// Normalize hash (remove 0x prefix if present for comparison)
+		if len(hash) >= 2 && hash[:2] == "0x" {
+			hash = hash[2:]
+		}
+
+		existing, exists := txMap[hash]
+		if !exists {
+			// First occurrence of this hash, store it
+			txMap[hash] = tx
+			continue
+		}
+
+		// Check if current transaction has complete fields (signer, to, value)
+		currentComplete := tx.Signer != "" && tx.To != "" && tx.Value != ""
+		existingComplete := existing.Signer != "" && existing.To != "" && existing.Value != ""
+
+		if currentComplete && !existingComplete {
+			// Current is complete, existing is not - replace
+			txMap[hash] = tx
+		} else if !currentComplete && existingComplete {
+			// Existing is complete, current is not - keep existing
+			// Do nothing
+		} else {
+			// Both complete or both incomplete - keep the one with higher tx_number (more recent)
+			if tx.TxNumber > existing.TxNumber {
+				txMap[hash] = tx
+			}
+		}
+	}
+
+	// Convert map back to slice, maintaining original order as much as possible
+	// We'll sort by tx_number DESC to maintain the order
+	result := make([]models.Transaction, 0, len(txMap))
+	for _, tx := range txMap {
+		result = append(result, *tx)
+	}
+
+	// Sort by block_unix_timestamp DESC, then tx_number DESC to maintain order
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].BlockUnixTimestamp != result[j].BlockUnixTimestamp {
+			return result[i].BlockUnixTimestamp > result[j].BlockUnixTimestamp
+		}
+		return result[i].TxNumber > result[j].TxNumber
+	})
+
+	return result
+}
+
 // GetLatestTransactions retrieves the latest transactions from the blockchain with pagination.
 //
 // Parameters:
@@ -764,6 +836,9 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 			global.Logger.Warnf("failed to get transactions from cache, fallback to DB: %v", err)
 		} else if len(cachedTxs) > 0 {
 			global.Logger.Debugf("transactions found in cache: count=%d", len(cachedTxs))
+			// Deduplicate cached transactions to ensure we only return complete ones
+			cachedTxs = deduplicateTransactions(cachedTxs)
+			global.Logger.Debugf("transactions after deduplication: count=%d", len(cachedTxs))
 			// Try to get total count from cache first to avoid database query
 			total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalTransactions)
 			if total == 0 {
@@ -834,6 +909,9 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	// Found in database or no results, convert to DTO and return
 	if len(dbTxs) > 0 {
 		global.Logger.Debugf("transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
+		// Deduplicate transactions to ensure we only return complete ones (with signer, to, value)
+		dbTxs = deduplicateTransactions(dbTxs)
+		global.Logger.Debugf("transactions after deduplication: count=%d", len(dbTxs))
 	} else {
 		global.Logger.Debugf("no transactions found in database")
 	}
