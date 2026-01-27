@@ -177,12 +177,13 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
+		// Note: cursor is still based on height, but we sort by timestamp for correct ordering
 		query = query.Where("height < ?", cursorValue).
-			Order("height DESC").
+			Order("block_unix_timestamp DESC").
 			Limit(int(pageSize))
 	} else {
 		// Use page-based pagination
-		query = query.Order("height DESC").
+		query = query.Order("block_unix_timestamp DESC").
 			Offset(offset).
 			Limit(int(pageSize))
 	}
@@ -2730,10 +2731,10 @@ func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) 
 		global.Logger.Warnf("all %d blocks failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
-	// Sort blocks by height descending to ensure correct order
-	// Redis list order is based on insertion time, not block height
+	// Sort blocks by block_unix_timestamp descending to ensure correct order (newest first)
+	// Redis list order is based on insertion time, not block timestamp
 	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].Height > blocks[j].Height
+		return blocks[i].BlockUnixTimestamp > blocks[j].BlockUnixTimestamp
 	})
 
 	return blocks, nil
@@ -2785,6 +2786,15 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 	if len(txs) == 0 && len(data) > 0 {
 		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
 	}
+
+	// Sort transactions by block_unix_timestamp descending, then tx_number descending to ensure correct order (newest first)
+	// Redis list order is based on insertion time, not transaction timestamp
+	sort.Slice(txs, func(i, j int) bool {
+		if txs[i].BlockUnixTimestamp != txs[j].BlockUnixTimestamp {
+			return txs[i].BlockUnixTimestamp > txs[j].BlockUnixTimestamp
+		}
+		return txs[i].TxNumber > txs[j].TxNumber
+	})
 
 	return txs, nil
 }
