@@ -229,9 +229,8 @@ func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmai
 		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
 	}
 
-	// Use Unscoped to force hard delete (physical deletion)
-	// This is necessary because the model has DeletedAt field but the table doesn't have deleted_at column
-	err = db.Get().WithContext(queryCtx).Unscoped().Delete(&blacklist).Error
+	// Perform hard delete (physical deletion)
+	err = db.Get().WithContext(queryCtx).Delete(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to delete email blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to delete email blacklist", err), err
@@ -527,11 +526,9 @@ func (s *AdminService) BatchDeleteEmailDomains(ctx context.Context, req *pb.Batc
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// Use Unscoped to force hard delete (physical deletion)
-	// This is necessary because the model has DeletedAt field but the table doesn't have deleted_at column
+	// Perform hard delete (physical deletion)
 	result := db.Get().WithContext(queryCtx).
 		Where("id IN ?", req.Ids).
-		Unscoped().
 		Delete(&models.EmailBlacklist{})
 
 	if result.Error != nil {

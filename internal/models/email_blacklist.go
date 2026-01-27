@@ -2,12 +2,14 @@
 package models
 
 import (
-	"gorm.io/gorm"
+	"time"
 )
 
 // EmailBlacklist represents an email domain in the blacklist.
 type EmailBlacklist struct {
-	gorm.Model
+	ID        uint64    `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	CreatedAt time.Time `gorm:"column:created_at;not null" json:"created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at;not null" json:"updated_at"`
 
 	// Domain is the email domain (lowercase, without @)
 	Domain string `gorm:"column:domain;type:varchar(255);not null;uniqueIndex" json:"domain"`

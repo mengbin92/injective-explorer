@@ -580,14 +580,12 @@ CREATE TABLE `email_blacklist` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `created_at` datetime(3) DEFAULT NULL,
   `updated_at` datetime(3) DEFAULT NULL,
-  `deleted_at` datetime(3) DEFAULT NULL,
   `domain` varchar(255) NOT NULL COMMENT '邮箱域名（小写）',
   `status` varchar(20) NOT NULL DEFAULT 'active' COMMENT '状态：active/disabled',
   `block_count` bigint unsigned NOT NULL DEFAULT '0' COMMENT '拦截次数',
   `note` text COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_email_blacklist_domain` (`domain`),
-  KEY `idx_email_blacklist_deleted_at` (`deleted_at`),
   KEY `idx_email_blacklist_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
