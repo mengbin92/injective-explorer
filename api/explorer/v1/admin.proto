@@ -51,6 +51,14 @@ service AdminService {
     };
   }
 
+  // SwitchPlan switches a user's plan to a different plan
+  rpc SwitchPlan(SwitchPlanRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/admin/plans/switch"
+      body : "*"
+    };
+  }
+
   // ========== IP Management ==========
   // ListIPRegistrationRecords lists IP registration records
   rpc ListIPRegistrationRecords(ListIPRegistrationRecordsRequest)
@@ -153,6 +161,34 @@ service AdminService {
   rpc GetUsageErrors(GetUsageErrorsRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/admin/usage/errors"
+    };
+  }
+
+  // GetUsageStats gets usage statistics overview
+  rpc GetUsageStats(GetUsageStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/usage/stats"
+    };
+  }
+
+  // GetUsageTrends gets usage trends over time
+  rpc GetUsageTrends(GetUsageTrendsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/usage/trends"
+    };
+  }
+
+  // GetUsageByEndpoint gets usage statistics grouped by endpoint
+  rpc GetUsageByEndpoint(GetUsageByEndpointRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/usage/by-endpoint"
+    };
+  }
+
+  // GetUsageByErrorCode gets usage statistics grouped by error code
+  rpc GetUsageByErrorCode(GetUsageByErrorCodeRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/usage/by-error-code"
     };
   }
 
@@ -282,6 +318,69 @@ message UpdatePlanRequest {
 }
 
 message GetPlanStatsRequest { uint64 id = 1; }
+
+message SwitchPlanRequest {
+  string user_id = 1 [ json_name = "user_id" ]; // User ID to switch plan for
+  uint64 plan_id = 2 [ json_name = "plan_id" ]; // Target plan ID
+}
+
+message PlanStatsDTO {
+  int64 token_count = 1 [ json_name = "token_count" ]; // Number of tokens
+  int64 user_count = 2 [ json_name = "user_count" ];   // Number of users
+}
+
+message GetUsageStatsRequest {
+  string time_range = 1 [ json_name = "time_range" ]; // today/7days/30days/all
+}
+
+message UsageStatsDTO {
+  int64 total_requests = 1 [ json_name = "total_requests" ];
+  int64 success_requests = 2 [ json_name = "success_requests" ];
+  int64 failed_requests = 3 [ json_name = "failed_requests" ];
+  double error_rate = 4 [ json_name = "error_rate" ]; // Error rate percentage
+  int64 avg_response_time = 5 [ json_name = "avg_response_time" ]; // Average response time in ms
+  int64 unique_users = 6 [ json_name = "unique_users" ];
+  int64 unique_ips = 7 [ json_name = "unique_ips" ];
+}
+
+message GetUsageTrendsRequest {
+  string time_range = 1 [ json_name = "time_range" ]; // 7days/30days/90days
+  string interval = 2; // day/week/month
+}
+
+message UsageTrendDTO {
+  string date = 1; // Date in YYYY-MM-DD format
+  int64 total_requests = 2 [ json_name = "total_requests" ];
+  int64 success_requests = 3 [ json_name = "success_requests" ];
+  int64 failed_requests = 4 [ json_name = "failed_requests" ];
+  int64 avg_response_time = 5 [ json_name = "avg_response_time" ];
+}
+
+message GetUsageByEndpointRequest {
+  string time_range = 1 [ json_name = "time_range" ]; // today/7days/30days/all
+  int32 top_n = 2 [ json_name = "top_n" ]; // Number of top endpoints to return (default: 10)
+}
+
+message EndpointUsageDTO {
+  string endpoint = 1;
+  string method = 2;
+  int64 request_count = 3 [ json_name = "request_count" ];
+  int64 success_count = 4 [ json_name = "success_count" ];
+  int64 failed_count = 5 [ json_name = "failed_count" ];
+  double error_rate = 6 [ json_name = "error_rate" ];
+  int64 avg_response_time = 7 [ json_name = "avg_response_time" ];
+}
+
+message GetUsageByErrorCodeRequest {
+  string time_range = 1 [ json_name = "time_range" ]; // today/7days/30days/all
+}
+
+message ErrorCodeUsageDTO {
+  int32 status_code = 1 [ json_name = "status_code" ];
+  int64 count = 2;
+  double percentage = 3; // Percentage of total errors
+  repeated string top_error_messages = 4 [ json_name = "top_error_messages" ]; // Top 5 error messages
+}
 
 message PlanDTO {
   uint64 id = 1;
@@ -495,6 +594,7 @@ message BatchImportEmailDomainsDTO {
   int32 duplicate = 4;
   repeated string invalid_domains = 5 [ json_name = "invalid_domains" ];
   repeated string duplicate_domains = 6 [ json_name = "duplicate_domains" ];
+  repeated string new_domains = 7 [ json_name = "new_domains" ]; // Newly added domains
 }
 
 message PreviewImportEmailDomainsRequest {
@@ -529,11 +629,6 @@ message IPRateLimitConfigDTO {
   string block_type = 3
       [ json_name =
             "block_type" ]; // Blacklist restriction type: all/register/api
-}
-
-message PlanStatsDTO {
-  int64 token_count = 1 [ json_name = "token_count" ]; // Number of tokens
-  int64 user_count = 2 [ json_name = "user_count" ];   // Number of users
 }
 
 message IPRecordsStatsDTO {

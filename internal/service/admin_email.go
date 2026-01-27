@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -300,24 +301,31 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 
 	// Import new domains
 	duplicate := 0
-	newDomains := make([]models.EmailBlacklist, 0)
+	newDomainModels := make([]models.EmailBlacklist, 0)
+	duplicateDomains := make([]string, 0)
+	newDomainNames := make([]string, 0)
 
 	for _, domain := range validDomains {
 		if existingMap[domain] {
 			duplicate++
+			duplicateDomains = append(duplicateDomains, domain)
 			continue
 		}
 
-		newDomains = append(newDomains, models.EmailBlacklist{
+		newDomainModels = append(newDomainModels, models.EmailBlacklist{
 			Domain:     domain,
 			Status:     "active",
 			BlockCount: 0,
 		})
+		newDomainNames = append(newDomainNames, domain)
 	}
 
-	if len(newDomains) > 0 {
-		// Batch insert
-		err := db.Get().WithContext(queryCtx).CreateInBatches(newDomains, 100).Error
+	if len(newDomainModels) > 0 {
+		// Batch insert with OnConflict to ignore duplicates
+		// This handles race conditions and ensures duplicates are skipped
+		err := db.Get().WithContext(queryCtx).
+			Clauses(clause.OnConflict{DoNothing: true}).
+			CreateInBatches(newDomainModels, 100).Error
 		if err != nil {
 			global.Logger.Errorf("failed to batch import email domains: %v", err)
 			return ErrorReply(http.StatusInternalServerError, "failed to import email domains", err), err
@@ -325,11 +333,13 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 	}
 
 	result := &pb.BatchImportEmailDomainsDTO{
-		Total:          int32(len(req.Domains)),
-		Valid:          int32(len(validDomains)),
-		Invalid:        int32(len(invalidDomains)),
-		Duplicate:      int32(duplicate),
-		InvalidDomains: invalidDomains,
+		Total:            int32(len(req.Domains)),
+		Valid:            int32(len(validDomains)),
+		Invalid:          int32(len(invalidDomains)),
+		Duplicate:        int32(duplicate),
+		InvalidDomains:   invalidDomains,
+		DuplicateDomains: duplicateDomains,
+		NewDomains:       newDomainNames,
 	}
 
 	return MarshalAndReply(result, "failed to marshal response")
@@ -496,6 +506,7 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 		Duplicate:        int32(len(duplicateDomains)),
 		InvalidDomains:   invalidDomains,
 		DuplicateDomains: duplicateDomains,
+		NewDomains:       newDomains,
 	}
 
 	return MarshalAndReply(result, "failed to marshal response")

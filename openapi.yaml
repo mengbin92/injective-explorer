@@ -932,6 +932,66 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/plans/switch:
+        post:
+            tags:
+                - AdminService
+            description: SwitchPlan switches a user's plan to a different plan
+            operationId: AdminService_SwitchPlan
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.SwitchPlanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/usage/by-endpoint:
+        get:
+            tags:
+                - AdminService
+            description: GetUsageByEndpoint gets usage statistics grouped by endpoint
+            operationId: AdminService_GetUsageByEndpoint
+            parameters:
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
+                - name: top_n
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/usage/by-error-code:
+        get:
+            tags:
+                - AdminService
+            description: GetUsageByErrorCode gets usage statistics grouped by error code
+            operationId: AdminService_GetUsageByErrorCode
+            parameters:
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/usage/errors:
         get:
             tags:
@@ -965,6 +1025,46 @@ paths:
                     type: integer
                     format: int32
                 - name: time_range
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/usage/stats:
+        get:
+            tags:
+                - AdminService
+            description: GetUsageStats gets usage statistics overview
+            operationId: AdminService_GetUsageStats
+            parameters:
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/usage/trends:
+        get:
+            tags:
+                - AdminService
+            description: GetUsageTrends gets usage trends over time
+            operationId: AdminService_GetUsageTrends
+            parameters:
+                - name: time_range
+                  in: query
+                  schema:
+                    type: string
+                - name: interval
                   in: query
                   schema:
                     type: string
@@ -2796,6 +2896,13 @@ components:
                 created_by:
                     type: string
             description: SetAddressRemarkRequest is the request message for setting an address remark.
+        api.explorer.v1.SwitchPlanRequest:
+            type: object
+            properties:
+                user_id:
+                    type: string
+                plan_id:
+                    type: string
         api.explorer.v1.ToggleEmailDomainStatusRequest:
             type: object
             properties:

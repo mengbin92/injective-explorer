@@ -319,3 +319,86 @@ func (s *AdminService) getPlanStats(ctx context.Context, planID uint) (int64, in
 
 	return tokenCount, userCount, nil
 }
+
+// SwitchPlan switches a user's plan to a different plan
+func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest) (*pb.Reply, error) {
+	if req == nil {
+		err := errors.New("nil request")
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	}
+
+	// Validate required fields
+	if req.UserId == "" {
+		err := errors.New("missing user_id")
+		return ErrorReply(http.StatusBadRequest, "user_id is required", err), err
+	}
+	if req.PlanId == 0 {
+		err := errors.New("missing plan_id")
+		return ErrorReply(http.StatusBadRequest, "plan_id is required", err), err
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Check if target plan exists
+	var targetPlan models.APIPlan
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.PlanId).First(&targetPlan).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrorReply(http.StatusNotFound, "target plan not found", err), err
+		}
+		global.Logger.Errorf("failed to get target plan: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query target plan", err), err
+	}
+
+	// Check if plan is active
+	if targetPlan.Status != "active" {
+		err := errors.New("target plan is not active")
+		return ErrorReply(http.StatusBadRequest, "target plan is not active", err), err
+	}
+
+	// Get user's tokens
+	var tokens []models.APIToken
+	err = db.Get().WithContext(queryCtx).
+		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
+		Find(&tokens).Error
+	if err != nil {
+		global.Logger.Errorf("failed to query user tokens: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query user tokens", err), err
+	}
+
+	if len(tokens) == 0 {
+		err := errors.New("no tokens found for user")
+		return ErrorReply(http.StatusNotFound, "no active tokens found for user", err), err
+	}
+
+	// Update all tokens to new plan type
+	err = db.Get().WithContext(queryCtx).
+		Model(&models.APIToken{}).
+		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
+		Update("plan_type", targetPlan.Name).Error
+	if err != nil {
+		global.Logger.Errorf("failed to switch plan for user %s: %v", req.UserId, err)
+		return ErrorReply(http.StatusInternalServerError, "failed to switch plan", err), err
+	}
+
+	global.Logger.Infof("Successfully switched user %s to plan %s (ID: %d), updated %d tokens",
+		req.UserId, targetPlan.Name, req.PlanId, len(tokens))
+
+	// Return success response with updated plan info
+	response := &pb.PlanDTO{
+		Id:               uint64(targetPlan.ID),
+		Name:             targetPlan.Name,
+		PlanType:         targetPlan.PlanType,
+		Description:      targetPlan.Description,
+		MonthlyLimit:     targetPlan.MonthlyLimit,
+		RateLimitPerSecond: int32(targetPlan.RateLimitPerSecond),
+		MaxTokens:        int32(targetPlan.MaxTokens),
+		Price:            targetPlan.Price,
+		Status:           targetPlan.Status,
+		TokenCount:       int64(len(tokens)),
+		UserCount:        1, // Switched for one user
+	}
+
+	return MarshalAndReply(response, "failed to marshal response")
+}
