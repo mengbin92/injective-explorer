@@ -1181,6 +1181,135 @@
             "description": "Get token statistics for a specific user (Admin only)."
           },
           "response": []
+        },
+        {
+          "name": "List User Tokens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has tokens array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('list');",
+                  "    pm.expect(jsonData.data.list).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/user/tokens?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "user",
+                "tokens"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User ID to query"
+                }
+              ]
+            },
+            "description": "List all API tokens for a specific user (Admin only)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Token Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has token statistics\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('token_count');",
+                  "    pm.expect(jsonData.data).to.have.property('active_token_count');",
+                  "    pm.expect(jsonData.data).to.have.property('disabled_token_count');",
+                  "    pm.expect(jsonData.data).to.have.property('monthly_used');",
+                  "    pm.expect(jsonData.data).to.have.property('monthly_limit');",
+                  "    pm.expect(jsonData.data).to.have.property('total_usage');",
+                  "    pm.expect(jsonData.data).to.have.property('plan_type');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/user/token-stats?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "user",
+                "token-stats"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User ID to query"
+                }
+              ]
+            },
+            "description": "Get token statistics for a specific user (Admin only)."
+          },
+          "response": []
         }
       ],
       "description": "Admin API endpoints for managing user tokens."
@@ -2483,6 +2612,1342 @@
         }
       ],
       "description": "Usage statistics endpoints for admin"
+    },
+    {
+      "name": "管理接口 - 地址标签管理",
+      "item": [
+        {
+          "name": "创建地址标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has created label data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('address');",
+                  "        pm.expect(jsonData.data).to.have.property('label_type');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_type\": \"exchange\",\n    \"label_value\": \"Binance\",\n    \"label_color\": \"#F59E0B\",\n    \"visible\": true,\n    \"description\": \"Major cryptocurrency exchange\",\n    \"created_by\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/label",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "label"
+              ]
+            },
+            "description": "创建地址标签"
+          },
+          "response": []
+        },
+        {
+          "name": "更新地址标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has updated label data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"label_type\": \"exchange\",\n    \"label_value\": \"Updated Exchange Name\",\n    \"label_color\": \"#10B981\",\n    \"visible\": false,\n    \"description\": \"Updated description\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/label",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "label"
+              ]
+            },
+            "description": "更新地址标签"
+          },
+          "response": []
+        },
+        {
+          "name": "删除地址标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/label?address={{account_address}}&chain_id={{chain_id}}&label_type=exchange",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "label"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "{{account_address}}",
+                  "description": "Address (required, supports inj1... or 0x... format)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (required)"
+                },
+                {
+                  "key": "label_type",
+                  "value": "exchange",
+                  "description": "Label type (required)"
+                }
+              ]
+            },
+            "description": "删除地址标签（软删除）"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{api_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/address/label?address={{account_address}}&chain_id={{chain_id}}&label_type=exchange",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "address",
+                    "label"
+                  ],
+                  "query": [
+                    {
+                      "key": "address",
+                      "value": "{{account_address}}"
+                    },
+                    {
+                      "key": "chain_id",
+                      "value": "{{chain_id}}"
+                    },
+                    {
+                      "key": "label_type",
+                      "value": "exchange"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "获取地址的所有标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has labels array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels?address={{account_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "{{account_address}}",
+                  "description": "Address (required, supports inj1... or 0x... format)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (required)"
+                }
+              ]
+            },
+            "description": "获取地址的所有标签"
+          },
+          "response": []
+        },
+        {
+          "name": "列出地址标签（带过滤和分页）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has paginated data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(0);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('items');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/label/list?chain_id={{chain_id}}&label_type=exchange&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "label",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (optional)"
+                },
+                {
+                  "key": "label_type",
+                  "value": "exchange",
+                  "description": "Label type (optional)"
+                },
+                {
+                  "key": "address",
+                  "value": "",
+                  "description": "Address (optional, fuzzy match)",
+                  "disabled": true
+                },
+                {
+                  "key": "label_value",
+                  "value": "",
+                  "description": "Label value (optional, fuzzy match)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Page size (default: 20, max: 100)"
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor for cursor-based pagination",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "列出地址标签（支持过滤条件和分页）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取地址标签统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has statistics data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_labeled_addresses');",
+                  "        pm.expect(jsonData.data).to.have.property('visible_labels_count');",
+                  "        pm.expect(jsonData.data).to.have.property('hidden_labels_count');",
+                  "        pm.expect(jsonData.data).to.have.property('total_labels_count');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels/stats?chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "链ID (可选)"
+                }
+              ]
+            },
+            "description": "获取地址标签统计信息"
+          },
+          "response": []
+        },
+        {
+          "name": "批量导入地址标签",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// 如果需要从文件读取并转换为base64，请取消下面的注释：",
+                  "// const fs = require('fs');",
+                  "// const filePath = '/path/to/your/address_labels.csv';",
+                  "// const fileContent = fs.readFileSync(filePath);",
+                  "// const base64Content = fileContent.toString('base64');",
+                  "// pm.variables.set('file_base64', base64Content);",
+                  "// ",
+                  "// 然后在请求body中使用 {{file_base64}} 替换 file_content_base64 的值",
+                  "",
+                  "// 示例CSV内容（Full格式）：",
+                  "// address,label_name,label_type,label_color,description,visible,remark",
+                  "// 0x1234567890abcdef,Test Label,custom,#FF5733,Test description,true,Test remark",
+                  "// inj...,Another Label,official,#00FF00,Official label,true,Important address",
+                  "",
+                  "// 示例CSV内容（Simple格式）：",
+                  "// address,label_name,remark",
+                  "// 0x1234567890abcdef,Test Label,Test remark",
+                  "// inj...,Another Label,Important address"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has import result\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_count');",
+                  "        pm.expect(jsonData.data).to.have.property('success_count');",
+                  "        pm.expect(jsonData.data).to.have.property('failed_count');",
+                  "        pm.expect(jsonData.data).to.have.property('skipped_count');",
+                  "        console.log('Import Result:');",
+                  "        console.log('Total:', jsonData.data.total_count);",
+                  "        console.log('Success:', jsonData.data.success_count);",
+                  "        console.log('Failed:', jsonData.data.failed_count);",
+                  "        console.log('Skipped:', jsonData.data.skipped_count);",
+                  "        if (jsonData.data.errors && jsonData.data.errors.length > 0) {",
+                  "            console.log('Errors:', jsonData.data.errors);",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"chain_id\": \"{{chain_id}}\",\n    \"file_content_base64\": \"YWRkcmVzcyxsYWJlbF9uYW1lLGxhYmVsX3R5cGUsbGFiZWxfY29sb3IsZGVzY3JpcHRpb24sdmlzaWJsZSxyZW1hcmsKMHgxMjM0NTY3ODkwYWJjZGVmLFRlc3QgTGFiZWwsY3VzdG9tLCNGRjU3MzMsVGVzdCBkZXNjcmlwdGlvbix0cnVlLFRlc3QgcmVtYXJrCmJ5Yi4uLixBbm90aGVyIExhYmVsLG9mZmljaWFsLCMwMEZGMDAsT2ZmaWNpYWwgbGFiZWwsdHJ1ZSxJbXBvcnRhbnQgYWRkcmVzcwo=\",\n    \"format\": \"csv\",\n    \"import_mode\": \"upsert\",\n    \"skip_errors\": true,\n    \"csv_format\": \"full\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels/batch-import",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels",
+                "batch-import"
+              ]
+            },
+            "description": "批量导入地址标签（支持CSV/JSON）\n\n请求参数说明：\n- chain_id: 链ID（必填）\n- file_content_base64: Base64编码的文件内容（必填）\n- format: 文件格式，csv 或 json（必填）\n- import_mode: 导入模式 - create（仅创建）/update（仅更新）/upsert（创建或更新，默认推荐）\n- skip_errors: 是否跳过错误继续导入（默认false）\n- csv_format: CSV格式 - simple（地址,标签名,备注）/full（完整格式，包含所有字段）\n\nCSV Full格式示例：\naddress,label_name,label_type,label_color,description,visible,remark\n0x1234567890abcdef,Test Label,custom,#FF5733,Test description,true,Test remark\n\nCSV Simple格式示例：\naddress,label_name,remark\n0x1234567890abcdef,Test Label,Test remark\n\n如何生成file_content_base64：\n1. 在线工具: https://www.base64encode.org/\n2. 命令行: base64 < your_file.csv | tr -d '\\n'\n3. Postman Pre-request Script: 参考下面的脚本"
+          },
+          "response": []
+        },
+        {
+          "name": "批量导出地址标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has export data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('file_content_base64');",
+                  "        pm.expect(jsonData.data).to.have.property('file_name');",
+                  "        pm.expect(jsonData.data).to.have.property('record_count');",
+                  "        console.log('Export Result:');",
+                  "        console.log('File Name:', jsonData.data.file_name);",
+                  "        console.log('Record Count:', jsonData.data.record_count);",
+                  "        ",
+                  "        // 可选：将base64解码并保存为文件",
+                  "        // const fs = require('fs');",
+                  "        // const fileContent = Buffer.from(jsonData.data.file_content_base64, 'base64');",
+                  "        // fs.writeFileSync('/path/to/save/' + jsonData.data.file_name, fileContent);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"chain_id\": \"{{chain_id}}\",\n    \"format\": \"csv\",\n    \"addresses\": [],\n    \"include_hidden\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels/batch-export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels",
+                "batch-export"
+              ]
+            },
+            "description": "批量导出地址标签（支持CSV/JSON格式）\n\n请求参数说明：\n- chain_id: 链ID（可选，为空则导出所有链）\n- format: 导出格式，csv 或 json（必填）\n- addresses: 要导出的特定地址列表（可选，为空则导出所有地址）\n- include_hidden: 是否包含隐藏标签（可选，默认true）\n\n响应数据：\n- file_content_base64: Base64编码的文件内容\n- file_name: 文件名\n- record_count: 记录数量\n\n如何保存文件：\n1. 将file_content_base64内容复制到在线解码工具: https://www.base64decode.org/\n2. 使用命令行: echo \"base64content\" | base64 -d > output.csv\n3. 使用Postman Test脚本自动保存（参考Test标签页）"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "预设标签管理 (TagDefinitionService)",
+      "item": [
+        {
+          "name": "列表查询标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tag definitions\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definitions?tag_type=contract&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definitions"
+              ],
+              "query": [
+                {
+                  "key": "tag_type",
+                  "value": "contract",
+                  "description": "标签类型: contract, address (可选)"
+                },
+                {
+                  "key": "tag_category",
+                  "value": "",
+                  "description": "标签分类: normal, abnormal (可选)",
+                  "disabled": true
+                },
+                {
+                  "key": "is_system",
+                  "value": "",
+                  "description": "是否系统预置 (可选)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "页码 (默认1)"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "每页数量 (默认20)"
+                }
+              ]
+            },
+            "description": "查询预设标签定义列表，支持分页和过滤"
+          },
+          "response": []
+        },
+        {
+          "name": "创建标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has created tag definition\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('id');",
+                  "        pm.expect(jsonData.data).to.have.property('tag_name');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tag_type\": \"contract\",\n    \"tag_name\": \"GameFi\",\n    \"tag_category\": \"normal\",\n    \"tag_color\": \"#8B5CF6\",\n    \"description\": \"GameFi相关项目\",\n    \"sort_order\": 10,\n    \"created_by\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definition"
+              ]
+            },
+            "description": "创建新的预设标签定义"
+          },
+          "response": []
+        },
+        {
+          "name": "更新标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has updated tag definition\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1,\n    \"tag_name\": \"官方更新\",\n    \"tag_color\": \"#52c41a\",\n    \"description\": \"官方项目标签（已更新）\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definition"
+              ]
+            },
+            "description": "更新预设标签定义（只能更新用户创建的标签）"
+          },
+          "response": []
+        },
+        {
+          "name": "删除标签定义",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definition?id=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definition"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "标签定义ID"
+                }
+              ]
+            },
+            "description": "删除预设标签定义（软删除）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取标签使用统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has usage stats\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/usage-stats?tag_type=contract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "usage-stats"
+              ],
+              "query": [
+                {
+                  "key": "tag_type",
+                  "value": "contract",
+                  "description": "标签类型 (可选)"
+                }
+              ]
+            },
+            "description": "获取标签使用统计"
+          },
+          "response": []
+        },
+        {
+          "name": "获取可选标签列表（前端选择器）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has selectable tags\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tag/definitions/selection?tag_type=contract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tag",
+                "definitions",
+                "selection"
+              ],
+              "query": [
+                {
+                  "key": "tag_type",
+                  "value": "contract",
+                  "description": "标签类型: contract, address"
+                }
+              ]
+            },
+            "description": "获取可选标签列表（用于前端下拉框）"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "地址备注管理 (AddressRemarkService)",
+      "item": [
+        {
+          "name": "设置/更新地址备注",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has success message\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"remark\": \"主要充值地址，日交易量大，需要重点关注\",\n    \"created_by\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/remark",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "remark"
+              ]
+            },
+            "description": "设置或更新地址备注"
+          },
+          "response": []
+        },
+        {
+          "name": "获取地址备注",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has remark data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.eql(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/remark?address={{account_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "remark"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "{{account_address}}"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}"
+                }
+              ]
+            },
+            "description": "获取地址备注"
+          },
+          "response": []
+        },
+        {
+          "name": "删除地址备注",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/remark?address={{account_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "remark"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "{{account_address}}"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}"
+                }
+              ]
+            },
+            "description": "删除地址备注（软删除）"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhook接口",
+      "item": [
+        {
+          "name": "创建Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has webhook data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('webhook_id');",
+                  "        pm.environment.set('webhook_id', jsonData.data.webhook_id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token_id\": {{token_id}},\n    \"webhook_url\": \"https://example.com/webhook\",\n    \"events\": [\"transaction\", \"block\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks"
+              ]
+            },
+            "description": "创建Webhook配置（仅限付费令牌）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Webhook列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has webhooks array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('webhooks');",
+                  "        pm.expect(jsonData.data.webhooks).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks"
+              ]
+            },
+            "description": "获取Webhook列表"
+          },
+          "response": []
+        },
+        {
+          "name": "编辑Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"webhook_id\": {{webhook_id}},\n    \"webhook_url\": \"https://example.com/webhook-updated\",\n    \"events\": [\"transaction\", \"block\", \"account\"],\n    \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks"
+              ]
+            },
+            "description": "编辑Webhook配置"
+          },
+          "response": []
+        },
+        {
+          "name": "删除Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks?webhook_id={{webhook_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks"
+              ],
+              "query": [
+                {
+                  "key": "webhook_id",
+                  "value": "{{webhook_id}}",
+                  "description": "Webhook ID to delete"
+                }
+              ]
+            },
+            "description": "删除Webhook"
+          },
+          "response": []
+        }
+      ],
+      "description": "Webhook management endpoints (for paid tokens only). Reserved for future implementation."
     }
   ],
   "event": [
