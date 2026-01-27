@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/bytedance/sonic"
 	"github.com/pkg/errors"
@@ -59,7 +60,18 @@ func ErrorReply(code int, message string, err error) *pb.Reply {
 }
 
 // ToStruct converts any value to google.protobuf.Struct.
+// If the value is a slice/array, it will be automatically wrapped in a map with "data" key.
+// This is because structpb.Struct can only represent JSON objects, not arrays.
 func ToStruct(v interface{}) (*structpb.Struct, error) {
+	// Check if v is a slice or array using reflection
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+		// Wrap array/slice in a map with "data" key
+		v = map[string]interface{}{
+			"data": v,
+		}
+	}
+
 	// Marshal to JSON first
 	jsonBytes, err := sonic.Marshal(v)
 	if err != nil {

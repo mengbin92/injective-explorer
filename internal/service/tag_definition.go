@@ -33,7 +33,14 @@ func (s *TagDefinitionService) ListTagDefinitions(ctx context.Context, req *pb.L
 	}
 
 	// Normalize pagination parameters
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	var page, pageSize int32 = MinPage, DefaultPageSize
+	var offset int
+	var useCursor bool
+	var cursorValue uint64
+	if req.Pagination != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(
+			req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	}
 
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
