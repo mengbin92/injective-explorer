@@ -1659,7 +1659,9 @@ paths:
         get:
             tags:
                 - Explorer
-            description: GetAllContractTags retrieves all contract tags (supports filtering and pagination)
+            description: |-
+                GetAllContractTags retrieves all contract tags (supports filtering and
+                 pagination)
             operationId: Explorer_GetAllContractTags
             parameters:
                 - name: chain_id
@@ -3244,15 +3246,11 @@ components:
                     type: string
                 to:
                     type: string
-                values:
-                    type: array
-                    items:
-                        type: string
+                value:
+                    type: string
                     description: tx, or recipient in other tx types)
                 evm_transaction:
-                    allOf:
-                        - $ref: '#/components/schemas/api.explorer.v1.EVMTransactionDTO'
-                    description: transfers, e.g., ["1000000inj", "500atom"]
+                    $ref: '#/components/schemas/api.explorer.v1.EVMTransactionDTO'
         api.explorer.v1.TransactionSignature:
             type: object
             properties:
@@ -3264,7 +3262,9 @@ components:
                     type: string
                 signature:
                     type: string
-            description: TransactionSignature represents a transaction signature with address information
+            description: |-
+                TransactionSignature represents a transaction signature with address
+                 information
         api.explorer.v1.TransactionUpdate:
             type: object
             properties:

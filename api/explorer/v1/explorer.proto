@@ -169,16 +169,15 @@ service Explorer {
   }
 
   // Get validator block statistics (proposed, signed, missed blocks)
-  rpc GetValidatorBlockStats(GetValidatorBlockStatsRequest)
-      returns (Reply) {
+  rpc GetValidatorBlockStats(GetValidatorBlockStatsRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/validator/block-stats"
     };
   }
 
-  // GetAllContractTags retrieves all contract tags (supports filtering and pagination)
-  rpc GetAllContractTags(GetAllContractTagsRequest)
-      returns (Reply) {
+  // GetAllContractTags retrieves all contract tags (supports filtering and
+  // pagination)
+  rpc GetAllContractTags(GetAllContractTagsRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/contract/tags/all"
     };
@@ -203,7 +202,7 @@ service Explorer {
 message GetBlockByHeightRequest { int64 height = 1; }
 
 message GetBlockTransactionsRequest {
-  int64 height = 1;           // Block height
+  int64 height = 1;                 // Block height
   PaginationRequest pagination = 2; // Optional pagination
 }
 
@@ -278,11 +277,11 @@ message GetAllContractTagsRequest {
 
 // AddGlobalTagRequest requests adding a global tag
 message AddGlobalTagRequest {
-  string chain_id = 1 [ json_name = "chain_id" ];     // Chain ID (required)
-  string tag_type = 2 [ json_name = "tag_type" ];     // Tag type (required)
-  string tag_value = 3 [ json_name = "tag_value" ];   // Tag value (optional)
-  string tag_color = 4 [ json_name = "tag_color" ];   // Tag color (optional)
-  string description = 5;                             // Tag description (optional)
+  string chain_id = 1 [ json_name = "chain_id" ];   // Chain ID (required)
+  string tag_type = 2 [ json_name = "tag_type" ];   // Tag type (required)
+  string tag_value = 3 [ json_name = "tag_value" ]; // Tag value (optional)
+  string tag_color = 4 [ json_name = "tag_color" ]; // Tag color (optional)
+  string description = 5; // Tag description (optional)
   string created_by = 6 [ json_name = "created_by" ]; // Creator (optional)
 }
 
@@ -325,16 +324,18 @@ message GetEVMTransactionRequest {
 }
 
 message GetEVMTransactionsRequest {
-  int32 page = 1;                      // Page number (default: 1)
-  int32 page_size = 2 [ json_name = "page_size" ]; // Page size (default: 20, max: 100)
-  string cursor = 3;                   // Cursor for cursor-based pagination
+  int32 page = 1; // Page number (default: 1)
+  int32 page_size = 2
+      [ json_name = "page_size" ]; // Page size (default: 20, max: 100)
+  string cursor = 3;               // Cursor for cursor-based pagination
 }
 
 message GetEVMAccountTransactionsRequest {
-  string address = 1;               // Account address (supports 0x and inj1 format)
-  int32 page = 2;                   // Page number (default: 1)
-  int32 page_size = 3 [ json_name = "page_size" ]; // Page size (default: 20, max: 100)
-  string cursor = 4;                // Cursor for cursor-based pagination
+  string address = 1; // Account address (supports 0x and inj1 format)
+  int32 page = 2;     // Page number (default: 1)
+  int32 page_size = 3
+      [ json_name = "page_size" ]; // Page size (default: 20, max: 100)
+  string cursor = 4;               // Cursor for cursor-based pagination
 }
 
 // GasFeeCoin represents a single coin in the gas fee
@@ -547,12 +548,13 @@ message BlockDTO {
   uint64 block_unix_timestamp = 11 [ json_name = "block_unix_timestamp" ];
 }
 
-// TransactionSignature represents a transaction signature with address information
+// TransactionSignature represents a transaction signature with address
+// information
 message TransactionSignature {
-  string pubkey = 1;     // Public key (base64 encoded)
-  string address = 2;    // Signer address (Ethereum format 0x...)
-  uint64 sequence = 3;   // Account sequence number
-  string signature = 4;  // Signature data (base64 encoded)
+  string pubkey = 1;    // Public key (base64 encoded)
+  string address = 2;   // Signer address (Ethereum format 0x...)
+  uint64 sequence = 3;  // Account sequence number
+  string signature = 4; // Signature data (base64 encoded)
 }
 
 message TransactionDTO {
@@ -581,8 +583,7 @@ message TransactionDTO {
       22; // Transaction initiator (first signer), may differ from fee payer
   string to = 23;    // Recipient address (corresponds to 'to' field in ethereum
                      // tx, or recipient in other tx types)
-  repeated string values = 24; // Transaction values as array for multi-currency
-                               // transfers, e.g., ["1000000inj", "500atom"]
+  string value   = 24; // Transaction value
   EVMTransactionDTO evm_transaction = 25 [
     json_name = "evm_transaction"
   ]; // EVM transaction details (only present for EVM transactions)
