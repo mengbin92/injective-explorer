@@ -6,6 +6,7 @@ import (
 	"injective-explorer/internal/global"
 	"injective-explorer/provider/db"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -109,6 +110,11 @@ func UpdateValidatorStatsForBlock(validatorOperatorAddress string, blockHeight u
 
 		err = db.Get().Create(&newStats).Error
 		if err != nil {
+			// Handle duplicate entry race condition - another goroutine may have created it
+			if isDuplicateEntryError(err) {
+				// Try to update existing record instead
+				return updateExistingStats(db.Get(), validatorOperatorAddress, periodStart, periodEnd, isProposer, signed, shouldSign)
+			}
 			global.Logger.Errorf("failed to create validator stats for %s at height %d: %v", validatorOperatorAddress, blockHeight, err)
 			return fmt.Errorf("failed to create validator stats: %w", err)
 		}
@@ -189,4 +195,45 @@ func GetValidatorStatsForPeriod(validatorOperatorAddress string, periodStartHeig
 	}
 
 	return &stats, nil
+}
+
+// isDuplicateEntryError checks if an error is a MySQL duplicate entry error.
+func isDuplicateEntryError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "Error 1062") || strings.Contains(errStr, "Duplicate entry")
+}
+
+// updateExistingStats updates an existing validator stats record.
+// This is used when a duplicate entry race condition occurs.
+func updateExistingStats(tx *gorm.DB, validatorOperatorAddress string, periodStart, periodEnd uint64, isProposer, signed, shouldSign bool) error {
+	updates := map[string]interface{}{
+		"period_end_height": periodEnd,
+	}
+
+	if isProposer {
+		updates["proposed_count"] = gorm.Expr("proposed_count + ?", 1)
+	}
+	if signed {
+		updates["signed_count"] = gorm.Expr("signed_count + ?", 1)
+	}
+	if shouldSign {
+		updates["should_sign_count"] = gorm.Expr("should_sign_count + ?", 1)
+	}
+	// Calculate missed count: should_sign_count - signed_count
+	updates["missed_count"] = gorm.Expr("should_sign_count - signed_count")
+
+	result := tx.Model(&ValidatorBlockStats{}).
+		Where("validator_operator_address = ? AND period_start_height = ?", validatorOperatorAddress, periodStart).
+		Updates(updates)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to update validator stats: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("no validator stats record found for update")
+	}
+	return nil
 }

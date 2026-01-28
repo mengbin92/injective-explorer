@@ -48,7 +48,7 @@ func SaveValidatorSetSnapshot(blockHeight uint64, validators *coretypes.ResultVa
 	var snapshots []ValidatorSetSnapshot
 
 	for _, val := range validators.Validators {
-		if val.Address == nil || len(val.Address) == 0 {
+		if val.Address == nil {
 			continue
 		}
 
@@ -139,7 +139,7 @@ func GetValidatorSetAtHeight(height uint64) ([]ValidatorSetSnapshot, error) {
 //   - bool: true if validator set changed, false otherwise
 //   - error: Error if check fails
 func CheckIfValidatorSetChanged(currentHeight uint64, currentValidators *coretypes.ResultValidators) (bool, error) {
-	if currentValidators == nil || len(currentValidators.Validators) == 0 {
+	if currentValidators == nil {
 		return false, fmt.Errorf("validators is nil or empty")
 	}
 

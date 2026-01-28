@@ -331,10 +331,18 @@ func (s *TokenTransferSyncService) processNewBlocks() error {
 		return nil
 	}
 
-	global.Logger.Debugf("Processing new blocks: %d to %d", lastSyncedBlock+1, currentBlock)
+	// Limit block range to avoid RPC "maximum [from, to] blocks distance" error
+	// Most RPC providers limit the range to 10000 blocks
+	maxBlockRange := uint64(10000)
+	endBlock := currentBlock
+	if endBlock > lastSyncedBlock+maxBlockRange {
+		endBlock = lastSyncedBlock + maxBlockRange
+	}
+
+	global.Logger.Debugf("Processing new blocks: %d to %d", lastSyncedBlock+1, endBlock)
 
 	// Process logs for new blocks
-	if err := s.processTransferLogs(lastSyncedBlock+1, currentBlock); err != nil {
+	if err := s.processTransferLogs(lastSyncedBlock+1, endBlock); err != nil {
 		return errors.Wrap(err, "failed to process transfer logs")
 	}
 
