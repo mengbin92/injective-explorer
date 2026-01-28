@@ -1,4 +1,4 @@
-# 代币列表 API 实现方案
+# 代币列表 API 实现方案（优化版）
 
 ## 需求概述
 
@@ -8,6 +8,20 @@
 - 市场数据（24h交易量、市值、持有者数量）
 - 元数据（首次部署时间）
 - 支持搜索、筛选、排序、分页
+
+### UI 需求分析（基于设计稿）
+
+根据前端设计稿，代币列表页面需要展示以下字段：
+
+| 列名 | 字段 | 数据类型 | 格式要求 | 说明 |
+|------|------|---------|---------|------|
+| # | 序号 | number | - | 自动递增 |
+| 代币 | token_name, token_symbol, tags, contract_address | string, string, array, string | 地址需缩略显示（0x8a3d...7f2e） | 支持多标签显示 |
+| 价格 | price_usd, price_change_24h | number, number | $X.XX, ±X.XX% | 涨跌用颜色区分 |
+| 24h 交易量 | total_volume_24h | number | $X.XM / $X.XB | 自动格式化 |
+| 市值 | market_cap_usd | number | $X.XM / $X.XB | 自动格式化 |
+| 持有者 | holders_count | number | X,XXX | 千分位格式化 |
+| 首次部署 | first_deployment_time | string | YYYY/MM/DD | 日期格式 |
 
 ## 现有系统分析
 
@@ -58,7 +72,7 @@
 - **数据**：代币名称、符号、合约地址、标签、创建时间
 - **查询**：ORM 查询，支持模糊搜索和标签过滤
 
-#### 2. 价格/市值/涨跌幅（已有）
+#### 2. 价格/市值/涨跌幅（已有，需扩展）
 - **来源**：CoinGecko API（通过现有 `GetTokenPriceAndMarketCap` 服务）
 - **当前获取**：
   - `price_usd` - 当前价格（USD）
@@ -66,30 +80,41 @@
   - `price_change_24h` - 24h价格变化百分比
   - `total_supply` - 总供应量
 - **需扩展**：
-  - `total_volume` - 24h交易量（CoinGecko 原生支持）
+  - `total_volume_24h` - 24h交易量（CoinGecko API 的 `market_data.total_volume.usd`）
+  - `holders_count` - 持有者数量（CoinGecko API 的 `market_data.holders`，可选）
+
+**实现要点**：
+- CoinGecko 的 `/coins/{id}` 接口返回的 `market_data` 包含：
+  - `total_volume.usd` - 24h交易量（USD）
+  - `holders` - 持有者数量（部分代币支持）
+- 需要在 `GetTokenTotalSupplyFromCoinGecko` 中同时获取这些数据，避免多次调用
 
 #### 3. 持有者数量（新增）
 **方案A（推荐）：CoinGecko API**
-- CoinGecko 提供部分代币的持有者数据
-- 字段：`market_data.total_holders` 或类似字段
-- 优点：已有集成，无需额外服务
-- 缺点：并非所有代币都有此数据
+- CoinGecko 的 `/coins/{id}` 接口在 `market_data` 中提供 `holders` 字段
+- 优点：已有集成，无需额外服务，数据更新及时
+- 缺点：并非所有代币都有此数据（部分小币种可能缺失）
+- **实现**：在 `GetTokenTotalSupplyFromCoinGecko` 中扩展，同时获取 `market_data.holders`
 
-**方案B：链上分析服务**
-- 扫描 ERC-20 Transfer 事件，统计唯一地址数
-- 实现：
-  1. 监听链上 Transfer 事件
-  2. 使用 Redis Set 或数据库表存储持有者地址
+**方案B：链上分析服务（长期方案）**
+- 扫描 ERC-20/CW20 Transfer 事件，统计唯一地址数
+- 实现步骤：
+  1. 监听链上 Transfer 事件（通过区块扫描或事件订阅）
+  2. 使用数据库表 `token_holders` 存储：`(chain_id, contract_address, holder_address, balance, updated_at)`
   3. 定期更新统计（每小时或每天）
-- 优点：数据完整准确
-- 缺点：需要额外开发工作
+  4. 提供 API 查询接口：`SELECT COUNT(DISTINCT holder_address) FROM token_holders WHERE ...`
+- 优点：数据完整准确，覆盖所有代币
+- 缺点：需要额外开发工作，需要存储空间
 
-**方案C：第三方 API**
-- 使用专业的链上数据分析服务（如 Dune Analytics、Nansen）
-- 优点：数据专业准确
-- 缺点：可能需要付费
+**方案C：第三方 API（备选）**
+- 使用专业的链上数据分析服务（如 Dune Analytics、Nansen、The Graph）
+- 优点：数据专业准确，无需维护
+- 缺点：可能需要付费，API调用限制
 
-**建议**：先使用方案A快速上线，逐步实现方案B作为补充。
+**建议**：
+1. **第一阶段**：使用方案A快速上线，对于缺失数据的代币返回 `0` 或不显示
+2. **第二阶段**：实现方案B，逐步迁移到链上数据
+3. **降级策略**：如果 CoinGecko 数据不可用，持有者数量字段返回 `null`，前端显示为 "-"
 
 #### 4. 首次部署时间
 **方案A（临时）：使用 `created_at`**
@@ -283,53 +308,37 @@ GET /api/v1/tokens/list?search=USD&sort_by=volume_24h&sort_order=desc&tag_type=s
 
 ### Step 1: 扩展 CoinGecko API 数据获取
 
-修改 `internal/service/explorer.go` 中的 `GetTokenPriceAndMarketCap` 方法，额外获取交易量数据：
+**注意**：此步骤已在"数据源策略"章节详细说明，这里提供具体的实现代码。
+
+#### 1.1 扩展 Proto 定义（已完成，见上文）
+
+#### 1.2 扩展 PriceAndSupplyData 结构（已完成，见上文）
+
+#### 1.3 修改 GetTokenTotalSupplyFromCoinGecko 方法
+
+在 `internal/service/price.go` 中修改 `GetTokenTotalSupplyFromCoinGecko`，同时获取交易量和持有者数据：
 
 ```go
-// 扩展响应结构
-message TokenPriceAndMarketCapResponse {
-  string token_symbol = 1 [ json_name = "token_symbol" ];
-  string token_name = 2 [ json_name = "token_name" ];
-  double price_usd = 3 [ json_name = "price_usd" ];
-  string total_supply = 4 [ json_name = "total_supply" ];
-  string total_supply_formatted = 5 [ json_name = "total_supply_formatted" ];
-  double market_cap_usd = 6 [ json_name = "market_cap_usd" ];
-  double price_change_24h = 7 [ json_name = "price_change_24h" ];
+var coinDetailResp struct {
+    MarketData struct {
+        TotalSupply       *float64 `json:"total_supply"`
+        CirculatingSupply *float64 `json:"circulating_supply"`
+        TotalVolume       struct {
+            USD float64 `json:"usd"`
+        } `json:"total_volume"`
+        Holders *int64 `json:"holders"`  // 注意：可能为 null
+    } `json:"market_data"`
+}
 
-  // 新增字段
-  double total_volume_24h = 8 [ json_name = "total_volume_24h" ];    // 24h交易量
-  int64 holders_count = 9 [ json_name = "holders_count" ];          // 持有者数量
-
-  int64 last_updated = 10 [ json_name = "last_updated" ];
-  string price_source = 11 [ json_name = "price_source" ];
-  string supply_source = 12 [ json_name = "supply_source" ];
-  string total_supply_from_chain = 13 [ json_name = "total_supply_from_chain" ];
-  string total_supply_from_chain_formatted = 14 [ json_name = "total_supply_from_chain_formatted" ];
+// 在解析后，提取交易量和持有者数据
+totalVolume24H := coinDetailResp.MarketData.TotalVolume.USD
+holdersCount := int64(0)
+if coinDetailResp.MarketData.Holders != nil {
+    holdersCount = *coinDetailResp.MarketData.Holders
 }
 ```
 
-修改 CoinGecko API 调用：
-
-```go
-// 在 fetchTokenPriceFromCoinGecko 方法中
-type CoinGeckoMarketData struct {
-    CurrentPrice              map[string]float64 `json:"current_price"`
-    MarketCap                 map[string]float64 `json:"market_cap"`
-    TotalVolume               map[string]float64 `json:"total_volume"`               // 新增
-    PriceChangePercentage24h  map[string]float64 `json:"price_change_percentage_24h"`
-    TotalSupply               float64            `json:"total_supply"`
-    Holders                   int64              `json:"total_holders"`              // 新增
-    LastUpdated               string            `json:"last_updated"`
-}
-
-// 填充响应
-response.TotalVolume24H = marketData.TotalVolume["usd"]
-if marketData.Holders > 0 {
-    response.HoldersCount = marketData.Holders
-} else {
-    response.HoldersCount = 0 // 或者不返回此字段
-}
-```
+**建议**：创建一个新的方法 `GetTokenMarketDataFromCoinGecko` 来统一获取所有市场数据（价格、供应量、交易量、持有者），避免多次调用 CoinGecko API。
 
 ### Step 2: 创建 Proto 文件并生成代码
 
@@ -555,16 +564,24 @@ type TokenMarketData struct {
     HoldersCount   int64
 }
 
-// batchGetMarketData 批量获取市场数据（并发优化）
+// batchGetMarketData 批量获取市场数据（并发优化，带限流）
 func (s *TokenListService) batchGetMarketData(ctx context.Context, symbols []string) map[string]*TokenMarketData {
     result := make(map[string]*TokenMarketData)
     var wg sync.WaitGroup
     var mu sync.Mutex
+    
+    // 限制并发数量，避免过多请求导致 CoinGecko API 限流
+    maxConcurrency := 10
+    semaphore := make(chan struct{}, maxConcurrency)
 
     for _, symbol := range symbols {
         wg.Add(1)
         go func(sym string) {
             defer wg.Done()
+            
+            // 获取信号量
+            semaphore <- struct{}{}
+            defer func() { <-semaphore }()
 
             // 调用现有的 GetTokenPriceAndMarketCap 服务
             req := &pb.GetTokenPriceAndMarketCapRequest{TokenSymbol: sym}
@@ -749,51 +766,193 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.ListTokensReq
 
 ### 1. 批量查询市场数据
 
-**问题**：每个代币都调用 CoinGecko API 会导致大量请求
+**问题**：每个代币都调用 CoinGecko API 会导致大量请求和性能瓶颈
 
 **解决方案**：
+
+#### 方案A：并发请求 + 限流（当前实现）
 - 使用 goroutine 并发请求
-- 限制并发数量（如 10 个并发）
-- 添加请求速率限制
+- 限制并发数量（10-20 个并发）
+- 添加请求速率限制（避免触发 CoinGecko API 限流）
+- **优点**：实现简单，复用现有服务
+- **缺点**：仍需要多次 API 调用
+
+#### 方案B：CoinGecko 批量查询 API（推荐优化）
+- CoinGecko 支持批量查询多个代币：`/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`
+- 对于详细信息，可以使用 `/api/v3/coins/markets` 接口，支持批量查询
+- **优点**：大幅减少 API 调用次数，提高性能
+- **缺点**：需要修改现有服务逻辑
+
+**推荐实现**（方案B）：
 
 ```go
-// 使用带缓冲的 channel 限制并发
-maxConcurrency := 10
-semaphore := make(chan struct{}, maxConcurrency)
-
-for _, symbol := range symbols {
-    semaphore <- struct{}{} // 获取信号量
-    go func(sym string) {
-        defer func() { <-semaphore }() // 释放信号量
-        // 获取市场数据
-    }(symbol)
+// 批量获取市场数据（使用 CoinGecko 批量 API）
+func batchGetMarketDataFromCoinGecko(ctx context.Context, coinGeckoIDs []string) (map[string]*TokenMarketData, error) {
+    // 构建批量查询 URL（最多支持 100 个 ID）
+    ids := strings.Join(coinGeckoIDs[:min(len(coinGeckoIDs), 100)], ",")
+    apiURL := fmt.Sprintf(
+        "https://api.coingecko.com/api/v3/coins/markets?ids=%s&vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h",
+        ids,
+    )
+    
+    // 调用 API 并解析响应
+    // 返回 map[coinGeckoID]*TokenMarketData
 }
 ```
 
+**注意**：
+- CoinGecko 免费版限制：每分钟 10-50 次请求
+- 建议添加请求缓存（Redis），缓存时间 5 分钟
+- 对于超过 100 个代币的情况，需要分批查询
+
 ### 2. 缓存策略
 
-- **列表缓存**：缓存 5 分钟（带分页和过滤参数）
-- **市场数据缓存**：复用现有的 `GetTokenPriceAndMarketCap` 缓存
-- **标签缓存**：复用现有的标签缓存
+#### 2.1 多层缓存架构
+
+```
+请求 → Redis 列表缓存 → 数据库查询 → CoinGecko API
+       (5分钟)          (实时)        (5分钟缓存)
+```
+
+- **列表缓存**：
+  - Key: `token_list:{chain_id}:{filters_hash}:{page}:{page_size}`
+  - TTL: 5 分钟
+  - 包含分页和过滤参数，确保不同查询条件独立缓存
+  
+- **市场数据缓存**：
+  - Key: `token_market:{token_symbol}` 或 `token_market:{coinGeckoID}`
+  - TTL: 5 分钟（价格数据变化频繁）
+  - 复用现有的 `GetTokenPriceAndMarketCap` 缓存逻辑
+  
+- **标签缓存**：
+  - Key: `contract_tags:{chain_id}:{contract_address}`
+  - TTL: 1 小时（标签变化不频繁）
+  - 复用现有的标签缓存
+
+#### 2.2 缓存失效策略
+
+- **主动失效**：当合约信息更新时，清除相关缓存
+- **被动失效**：依赖 TTL，自动过期
+- **部分失效**：只清除受影响代币的市场数据缓存，不影响整个列表缓存
+
+#### 2.3 缓存预热（可选）
+
+对于热门代币（如 USDT、USDC、WBTC），可以定期预热缓存：
+```go
+// 定时任务：每 4 分钟更新一次热门代币的市场数据
+func warmupPopularTokensCache(ctx context.Context) {
+    popularSymbols := []string{"USDT", "USDC", "WBTC", "WETH", "LINK"}
+    for _, symbol := range popularSymbols {
+        // 异步更新缓存
+        go updateTokenMarketCache(ctx, symbol)
+    }
+}
+```
 
 ### 3. 数据库查询优化
 
-- 添加适当的索引：
-  - `token_symbol` 索引
-  - `contract_address` 索引
-  - `(chain_id, contract_type)` 组合索引
-  - `created_at` 索引（用于排序）
+#### 3.1 索引优化
 
 ```sql
-CREATE INDEX idx_contract_infos_token_symbol ON contract_infos(token_symbol);
-CREATE INDEX idx_contract_infos_chain_type ON contract_infos(chain_id, contract_type);
-CREATE INDEX idx_contract_infos_created_at ON contract_infos(created_at DESC);
+-- 基础查询索引
+CREATE INDEX IF NOT EXISTS idx_contract_infos_token_symbol 
+  ON contract_infos(token_symbol) 
+  WHERE token_symbol IS NOT NULL AND token_symbol != '';
+
+-- 组合索引（优化多条件查询）
+CREATE INDEX IF NOT EXISTS idx_contract_infos_chain_type 
+  ON contract_infos(chain_id, contract_type);
+
+-- 排序索引
+CREATE INDEX IF NOT EXISTS idx_contract_infos_created_at 
+  ON contract_infos(created_at DESC);
+
+-- 搜索索引（优化模糊查询）
+CREATE INDEX IF NOT EXISTS idx_contract_infos_name_search 
+  ON contract_infos USING gin(to_tsvector('english', COALESCE(token_name, '') || ' ' || COALESCE(token_symbol, '')));
+
+-- 标签关联查询索引
+CREATE INDEX IF NOT EXISTS idx_contract_tags_contract 
+  ON contract_tags(chain_id, contract_address, tag_type);
+```
+
+#### 3.2 查询优化建议
+
+1. **避免 N+1 查询**：使用 `Preload("Tags")` 一次性加载标签
+2. **分页优化**：对于大数据量，使用游标分页（cursor-based pagination）代替偏移分页
+3. **条件过滤**：在数据库层面完成过滤，减少内存占用
+4. **只查询必要字段**：使用 `Select()` 指定需要的字段
+
+```go
+// 优化后的查询示例
+query := db.Get().WithContext(ctx).
+    Model(&models.ContractInfo{}).
+    Select("id, contract_address, token_name, token_symbol, created_at").
+    Preload("Tags", func(db *gorm.DB) *gorm.DB {
+        return db.Select("tag_type, tag_value, tag_color")
+    }).
+    Where("token_symbol IS NOT NULL AND token_symbol != ''").
+    Where("chain_id = ?", chainID)
 ```
 
 ### 4. 排序优化
 
-- 如果按市场数据排序，需要在应用层排序
-- 对于大数据量，考虑预计算排序字段并存储
+#### 4.1 排序策略
+
+**数据库字段排序**（快速）：
+- `created_at` - 首次部署时间
+- `token_symbol` - 代币符号（字母序）
+- 这些字段可以直接在数据库层面排序
+
+**市场数据排序**（需要应用层处理）：
+- `market_cap` - 市值
+- `volume_24h` - 24h交易量
+- `price` - 价格
+- `holders` - 持有者数量
+- 这些数据来自 CoinGecko API，需要在应用层排序
+
+#### 4.2 排序实现方案
+
+**方案A：应用层排序（当前实现）**
+- 先查询数据库获取代币列表
+- 批量获取市场数据
+- 在内存中排序
+- **优点**：实现简单
+- **缺点**：对于大数据量，需要获取更多数据才能保证排序准确
+
+**方案B：预计算排序字段（推荐优化）**
+- 创建 `token_market_cache` 表，定期更新市场数据
+- 在数据库层面完成排序
+- **优点**：性能好，支持大数据量
+- **缺点**：需要额外的数据同步逻辑
+
+```sql
+-- 预计算表结构
+CREATE TABLE token_market_cache (
+    id BIGSERIAL PRIMARY KEY,
+    chain_id VARCHAR(50) NOT NULL,
+    contract_address VARCHAR(66) NOT NULL,
+    token_symbol VARCHAR(50) NOT NULL,
+    coin_gecko_id VARCHAR(100),
+    price_usd DECIMAL(30, 6),
+    market_cap_usd DECIMAL(30, 6),
+    volume_24h_usd DECIMAL(30, 6),
+    price_change_24h DECIMAL(10, 4),
+    holders_count BIGINT,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(chain_id, contract_address),
+    INDEX idx_market_cap (market_cap_usd DESC),
+    INDEX idx_volume_24h (volume_24h_usd DESC),
+    INDEX idx_price (price_usd DESC),
+    INDEX idx_holders (holders_count DESC)
+);
+```
+
+#### 4.3 混合排序策略
+
+对于按市场数据排序的请求：
+1. 如果 `token_market_cache` 表存在且数据较新（< 5分钟），使用数据库排序
+2. 否则，使用应用层排序（降级方案）
 
 ---
 
@@ -846,24 +1005,152 @@ CREATE TABLE token_market_cache (
 
 ---
 
+## 错误处理和边界情况
+
+### 1. CoinGecko API 失败处理
+
+**场景**：CoinGecko API 不可用或返回错误
+
+**处理策略**：
+```go
+// 在 batchGetMarketData 中
+if err != nil {
+    global.Logger.Warnf("failed to get market data for %s: %v", sym, err)
+    // 返回空的市场数据，前端显示为 "-" 或 "N/A"
+    return &TokenMarketData{
+        PriceUsd:       0,
+        MarketCapUsd:   0,
+        PriceChange24H: 0,
+        TotalVolume24H: 0,
+        HoldersCount:   0,
+    }
+}
+```
+
+**降级方案**：
+- 如果 CoinGecko API 完全不可用，返回基础代币信息（名称、符号、地址、标签）
+- 市场数据字段返回 `null` 或 `0`，前端显示为 "-"
+- 记录错误日志，便于后续排查
+
+### 2. 数据缺失处理
+
+**持有者数量缺失**：
+- CoinGecko 可能不提供某些代币的持有者数据
+- 返回 `holders_count: 0` 或 `null`
+- 前端判断：如果为 `0` 或 `null`，显示为 "-"
+
+**交易量缺失**：
+- 新代币或小币种可能没有交易量数据
+- 返回 `total_volume_24h: 0`
+- 前端显示为 "$0" 或 "-"
+
+**价格数据缺失**：
+- 如果价格获取失败，返回 `price_usd: 0`
+- 前端显示为 "-" 或 "N/A"
+
+### 3. 分页边界情况
+
+**空结果**：
+- 返回空数组 `items: []`
+- `total: 0`
+- `is_exact_count: true`
+
+**超出最大页数**：
+- 返回最后一页的数据
+- `total` 保持不变
+- 前端根据 `total` 和 `page_size` 计算最大页数
+
+**大数据量排序**：
+- 如果按市场数据排序，需要获取更多数据（3倍 pageSize）
+- 如果数据量仍然不足，记录警告日志
+- 返回可用数据，并在响应中添加 `warning` 字段
+
+### 4. 搜索和筛选边界情况
+
+**搜索无结果**：
+- 返回空数组
+- `total: 0`
+- 前端显示"未找到匹配的代币"
+
+**标签筛选无结果**：
+- 返回空数组
+- 前端提示"该标签下暂无代币"
+
+**组合筛选**：
+- 多个筛选条件组合时，使用 AND 逻辑
+- 如果所有条件都不匹配，返回空结果
+
+### 5. 并发和限流
+
+**CoinGecko API 限流**：
+- 免费版限制：每分钟 10-50 次请求
+- 实现请求队列和限流器
+- 如果触发限流，返回 429 错误，前端提示"请求过于频繁，请稍后重试"
+
+**数据库连接池**：
+- 设置合理的连接池大小
+- 如果连接池耗尽，返回 503 错误
+- 记录错误日志，监控连接池使用情况
+
+### 6. 缓存失效处理
+
+**缓存未命中**：
+- 正常查询数据库和 CoinGecko API
+- 异步更新缓存
+- 不影响响应时间
+
+**缓存数据过期**：
+- 使用 TTL 自动过期
+- 过期后重新获取数据
+- 可以设置较短的 TTL（5分钟）确保数据新鲜度
+
+**缓存服务不可用**：
+- 如果 Redis 不可用，跳过缓存
+- 直接查询数据库和 CoinGecko API
+- 记录警告日志
+
+---
+
 ## 监控和日志
 
 ### 关键指标
 
-- API 响应时间
-- CoinGecko API 调用次数和成功率
-- 缓存命中率
-- 数据库查询性能
+- **API 响应时间**：P50, P95, P99 延迟
+- **CoinGecko API 调用次数和成功率**：监控 API 调用频率和错误率
+- **缓存命中率**：列表缓存和市场数据缓存的命中率
+- **数据库查询性能**：慢查询监控
+- **错误率**：按错误类型统计（API 错误、数据库错误、缓存错误）
 
 ### 日志记录
 
 ```go
-global.Logger.Infof("token list request: chain_id=%s, search=%s, sort_by=%s, page=%d",
-    chainID, req.Search, req.SortBy, page)
+// 请求日志
+global.Logger.Infof("token list request: chain_id=%s, search=%s, sort_by=%s, page=%d, page_size=%d",
+    chainID, req.Search, req.SortBy, page, pageSize)
 
-global.Logger.Debugf("fetched %d tokens, %d with market data",
+// 数据获取日志
+global.Logger.Debugf("fetched %d tokens from database, %d with market data from CoinGecko",
     len(contracts), len(marketDataMap))
+
+// 性能日志
+global.Logger.Infof("token list query took %v, market data fetch took %v",
+    dbQueryDuration, marketDataFetchDuration)
+
+// 错误日志
+global.Logger.Errorf("failed to get market data for token %s: %v", symbol, err)
+
+// 缓存日志
+global.Logger.Debugf("cache hit for token list: key=%s", cacheKey)
+global.Logger.Debugf("cache miss for token list: key=%s", cacheKey)
 ```
+
+### 告警规则
+
+1. **API 响应时间 > 2s**：告警
+2. **CoinGecko API 错误率 > 10%**：告警
+3. **缓存命中率 < 50%**：告警
+4. **数据库慢查询 > 1s**：告警
+5. **错误率 > 5%**：告警
 
 ---
 
@@ -1008,24 +1295,138 @@ wrk -t4 -c100 -d30s --latency "http://localhost:8080/api/v1/tokens/list?page=1&p
 
 ## 后续优化方向
 
-1. **实时更新**：使用 WebSocket 推送价格更新
-2. **更多筛选条件**：价格区间、市值区间等
-3. **导出功能**：导出代币列表为 CSV/Excel
-4. **历史数据**：代币价格历史图表
-5. **更多排序选项**：按创建时间、按价格变化等
-6. **智能推荐**：根据用户行为推荐代币
-7. **多语言支持**：i18n 国际化
+### 短期优化（1-2周）
+
+1. **CoinGecko 批量查询优化**
+   - 使用 `/coins/markets` 接口批量获取市场数据
+   - 减少 API 调用次数，提高性能
+
+2. **缓存优化**
+   - 实现多层缓存架构
+   - 添加缓存预热机制
+   - 优化缓存失效策略
+
+3. **数据库索引优化**
+   - 添加全文搜索索引
+   - 优化组合索引
+
+### 中期优化（1-2月）
+
+1. **预计算排序字段**
+   - 创建 `token_market_cache` 表
+   - 定时任务更新市场数据
+   - 支持数据库层面排序
+
+2. **链上持有者统计**
+   - 实现链上事件监听
+   - 统计代币持有者数量
+   - 提供更准确的数据
+
+3. **更多筛选条件**
+   - 价格区间筛选
+   - 市值区间筛选
+   - 持有者数量筛选
+   - 标签组合筛选
+
+4. **导出功能**
+   - 导出代币列表为 CSV/Excel
+   - 支持自定义字段选择
+
+### 长期优化（3-6月）
+
+1. **实时更新**
+   - 使用 WebSocket 推送价格更新
+   - 实时更新交易量和市值
+
+2. **历史数据**
+   - 代币价格历史图表
+   - 交易量趋势分析
+   - 持有者变化趋势
+
+3. **智能推荐**
+   - 根据用户行为推荐代币
+   - 热门代币推荐
+   - 相似代币推荐
+
+4. **多语言支持**
+   - i18n 国际化
+   - 支持多语言代币名称
+
+5. **高级功能**
+   - 代币对比功能
+   - 收藏夹功能
+   - 价格提醒功能
 
 ---
 
 ## 总结
 
-本方案通过新增 `/api/v1/tokens/list` 接口，聚合多个数据源，实现了完整的代币列表功能。主要工作包括：
+### 方案概述
 
-1. **扩展 CoinGecko API**：获取 24h 交易量数据
-2. **新增 TokenListService**：实现代币列表查询
-3. **批量获取市场数据**：使用并发优化性能
-4. **实现排序和筛选**：提供良好的用户体验
-5. **添加缓存**：优化 API 响应速度
+本方案通过新增 `/api/v1/tokens/list` 接口，聚合多个数据源，实现了完整的代币列表功能。基于 UI 设计稿和现有代码实现，本方案进行了以下优化：
+
+### 核心优化点
+
+1. **数据完整性**
+   - ✅ 扩展 CoinGecko API 获取 24h 交易量（`total_volume_24h`）
+   - ✅ 扩展 CoinGecko API 获取持有者数量（`holders_count`）
+   - ✅ 完善数据降级策略（缺失数据返回 `null` 或 `0`）
+
+2. **性能优化**
+   - ✅ 批量获取市场数据（使用 CoinGecko 批量 API）
+   - ✅ 并发请求 + 限流（避免 API 限流）
+   - ✅ 多层缓存架构（列表缓存 + 市场数据缓存 + 标签缓存）
+   - ✅ 数据库索引优化（全文搜索、组合索引）
+
+3. **排序优化**
+   - ✅ 数据库字段排序（`created_at`, `token_symbol`）
+   - ✅ 应用层市场数据排序（市值、交易量、价格、持有者）
+   - ✅ 预计算排序字段方案（长期优化）
+
+4. **错误处理和降级**
+   - ✅ CoinGecko API 失败时的降级策略
+   - ✅ 持有者数据缺失时的处理（返回 `0` 或不显示）
+   - ✅ 缓存失效时的降级方案
+
+### 实施优先级
+
+**P0（核心功能，1-2天）**：
+- 创建新接口 `/api/v1/tokens/list`
+- 扩展 CoinGecko API 获取交易量和持有者数据
+- 实现基础列表查询 + 分页
+- 批量获取市场数据（并发优化）
+
+**P1（增强功能，1-2天）**：
+- 搜索和筛选功能
+- 排序功能（数据库字段 + 市场数据）
+- 缓存优化
+
+**P2（数据完善，2-3天）**：
+- 链上持有者统计（长期方案）
+- 首次部署时间优化（链上查询）
+- 性能优化和测试
+
+### 关键技术决策
+
+1. **数据源选择**：
+   - 短期：CoinGecko API（快速上线）
+   - 长期：链上数据 + CoinGecko（数据准确）
+
+2. **性能优化**：
+   - 优先使用 CoinGecko 批量 API
+   - 多层缓存减少 API 调用
+   - 预计算排序字段（大数据量场景）
+
+3. **用户体验**：
+   - 支持多种排序方式
+   - 灵活的筛选条件
+   - 数据缺失时的友好提示
+
+### 预期效果
+
+- **响应时间**：< 500ms（缓存命中）或 < 2s（缓存未命中）
+- **数据完整性**：> 90% 代币有完整市场数据
+- **API 调用**：减少 80% 的 CoinGecko API 调用（通过批量查询和缓存）
+- **用户体验**：支持快速搜索、筛选、排序，满足前端 UI 需求
 
 通过分阶段实施，可以快速上线核心功能，然后逐步完善数据准确性和性能。
