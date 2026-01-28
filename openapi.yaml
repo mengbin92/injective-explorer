@@ -1739,7 +1739,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pageSize
+                - name: page_size
                   in: query
                   schema:
                     type: integer
@@ -1787,7 +1787,7 @@ paths:
                   schema:
                     type: integer
                     format: int32
-                - name: pageSize
+                - name: page_size
                   in: query
                   schema:
                     type: integer

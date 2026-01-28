@@ -46,7 +46,7 @@ type TxJSON struct {
 	Messages   []MessageRaw   `json:"messages"`
 	Logs       []LogRaw       `json:"logs"`
 	Signatures []SignatureRaw `json:"signatures"`
-	GasFee     *GasFee        `json:"gasFee,omitempty"`
+	GasFee     *GasFee        `json:"gas_fee,omitempty"`
 }
 
 type GasFee struct {

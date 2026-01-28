@@ -325,16 +325,16 @@ message GetEVMTransactionRequest {
 }
 
 message GetEVMTransactionsRequest {
-  int32 page = 1;      // Page number (default: 1)
-  int32 page_size = 2; // Page size (default: 20, max: 100)
-  string cursor = 3;   // Cursor for cursor-based pagination
+  int32 page = 1;                      // Page number (default: 1)
+  int32 page_size = 2 [ json_name = "page_size" ]; // Page size (default: 20, max: 100)
+  string cursor = 3;                   // Cursor for cursor-based pagination
 }
 
 message GetEVMAccountTransactionsRequest {
-  string address = 1;  // Account address (supports 0x and inj1 format)
-  int32 page = 2;      // Page number (default: 1)
-  int32 page_size = 3; // Page size (default: 20, max: 100)
-  string cursor = 4;   // Cursor for cursor-based pagination
+  string address = 1;               // Account address (supports 0x and inj1 format)
+  int32 page = 2;                   // Page number (default: 1)
+  int32 page_size = 3 [ json_name = "page_size" ]; // Page size (default: 20, max: 100)
+  string cursor = 4;                // Cursor for cursor-based pagination
 }
 
 // GasFeeCoin represents a single coin in the gas fee
