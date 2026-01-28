@@ -57,10 +57,10 @@ func Init(ctx context.Context, cfg *conf.Data_ObjectStorage, logger log.Logger) 
 			cfg.PathPrefix,
 		)
 	case "oss":
-		// TODO: Implement OSS storage
+		// OSS storage is not implemented. Returns error if used.
 		return errors.New("OSS storage not implemented yet")
 	case "cos":
-		// TODO: Implement COS storage
+		// COS storage is not implemented. Returns error if used.
 		return errors.New("COS storage not implemented yet")
 	default:
 		return errors.Errorf("unsupported storage provider: %s", cfg.Provider)

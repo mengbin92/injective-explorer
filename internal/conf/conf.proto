@@ -15,6 +15,23 @@ message Bootstrap {
   Archive archive = 7;
   TokenPrice token_price = 8;       // Token price service configuration
   APIManagement api_management = 9; // API management configuration
+  Service service = 10;             // Service enable/disable configuration
+}
+
+// Service configuration for enabling/disabling optional services
+message Service {
+  // Enable pprof profiling endpoint (default: false)
+  // Only enable in development/staging for security reasons
+  bool enable_pprof = 1;
+  // pprof endpoint address (default: "localhost:6060")
+  string pprof_addr = 2;
+  // Enable blockchain sync service (default: true)
+  // In horizontal scaling scenarios, only one instance should run sync service
+  bool enable_sync = 3;
+  // Enable token transfer sync service (default: true)
+  bool enable_token_transfer_sync = 4;
+  // Enable token market cache sync service (default: true)
+  bool enable_token_market_cache_sync = 5;
 }
 
 message Server {

@@ -85,13 +85,16 @@ func main() {
 	// Priority: env.NewSource (highest) > file.NewSource (lowest)
 	// This means environment variables will override values from config file
 	//
-	// Note: Kratos config system supports environment variable override using dot-notation:
+	// Service enable/disable flags can be configured via config.yaml (service.*) or environment variables:
+	//   - SERVICE_ENABLE_PPROF: Enable pprof profiling (default: false)
+	//   - SERVICE_PPROF_ADDR: pprof endpoint address (default: localhost:6060)
+	//   - SERVICE_ENABLE_SYNC: Enable blockchain sync service (default: true)
+	//   - SERVICE_ENABLE_TOKEN_TRANSFER_SYNC: Enable token transfer sync (default: true)
+	//   - SERVICE_ENABLE_TOKEN_MARKET_CACHE_SYNC: Enable token market cache sync (default: true)
+	//
+	// Kratos config system also supports environment variable override using dot-notation:
 	//   - SERVER_HTTP_ADDR overrides server.http.addr
 	//   - DATA_DATABASE_SOURCE overrides data.database.source
-	//   - REDIS_ADDR overrides data.redis.addr
-	//
-	// The YAML placeholder syntax (${VAR:default}) in config.yaml may not be supported
-	// by Kratos file source. Use environment variables with dot-notation instead.
 	c := config.New(
 		config.WithSource(
 			file.NewSource(flagconf), // Load config file first (lower priority)
@@ -125,25 +128,28 @@ func main() {
 	// Initialize global variables
 	global.Init(&bc, logger)
 
-	// Enable pprof in development/staging (only if explicitly enabled via environment variable)
+	// Enable pprof in development/staging (only if explicitly enabled via config)
 	// In production, this should be disabled for security reasons
-	if os.Getenv("ENABLE_PPROF") == "true" {
-		if err := service.EnablePprof("localhost:6060"); err != nil {
+	if bc.Service != nil && bc.Service.EnablePprof {
+		pprofAddr := bc.Service.PprofAddr
+		if pprofAddr == "" {
+			pprofAddr = "localhost:6060"
+		}
+		if err := service.EnablePprof(pprofAddr); err != nil {
 			log.NewHelper(logger).Warnf("Failed to enable pprof: %v", err)
 		} else {
-			log.NewHelper(logger).Infof("pprof enabled on localhost:6060")
+			log.NewHelper(logger).Infof("pprof enabled on %s", pprofAddr)
 		}
 	}
 
-	// Start blockchain sync service (only if enabled via environment variable)
+	// Start blockchain sync service (only if enabled via config)
 	// In horizontal scaling scenarios, only one instance should run sync service
-	enableSync := os.Getenv("ENABLE_SYNC")
-	if enableSync == "" || enableSync == "true" {
+	if bc.Service == nil || bc.Service.EnableSync {
 		syncConfig := service.LoadSyncConfig(&bc)
 		syncService := service.NewSyncService(syncConfig, &bc)
 
 		// Try to acquire distributed lock for sync service
-		// This ensures only one instance runs sync even if multiple instances have ENABLE_SYNC=true
+		// This ensures only one instance runs sync even if multiple instances have enable_sync=true
 		if acquired, err := syncService.TryAcquireSyncLock(context.Background()); err != nil {
 			log.NewHelper(logger).Warnf("Failed to check sync lock, starting sync service anyway: %v", err)
 			// Continue to start sync service if lock check fails (graceful degradation)
@@ -163,12 +169,11 @@ func main() {
 			}()
 		}
 	} else {
-		log.NewHelper(logger).Infof("Sync service disabled via ENABLE_SYNC=%s", enableSync)
+		log.NewHelper(logger).Infof("Sync service disabled via service.enable_sync=false")
 	}
 
-	// Start token transfer sync service (if enabled)
-	enableTokenTransferSync := os.Getenv("ENABLE_TOKEN_TRANSFER_SYNC")
-	if enableTokenTransferSync == "" || enableTokenTransferSync == "true" {
+	// Start token transfer sync service (if enabled via config)
+	if bc.Service == nil || bc.Service.EnableTokenTransferSync {
 		tokenTransferSyncConfig := service.LoadTokenTransferSyncConfig(&bc)
 		tokenTransferSyncService, err := service.NewTokenTransferSyncService(context.Background(), tokenTransferSyncConfig, &bc)
 		if err != nil {
@@ -183,12 +188,11 @@ func main() {
 			log.NewHelper(logger).Infof("Token transfer sync service started")
 		}
 	} else {
-		log.NewHelper(logger).Infof("Token transfer sync service disabled via ENABLE_TOKEN_TRANSFER_SYNC=%s", enableTokenTransferSync)
+		log.NewHelper(logger).Infof("Token transfer sync service disabled via service.enable_token_transfer_sync=false")
 	}
 
-	// Start token market cache sync service (if enabled)
-	enableMarketCacheSync := os.Getenv("ENABLE_TOKEN_MARKET_CACHE_SYNC")
-	if enableMarketCacheSync == "" || enableMarketCacheSync == "true" {
+	// Start token market cache sync service (if enabled via config)
+	if bc.Service == nil || bc.Service.EnableTokenMarketCacheSync {
 		marketCacheSyncConfig := service.LoadTokenMarketCacheSyncConfig(&bc)
 		tokenMarketCacheSyncService := service.NewTokenMarketCacheSyncService(context.Background(), marketCacheSyncConfig)
 		tokenMarketCacheSyncService.Start()
@@ -199,7 +203,7 @@ func main() {
 		}()
 		log.NewHelper(logger).Infof("Token market cache sync service started")
 	} else {
-		log.NewHelper(logger).Infof("Token market cache sync service disabled via ENABLE_TOKEN_MARKET_CACHE_SYNC=%s", enableMarketCacheSync)
+		log.NewHelper(logger).Infof("Token market cache sync service disabled via service.enable_token_market_cache_sync=false")
 	}
 
 	// Start archive scheduler service (if enabled)

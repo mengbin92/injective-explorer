@@ -93,9 +93,9 @@ func (s *ValidatorStatsService) updateValidatorStats() {
 }
 
 // updateValidatorStat updates statistics for a single validator.
-// Uses aggregated statistics table (方案3) for optimal performance.
+// Uses aggregated statistics table (solution 3) for optimal performance.
 func (s *ValidatorStatsService) updateValidatorStat(ctx context.Context, operatorAddress string) error {
-	// Get aggregated statistics from validator_block_stats table (方案3: 聚合统计表)
+	// Get aggregated statistics from validator_block_stats table (solution 3: aggregated statistics table)
 	proposed, signed, missed, err := models.GetValidatorStatsAggregated(operatorAddress)
 	if err != nil {
 		// If aggregated stats not available, use validator table stats (updated by this service)
@@ -135,16 +135,14 @@ func (s *ValidatorStatsService) updateValidatorStat(ctx context.Context, operato
 	return nil
 }
 
-// CalculateMissedBlocksForValidator calculates missed blocks for a validator more accurately.
-// This requires validator set information at each block height.
-// For now, this is a placeholder for future enhancement.
+// CalculateMissedBlocksForValidator is a placeholder for accurate missed block calculation.
+// Accurate calculation requires validator set information at each block height,
+// which is not yet implemented. Currently always returns 0.
 func (s *ValidatorStatsService) CalculateMissedBlocksForValidator(ctx context.Context, operatorAddress string, startHeight, endHeight uint64) (uint64, error) {
-	// TODO: Implement accurate missed block calculation
-	// This requires:
+	// Accurate missed block calculation requires:
 	// 1. Validator set at each block height
 	// 2. Check if validator was in active set
 	// 3. Count blocks where validator was in set but didn't sign
-
-	// For now, return 0 as placeholder
+	// This functionality is not yet implemented; returns 0 as placeholder.
 	return 0, nil
 }

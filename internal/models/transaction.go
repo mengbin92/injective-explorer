@@ -158,12 +158,12 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 
 	// Convert Messages to JSON string (same logic as Events and Signatures)
 	messagesStr := marshalMessagesToJSON(detail.Messages)
-	// Debug: log the format of messages string
+	// Log the format of messages string for debugging purposes.
 	if len(messagesStr) > 0 {
 		if messagesStr[0] == '{' || messagesStr[0] == '[' {
-			global.Logger.Debugf("DEBUG: Messages converted to JSON format, length: %d", len(messagesStr))
+			global.Logger.Debugf("Messages converted to JSON format, length: %d", len(messagesStr))
 		} else {
-			global.Logger.Warnf("WARN: Messages is not JSON format (starts with: %c), might be base64", messagesStr[0])
+			global.Logger.Warnf("Messages is not JSON format (starts with: %c), might be base64", messagesStr[0])
 		}
 	}
 
@@ -333,10 +333,10 @@ func marshalMessagesToJSON(messagesBytes []byte) string {
 		if err := txBody.Unmarshal(txRaw.BodyBytes); err == nil {
 			return marshalTxBodyToStructPBJSON(&txBody)
 		} else {
-			global.Logger.Warnf("WARN: failed to unmarshal TxBody from TxRaw.BodyBytes, error: %v", err)
+			global.Logger.Warnf("Failed to unmarshal TxBody from TxRaw.BodyBytes, error: %v", err)
 		}
 	} else {
-		global.Logger.Debugf("DEBUG: failed to unmarshal Messages as TxRaw, error: %v", err)
+		global.Logger.Debugf("Failed to unmarshal Messages as TxRaw, error: %v", err)
 	}
 
 	// Try parsing as TxBody directly (fallback)
@@ -344,7 +344,7 @@ func marshalMessagesToJSON(messagesBytes []byte) string {
 	if err := txBody.Unmarshal(messagesBytes); err == nil {
 		return marshalTxBodyToStructPBJSON(txBody)
 	} else {
-		global.Logger.Debugf("DEBUG: failed to unmarshal Messages as TxBody, error: %v", err)
+		global.Logger.Debugf("Failed to unmarshal Messages as TxBody, error: %v", err)
 	}
 
 	// Both protobuf parsing failed, wrap the raw bytes in a structpb structure

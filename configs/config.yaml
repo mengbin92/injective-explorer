@@ -200,6 +200,22 @@ token_price:
   supply_cache_ttl: 3600s
 
 # API management configuration
+# Service enable/disable configuration
+# All services default to true (enabled) except pprof which defaults to false
+service:
+  # Enable pprof profiling endpoint (default: false)
+  # Only enable in development/staging for security reasons
+  enable_pprof: false
+  # pprof endpoint address (default: localhost:6060)
+  pprof_addr: ${PPROF_ADDR:localhost:6060}
+  # Enable blockchain sync service (default: true)
+  # In horizontal scaling scenarios, only one instance should run sync service
+  enable_sync: true
+  # Enable token transfer sync service (default: true)
+  enable_token_transfer_sync: true
+  # Enable token market cache sync service (default: true)
+  enable_token_market_cache_sync: true
+
 api_management:
   # Test mode: bypasses authentication and rate limiting for testing
   # IMPORTANT: Only enable this in development/testing environments

@@ -320,15 +320,14 @@ func (c *EVMClient) SubscribeFilterLogs(ctx context.Context, query ethereum.Filt
 // Parameters:
 //   - ctx: Context for the request
 //   - cosmosHash: Cosmos transaction hash (with or without 0x prefix)
-//   - blockNumber: Block number containing the transaction (optional, if 0, will try to find from database)
+//   - blockNumber: Block number containing the transaction (required, must be > 0)
 //
 // Returns:
 //   - string: EVM transaction hash (with 0x prefix), or empty string if not found
 //   - error: Error if the operation fails
 func (c *EVMClient) GetEVMHashFromCosmosHash(ctx context.Context, cosmosHash string, blockNumber uint64) (string, error) {
-	// If block number is not provided, we need to find it from the database
-	// For now, we'll require block number to be provided
-	// TODO: Add database lookup if block number is 0
+	// Block number is required to locate the EVM transaction.
+	// Database lookup for block number is not yet implemented.
 	if blockNumber == 0 {
 		return "", fmt.Errorf("block number is required to convert Cosmos hash to EVM hash")
 	}
@@ -346,12 +345,12 @@ func (c *EVMClient) GetEVMHashFromCosmosHash(ctx context.Context, cosmosHash str
 		return block.Transactions()[0].Hash().Hex(), nil
 	}
 
-	// If multiple transactions, we need to match by some criteria
-	// For now, return the first one (this is a limitation)
-	// TODO: Implement better matching logic (e.g., by comparing transaction data)
+	// If multiple transactions, we need to match by some criteria.
+	// Currently returns the first EVM transaction as a fallback.
+	// Better matching logic (e.g., by comparing transaction data) is not yet implemented.
 	if len(block.Transactions()) > 0 {
-		// Return the first EVM transaction as a fallback
-		// In practice, you might want to match by other criteria
+		// Return the first EVM transaction as a fallback.
+		// In practice, matching by other criteria may be needed.
 		return block.Transactions()[0].Hash().Hex(), nil
 	}
 
