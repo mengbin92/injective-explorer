@@ -610,7 +610,7 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 
 		if err == nil {
 			// Transaction exists, check if signer is empty or to/value need updating
-			if existingTx.Signer == "" || existingTx.To == "" || existingTx.Value == "" {
+			if existingTx.Signer == "" || existingTx.To == "" || len(existingTx.Values) == 0 {
 				// Convert EVM address to Ethereum format for storage
 				ethSigner := models.ConvertAddressToEthForStorage(details.From)
 				ethTo := models.ConvertAddressToEthForStorage(details.To)

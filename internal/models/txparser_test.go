@@ -297,9 +297,9 @@ func TestExtractFromToValue_FaucetTransferWithGasFee(t *testing.T) {
 	assert.Contains(t, value, "1000000000000000000inj", "should contain INJ amount")
 	assert.Contains(t, value, "10000000peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", "should contain ERC20 amount")
 	// INJ should come BEFORE ERC20 (native token priority)
-	injIndex := strings.Index(value, "1000000000000000000inj")
-	erc20Index := strings.Index(value, "10000000peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238")
-	assert.True(t, injIndex < erc20Index, "INJ should appear before ERC20 in value string")
+	// value is now []string, check that INJ is at index 0 and ERC20 is at index 1
+	assert.Equal(t, "1000000000000000000inj", value[0], "INJ should be first in value array")
+	assert.Equal(t, "10000000peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", value[1], "ERC20 should be second in value array")
 	// Should NOT contain gas fee amount
 	assert.NotContains(t, value, "64000000000000inj", "should NOT contain gas fee amount")
 }

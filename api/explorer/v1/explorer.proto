@@ -581,8 +581,8 @@ message TransactionDTO {
       22; // Transaction initiator (first signer), may differ from fee payer
   string to = 23;    // Recipient address (corresponds to 'to' field in ethereum
                      // tx, or recipient in other tx types)
-  string value = 24; // Transaction value (corresponds to 'value' field in
-                     // ethereum tx, or amount in other tx types)
+  repeated string values = 24; // Transaction values as array for multi-currency
+                               // transfers, e.g., ["1000000inj", "500atom"]
   EVMTransactionDTO evm_transaction = 25 [
     json_name = "evm_transaction"
   ]; // EVM transaction details (only present for EVM transactions)

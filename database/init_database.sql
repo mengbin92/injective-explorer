@@ -415,7 +415,7 @@ CREATE TABLE `transactions` (
   `claim_ids` longtext,
   `signer` varchar(128) DEFAULT NULL,
   `to` varchar(128) DEFAULT NULL,
-  `value` varchar(128) DEFAULT NULL,
+  `values` longtext DEFAULT NULL COMMENT 'transaction values as JSON array, e.g., ["1000000inj", "500atom"]',
   `archived` tinyint(1) DEFAULT '0',
   `data_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `messages_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
@@ -433,9 +433,7 @@ CREATE TABLE `transactions` (
   KEY `idx_timestamp_code_deleted` (`block_unix_timestamp`,`code`,`deleted_at`),
   -- Performance indexes for transaction pagination and query patterns (added after optimization analysis)
   KEY `idx_timestamp_tx_pagination` (`block_unix_timestamp` DESC,`tx_number` DESC,`id`),
-  KEY `idx_signer_timestamp_tx` (`signer`,`block_unix_timestamp` DESC,`tx_number` DESC),
-  -- Covering index for block transaction queries
-  KEY `idx_block_tx_covering` (`block_number`,`tx_number`,`hash`,`signer`,`to`,`value`)
+  KEY `idx_signer_timestamp_tx` (`signer`,`block_unix_timestamp` DESC,`tx_number` DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
@@ -483,9 +481,9 @@ CREATE TABLE `token_market_cache` (
   `fully_diluted_market_cap` decimal(40,2) DEFAULT NULL COMMENT '完全稀释市值（USD）',
   `total_volume_24h` decimal(40,2) DEFAULT NULL COMMENT '24小时交易量（USD）',
   `holders_count` bigint DEFAULT NULL COMMENT '持有者数量',
-  `total_supply` decimal(78,0) DEFAULT NULL COMMENT '总供应量（原始单位）',
-  `circulating_supply` decimal(78,0) DEFAULT NULL COMMENT '流通供应量（原始单位）',
-  `max_supply` decimal(78,0) DEFAULT NULL COMMENT '最大供应量（原始单位，NULL表示无上限）',
+  `total_supply` decimal(65,0) DEFAULT NULL COMMENT '总供应量（原始单位）',
+  `circulating_supply` decimal(65,0) DEFAULT NULL COMMENT '流通供应量（原始单位）',
+  `max_supply` decimal(65,0) DEFAULT NULL COMMENT '最大供应量（原始单位，NULL表示无上限）',
   `last_updated` bigint DEFAULT NULL COMMENT '数据最后更新时间戳',
   `data_source` varchar(50) DEFAULT 'coingecko' COMMENT '数据来源',
   PRIMARY KEY (`id`),
@@ -659,7 +657,7 @@ INSERT INTO `email_blacklist` (`domain`, `status`, `note`) VALUES
 ('throwaway.email', 'active', '一次性邮箱')
 ON DUPLICATE KEY UPDATE `domain`=`domain`;
 
-SET FOREIGN_KEY_CHECKS = 1;
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------
 -- Table structure for validators
@@ -891,27 +889,5 @@ CREATE INDEX idx_address_label_value_prefix ON address_labels(label_value(50));
 -- Query: WHERE chain_id = ? AND label_type = ? ORDER BY id DESC
 CREATE INDEX idx_address_label_list ON address_labels(chain_id, label_type, id DESC);
 
--- ============================================================================
--- VERIFICATION AND COMPLETION
--- ============================================================================
-
--- Verify all indexes were created successfully
--- Note: This will show all indexes including duplicates, which is expected
-SELECT 'Index creation completed. Verifying indexes...' AS status;
-
--- Show index summary
-SELECT
-    TABLE_NAME,
-    INDEX_NAME,
-    GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ', ') AS COLUMNS,
-    CARDINALITY,
-    INDEX_TYPE
-FROM information_schema.STATISTICS
-WHERE TABLE_SCHEMA = DATABASE()
-AND TABLE_NAME IN ('transactions', 'evm_transactions', 'blocks', 'account_balances', 'transaction_data_archives', 'contract_infos', 'address_labels')
-AND INDEX_NAME LIKE 'idx_%'
-GROUP BY TABLE_NAME, INDEX_NAME, CARDINALITY, INDEX_TYPE
-ORDER BY TABLE_NAME, INDEX_NAME;
-
-SELECT 'Database initialization completed successfully!' AS status;
+SET FOREIGN_KEY_CHECKS = 1;
 

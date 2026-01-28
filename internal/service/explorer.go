@@ -770,8 +770,8 @@ func deduplicateTransactions(txs []models.Transaction) []models.Transaction {
 		}
 
 		// Check if current transaction has complete fields (signer, to, value)
-		currentComplete := tx.Signer != "" && tx.To != "" && tx.Value != ""
-		existingComplete := existing.Signer != "" && existing.To != "" && existing.Value != ""
+		currentComplete := tx.Signer != "" && tx.To != "" && len(tx.Values) > 0
+		existingComplete := existing.Signer != "" && existing.To != "" && len(existing.Values) > 0
 
 		if currentComplete && !existingComplete {
 			// Current is complete, existing is not - replace

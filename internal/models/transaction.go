@@ -59,7 +59,7 @@ type Transaction struct {
 	ClaimIds             []int64    `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                     // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
 	Signer               string     `json:"signer" gorm:"type:varchar(128);column:signer"`                         // Signer is the transaction initiator address (first signer)
 	To                   string     `json:"to" gorm:"type:varchar(128);column:to"`                                 // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
-	Value                string     `json:"value" gorm:"type:varchar(128);column:value"`                           // Value is the transaction value for ethereum transactions (corresponds to 'value' field in ethereum tx)
+	Values               []string   `json:"value" gorm:"column:values;serializer:json"`                            // Values is the transaction values as an array for multi-currency transfers, e.g., ["1000000inj", "500atom"]. Stored in 'values' column to avoid MySQL reserved word 'value'
 	Archived             bool       `json:"archived" gorm:"column:archived"`                                       // Archived indicates whether this transaction has been archived
 	DataStorageKey       string     `json:"data_storage_key" gorm:"column:data_storage_key"`                       // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
 	MessagesStorageKey   string     `json:"messages_storage_key" gorm:"column:messages_storage_key"`               // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
@@ -142,7 +142,7 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	}
 
 	// Extract to and value from transaction
-	to, value := extractToAndValueFromProto(detail.Messages, detail.Events, detail.Logs, detail.Signatures, detail.GasFee)
+	to, values := extractToAndValueFromProto(detail.Messages, detail.Events, detail.Logs, detail.Signatures, detail.GasFee)
 
 	// Extract message types from Messages for efficient filtering (before converting to JSON)
 	messageTypes := extractMessageTypesFromBytes(detail.Messages)
@@ -206,7 +206,7 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	// Convert addresses to Ethereum format for database storage
 	tx.Signer = ConvertAddressToEthForStorage(signer)
 	tx.To = ConvertAddressToEthForStorage(to)
-	tx.Value = value
+	tx.Values = values
 
 	// Upload large fields to object storage if enabled
 	if storage.IsEnabled() {
@@ -865,7 +865,9 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 	}
 
 	// Both protobuf and JSON parsing failed
-	global.Logger.Warnf("WARN: failed to extract message types: protobuf unmarshal error, messages length: %d, first bytes: %v", len(messagesBytes), getFirstBytes(messagesBytes, 10))
+	if global.Logger != nil {
+		global.Logger.Warnf("WARN: failed to extract message types: protobuf unmarshal error, messages length: %d, first bytes: %v", len(messagesBytes), getFirstBytes(messagesBytes, 10))
+	}
 	return nil
 }
 

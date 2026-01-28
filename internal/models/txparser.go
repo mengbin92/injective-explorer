@@ -81,7 +81,8 @@ type SignatureRaw struct {
 
 // extractToAndValueFromProto extracts to and value from protobuf transaction data.
 // It converts protobuf data to JSON format and uses event-first extraction logic.
-func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explorer_rpcpb.Event, logsBytes []byte, signatures []*injective_explorer_rpcpb.Signature, gasFee *injective_explorer_rpcpb.GasFee) (to, value string) {
+// Returns the recipient address and an array of values for multi-currency transfers.
+func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explorer_rpcpb.Event, logsBytes []byte, signatures []*injective_explorer_rpcpb.Signature, gasFee *injective_explorer_rpcpb.GasFee) (to string, value []string) {
 	// Build TxJSON structure from protobuf data
 	txJSON := &TxJSON{}
 
@@ -213,27 +214,26 @@ func extractToAndValueFromProto(messagesBytes []byte, events []*injective_explor
 	result, err := extractFromToValue(txJSON)
 	if err != nil {
 		// If extraction fails, return default values
-		return "-", "0"
+		return "-", nil
 	}
 
 	// Only return to/value if this is a value transfer transaction
 	// For non-transfer transactions (instructions, state changes), return default values
 	if !result.ShouldShowValue {
-		return "-", "0"
+		return "-", nil
 	}
 
 	// Convert result to to/value strings
 	to = result.To
 	if len(result.Values) > 0 {
-		// Format value as "amount1denom1,amount2denom2" or just "amountdenom"
-		valueParts := make([]string, 0, len(result.Values))
+		// Format value as array of "amountdenom" strings for multi-currency support
+		value = make([]string, 0, len(result.Values))
 		for _, coin := range result.Values {
-			valueParts = append(valueParts, coin.Amount+coin.Denom)
+			value = append(value, coin.Amount+coin.Denom)
 		}
-		value = strings.Join(valueParts, ",")
 	} else {
-		// If no values found even for transfer transaction, return "0"
-		value = "0"
+		// If no values found even for transfer transaction, return nil
+		value = nil
 	}
 
 	// If to is empty even for transfer transaction, return "-"

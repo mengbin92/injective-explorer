@@ -40,7 +40,7 @@ func TestTransactionFromProto_Basic(t *testing.T) {
 	assert.Equal(t, uint64(1000), tx.BlockNumber)
 	assert.Equal(t, "inj1signer", tx.Signer)
 	assert.Equal(t, "inj1recipient", tx.To)
-	assert.Equal(t, "100inj", tx.Value)
+	assert.Equal(t, []string{"100inj"}, tx.Values)
 }
 
 func TestTransactionFromProto_NilInput(t *testing.T) {
@@ -70,7 +70,7 @@ func TestTransactionFromProto_ExtractToAndValue(t *testing.T) {
 
 	require.NotNil(t, tx)
 	assert.Equal(t, "inj1to", tx.To)
-	assert.Equal(t, "500inj", tx.Value)
+	assert.Equal(t, []string{"500inj"}, tx.Values)
 }
 
 func TestTransactionFromProto_Compression(t *testing.T) {
@@ -102,7 +102,7 @@ func TestTransactionToProto_Basic(t *testing.T) {
 		Messages:    "test messages",
 		Logs:        "test logs",
 		To:          "inj1recipient",
-		Value:       "100inj",
+		Values:      []string{"100inj"},
 		Signer:      "inj1signer",
 	}
 
@@ -162,7 +162,7 @@ func TestTransactionFromProto_ToValueExtraction(t *testing.T) {
 		name      string
 		detail    *injective_explorer_rpcpb.TxDetailData
 		wantTo    string
-		wantValue string
+		wantValue []string
 	}{
 		{
 			name: "transfer event",
@@ -178,7 +178,7 @@ func TestTransactionFromProto_ToValueExtraction(t *testing.T) {
 				},
 			},
 			wantTo:    "inj1to",
-			wantValue: "100inj",
+			wantValue: []string{"100inj"},
 		},
 		{
 			name: "coin_received event",
@@ -197,7 +197,7 @@ func TestTransactionFromProto_ToValueExtraction(t *testing.T) {
 				},
 			},
 			wantTo:    "inj1receiver",
-			wantValue: "200inj",
+			wantValue: []string{"200inj"},
 		},
 		{
 			name: "no transfer events",
@@ -212,7 +212,7 @@ func TestTransactionFromProto_ToValueExtraction(t *testing.T) {
 				},
 			},
 			wantTo:    "",
-			wantValue: "",
+			wantValue: nil,
 		},
 	}
 
@@ -221,7 +221,7 @@ func TestTransactionFromProto_ToValueExtraction(t *testing.T) {
 			tx := TransactionFromProto(tc.detail, 0)
 			require.NotNil(t, tx)
 			assert.Equal(t, tc.wantTo, tx.To)
-			assert.Equal(t, tc.wantValue, tx.Value)
+			assert.Equal(t, tc.wantValue, tx.Values)
 		})
 	}
 }

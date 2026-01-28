@@ -256,7 +256,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			ClaimIds:           tx.ClaimIds,
 			Signer:             tx.Signer,
 			To:                 tx.To,
-			Value:              tx.Value,
+			Values:             tx.Values,
 		}
 
 		// Note: EVM transaction details are loaded separately by the service layer
@@ -274,7 +274,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			GasUsed:            tx.GasUsed,
 			Signer:             tx.Signer,
 			To:                 tx.To,
-			Value:              tx.Value,
+			Values:             tx.Values,
 		}
 	}
 }
