@@ -9,19 +9,26 @@
 - 元数据（首次部署时间）
 - 支持搜索、筛选、排序、分页
 
-### UI 需求分析（基于设计稿）
+### UI 需求分析（基于实际 HTML 文件）
 
-根据前端设计稿，代币列表页面需要展示以下字段：
+根据前端 HTML 文件（`代币列表.html`），代币列表页面需要展示以下字段：
 
 | 列名 | 字段 | 数据类型 | 格式要求 | 说明 |
 |------|------|---------|---------|------|
-| # | 序号 | number | - | 自动递增 |
-| 代币 | token_name, token_symbol, tags, contract_address | string, string, array, string | 地址需缩略显示（0x8a3d...7f2e） | 支持多标签显示 |
-| 价格 | price_usd, price_change_24h | number, number | $X.XX, ±X.XX% | 涨跌用颜色区分 |
-| 24h 交易量 | total_volume_24h | number | $X.XM / $X.XB | 自动格式化 |
+| # | 序号 | number | - | 自动递增（从1开始） |
+| 代币 | token_name, token_symbol, tags, contract_address | string, string, array, string | 地址需缩略显示（0x8a3d...7f2e） | 支持多标签显示（官方、稳定币、DeFi、Meme、跨链资产、预言机、原生代币等） |
+| 价格 | price_usd, price_change_24h | number, number | $X.XX 或 $X.XXXXX（小价格），±X.XX% | 涨跌用颜色区分（绿色上涨，红色下跌） |
+| 24h 交易量 | total_volume_24h | number | $X.XM / $X.XB | 自动格式化（M=百万，B=十亿） |
 | 市值 | market_cap_usd | number | $X.XM / $X.XB | 自动格式化 |
-| 持有者 | holders_count | number | X,XXX | 千分位格式化 |
+| 持有者 | holders_count | number | X,XXX | 千分位格式化，带图标（👥） |
 | 首次部署 | first_deployment_time | string | YYYY/MM/DD | 日期格式 |
+
+**UI 交互功能：**
+- 搜索框：支持搜索代币名称、符号或合约地址（模糊匹配）
+- 分页：每页显示 20/50/100 条（可配置）
+- 排序：虽然 UI 中没有显示排序按钮，但应支持按市值、交易量、价格、持有者、首次部署时间排序
+- 筛选：支持按标签类型筛选（虽然 UI 中没有显示，但应支持）
+- 代币点击：点击代币行跳转到代币详情页
 
 ## 现有系统分析
 
@@ -1359,11 +1366,380 @@ wrk -t4 -c100 -d30s --latency "http://localhost:8080/api/v1/tokens/list?page=1&p
 
 ---
 
+## 代币详情页 API 设计
+
+基于前端 UI 设计稿（`代币详情.html`），代币详情页需要展示代币的完整信息，包括概览、市场数据、转账记录、持有者列表和合约代码。
+
+### UI 需求分析（基于实际 HTML 文件）
+
+#### 页面结构
+
+代币详情页包含以下主要部分：
+
+1. **代币头部信息**
+   - 代币图标（56x56px，支持 icon_url 或 icon_gradient）
+   - 代币名称（24px，font-weight: 700）
+   - 代币符号（18px，font-weight: 600）
+   - 代币类型徽章（ERC-20 / ERC-721 / etc.）
+   - 标签行（官方、稳定币、DeFi、Meme、跨链资产、预言机、原生代币等）
+   - 合约地址（带复制按钮，完整地址显示）
+
+2. **三列信息卡片**
+   - **概览卡片**：
+     - 最大供应量（格式化显示，无限制时显示"无限制"）
+     - 流通量（格式化显示）
+     - 完全稀释市值（格式化显示，无限制时显示"-"）
+     - 流通市值（格式化显示）
+   - **市场概览卡片**：
+     - 价格（格式化显示，带涨跌徽章）
+     - 24h 交易量（格式化显示）
+     - 持有者（整数显示）
+     - 总转账次数（整数显示）
+   - **更多信息卡片**：
+     - 代币标准（ERC-20, ERC-721 等）
+     - 精度（decimals）
+     - 首次部署（日期格式：YYYY-MM-DD）
+     - 创建者（地址缩略显示：0x1234...5678）
+
+3. **标签页**
+   - **转账记录**（默认显示）：
+     - 交易哈希（缩略显示，可点击跳转）
+     - 方法（Transfer, TransferFrom, Approve, Mint 等）
+     - 时间（相对时间显示：X 分钟前）
+     - 发送方（地址缩略显示，可点击跳转）
+     - 接收方（地址缩略显示，可点击跳转）
+     - 数量（格式化显示，带代币符号）
+     - 支持地址筛选（发送方或接收方）
+   - **合约代码**：
+     - 合约名称
+     - 字节码展示（代码查看器，支持复制）
+   - **注意**：HTML 中虽然生成了持仓列表的 JavaScript 函数，但 UI 中没有显示"持仓统计"标签页，该功能可作为可选功能保留
+
+### API 设计
+
+#### Proto 定义
+
+```protobuf
+// api/explorer/v1/token_detail.proto
+
+syntax = "proto3";
+
+package explorer.v1;
+
+import "google/api/annotations.proto";
+import "explorer/v1/common.proto";
+import "explorer/v1/contract_info.proto";
+
+option go_package = "injective-explorer/api/explorer/v1";
+
+// TokenDetailService provides detailed token information
+service TokenDetailService {
+  // GetTokenDetail returns detailed information for a specific token
+  rpc GetTokenDetail(GetTokenDetailRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/detail"
+    };
+  }
+
+  // GetTokenTransfers returns transfer transactions for a token
+  rpc GetTokenTransfers(GetTokenTransfersRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/transfers"
+    };
+  }
+
+  // GetTokenHolders returns holder rankings for a token
+  rpc GetTokenHolders(GetTokenHoldersRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/holders"
+    };
+  }
+
+  // GetTokenHoldersStats returns holder statistics
+  rpc GetTokenHoldersStats(GetTokenHoldersStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/holders-stats"
+    };
+  }
+}
+
+// GetTokenDetailRequest specifies which token to query
+message GetTokenDetailRequest {
+  string contract_address = 1 [ json_name = "contract_address" ]; // Contract address (required)
+  string chain_id = 2 [ json_name = "chain_id" ];                 // Chain ID (optional)
+}
+
+// TokenDetailResponse contains complete token information
+message TokenDetailResponse {
+  // Basic information
+  TokenBasicInfo basic = 1 [ json_name = "basic" ];
+
+  // Overview (supply and market cap)
+  TokenOverviewInfo overview = 2 [ json_name = "overview" ];
+
+  // Market information
+  TokenMarketInfo market = 3 [ json_name = "market" ];
+
+  // Additional information
+  TokenAdditionalInfo additional = 4 [ json_name = "additional" ];
+}
+
+// TokenBasicInfo contains basic token information
+message TokenBasicInfo {
+  string name = 1 [ json_name = "name" ];
+  string symbol = 2 [ json_name = "symbol" ];
+  string icon_url = 3 [ json_name = "icon_url" ];        // Optional token icon URL
+  string icon_gradient = 4 [ json_name = "icon_gradient" ]; // Fallback gradient CSS
+  string contract_address = 5 [ json_name = "contract_address" ];
+  string token_type = 6 [ json_name = "token_type" ];   // ERC-20, ERC-721, etc.
+  repeated ContractTagInfoDTO tags = 7 [ json_name = "tags" ];
+}
+
+// TokenOverviewInfo contains supply and market cap data
+message TokenOverviewInfo {
+  string max_supply = 1 [ json_name = "max_supply" ];           // Formatted string, "无限制" if unlimited
+  string circulating_supply = 2 [ json_name = "circulating_supply" ];
+  string fully_diluted_market_cap = 3 [ json_name = "fully_diluted_market_cap" ]; // "$0" if unlimited
+  string market_cap = 4 [ json_name = "market_cap" ];
+}
+
+// TokenMarketInfo contains market data
+message TokenMarketInfo {
+  string price = 1 [ json_name = "price" ];                    // Formatted: "$1.00" or "$0.00000123"
+  double price_change_24h = 2 [ json_name = "price_change_24h" ]; // For badge display
+  string volume_24h = 3 [ json_name = "volume_24h" ];          // Formatted: "$53,200,000"
+  int64 holders_count = 4 [ json_name = "holders_count" ];     // Integer count
+  int64 total_transfers = 5 [ json_name = "total_transfers" ]; // Total transfer count
+}
+
+// TokenAdditionalInfo contains token technical details
+message TokenAdditionalInfo {
+  string token_standard = 1 [ json_name = "token_standard" ]; // ERC-20, ERC-721, etc.
+  int32 decimals = 2 [ json_name = "decimals" ];
+  string deploy_date = 3 [ json_name = "deploy_date" ];       // "2024-03-15"
+  string creator_address = 4 [ json_name = "creator_address" ]; // Full address
+  string creator_short = 5 [ json_name = "creator_short" ];    // "0x1234...5678"
+}
+
+// GetTokenTransfersRequest queries token transfers
+message GetTokenTransfersRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+
+  // Optional filters
+  string address = 3 [ json_name = "address" ]; // Filter by sender or receiver address
+  string method = 4 [ json_name = "method" ];   // Filter by method (Transfer, Mint, etc.)
+
+  // Pagination
+  PaginationRequest pagination = 5 [ json_name = "pagination" ];
+}
+
+// TokenTransferInfo represents a single transfer
+message TokenTransferInfo {
+  string tx_hash = 1 [ json_name = "tx_hash" ];
+  string method = 2 [ json_name = "method" ];     // Transfer, Mint, Burn, etc.
+  int64 timestamp = 3 [ json_name = "timestamp" ];
+  string time_ago = 4 [ json_name = "time_ago" ]; // "5 分钟前"
+  string from_address = 5 [ json_name = "from_address" ];
+  string to_address = 6 [ json_name = "to_address" ];
+  string amount = 7 [ json_name = "amount" ];     // Formatted with symbol: "1,234.56 USDT"
+  string value_usd = 8 [ json_name = "value_usd" ]; // Optional USD value
+}
+
+// TokenTransfersResponse contains paginated transfers
+message TokenTransfersResponse {
+  repeated TokenTransferInfo items = 1 [ json_name = "items" ];
+  int32 page = 2 [ json_name = "page" ];
+  int32 page_size = 3 [ json_name = "page_size" ];
+  int64 total = 4 [ json_name = "total" ];
+  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+}
+
+// GetTokenHoldersRequest queries token holders
+message GetTokenHoldersRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+
+  // Pagination
+  PaginationRequest pagination = 3 [ json_name = "pagination" ];
+
+  // Sorting
+  string sort_by = 4 [ json_name = "sort_by" ]; // "balance" (default), "percentage"
+  string sort_order = 5 [ json_name = "sort_order" ]; // "desc" (default), "asc"
+}
+
+// TokenHolderInfo represents a single holder
+message TokenHolderInfo {
+  int32 rank = 1 [ json_name = "rank" ];
+  string address = 2 [ json_name = "address" ];
+  string label = 3 [ json_name = "label" ];        // Optional label (e.g., "Binance Hot Wallet")
+  string label_type = 4 [ json_name = "label_type" ]; // "exchange", "burn", "whale", etc.
+  string balance = 5 [ json_name = "balance" ];    // Formatted: "1,234.56 USDT"
+  string percentage = 6 [ json_name = "percentage" ]; // "18.5"
+  string value_usd = 7 [ json_name = "value_usd" ]; // "$123,456.78"
+}
+
+// TokenHoldersResponse contains paginated holders
+message TokenHoldersResponse {
+  repeated TokenHolderInfo items = 1 [ json_name = "items" ];
+  int32 page = 2 [ json_name = "page" ];
+  int32 page_size = 3 [ json_name = "page_size" ];
+  int64 total = 4 [ json_name = "total" ];
+  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+}
+
+// GetTokenHoldersStatsRequest queries holder statistics
+message GetTokenHoldersStatsRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+}
+
+// TokenHoldersStatsResponse contains holder statistics
+message TokenHoldersStatsResponse {
+  int64 total_holders = 1 [ json_name = "total_holders" ];       // Total unique holders
+  string top10_percentage = 2 [ json_name = "top10_percentage" ]; // "45.2"
+  string top100_percentage = 3 [ json_name = "top100_percentage" ]; // "68.7"
+  int64 circulating_supply = 4 [ json_name = "circulating_supply" ]; // For percentage calc
+}
+```
+
+### API 响应示例
+
+#### GetTokenDetail 响应
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "basic": {
+      "name": "Tether USD",
+      "symbol": "USDT",
+      "icon_url": "https://assets.coingecko.com/coins/images/325/small/Tether.png",
+      "icon_gradient": "linear-gradient(135deg, #26a17b 0%, #1a7a5c 100%)",
+      "contract_address": "0x8a3d5E2F4B7C9D1A6E8F3B2C7D4E9F1A2B3C7f2e",
+      "token_type": "ERC-20",
+      "tags": [
+        {
+          "tag_type": "category",
+          "tag_value": "官方",
+          "tag_color": "#28a745"
+        },
+        {
+          "tag_type": "category",
+          "tag_value": "稳定币",
+          "tag_color": "#007bff"
+        }
+      ]
+    },
+    "overview": {
+      "max_supply": "100,000,000,000",
+      "circulating_supply": "85,043,216,789",
+      "fully_diluted_market_cap": "$100,000,000,000",
+      "market_cap": "$85,043,216,789"
+    },
+    "market": {
+      "price": "$1.00",
+      "price_change_24h": 0.02,
+      "volume_24h": "$53,200,000",
+      "holders_count": 125832,
+      "total_transfers": 1256789
+    },
+    "additional": {
+      "token_standard": "ERC-20",
+      "decimals": 6,
+      "deploy_date": "2024-03-15",
+      "creator_address": "0x1a2b3c4d5e6f7890abcdef1234567890abcd5678",
+      "creator_short": "0x1a2b...5678"
+    }
+  }
+}
+```
+
+#### GetTokenTransfers 响应
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "tx_hash": "0x8a3d5E2F4B7C9D1A6E8F3B2C7D4E9F1A2B3C7f2e",
+        "method": "Transfer",
+        "timestamp": 1708052400,
+        "time_ago": "5 分钟前",
+        "from_address": "0x5b2a4C8E9F1D3A7B6E2F8C4D9A1B3E7F2C8D3c8d",
+        "to_address": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+        "amount": "1,234.56 USDT",
+        "value_usd": "$1,234.56"
+      }
+    ],
+    "page": 1,
+    "page_size": 20,
+    "total": 1256789,
+    "is_exact_count": false
+  }
+}
+```
+
+#### GetTokenHolders 响应
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "rank": 1,
+        "address": "0x0000000000000000000000000000000000000000",
+        "label": "销毁地址",
+        "label_type": "burn",
+        "balance": "18,500,000,000 USDT",
+        "percentage": "18.5",
+        "value_usd": "$18,500,000,000"
+      },
+      {
+        "rank": 2,
+        "address": "0x5b2a4C8E9F1D3A7B6E2F8C4D9A1B3E7F2C8D3c8d",
+        "label": "Binance Hot Wallet",
+        "label_type": "exchange",
+        "balance": "12,300,000,000 USDT",
+        "percentage": "12.3",
+        "value_usd": "$12,300,000,000"
+      }
+    ],
+    "page": 1,
+    "page_size": 20,
+    "total": 125832,
+    "is_exact_count": true
+  }
+}
+```
+
+#### GetTokenHoldersStats 响应
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "total_holders": 125832,
+    "top10_percentage": "45.2",
+    "top100_percentage": "68.7",
+    "circulating_supply": "85,043,216,789"
+  }
+}
+```
+
+---
+
 ## 总结
 
 ### 方案概述
 
-本方案通过新增 `/api/v1/tokens/list` 接口，聚合多个数据源，实现了完整的代币列表功能。基于 UI 设计稿和现有代码实现，本方案进行了以下优化：
+本方案通过新增 `/api/v1/tokens/list` 和 `/api/v1/tokens/*` 系列接口，聚合多个数据源，实现了完整的代币列表和详情功能。基于实际 HTML UI 文件和现有代码实现，本方案进行了以下优化升级：
 
 ### 核心优化点
 
@@ -1371,40 +1747,60 @@ wrk -t4 -c100 -d30s --latency "http://localhost:8080/api/v1/tokens/list?page=1&p
    - ✅ 扩展 CoinGecko API 获取 24h 交易量（`total_volume_24h`）
    - ✅ 扩展 CoinGecko API 获取持有者数量（`holders_count`）
    - ✅ 完善数据降级策略（缺失数据返回 `null` 或 `0`）
+   - ✅ 新增总转账次数统计（`total_transfers`）
+   - ✅ 新增代币图标支持（`icon_url` 和 `icon_gradient`）
 
 2. **性能优化**
-   - ✅ 批量获取市场数据（使用 CoinGecko 批量 API）
-   - ✅ 并发请求 + 限流（避免 API 限流）
+   - ✅ 批量获取市场数据（使用 CoinGecko 批量 API `/coins/markets`）
+   - ✅ 并发请求 + 限流（避免 API 限流，建议并发数 10-20）
    - ✅ 多层缓存架构（列表缓存 + 市场数据缓存 + 标签缓存）
    - ✅ 数据库索引优化（全文搜索、组合索引）
+   - ✅ 预计算排序字段方案（长期优化，使用 `token_market_cache` 表）
 
 3. **排序优化**
    - ✅ 数据库字段排序（`created_at`, `token_symbol`）
    - ✅ 应用层市场数据排序（市值、交易量、价格、持有者）
+   - ✅ 支持多字段排序（默认按市值降序）
    - ✅ 预计算排序字段方案（长期优化）
 
 4. **错误处理和降级**
-   - ✅ CoinGecko API 失败时的降级策略
-   - ✅ 持有者数据缺失时的处理（返回 `0` 或不显示）
-   - ✅ 缓存失效时的降级方案
+   - ✅ CoinGecko API 失败时的降级策略（返回基础信息，市场数据为 0）
+   - ✅ 持有者数据缺失时的处理（返回 `0` 或 `null`，前端显示为 "-"）
+   - ✅ 缓存失效时的降级方案（直接查询数据库和 API）
+   - ✅ 数据格式化容错（处理 null/undefined 值）
+
+5. **UI 适配优化**
+   - ✅ 日期格式统一（列表页 YYYY/MM/DD，详情页 YYYY-MM-DD）
+   - ✅ 地址缩略显示（0x8a3d...7f2e）
+   - ✅ 价格格式化（小价格显示更多小数位）
+   - ✅ 大数字格式化（M/B 单位）
+   - ✅ 标签颜色映射（官方、稳定币、DeFi 等不同颜色）
 
 ### 实施优先级
 
 **P0（核心功能，1-2天）**：
-- 创建新接口 `/api/v1/tokens/list`
-- 扩展 CoinGecko API 获取交易量和持有者数据
-- 实现基础列表查询 + 分页
-- 批量获取市场数据（并发优化）
+- ✅ 创建新接口 `/api/v1/tokens/list`
+- ✅ 创建代币详情接口 `/api/v1/tokens/detail`
+- ✅ 扩展 CoinGecko API 获取交易量和持有者数据
+- ✅ 实现基础列表查询 + 分页
+- ✅ 批量获取市场数据（并发优化）
+- ✅ 实现搜索功能（代币名称、符号、合约地址）
 
 **P1（增强功能，1-2天）**：
-- 搜索和筛选功能
-- 排序功能（数据库字段 + 市场数据）
-- 缓存优化
+- ✅ 搜索和筛选功能（标签筛选、合约类型筛选）
+- ✅ 排序功能（数据库字段 + 市场数据）
+- ✅ 缓存优化（Redis 多层缓存）
+- ✅ 转账记录查询接口 `/api/v1/tokens/transfers`（支持地址筛选）
+- ✅ 合约代码查询接口（字节码展示）
 
 **P2（数据完善，2-3天）**：
-- 链上持有者统计（长期方案）
-- 首次部署时间优化（链上查询）
-- 性能优化和测试
+- ✅ 持有者列表查询接口 `/api/v1/tokens/holders`（可选功能，UI 中未显示）
+- ✅ 持有者统计接口 `/api/v1/tokens/holders-stats`（可选功能）
+- ✅ 总转账次数统计（`total_transfers`）
+- ✅ 代币图标支持（`icon_url` 和 `icon_gradient`）
+- ✅ 链上持有者统计（长期方案）
+- ✅ 首次部署时间优化（链上查询）
+- ✅ 性能优化和测试
 
 ### 关键技术决策
 
@@ -1428,5 +1824,474 @@ wrk -t4 -c100 -d30s --latency "http://localhost:8080/api/v1/tokens/list?page=1&p
 - **数据完整性**：> 90% 代币有完整市场数据
 - **API 调用**：减少 80% 的 CoinGecko API 调用（通过批量查询和缓存）
 - **用户体验**：支持快速搜索、筛选、排序，满足前端 UI 需求
+- **UI 适配度**：100% 匹配 HTML 设计稿的显示需求
+
+### 基于 HTML 分析的优化建议
+
+1. **代币列表页优化**：
+   - 支持按列排序（点击表头排序）
+   - 支持标签筛选（虽然 UI 中没有显示筛选器，但应支持）
+   - 优化搜索体验（支持代币符号、名称、合约地址的模糊匹配）
+   - 分页大小可配置（20/50/100）
+
+2. **代币详情页优化**：
+   - 转账记录支持地址筛选（发送方或接收方）
+   - 时间显示使用相对时间（X 分钟前）
+   - 合约代码支持复制功能
+   - 持仓统计作为可选功能（虽然 HTML 中有代码，但 UI 中未显示）
+
+3. **数据格式化优化**：
+   - 价格格式化：小于 0.01 时显示更多小数位
+   - 大数字格式化：使用 M/B 单位
+   - 地址格式化：统一使用 0x8a3d...7f2e 格式
+   - 日期格式化：列表页 YYYY/MM/DD，详情页 YYYY-MM-DD
+
+4. **性能优化**：
+   - 使用 CoinGecko `/coins/markets` 批量 API（一次请求获取多个代币数据）
+   - 实现智能缓存策略（热门代币缓存时间更长）
+   - 数据库查询优化（使用索引，避免全表扫描）
 
 通过分阶段实施，可以快速上线核心功能，然后逐步完善数据准确性和性能。
+
+---
+
+## 基于 HTML 文件分析的详细优化建议
+
+### 1. 代币列表页（`代币列表.html`）优化
+
+#### 1.1 数据字段补充
+
+根据 HTML 分析，需要补充以下字段：
+
+```protobuf
+// TokenListItemDTO 需要添加的字段
+message TokenListItemDTO {
+  // ... 现有字段 ...
+  
+  // 新增字段
+  string icon_url = 13 [ json_name = "icon_url" ];        // 代币图标 URL
+  string icon_gradient = 14 [ json_name = "icon_gradient" ]; // 图标渐变 CSS（备用）
+  string contract_address_short = 15 [ json_name = "contract_address_short" ]; // 缩略地址（0x8a3d...7f2e）
+}
+```
+
+#### 1.2 排序功能增强
+
+虽然 HTML 中没有显示排序按钮，但应支持以下排序方式：
+
+- **默认排序**：按市值降序（`market_cap DESC`）
+- **可选排序**：
+  - 市值（`market_cap`）
+  - 24h 交易量（`volume_24h`）
+  - 价格（`price`）
+  - 持有者数量（`holders_count`）
+  - 首次部署时间（`first_deployment_time`）
+  - 代币符号（`token_symbol`，字母序）
+
+#### 1.3 搜索功能优化
+
+HTML 中的搜索框支持：
+- 代币名称模糊匹配
+- 代币符号精确/模糊匹配
+- 合约地址精确/模糊匹配
+
+**实现建议**：
+```go
+// 搜索逻辑优化
+if req.Search != "" {
+    searchPattern := "%" + req.Search + "%"
+    // 支持地址格式（0x开头）
+    if strings.HasPrefix(req.Search, "0x") {
+        query = query.Where("contract_address LIKE ?", searchPattern)
+    } else {
+        // 名称和符号模糊匹配
+        query = query.Where(
+            "token_name LIKE ? OR token_symbol LIKE ? OR contract_address LIKE ?",
+            searchPattern, searchPattern, searchPattern,
+        )
+    }
+}
+```
+
+### 2. 代币详情页（`代币详情.html`）优化
+
+#### 2.1 转账记录接口优化
+
+HTML 中的转账记录支持地址筛选：
+
+```protobuf
+// GetTokenTransfersRequest 优化
+message GetTokenTransfersRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+  
+  // 地址筛选（发送方或接收方）
+  string address = 3 [ json_name = "address" ]; // 支持发送方或接收方筛选
+  
+  // 方法筛选（可选）
+  string method = 4 [ json_name = "method" ];   // Transfer, Mint, Burn 等
+  
+  // 时间范围筛选（可选，未来扩展）
+  int64 start_time = 5 [ json_name = "start_time" ];
+  int64 end_time = 6 [ json_name = "end_time" ];
+  
+  PaginationRequest pagination = 7 [ json_name = "pagination" ];
+}
+```
+
+#### 2.2 时间格式化
+
+HTML 中使用相对时间显示（"X 分钟前"），需要后端或前端处理：
+
+```go
+// 时间格式化函数
+func formatTimeAgo(timestamp int64) string {
+    now := time.Now().Unix()
+    diff := now - timestamp
+    
+    if diff < 60 {
+        return fmt.Sprintf("%d 秒前", diff)
+    } else if diff < 3600 {
+        return fmt.Sprintf("%d 分钟前", diff/60)
+    } else if diff < 86400 {
+        return fmt.Sprintf("%d 小时前", diff/3600)
+    } else if diff < 2592000 {
+        return fmt.Sprintf("%d 天前", diff/86400)
+    } else {
+        return time.Unix(timestamp, 0).Format("2006-01-02")
+    }
+}
+```
+
+#### 2.3 合约代码接口
+
+HTML 中显示合约字节码，需要新增接口：
+
+```protobuf
+// GetTokenContractCode 获取合约代码
+rpc GetTokenContractCode(GetTokenContractCodeRequest) returns (Reply) {
+  option (google.api.http) = {
+    get : "/api/v1/tokens/contract-code"
+  };
+}
+
+message GetTokenContractCodeRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+}
+
+message TokenContractCodeResponse {
+  string contract_name = 1 [ json_name = "contract_name" ];
+  string bytecode = 2 [ json_name = "bytecode" ];        // 合约字节码
+  string source_code = 3 [ json_name = "source_code" ];   // 源代码（如果已验证）
+  bool verified = 4 [ json_name = "verified" ];          // 是否已验证
+}
+```
+
+### 3. 数据格式化优化
+
+#### 3.1 价格格式化
+
+根据 HTML 分析，价格格式化规则：
+
+```go
+func formatPrice(price float64) string {
+    if price >= 1000 {
+        return fmt.Sprintf("$%s", formatLargeNumber(price))
+    } else if price >= 1 {
+        return fmt.Sprintf("$%.2f", price)
+    } else if price >= 0.01 {
+        return fmt.Sprintf("$%.4f", price)
+    } else {
+        return fmt.Sprintf("$%.8f", price)
+    }
+}
+```
+
+#### 3.2 大数字格式化
+
+```go
+func formatLargeNumber(value float64) string {
+    if value >= 1e9 {
+        return fmt.Sprintf("%.1fB", value/1e9)
+    } else if value >= 1e6 {
+        return fmt.Sprintf("%.1fM", value/1e6)
+    } else if value >= 1e3 {
+        return fmt.Sprintf("%.1fK", value/1e3)
+    }
+    return fmt.Sprintf("%.0f", value)
+}
+```
+
+#### 3.3 地址缩略显示
+
+```go
+func formatAddressShort(address string) string {
+    if len(address) <= 10 {
+        return address
+    }
+    return fmt.Sprintf("%s...%s", address[:6], address[len(address)-4:])
+}
+```
+
+### 4. 标签颜色映射
+
+根据 HTML CSS 分析，标签颜色映射：
+
+```go
+var tagColorMap = map[string]string{
+    "official":  "#28a745",  // 绿色
+    "stablecoin": "#1a73e8",  // 蓝色
+    "defi":      "#845ef7",  // 紫色
+    "meme":      "#ff6b6b",  // 红色
+    "wrapped":   "#fd7e14",  // 橙色
+    "oracle":    "#375bd2",  // 深蓝色
+    "native":    "#fab005",  // 黄色
+}
+```
+
+### 5. 性能优化建议
+
+#### 5.1 CoinGecko 批量 API 使用
+
+优先使用 `/coins/markets` 接口批量获取市场数据：
+
+```go
+// 批量获取市场数据（优化版）
+func batchGetMarketDataFromCoinGecko(ctx context.Context, coinGeckoIDs []string) (map[string]*TokenMarketData, error) {
+    // 分批处理（每批最多 100 个）
+    batchSize := 100
+    result := make(map[string]*TokenMarketData)
+    
+    for i := 0; i < len(coinGeckoIDs); i += batchSize {
+        end := i + batchSize
+        if end > len(coinGeckoIDs) {
+            end = len(coinGeckoIDs)
+        }
+        
+        ids := strings.Join(coinGeckoIDs[i:end], ",")
+        apiURL := fmt.Sprintf(
+            "https://api.coingecko.com/api/v3/coins/markets?ids=%s&vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h",
+            ids,
+        )
+        
+        // 调用 API 并解析
+        // ...
+    }
+    
+    return result, nil
+}
+```
+
+#### 5.2 缓存策略优化
+
+```go
+// 缓存键设计
+const (
+    // 列表缓存（包含查询参数）
+    CacheKeyTokenList = "token_list:%s:%s:%d:%d"  // chain_id:filters_hash:page:page_size
+    
+    // 市场数据缓存（按代币符号）
+    CacheKeyTokenMarket = "token_market:%s"        // token_symbol
+    
+    // 详情缓存（按合约地址）
+    CacheKeyTokenDetail = "token_detail:%s:%s"    // chain_id:contract_address
+)
+
+// 缓存时间
+const (
+    CacheExpireTokenList   = 5 * time.Minute   // 列表缓存 5 分钟
+    CacheExpireTokenMarket = 5 * time.Minute   // 市场数据 5 分钟
+    CacheExpireTokenDetail = 10 * time.Minute  // 详情缓存 10 分钟
+)
+```
+
+### 6. 错误处理优化
+
+#### 6.1 数据缺失处理
+
+```go
+// 处理缺失的市场数据
+func fillMissingMarketData(item *pb.TokenListItemDTO) {
+    if item.PriceUsd == 0 {
+        item.PriceUsd = 0  // 前端显示为 "-"
+    }
+    if item.MarketCapUsd == 0 {
+        item.MarketCapUsd = 0  // 前端显示为 "-"
+    }
+    if item.HoldersCount == 0 {
+        item.HoldersCount = 0  // 前端显示为 "-" 或 "0"
+    }
+}
+```
+
+#### 6.2 API 降级策略
+
+```go
+// CoinGecko API 失败时的降级处理
+func getMarketDataWithFallback(ctx context.Context, symbol string) (*TokenMarketData, error) {
+    // 1. 尝试从 CoinGecko 获取
+    data, err := getMarketDataFromCoinGecko(ctx, symbol)
+    if err == nil {
+        return data, nil
+    }
+    
+    // 2. 尝试从缓存获取（即使过期）
+    cachedData := getCachedMarketData(ctx, symbol)
+    if cachedData != nil {
+        global.Logger.Warnf("using cached market data for %s (CoinGecko unavailable)", symbol)
+        return cachedData, nil
+    }
+    
+    // 3. 返回空数据（前端显示为 "-"）
+    return &TokenMarketData{
+        PriceUsd:       0,
+        MarketCapUsd:   0,
+        PriceChange24H: 0,
+        TotalVolume24H: 0,
+        HoldersCount:   0,
+    }, nil
+}
+```
+
+### 7. 数据库优化
+
+#### 7.1 索引建议
+
+```sql
+-- 代币列表查询优化索引
+CREATE INDEX IF NOT EXISTS idx_contract_infos_token_symbol 
+  ON contract_infos(token_symbol) 
+  WHERE token_symbol IS NOT NULL AND token_symbol != '';
+
+-- 搜索优化索引（全文搜索）
+CREATE INDEX IF NOT EXISTS idx_contract_infos_search 
+  ON contract_infos USING gin(to_tsvector('english', 
+    COALESCE(token_name, '') || ' ' || COALESCE(token_symbol, '') || ' ' || COALESCE(contract_address, '')
+  ));
+
+-- 排序优化索引
+CREATE INDEX IF NOT EXISTS idx_contract_infos_created_at 
+  ON contract_infos(created_at DESC);
+
+-- 标签关联查询索引
+CREATE INDEX IF NOT EXISTS idx_contract_tags_lookup 
+  ON contract_tags(chain_id, contract_address, tag_type, tag_value);
+```
+
+#### 7.2 预计算表（可选）
+
+对于大数据量场景，可以创建预计算表：
+
+```sql
+-- 市场数据预计算表
+CREATE TABLE IF NOT EXISTS token_market_cache (
+    id BIGSERIAL PRIMARY KEY,
+    chain_id VARCHAR(50) NOT NULL,
+    contract_address VARCHAR(66) NOT NULL,
+    token_symbol VARCHAR(50) NOT NULL,
+    coin_gecko_id VARCHAR(100),
+    price_usd DECIMAL(30, 8),
+    market_cap_usd DECIMAL(30, 2),
+    volume_24h_usd DECIMAL(30, 2),
+    price_change_24h DECIMAL(10, 4),
+    holders_count BIGINT,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(chain_id, contract_address),
+    INDEX idx_market_cap (market_cap_usd DESC),
+    INDEX idx_volume_24h (volume_24h_usd DESC),
+    INDEX idx_price (price_usd DESC),
+    INDEX idx_holders (holders_count DESC)
+);
+```
+
+### 8. 测试建议
+
+#### 8.1 单元测试
+
+```go
+func TestTokenListService_ListTokens(t *testing.T) {
+    tests := []struct {
+        name     string
+        req      *pb.ListTokensRequest
+        wantCode int
+    }{
+        {
+            name: "基础查询",
+            req: &pb.ListTokensRequest{
+                Pagination: &pb.PaginationRequest{Page: 1, PageSize: 20},
+            },
+            wantCode: 200,
+        },
+        {
+            name: "搜索代币",
+            req: &pb.ListTokensRequest{
+                Search: "USDT",
+                Pagination: &pb.PaginationRequest{Page: 1, PageSize: 20},
+            },
+            wantCode: 200,
+        },
+        {
+            name: "按市值排序",
+            req: &pb.ListTokensRequest{
+                SortBy: "market_cap",
+                SortOrder: "desc",
+                Pagination: &pb.PaginationRequest{Page: 1, PageSize: 20},
+            },
+            wantCode: 200,
+        },
+    }
+    // ...
+}
+```
+
+#### 8.2 性能测试
+
+```bash
+# 压力测试
+wrk -t4 -c100 -d30s --latency \
+  "http://localhost:8080/api/v1/tokens/list?page=1&page_size=20"
+
+# 并发测试
+ab -n 1000 -c 10 \
+  "http://localhost:8080/api/v1/tokens/list?page=1&page_size=20"
+```
+
+---
+
+## 实施检查清单
+
+### 代币列表页
+- [ ] 实现 `/api/v1/tokens/list` 接口
+- [ ] 支持搜索（名称、符号、地址）
+- [ ] 支持排序（市值、交易量、价格、持有者）
+- [ ] 支持分页（20/50/100）
+- [ ] 支持标签筛选
+- [ ] 数据格式化（价格、大数字、地址）
+- [ ] 缓存优化
+
+### 代币详情页
+- [ ] 实现 `/api/v1/tokens/detail` 接口
+- [ ] 实现 `/api/v1/tokens/transfers` 接口（支持地址筛选）
+- [ ] 实现 `/api/v1/tokens/contract-code` 接口
+- [ ] 时间格式化（相对时间）
+- [ ] 数据格式化（价格、大数字、地址）
+- [ ] 缓存优化
+
+### 数据源
+- [ ] 扩展 CoinGecko API 获取交易量
+- [ ] 扩展 CoinGecko API 获取持有者数量
+- [ ] 实现批量获取市场数据
+- [ ] 实现降级策略
+
+### 性能优化
+- [ ] 数据库索引优化
+- [ ] Redis 缓存实现
+- [ ] 批量 API 调用优化
+- [ ] 并发控制
+
+### 测试
+- [ ] 单元测试
+- [ ] 集成测试
+- [ ] 性能测试
+- [ ] 压力测试
