@@ -23,6 +23,20 @@ const (
 	DTOModeWithoutDetail = false
 )
 
+// getFirstValue safely returns the first value from a string slice or empty string if nil/empty.
+//
+// Parameters:
+//   - values: The string slice to access
+//
+// Returns:
+//   - string: First element if slice has elements, empty string otherwise
+func getFirstValue(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
 // convertSignaturesToDTO converts database signature JSON strings to proto TransactionSignature objects
 func convertSignaturesToDTO(sigStrings []string) []*pb.TransactionSignature {
 	if len(sigStrings) == 0 {
@@ -256,7 +270,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			ClaimIds:           tx.ClaimIds,
 			Signer:             tx.Signer,
 			To:                 tx.To,
-			Value:             tx.Values[0],
+			Value:              getFirstValue(tx.Values),
 		}
 
 		// Note: EVM transaction details are loaded separately by the service layer
@@ -274,7 +288,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			GasUsed:            tx.GasUsed,
 			Signer:             tx.Signer,
 			To:                 tx.To,
-			Value:             tx.Values[0],
+			Value:              getFirstValue(tx.Values),
 		}
 	}
 }
