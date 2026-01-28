@@ -396,33 +396,74 @@ func formatAddressShort(address string) string {
 	return fmt.Sprintf("%s...%s", address[:6], address[len(address)-4:])
 }
 
-// buildCacheKeySuffix builds a cache key suffix from request parameters
+// buildCacheKeySuffix builds a cache key suffix from request parameters.
+// Uses strings.Builder for efficient string concatenation, minimizing memory allocations.
 func buildCacheKeySuffix(req *pb.TokenListRequest, pageSize int32) string {
-	parts := []string{}
-
+	// Pre-calculate approximate capacity to reduce reallocations
+	var sb strings.Builder
+	// Estimate capacity: each field can be ~20 chars on average, plus separators
+	estimatedCap := 0
 	if req.ContractType != "" {
-		parts = append(parts, req.ContractType)
+		estimatedCap += len(req.ContractType) + 1
 	}
 	if req.VerificationStatus != "" {
-		parts = append(parts, req.VerificationStatus)
+		estimatedCap += len(req.VerificationStatus) + 1
 	}
 	if req.Search != "" {
-		parts = append(parts, req.Search)
+		estimatedCap += len(req.Search) + 1
 	}
 	if req.TagType != "" {
-		parts = append(parts, req.TagType)
+		estimatedCap += len(req.TagType) + 1
 	}
 	if req.SortBy != "" {
-		parts = append(parts, req.SortBy)
+		estimatedCap += len(req.SortBy) + 1
 	}
 	if req.SortOrder != "" {
-		parts = append(parts, req.SortOrder)
+		estimatedCap += len(req.SortOrder) + 1
+	}
+	// Page size field: "ps" + digits + separator
+	estimatedCap += 16
+	sb.Grow(estimatedCap)
+
+	first := true
+	writeSeparator := func() {
+		if first {
+			first = false
+		} else {
+			sb.WriteByte(':')
+		}
+	}
+
+	if req.ContractType != "" {
+		writeSeparator()
+		sb.WriteString(req.ContractType)
+	}
+	if req.VerificationStatus != "" {
+		writeSeparator()
+		sb.WriteString(req.VerificationStatus)
+	}
+	if req.Search != "" {
+		writeSeparator()
+		sb.WriteString(req.Search)
+	}
+	if req.TagType != "" {
+		writeSeparator()
+		sb.WriteString(req.TagType)
+	}
+	if req.SortBy != "" {
+		writeSeparator()
+		sb.WriteString(req.SortBy)
+	}
+	if req.SortOrder != "" {
+		writeSeparator()
+		sb.WriteString(req.SortOrder)
 	}
 	// Include page size in cache key
-	parts = append(parts, fmt.Sprintf("ps%d", pageSize))
+	writeSeparator()
+	fmt.Fprintf(&sb, "ps%d", pageSize)
 
-	if len(parts) == 0 {
+	if sb.Len() == 0 {
 		return "default"
 	}
-	return strings.Join(parts, ":")
+	return sb.String()
 }

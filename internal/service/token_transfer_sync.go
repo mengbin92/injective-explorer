@@ -446,6 +446,7 @@ func (s *TokenTransferSyncService) parseTransferLogs(logs []ethtypes.Log) []*mod
 }
 
 // saveTokenTransfers saves token transfers to database in batches.
+// Optimized using GORM's CreateInBatches for better performance.
 func (s *TokenTransferSyncService) saveTokenTransfers(transfers []*models.TokenTransfer) error {
 	if len(transfers) == 0 {
 		return nil
@@ -456,17 +457,36 @@ func (s *TokenTransferSyncService) saveTokenTransfers(transfers []*models.TokenT
 		global.Logger.Warnf("Failed to enrich transaction hashes: %v", err)
 	}
 
-	// Batch insert with upsert (ignore duplicates)
+	// Batch insert with upsert using CreateInBatches for better performance
+	// This reduces network round trips and transaction overhead
+	batchSize := 100
+	if s.config != nil && s.config.BatchSize > 0 && s.config.BatchSize < batchSize {
+		batchSize = s.config.BatchSize
+	}
+
 	return db.Get().Transaction(func(tx *gorm.DB) error {
-		for _, transfer := range transfers {
+		// Use CreateInBatches for efficient bulk insertion
+		// Pre-allocate slices to reduce memory allocations
+		for i := 0; i < len(transfers); i += batchSize {
+			end := i + batchSize
+			if end > len(transfers) {
+				end = len(transfers)
+			}
+
+			batch := transfers[i:end]
+			if len(batch) == 0 {
+				continue
+			}
+
 			// Use clause.OnConflict to ignore duplicates based on unique index
 			err := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "transaction_hash"}, {Name: "log_index"}},
 				DoNothing: true,
-			}).Create(transfer).Error
+			}).CreateInBatches(batch, len(batch)).Error
 
 			if err != nil {
-				global.Logger.Warnf("Failed to insert transfer: %v", err)
+				global.Logger.Warnf("Failed to insert batch of %d transfers: %v", len(batch), err)
+				// Continue processing other batches even if one fails
 			}
 		}
 		return nil
