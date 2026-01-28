@@ -466,6 +466,67 @@ CREATE TABLE `evm_transactions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='EVM交易表';
 
 -- ----------------------------
+-- Table structure for token_market_cache
+-- ----------------------------
+DROP TABLE IF EXISTS `token_market_cache`;
+CREATE TABLE `token_market_cache` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `token_symbol` varchar(50) NOT NULL COMMENT '代币符号',
+  `contract_address` varchar(128) DEFAULT NULL COMMENT '合约地址',
+  `chain_id` varchar(50) DEFAULT 'injective-1' COMMENT '链ID',
+  `price_usd` decimal(30,18) DEFAULT NULL COMMENT 'USD价格',
+  `price_change_24h` decimal(10,4) DEFAULT NULL COMMENT '24小时价格变化百分比',
+  `market_cap_usd` decimal(40,2) DEFAULT NULL COMMENT '市值（USD）',
+  `fully_diluted_market_cap` decimal(40,2) DEFAULT NULL COMMENT '完全稀释市值（USD）',
+  `total_volume_24h` decimal(40,2) DEFAULT NULL COMMENT '24小时交易量（USD）',
+  `holders_count` bigint DEFAULT NULL COMMENT '持有者数量',
+  `total_supply` decimal(78,0) DEFAULT NULL COMMENT '总供应量（原始单位）',
+  `circulating_supply` decimal(78,0) DEFAULT NULL COMMENT '流通供应量（原始单位）',
+  `max_supply` decimal(78,0) DEFAULT NULL COMMENT '最大供应量（原始单位，NULL表示无上限）',
+  `last_updated` bigint DEFAULT NULL COMMENT '数据最后更新时间戳',
+  `data_source` varchar(50) DEFAULT 'coingecko' COMMENT '数据来源',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_token_symbol_chain` (`token_symbol`,`chain_id`),
+  KEY `idx_token_market_cache_deleted_at` (`deleted_at`),
+  KEY `idx_contract_address` (`contract_address`),
+  KEY `idx_price_usd` (`price_usd`),
+  KEY `idx_market_cap_usd` (`market_cap_usd`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='代币市场数据预计算表';
+
+-- ----------------------------
+-- Table structure for token_transfers
+-- ----------------------------
+DROP TABLE IF EXISTS `token_transfers`;
+CREATE TABLE `token_transfers` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `transaction_hash` varchar(128) NOT NULL COMMENT 'Cosmos交易hash，关联transactions.hash',
+  `evm_hash` varchar(128) DEFAULT NULL COMMENT 'EVM交易hash',
+  `contract_address` varchar(128) NOT NULL COMMENT 'Token合约地址',
+  `from_address` varchar(128) NOT NULL COMMENT '发送地址',
+  `to_address` varchar(128) NOT NULL COMMENT '接收地址',
+  `amount` varchar(128) NOT NULL COMMENT '转账金额（原始单位）',
+  `method` varchar(50) DEFAULT 'Transfer' COMMENT '转账类型：Transfer, Mint, Burn',
+  `block_number` bigint unsigned DEFAULT NULL COMMENT '区块高度',
+  `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块Unix时间戳',
+  `log_index` int unsigned DEFAULT NULL COMMENT '交易日志索引',
+  `chain_id` varchar(50) DEFAULT 'injective-1' COMMENT '链ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_tx_log_index` (`transaction_hash`,`log_index`),
+  KEY `idx_token_transfers_deleted_at` (`deleted_at`),
+  KEY `idx_contract_address_timestamp` (`contract_address`,`block_timestamp`),
+  KEY `idx_from_address_timestamp` (`from_address`,`block_timestamp`),
+  KEY `idx_to_address_timestamp` (`to_address`,`block_timestamp`),
+  KEY `idx_block_number` (`block_number`),
+  KEY `idx_method` (`method`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Token转账记录表';
+
+-- ----------------------------
 -- Table structure for usage_daily_stats
 -- ----------------------------
 DROP TABLE IF EXISTS `usage_daily_stats`;

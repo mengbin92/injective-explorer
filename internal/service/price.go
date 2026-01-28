@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"injective-explorer/internal/conf"
@@ -59,6 +60,19 @@ type CustomPriceResponse struct {
 	Price       float64 `json:"price"`
 	Change24h   float64 `json:"change_24h"`
 	LastUpdated int64   `json:"last_updated,omitempty"`
+}
+
+// TokenMarketData contains market data for a token from CoinGecko.
+type TokenMarketData struct {
+	PriceUSD              float64
+	PriceChange24h        float64
+	MarketCapUSD          float64
+	TotalVolume24h        float64 // 24h trading volume
+	HoldersCount          int64   // Number of holders (optional, not available for all tokens)
+	MaxSupply             *big.Int // Max supply (nil if unlimited)
+	CirculatingSupply     *big.Int // Circulating supply
+	TotalSupply           *big.Int // Total supply
+	FullyDilutedMarketCap float64  // Fully diluted market cap (price * max_supply)
 }
 
 // PriceAndSupplyData contains price and supply information.
@@ -346,6 +360,13 @@ func GetTokenTotalSupplyFromCoinGecko(ctx context.Context, tokenConfig *TokenCon
 		MarketData struct {
 			TotalSupply       *float64 `json:"total_supply"`
 			CirculatingSupply *float64 `json:"circulating_supply"`
+			TotalVolume       struct {
+				USD float64 `json:"usd"`
+			} `json:"total_volume"`
+			MarketCap struct {
+				USD float64 `json:"usd"`
+			} `json:"market_cap"`
+			Holders *int64 `json:"holders"` // Optional, may not be available for all tokens
 		} `json:"market_data"`
 	}
 
@@ -744,4 +765,534 @@ func GetInjectivePriceAndMarketCap(ctx context.Context, chainClient chainclient.
 		return nil, err
 	}
 	return GetTokenPriceAndMarketCap(ctx, chainClient, tokenConfig)
+}
+
+// GetTokenMarketDataFromCoinGecko fetches comprehensive market data from CoinGecko API.
+// This includes price, market cap, 24h volume, and holder count (if available).
+func GetTokenMarketDataFromCoinGecko(ctx context.Context, tokenConfig *TokenConfig) (*TokenMarketData, error) {
+	if tokenConfig.CoinGeckoID == "" {
+		return nil, errors.New("CoinGecko ID not configured for this token")
+	}
+
+	cacheKey := getCacheKey("market_data", tokenConfig.Symbol)
+
+	// Check cache first
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		cachedData, err := redisClient.Get(ctx, cacheKey).Result()
+		if err == nil && cachedData != "" {
+			var cached TokenMarketData
+			if err := sonic.Unmarshal([]byte(cachedData), &cached); err == nil {
+				global.Logger.Debugf("returning cached market data for %s", tokenConfig.Symbol)
+				return &cached, nil
+			}
+		}
+	}
+
+	// Use CoinGecko coins/{id} endpoint to get detailed market information
+	apiURL := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false",
+		tokenConfig.CoinGeckoID)
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create request")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch market data from CoinGecko")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("CoinGecko API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var coinDetailResp struct {
+		MarketData struct {
+			CurrentPrice struct {
+				USD float64 `json:"usd"`
+			} `json:"current_price"`
+			PriceChange24h float64 `json:"price_change_percentage_24h"`
+			MarketCap struct {
+				USD float64 `json:"usd"`
+			} `json:"market_cap"`
+			TotalVolume struct {
+				USD float64 `json:"usd"`
+			} `json:"total_volume"`
+			Holders *int64 `json:"holders"` // Optional, may not be available for all tokens
+		} `json:"market_data"`
+	}
+
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&coinDetailResp); err != nil {
+		return nil, errors.Wrap(err, "failed to decode CoinGecko market data response")
+	}
+
+	marketData := &TokenMarketData{
+		PriceUSD:       coinDetailResp.MarketData.CurrentPrice.USD,
+		PriceChange24h: coinDetailResp.MarketData.PriceChange24h,
+		MarketCapUSD:   coinDetailResp.MarketData.MarketCap.USD,
+		TotalVolume24h: coinDetailResp.MarketData.TotalVolume.USD,
+		HoldersCount:   0,
+	}
+
+	// Holders count is optional and may not be available for all tokens
+	if coinDetailResp.MarketData.Holders != nil {
+		marketData.HoldersCount = *coinDetailResp.MarketData.Holders
+	}
+
+	// Cache the result
+	if redisClient != nil {
+		cacheJSON, _ := sonic.Marshal(marketData)
+		ttl := 5 * time.Minute
+		if err := redisClient.Set(ctx, cacheKey, string(cacheJSON), ttl).Err(); err != nil {
+			global.Logger.Warnf("failed to cache market data for %s: %v", tokenConfig.Symbol, err)
+		}
+	}
+
+	global.Logger.Debugf("fetched market data from CoinGecko for %s: price=$%.2f, volume=$%.2f, holders=%d",
+		tokenConfig.Symbol, marketData.PriceUSD, marketData.TotalVolume24h, marketData.HoldersCount)
+	return marketData, nil
+}
+
+// TokenMarketDataFetcher manages fetching and caching token market data
+type TokenMarketDataFetcher struct {
+	client      *http.Client
+	rateLimiter chan struct{}
+}
+
+// NewTokenMarketDataFetcher creates a new fetcher with rate limiting
+func NewTokenMarketDataFetcher() *TokenMarketDataFetcher {
+	return &TokenMarketDataFetcher{
+		client:      &http.Client{Timeout: 30 * time.Second},
+		rateLimiter: make(chan struct{}, 5), // Max 5 concurrent requests
+	}
+}
+
+// BatchGetTokenMarketDataFromCoinGeckoMarkets uses CoinGecko /coins/markets API
+// to fetch market data for multiple tokens in a single request (up to 100 tokens per request).
+// This is more efficient than individual API calls.
+func BatchGetTokenMarketDataFromCoinGeckoMarkets(ctx context.Context, tokenConfigs map[string]*TokenConfig) map[string]*TokenMarketData {
+	result := make(map[string]*TokenMarketData)
+
+	// Build CoinGecko ID list and symbol mapping
+	coinGeckoIDs := make([]string, 0, len(tokenConfigs))
+	symbolToCoinGeckoID := make(map[string]string) // symbol -> coinGeckoID
+	coinGeckoIDToSymbol := make(map[string]string) // coinGeckoID -> symbol
+
+	for symbol, config := range tokenConfigs {
+		if config != nil && config.CoinGeckoID != "" {
+			coinGeckoIDs = append(coinGeckoIDs, config.CoinGeckoID)
+			symbolToCoinGeckoID[symbol] = config.CoinGeckoID
+			coinGeckoIDToSymbol[config.CoinGeckoID] = symbol
+		}
+	}
+
+	if len(coinGeckoIDs) == 0 {
+		return result
+	}
+
+	// Batch process (max 100 IDs per request)
+	batchSize := 100
+	for i := 0; i < len(coinGeckoIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(coinGeckoIDs) {
+			end = len(coinGeckoIDs)
+		}
+
+		batchIDs := coinGeckoIDs[i:end]
+		ids := strings.Join(batchIDs, ",")
+
+		// Call batch API
+		apiURL := fmt.Sprintf(
+			"https://api.coingecko.com/api/v3/coins/markets?ids=%s&vs_currency=usd&order=market_cap_desc&per_page=%d&page=1&sparkline=false&price_change_percentage=24h",
+			ids, len(batchIDs),
+		)
+
+		client := &http.Client{Timeout: 15 * time.Second}
+		req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+		if err != nil {
+			global.Logger.Warnf("failed to create batch market data request: %v", err)
+			continue
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			global.Logger.Warnf("failed to fetch batch market data: %v", err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			global.Logger.Warnf("CoinGecko batch API returned status %d: %s", resp.StatusCode, string(body))
+			continue
+		}
+
+		var markets []struct {
+			ID             string  `json:"id"`
+			Symbol         string  `json:"symbol"`
+			CurrentPrice   float64 `json:"current_price"`
+			PriceChange24h float64 `json:"price_change_percentage_24h"`
+			MarketCap      float64 `json:"market_cap"`
+			TotalVolume    float64 `json:"total_volume"`
+			// Note: Holders field is not available in markets API, need separate call
+		}
+
+		if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&markets); err != nil {
+			global.Logger.Warnf("failed to decode batch market data: %v", err)
+			continue
+		}
+
+		// Build result map
+		for _, market := range markets {
+			symbol, ok := coinGeckoIDToSymbol[market.ID]
+			if !ok {
+				continue
+			}
+
+			result[symbol] = &TokenMarketData{
+				PriceUSD:       market.CurrentPrice,
+				PriceChange24h: market.PriceChange24h,
+				MarketCapUSD:   market.MarketCap,
+				TotalVolume24h: market.TotalVolume,
+				HoldersCount:   0, // Markets API doesn't provide holders data
+			}
+		}
+	}
+
+	return result
+}
+
+// BatchGetTokenMarketData fetches market data for multiple tokens.
+// It first tries to use the batch /coins/markets API for efficiency,
+// then falls back to individual calls for missing tokens or holders data.
+func BatchGetTokenMarketData(ctx context.Context, tokenConfigs map[string]*TokenConfig) map[string]*TokenMarketData {
+	// Try batch API first
+	result := BatchGetTokenMarketDataFromCoinGeckoMarkets(ctx, tokenConfigs)
+
+	// Find missing tokens (not in batch result)
+	missingSymbols := make([]string, 0)
+	for symbol, config := range tokenConfigs {
+		if config == nil || config.CoinGeckoID == "" {
+			continue
+		}
+		if _, ok := result[symbol]; !ok {
+			missingSymbols = append(missingSymbols, symbol)
+		}
+	}
+
+	// For missing tokens, use individual API calls (fallback)
+	// Also fetch holders data for tokens that need it
+	if len(missingSymbols) > 0 {
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		maxConcurrency := 5 // Lower concurrency for fallback
+		semaphore := make(chan struct{}, maxConcurrency)
+
+		for _, symbol := range missingSymbols {
+			config := tokenConfigs[symbol]
+			if config == nil {
+				continue
+			}
+
+			wg.Add(1)
+			go func(sym string, cfg *TokenConfig) {
+				defer wg.Done()
+
+				semaphore <- struct{}{}
+				defer func() { <-semaphore }()
+
+				data, err := GetTokenMarketDataFromCoinGecko(ctx, cfg)
+				if err != nil {
+					global.Logger.Warnf("failed to get market data for %s (fallback): %v", sym, err)
+					return
+				}
+
+				mu.Lock()
+				result[sym] = data
+				mu.Unlock()
+			}(symbol, config)
+		}
+
+		wg.Wait()
+	}
+
+	// For tokens that got data from batch API but need holders count,
+	// fetch holders data separately
+	fetchAndMergeHoldersData(ctx, result, tokenConfigs)
+
+	return result
+}
+
+// fetchAndMergeHoldersData fetches holders count for tokens that need it
+// and merges into the existing result map
+func fetchAndMergeHoldersData(ctx context.Context, result map[string]*TokenMarketData, tokenConfigs map[string]*TokenConfig) {
+	tokensNeedingHolders := make([]string, 0)
+	for symbol, data := range result {
+		if data != nil && data.HoldersCount == 0 {
+			tokensNeedingHolders = append(tokensNeedingHolders, symbol)
+		}
+	}
+
+	if len(tokensNeedingHolders) == 0 {
+		return
+	}
+
+	// Try to get from cache first
+	for _, symbol := range tokensNeedingHolders {
+		config := tokenConfigs[symbol]
+		if config == nil {
+			continue
+		}
+
+		cacheKey := getCacheKey("holders", symbol)
+		redisClient := cache.GetRedisClient()
+		if redisClient != nil {
+			cached, err := redisClient.Get(ctx, cacheKey).Result()
+			if err == nil && cached != "" {
+				var holdersData struct {
+					HoldersCount int64 `json:"holders_count"`
+					Timestamp    int64 `json:"timestamp"`
+				}
+				if err := sonic.Unmarshal([]byte(cached), &holdersData); err == nil {
+					if time.Now().Unix()-holdersData.Timestamp < 3600 { // 1 hour cache
+						result[symbol].HoldersCount = holdersData.HoldersCount
+						continue
+					}
+				}
+			}
+		}
+	}
+
+	// Fetch holders for remaining tokens in parallel with limited concurrency
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	maxConcurrency := 3
+	semaphore := make(chan struct{}, maxConcurrency)
+
+	for _, symbol := range tokensNeedingHolders {
+		config := tokenConfigs[symbol]
+		if config == nil {
+			continue
+		}
+
+		wg.Add(1)
+		go func(sym string, cfg *TokenConfig) {
+			defer wg.Done()
+
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			holdersData, err := fetchHoldersData(ctx, cfg)
+			if err != nil {
+				global.Logger.Debugf("failed to fetch holders for %s: %v", sym, err)
+				return
+			}
+
+			mu.Lock()
+			if result[sym] != nil {
+				result[sym].HoldersCount = holdersData.HoldersCount
+			}
+			mu.Unlock()
+		}(symbol, config)
+	}
+
+	wg.Wait()
+}
+
+// fetchHoldersData fetches holders count from CoinGecko and caches the result
+func fetchHoldersData(ctx context.Context, tokenConfig *TokenConfig) (*TokenMarketData, error) {
+	if tokenConfig.CoinGeckoID == "" {
+		return nil, errors.New("CoinGecko ID not configured")
+	}
+
+	cacheKey := getCacheKey("holders", tokenConfig.Symbol)
+	redisClient := cache.GetRedisClient()
+
+	// Try cache first
+	if redisClient != nil {
+		cached, err := redisClient.Get(ctx, cacheKey).Result()
+		if err == nil && cached != "" {
+			var data struct {
+				HoldersCount int64 `json:"holders_count"`
+				Timestamp    int64 `json:"timestamp"`
+			}
+			if err := sonic.Unmarshal([]byte(cached), &data); err == nil {
+				return &TokenMarketData{HoldersCount: data.HoldersCount}, nil
+			}
+		}
+	}
+
+	// Fetch from CoinGecko
+	apiURL := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false",
+		tokenConfig.CoinGeckoID)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var coinResp struct {
+		MarketData struct {
+			Holders *int64 `json:"holders"`
+		} `json:"market_data"`
+	}
+
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&coinResp); err != nil {
+		return nil, err
+	}
+
+	result := &TokenMarketData{
+		HoldersCount: 0,
+	}
+	if coinResp.MarketData.Holders != nil {
+		result.HoldersCount = *coinResp.MarketData.Holders
+	}
+
+	// Cache result
+	if redisClient != nil {
+		cacheData := map[string]interface{}{
+			"holders_count": result.HoldersCount,
+			"timestamp":     time.Now().Unix(),
+		}
+		cacheJSON, _ := sonic.Marshal(cacheData)
+		redisClient.Set(ctx, cacheKey, string(cacheJSON), 30*time.Minute)
+	}
+
+	return result, nil
+}
+
+// GetTokenFullMarketData fetches complete market data including supply info
+func GetTokenFullMarketData(ctx context.Context, tokenConfig *TokenConfig) (*TokenMarketData, error) {
+	if tokenConfig.CoinGeckoID == "" {
+		return nil, errors.New("CoinGecko ID not configured")
+	}
+
+	cacheKey := getCacheKey("full_market", tokenConfig.Symbol)
+	redisClient := cache.GetRedisClient()
+
+	// Try cache first
+	if redisClient != nil {
+		cached, err := redisClient.Get(ctx, cacheKey).Result()
+		if err == nil && cached != "" {
+			var data TokenMarketData
+			if err := sonic.Unmarshal([]byte(cached), &data); err == nil {
+				return &data, nil
+			}
+		}
+	}
+
+	// Fetch from CoinGecko
+	apiURL := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false",
+		tokenConfig.CoinGeckoID)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create request")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch from CoinGecko")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var coinResp struct {
+		MarketData struct {
+			CurrentPrice struct {
+				USD float64 `json:"usd"`
+			} `json:"current_price"`
+			PriceChange24h float64 `json:"price_change_percentage_24h"`
+			MarketCap      struct {
+				USD float64 `json:"usd"`
+			} `json:"market_cap"`
+			TotalVolume struct {
+				USD float64 `json:"usd"`
+			} `json:"total_volume"`
+			TotalSupply       *float64 `json:"total_supply"`
+			CirculatingSupply *float64 `json:"circulating_supply"`
+			MaxSupply         *float64 `json:"max_supply"`
+			FullyDilutedValuation struct {
+				USD float64 `json:"usd"`
+			} `json:"fully_diluted_valuation"`
+			Holders *int64 `json:"holders"`
+		} `json:"market_data"`
+	}
+
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&coinResp); err != nil {
+		return nil, errors.Wrap(err, "failed to decode response")
+	}
+
+	decimals := tokenConfig.Decimals
+	if decimals == 0 {
+		decimals = 18
+	}
+
+	result := &TokenMarketData{
+		PriceUSD:              coinResp.MarketData.CurrentPrice.USD,
+		PriceChange24h:        coinResp.MarketData.PriceChange24h,
+		MarketCapUSD:          coinResp.MarketData.MarketCap.USD,
+		TotalVolume24h:        coinResp.MarketData.TotalVolume.USD,
+		FullyDilutedMarketCap: coinResp.MarketData.FullyDilutedValuation.USD,
+	}
+
+	// Convert supply values
+	if coinResp.MarketData.TotalSupply != nil {
+		supply := float64ToBigInt(*coinResp.MarketData.TotalSupply, decimals)
+		result.TotalSupply = supply
+	}
+
+	if coinResp.MarketData.CirculatingSupply != nil {
+		supply := float64ToBigInt(*coinResp.MarketData.CirculatingSupply, decimals)
+		result.CirculatingSupply = supply
+	}
+
+	if coinResp.MarketData.MaxSupply != nil {
+		supply := float64ToBigInt(*coinResp.MarketData.MaxSupply, decimals)
+		result.MaxSupply = supply
+	}
+
+	if coinResp.MarketData.Holders != nil {
+		result.HoldersCount = *coinResp.MarketData.Holders
+	}
+
+	// Cache result
+	if redisClient != nil {
+		cacheJSON, _ := sonic.Marshal(result)
+		redisClient.Set(ctx, cacheKey, string(cacheJSON), 5*time.Minute)
+	}
+
+	return result, nil
+}
+
+// float64ToBigInt converts a float64 value to big.Int with given decimals
+func float64ToBigInt(value float64, decimals int32) *big.Int {
+	multiplier := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
+	valueBigFloat := new(big.Float).SetFloat64(value)
+	valueBigFloat.Mul(valueBigFloat, multiplier)
+	result, _ := valueBigFloat.Int(nil)
+	return result
 }

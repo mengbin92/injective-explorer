@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "explorer/v1/contract_info.proto";
+import "google/api/annotations.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// TokenListService provides token list with market data
+service TokenListService {
+  // ListTokens returns a paginated list of tokens with market data
+  rpc ListTokens(TokenListRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/list"
+    };
+  }
+}
+
+// TokenListRequest defines request parameters for listing tokens
+message TokenListRequest {
+  // Chain ID filter (optional, default: injective-1)
+  string chain_id = 1 [ json_name = "chain_id" ];
+
+  // Contract type filter (optional, e.g., "erc20", "erc721")
+  string contract_type = 2 [ json_name = "contract_type" ];
+
+  // Search by token name, symbol, or contract address (optional, fuzzy match)
+  string search = 3 [ json_name = "search" ];
+
+  // Sort field: market_cap, volume_24h, price, holders, deployment_time (optional)
+  string sort_by = 4 [ json_name = "sort_by" ];
+
+  // Sort order: asc or desc (optional, default: desc)
+  string sort_order = 5 [ json_name = "sort_order" ];
+
+  // Filter by tag type (optional, e.g., "stablecoin", "official")
+  string tag_type = 6 [ json_name = "tag_type" ];
+
+  // Filter by verification status (optional, e.g., "verified", "unverified")
+  string verification_status = 7 [ json_name = "verification_status" ];
+
+  // Pagination parameters
+  PaginationRequest pagination = 8 [ json_name = "pagination" ];
+}
+
+// TokenListItemDTO represents a single token in the list
+message TokenListItemDTO {
+  // Basic information
+  uint64 id = 1;
+  string contract_address = 2 [ json_name = "contract_address" ];
+  string contract_address_short = 3 [ json_name = "contract_address_short" ]; // e.g., "0x8a3d...7f2e"
+  string token_name = 4 [ json_name = "token_name" ];
+  string token_symbol = 5 [ json_name = "token_symbol" ];
+  repeated ContractTagInfoDTO tags = 6 [ json_name = "tags" ];
+
+  // Token icon (optional)
+  string icon_url = 7 [ json_name = "icon_url" ];        // Token icon URL
+  string icon_gradient = 8 [ json_name = "icon_gradient" ]; // Fallback gradient CSS
+
+  // Market data
+  double price_usd = 9 [ json_name = "price_usd" ];
+  double price_change_24h = 10 [ json_name = "price_change_24h" ];
+  double total_volume_24h = 11 [ json_name = "total_volume_24h" ];
+  double market_cap_usd = 12 [ json_name = "market_cap_usd" ];
+  int64 holders_count = 13 [ json_name = "holders_count" ];
+
+  // Metadata
+  string first_deployment_time = 14 [ json_name = "first_deployment_time" ]; // Format: "2024/03/15"
+  string created_at = 15 [ json_name = "created_at" ];                      // ISO 8601 format
+}
+
+// TokenListResponse represents the paginated response
+message TokenListResponse {
+  repeated TokenListItemDTO items = 1 [ json_name = "items" ];
+  int32 page = 2;
+  int32 page_size = 3 [ json_name = "page_size" ];
+  int64 total = 4;
+  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+}

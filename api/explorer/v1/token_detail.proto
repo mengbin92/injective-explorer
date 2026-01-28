@@ -1,0 +1,206 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "explorer/v1/contract_info.proto";
+import "google/api/annotations.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// TokenDetailService provides detailed token information
+service TokenDetailService {
+  // GetTokenDetail returns detailed information for a specific token
+  rpc GetTokenDetail(GetTokenDetailRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/detail"
+    };
+  }
+
+  // GetTokenTransfers returns transfer transactions for a token
+  rpc GetTokenTransfers(GetTokenTransfersRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/transfers"
+    };
+  }
+
+  // GetTokenHolders returns holder rankings for a token
+  rpc GetTokenHolders(GetTokenHoldersRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/holders"
+    };
+  }
+
+  // GetTokenHoldersStats returns holder statistics
+  rpc GetTokenHoldersStats(GetTokenHoldersStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/holders-stats"
+    };
+  }
+
+  // GetTokenContractCode returns contract bytecode and source code
+  rpc GetTokenContractCode(GetTokenContractCodeRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/tokens/contract-code"
+    };
+  }
+}
+
+// GetTokenDetailRequest specifies which token to query
+message GetTokenDetailRequest {
+  string contract_address = 1 [ json_name = "contract_address" ]; // Contract address (required)
+  string chain_id = 2 [ json_name = "chain_id" ];                 // Chain ID (optional)
+}
+
+// TokenDetailResponse contains complete token information
+message TokenDetailResponse {
+  // Basic information
+  TokenBasicInfo basic = 1 [ json_name = "basic" ];
+
+  // Overview (supply and market cap)
+  TokenOverviewInfo overview = 2 [ json_name = "overview" ];
+
+  // Market information
+  TokenMarketInfo market = 3 [ json_name = "market" ];
+
+  // Additional information
+  TokenAdditionalInfo additional = 4 [ json_name = "additional" ];
+}
+
+// TokenBasicInfo contains basic token information
+message TokenBasicInfo {
+  string name = 1;
+  string symbol = 2;
+  string icon_url = 3 [ json_name = "icon_url" ];        // Optional token icon URL
+  string icon_gradient = 4 [ json_name = "icon_gradient" ]; // Fallback gradient CSS
+  string contract_address = 5 [ json_name = "contract_address" ];
+  string token_type = 6 [ json_name = "token_type" ];   // ERC-20, ERC-721, etc.
+  repeated ContractTagInfoDTO tags = 7 [ json_name = "tags" ];
+}
+
+// TokenOverviewInfo contains supply and market cap data
+message TokenOverviewInfo {
+  string max_supply = 1 [ json_name = "max_supply" ];           // Formatted string, "无限制" if unlimited
+  string circulating_supply = 2 [ json_name = "circulating_supply" ];
+  string fully_diluted_market_cap = 3 [ json_name = "fully_diluted_market_cap" ]; // "$0" if unlimited
+  string market_cap = 4 [ json_name = "market_cap" ];
+}
+
+// TokenMarketInfo contains market data
+message TokenMarketInfo {
+  string price = 1;                    // Formatted: "$1.00" or "$0.00000123"
+  double price_change_24h = 2 [ json_name = "price_change_24h" ]; // For badge display
+  string volume_24h = 3 [ json_name = "volume_24h" ];          // Formatted: "$53,200,000"
+  int64 holders_count = 4 [ json_name = "holders_count" ];     // Integer count
+  int64 total_transfers = 5 [ json_name = "total_transfers" ]; // Total transfer count
+}
+
+// TokenAdditionalInfo contains token technical details
+message TokenAdditionalInfo {
+  string token_standard = 1 [ json_name = "token_standard" ]; // ERC-20, ERC-721, etc.
+  int32 decimals = 2;
+  string deploy_date = 3 [ json_name = "deploy_date" ];       // "2024-03-15"
+  string creator_address = 4 [ json_name = "creator_address" ]; // Full address
+  string creator_short = 5 [ json_name = "creator_short" ];    // "0x1234...5678"
+}
+
+// GetTokenTransfersRequest queries token transfers
+message GetTokenTransfersRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+
+  // Optional filters
+  string address = 3; // Filter by sender or receiver address
+  string method = 4;  // Filter by method (Transfer, Mint, etc.)
+
+  // Pagination
+  PaginationRequest pagination = 5 [ json_name = "pagination" ];
+}
+
+// TokenTransferInfo represents a single transfer
+message TokenTransferInfo {
+  string tx_hash = 1 [ json_name = "tx_hash" ];
+  string method = 2;     // Transfer, Mint, Burn, etc.
+  int64 timestamp = 3;
+  string time_ago = 4 [ json_name = "time_ago" ]; // "5 分钟前"
+  string from_address = 5 [ json_name = "from_address" ];
+  string to_address = 6 [ json_name = "to_address" ];
+  string amount = 7;     // Formatted with symbol: "1,234.56 USDT"
+  string value_usd = 8 [ json_name = "value_usd" ]; // Optional USD value
+}
+
+// TokenTransfersResponse contains paginated transfers
+message TokenTransfersResponse {
+  repeated TokenTransferInfo items = 1 [ json_name = "items" ];
+  int32 page = 2;
+  int32 page_size = 3 [ json_name = "page_size" ];
+  int64 total = 4;
+  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+}
+
+// GetTokenHoldersRequest queries token holders
+message GetTokenHoldersRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+
+  // Pagination
+  PaginationRequest pagination = 3 [ json_name = "pagination" ];
+
+  // Sorting
+  string sort_by = 4 [ json_name = "sort_by" ]; // "balance" (default), "percentage"
+  string sort_order = 5 [ json_name = "sort_order" ]; // "desc" (default), "asc"
+}
+
+// TokenHolderInfo represents a single holder
+message TokenHolderInfo {
+  int32 rank = 1;
+  string address = 2;
+  string label = 3;        // Optional label (e.g., "Binance Hot Wallet")
+  string label_type = 4 [ json_name = "label_type" ]; // "exchange", "burn", "whale", etc.
+  string balance = 5;    // Formatted: "1,234.56 USDT"
+  string percentage = 6; // "18.5"
+  string value_usd = 7 [ json_name = "value_usd" ]; // "$123,456.78"
+}
+
+// TokenHoldersResponse contains paginated holders
+message TokenHoldersResponse {
+  repeated TokenHolderInfo items = 1 [ json_name = "items" ];
+  int32 page = 2;
+  int32 page_size = 3 [ json_name = "page_size" ];
+  int64 total = 4;
+  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+}
+
+// GetTokenHoldersStatsRequest queries holder statistics
+message GetTokenHoldersStatsRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+}
+
+// TokenHoldersStatsResponse contains holder statistics
+message TokenHoldersStatsResponse {
+  int64 total_holders = 1 [ json_name = "total_holders" ];       // Total unique holders
+  string top10_percentage = 2 [ json_name = "top10_percentage" ]; // "45.2"
+  string top100_percentage = 3 [ json_name = "top100_percentage" ]; // "68.7"
+  int64 circulating_supply = 4 [ json_name = "circulating_supply" ]; // For percentage calc
+}
+
+// GetTokenContractCodeRequest queries contract code
+message GetTokenContractCodeRequest {
+  string contract_address = 1 [ json_name = "contract_address" ];
+  string chain_id = 2 [ json_name = "chain_id" ];
+}
+
+// TokenContractCodeResponse contains contract code
+message TokenContractCodeResponse {
+  string contract_name = 1 [ json_name = "contract_name" ];
+  string bytecode = 2;        // Contract bytecode
+  string source_code = 3 [ json_name = "source_code" ];   // Source code (if verified)
+  bool verified = 4;          // Whether contract is verified
+  string compiler_version = 5 [ json_name = "compiler_version" ]; // Compiler version (if verified)
+  string optimization_enabled = 6 [ json_name = "optimization_enabled" ]; // "true"/"false"
+  int32 optimization_runs = 7 [ json_name = "optimization_runs" ]; // Optimization runs (if enabled)
+  string constructor_arguments = 8 [ json_name = "constructor_arguments" ]; // Constructor arguments
+}

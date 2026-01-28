@@ -166,6 +166,42 @@ func main() {
 		log.NewHelper(logger).Infof("Sync service disabled via ENABLE_SYNC=%s", enableSync)
 	}
 
+	// Start token transfer sync service (if enabled)
+	enableTokenTransferSync := os.Getenv("ENABLE_TOKEN_TRANSFER_SYNC")
+	if enableTokenTransferSync == "" || enableTokenTransferSync == "true" {
+		tokenTransferSyncConfig := service.LoadTokenTransferSyncConfig(&bc)
+		tokenTransferSyncService, err := service.NewTokenTransferSyncService(context.Background(), tokenTransferSyncConfig, &bc)
+		if err != nil {
+			log.NewHelper(logger).Warnf("Failed to create token transfer sync service: %v", err)
+		} else {
+			tokenTransferSyncService.Start()
+			defer func() {
+				if err := tokenTransferSyncService.Stop(); err != nil {
+					log.NewHelper(logger).Errorf("Failed to stop token transfer sync service: %v", err)
+				}
+			}()
+			log.NewHelper(logger).Infof("Token transfer sync service started")
+		}
+	} else {
+		log.NewHelper(logger).Infof("Token transfer sync service disabled via ENABLE_TOKEN_TRANSFER_SYNC=%s", enableTokenTransferSync)
+	}
+
+	// Start token market cache sync service (if enabled)
+	enableMarketCacheSync := os.Getenv("ENABLE_TOKEN_MARKET_CACHE_SYNC")
+	if enableMarketCacheSync == "" || enableMarketCacheSync == "true" {
+		marketCacheSyncConfig := service.LoadTokenMarketCacheSyncConfig(&bc)
+		tokenMarketCacheSyncService := service.NewTokenMarketCacheSyncService(context.Background(), marketCacheSyncConfig)
+		tokenMarketCacheSyncService.Start()
+		defer func() {
+			if err := tokenMarketCacheSyncService.Stop(); err != nil {
+				log.NewHelper(logger).Errorf("Failed to stop token market cache sync service: %v", err)
+			}
+		}()
+		log.NewHelper(logger).Infof("Token market cache sync service started")
+	} else {
+		log.NewHelper(logger).Infof("Token market cache sync service disabled via ENABLE_TOKEN_MARKET_CACHE_SYNC=%s", enableMarketCacheSync)
+	}
+
 	// Start archive scheduler service (if enabled)
 	if bc.Archive != nil && bc.Archive.GetEnabled() {
 		archiveSchedulerService := service.LoadArchiveSchedulerConfig(&bc)

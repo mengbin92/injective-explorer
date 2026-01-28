@@ -2207,6 +2207,243 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tokens/contract-code:
+        get:
+            tags:
+                - TokenDetailService
+            description: GetTokenContractCode returns contract bytecode and source code
+            operationId: TokenDetailService_GetTokenContractCode
+            parameters:
+                - name: contract_address
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tokens/detail:
+        get:
+            tags:
+                - TokenDetailService
+            description: GetTokenDetail returns detailed information for a specific token
+            operationId: TokenDetailService_GetTokenDetail
+            parameters:
+                - name: contract_address
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tokens/holders:
+        get:
+            tags:
+                - TokenDetailService
+            description: GetTokenHolders returns holder rankings for a token
+            operationId: TokenDetailService_GetTokenHolders
+            parameters:
+                - name: contract_address
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+                - name: sort_by
+                  in: query
+                  description: Sorting
+                  schema:
+                    type: string
+                - name: sort_order
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tokens/holders-stats:
+        get:
+            tags:
+                - TokenDetailService
+            description: GetTokenHoldersStats returns holder statistics
+            operationId: TokenDetailService_GetTokenHoldersStats
+            parameters:
+                - name: contract_address
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tokens/list:
+        get:
+            tags:
+                - TokenListService
+            description: ListTokens returns a paginated list of tokens with market data
+            operationId: TokenListService_ListTokens
+            parameters:
+                - name: chain_id
+                  in: query
+                  description: 'Chain ID filter (optional, default: injective-1)'
+                  schema:
+                    type: string
+                - name: contract_type
+                  in: query
+                  description: Contract type filter (optional, e.g., "erc20", "erc721")
+                  schema:
+                    type: string
+                - name: search
+                  in: query
+                  description: Search by token name, symbol, or contract address (optional, fuzzy match)
+                  schema:
+                    type: string
+                - name: sort_by
+                  in: query
+                  description: 'Sort field: market_cap, volume_24h, price, holders, deployment_time (optional)'
+                  schema:
+                    type: string
+                - name: sort_order
+                  in: query
+                  description: 'Sort order: asc or desc (optional, default: desc)'
+                  schema:
+                    type: string
+                - name: tag_type
+                  in: query
+                  description: Filter by tag type (optional, e.g., "stablecoin", "official")
+                  schema:
+                    type: string
+                - name: verification_status
+                  in: query
+                  description: Filter by verification status (optional, e.g., "verified", "unverified")
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/tokens/transfers:
+        get:
+            tags:
+                - TokenDetailService
+            description: GetTokenTransfers returns transfer transactions for a token
+            operationId: TokenDetailService_GetTokenTransfers
+            parameters:
+                - name: contract_address
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+                - name: address
+                  in: query
+                  description: Optional filters
+                  schema:
+                    type: string
+                - name: method
+                  in: query
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/tokens/usage:
         get:
             tags:
@@ -3215,6 +3452,10 @@ tags:
       description: |-
         TagDefinitionService manages predefined tag definitions.
          This service provides CRUD operations for system-preset tags that can be used for addresses and contracts.
+    - name: TokenDetailService
+      description: TokenDetailService provides detailed token information
+    - name: TokenListService
+      description: TokenListService provides token list with market data
     - name: WebhookService
       description: |-
         WebhookService provides webhook management (for paid tokens only).

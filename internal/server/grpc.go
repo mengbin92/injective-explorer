@@ -59,5 +59,11 @@ func NewGRPCServer(c *conf.Server, logger log.Logger) *grpc.Server {
 	addressRemarkService := service.NewAddressRemarkService()
 	v1.RegisterAddressRemarkServiceServer(srv, addressRemarkService)
 
+	tokenListService := service.NewTokenListService(explorerService)
+	v1.RegisterTokenListServiceServer(srv, tokenListService)
+
+	tokenDetailService := service.NewTokenDetailService(explorerService)
+	v1.RegisterTokenDetailServiceServer(srv, tokenDetailService)
+
 	return srv
 }
