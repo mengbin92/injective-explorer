@@ -5941,6 +5941,983 @@
       "description": "Usage statistics endpoints for admin"
     },
     {
+      "name": "Token列表接口",
+      "item": [
+        {
+          "name": "获取Token列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tokens data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('items');",
+                  "        pm.expect(jsonData.data.items).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/list?chain_id={{chain_id}}&pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID filter (optional, default: injective-1)"
+                },
+                {
+                  "key": "contract_type",
+                  "value": "",
+                  "description": "Contract type filter (optional, e.g., erc20, erc721)",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by token name, symbol, or contract address (fuzzy match)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "description": "Sort field: market_cap, volume_24h, price, holders, deployment_time",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort order: asc or desc (default: desc)"
+                },
+                {
+                  "key": "tag_type",
+                  "value": "",
+                  "description": "Filter by tag type (optional, e.g., stablecoin, official)",
+                  "disabled": true
+                },
+                {
+                  "key": "verification_status",
+                  "value": "",
+                  "description": "Filter by verification status (optional, e.g., verified, unverified)",
+                  "disabled": true
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                }
+              ]
+            },
+            "description": "获取Token列表，支持分页、排序和多种过滤条件"
+          },
+          "response": []
+        }
+      ],
+      "description": "Token列表查询接口，提供带市场数据的Token列表"
+    },
+    {
+      "name": "Token详情接口",
+      "item": [
+        {
+          "name": "获取Token详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token detail data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('basic');",
+                  "        pm.expect(jsonData.data).to.have.property('overview');",
+                  "        pm.expect(jsonData.data).to.have.property('market');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/detail?contract_address={{contract_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "detail"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "{{contract_address}}",
+                  "description": "Contract address (required)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (optional)"
+                }
+              ]
+            },
+            "description": "获取指定Token的详细信息，包括基本信息、市场数据、供应量等"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Token转账记录",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has transfers data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('items');",
+                  "        pm.expect(jsonData.data.items).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/transfers?contract_address={{contract_address}}&chain_id={{chain_id}}&pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "transfers"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "{{contract_address}}",
+                  "description": "Contract address (required)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (optional)"
+                },
+                {
+                  "key": "address",
+                  "value": "",
+                  "description": "Filter by sender or receiver address",
+                  "disabled": true
+                },
+                {
+                  "key": "method",
+                  "value": "",
+                  "description": "Filter by method (Transfer, Mint, Burn, etc.)",
+                  "disabled": true
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                }
+              ]
+            },
+            "description": "获取指定Token的转账记录列表，支持按地址和方法过滤"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Token持有者列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has holders data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('items');",
+                  "        pm.expect(jsonData.data.items).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/holders?contract_address={{contract_address}}&chain_id={{chain_id}}&pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "holders"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "{{contract_address}}",
+                  "description": "Contract address (required)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (optional)"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "balance",
+                  "description": "Sort by: balance (default), percentage"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort order: desc (default), asc"
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                }
+              ]
+            },
+            "description": "获取Token持有者排名列表，支持按持有量或占比排序"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Token持有者统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has holders stats\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_holders');",
+                  "        pm.expect(jsonData.data).to.have.property('top10_percentage');",
+                  "        pm.expect(jsonData.data).to.have.property('top100_percentage');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/holders-stats?contract_address={{contract_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "holders-stats"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "{{contract_address}}",
+                  "description": "Contract address (required)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (optional)"
+                }
+              ]
+            },
+            "description": "获取Token持有者统计数据，包括总持有者数、前10/100名占比等"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Token合约代码",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has contract code\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('bytecode');",
+                  "        pm.expect(jsonData.data).to.have.property('verified');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/contract-code?contract_address={{contract_address}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "contract-code"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "{{contract_address}}",
+                  "description": "Contract address (required)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (optional)"
+                }
+              ]
+            },
+            "description": "获取Token合约的字节码和源代码（如已验证）"
+          },
+          "response": []
+        }
+      ],
+      "description": "Token详情查询接口，提供Token的详细信息、转账记录、持有者等数据"
+    },
+    {
+      "name": "批量查询接口",
+      "item": [
+        {
+          "name": "批量查询交易",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has transactions data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('transactions');",
+                  "        pm.expect(jsonData.data.transactions).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"hashes\": [\n        \"{{tx_hash}}\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions/batch",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                "batch"
+              ]
+            },
+            "description": "批量查询交易详情，通过交易哈希列表一次性获取多个交易信息"
+          },
+          "response": []
+        },
+        {
+          "name": "批量查询区块",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has blocks data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('blocks');",
+                  "        pm.expect(jsonData.data.blocks).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"heights\": [\n        1000000,\n        1000001,\n        1000002\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/blocks/batch",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "blocks",
+                "batch"
+              ]
+            },
+            "description": "批量查询区块详情，通过区块高度列表一次性获取多个区块信息"
+          },
+          "response": []
+        }
+      ],
+      "description": "批量查询接口，用于高性能批量获取交易和区块数据"
+    },
+    {
+      "name": "验证人统计接口",
+      "item": [
+        {
+          "name": "获取验证人区块统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has validator stats\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('validator_address');",
+                  "        pm.expect(jsonData.data).to.have.property('proposed');",
+                  "        pm.expect(jsonData.data).to.have.property('signed');",
+                  "        pm.expect(jsonData.data).to.have.property('missed');",
+                  "        pm.expect(jsonData.data).to.have.property('uptime_percentage');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/validator/block-stats?validator_address={{validator_address}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "validator",
+                "block-stats"
+              ],
+              "query": [
+                {
+                  "key": "validator_address",
+                  "value": "{{validator_address}}",
+                  "description": "Validator operator address (required)"
+                }
+              ]
+            },
+            "description": "获取验证人的区块统计信息，包括提议、签名、错过的区块数量及在线率"
+          },
+          "response": []
+        }
+      ],
+      "description": "验证人统计接口，提供验证人的区块生产统计信息"
+    },
+    {
+      "name": "全局标签接口",
+      "item": [
+        {
+          "name": "获取所有合约标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tags data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('items');",
+                  "        pm.expect(jsonData.data.items).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/contract/tags/all?chain_id={{chain_id}}&pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contract",
+                "tags",
+                "all"
+              ],
+              "query": [
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID filter (optional)"
+                },
+                {
+                  "key": "tag_type",
+                  "value": "",
+                  "description": "Tag type filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "contract_address",
+                  "value": "",
+                  "description": "Contract address filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                }
+              ]
+            },
+            "description": "获取所有合约标签列表，支持分页和多种过滤条件"
+          },
+          "response": []
+        },
+        {
+          "name": "添加全局标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has created tag\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('id');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"chain_id\": \"{{chain_id}}\",\n    \"tag_type\": \"category\",\n    \"tag_value\": \"DeFi\",\n    \"tag_color\": \"#FF5733\",\n    \"description\": \"DeFi category tag\",\n    \"created_by\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/global/tag",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "global",
+                "tag"
+              ]
+            },
+            "description": "添加全局标签（不绑定到特定合约）"
+          },
+          "response": []
+        },
+        {
+          "name": "删除全局标签",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/global/tag?chain_id={{chain_id}}&tag_type=category",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "global",
+                "tag"
+              ],
+              "query": [
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (required)"
+                },
+                {
+                  "key": "tag_type",
+                  "value": "category",
+                  "description": "Tag type (required)"
+                }
+              ]
+            },
+            "description": "删除全局标签"
+          },
+          "response": []
+        }
+      ],
+      "description": "全局标签管理接口，用于管理不绑定到特定合约的全局标签"
+    },
+    {
+      "name": "API Token统计接口",
+      "item": [
+        {
+          "name": "获取活跃Token数量",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token count\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_tokens');",
+                  "        pm.expect(jsonData.data).to.have.property('active_tokens');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/active-count?days=30",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "active-count"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30",
+                  "description": "Days threshold (default: 30)"
+                }
+              ]
+            },
+            "description": "获取活跃Token数量统计"
+          },
+          "response": []
+        },
+        {
+          "name": "获取错误码分析",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has error analysis\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('error_stats');",
+                  "        pm.expect(jsonData.data.error_stats).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stats/error-analysis?token_id={{token_id}}&days=30",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stats",
+                "error-analysis"
+              ],
+              "query": [
+                {
+                  "key": "token_id",
+                  "value": "{{token_id}}",
+                  "description": "Token ID filter (optional)"
+                },
+                {
+                  "key": "days",
+                  "value": "30",
+                  "description": "Days to query (default: 30)"
+                }
+              ]
+            },
+            "description": "获取错误码分析统计，按HTTP状态码分组统计错误请求"
+          },
+          "response": []
+        }
+      ],
+      "description": "API Token统计接口，提供Token使用情况的统计分析"
+    },
+    {
       "name": "限流和认证测试",
       "item": [
         {
