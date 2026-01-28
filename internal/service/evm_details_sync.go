@@ -672,13 +672,13 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 					}
 				}
 
-				// Update transactions table with signer, signatures, to, and value
+				// Update transactions table with signer, signatures, to, and values
 				// Note: We need to manually serialize signatures to JSON array string
 				// because GORM's Updates(map[string]interface{}) doesn't apply the serializer:json tag
 				txUpdates := map[string]interface{}{
 					"signer": ethSigner,
 					"to":     ethTo,
-					"value":  ethValue,
+					"values": []string{ethValue},
 				}
 				if signatures != nil {
 					// Marshal []string to JSON array string (e.g., ["{...}", "{...}"])
@@ -1047,7 +1047,7 @@ func (s *EVMDetailsSyncService) updateSignerFromEVMDetails(ctx context.Context, 
 		"to":     ethTo,
 	}
 	if value != "" {
-		txUpdates["value"] = value
+		txUpdates["values"] = []string{value}
 	}
 	if signatures != nil {
 		signaturesJSON, err := sonic.Marshal(signatures)
