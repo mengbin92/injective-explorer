@@ -311,7 +311,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 
 		// For database blocks, enhance transactions based on age and transaction count
 		// Skip enhancement for blocks with >100 transactions to avoid timeout
-		if uint64(req.Height) > getLatestBlockHeight() - RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
+		if uint64(req.Height) > getLatestBlockHeight()-RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
 			// Enhance synchronously for recent small blocks
 			enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
 			return MarshalAndReply(enhancedBlockDTO, "marshal block error")
@@ -373,7 +373,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 
 	// Save to database using upsert for future queries
 	err = db.Get().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "height"}},
+		Columns: []clause.Column{{Name: "height"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"proposer", "moniker", "block_hash", "parent_hash",
 			"num_precommits", "num_txs", "total_txs", "txs",
@@ -395,7 +395,7 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
 
 	// Enhance transactions if the block is recent and has manageable transaction count
-	if uint64(req.Height) > getLatestBlockHeight() - RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
+	if uint64(req.Height) > getLatestBlockHeight()-RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
 		// Enhance synchronously for recent small blocks
 		enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
 		return MarshalAndReply(enhancedBlockDTO, "marshal block error")
@@ -1293,60 +1293,60 @@ func normalizeMessageType(msgType string) string {
 	// Mapping of short type names to full type URLs
 	shortToFullMap := map[string]string{
 		// Bank module
-		"MsgSend": "/cosmos.bank.v1beta1.MsgSend",
+		"MsgSend":      "/cosmos.bank.v1beta1.MsgSend",
 		"MsgMultiSend": "/cosmos.bank.v1beta1.MsgMultiSend",
 
 		// Distribution module
-		"MsgSetWithdrawAddress": "/cosmos.distribution.v1beta1.MsgSetWithdrawAddress",
-		"MsgWithdrawDelegatorReward": "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
+		"MsgSetWithdrawAddress":          "/cosmos.distribution.v1beta1.MsgSetWithdrawAddress",
+		"MsgWithdrawDelegatorReward":     "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
 		"MsgWithdrawValidatorCommission": "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission",
-		"MsgFundCommunityPool": "/cosmos.distribution.v1beta1.MsgFundCommunityPool",
+		"MsgFundCommunityPool":           "/cosmos.distribution.v1beta1.MsgFundCommunityPool",
 
 		// Staking module
-		"MsgDelegate": "/cosmos.staking.v1beta1.MsgDelegate",
-		"MsgUndelegate": "/cosmos.staking.v1beta1.MsgUndelegate",
-		"MsgRedelegate": "/cosmos.staking.v1beta1.MsgRedelegate",
+		"MsgDelegate":        "/cosmos.staking.v1beta1.MsgDelegate",
+		"MsgUndelegate":      "/cosmos.staking.v1beta1.MsgUndelegate",
+		"MsgRedelegate":      "/cosmos.staking.v1beta1.MsgRedelegate",
 		"MsgCreateValidator": "/cosmos.staking.v1beta1.MsgCreateValidator",
-		"MsgEditValidator": "/cosmos.staking.v1beta1.MsgEditValidator",
+		"MsgEditValidator":   "/cosmos.staking.v1beta1.MsgEditValidator",
 
 		// IBC transfer
 		"MsgTransfer": "/ibc.applications.transfer.v1.MsgTransfer",
 
 		// Exchange module (Injective)
-		"MsgDeposit": "/injective.exchange.v1beta1.MsgDeposit",
-		"MsgWithdraw": "/injective.exchange.v1beta1.MsgWithdraw",
-		"MsgSubaccountTransfer": "/injective.exchange.v1beta1.MsgSubaccountTransfer",
-		"MsgExternalTransfer": "/injective.exchange.v1beta1.MsgExternalTransfer",
-		"MsgCreateSpotLimitOrder": "/injective.exchange.v1beta1.MsgCreateSpotLimitOrder",
-		"MsgCreateSpotMarketOrder": "/injective.exchange.v1beta1.MsgCreateSpotMarketOrder",
-		"MsgCancelSpotOrder": "/injective.exchange.v1beta1.MsgCancelSpotOrder",
-		"MsgCreateDerivativeLimitOrder": "/injective.exchange.v1beta1.MsgCreateDerivativeLimitOrder",
+		"MsgDeposit":                     "/injective.exchange.v1beta1.MsgDeposit",
+		"MsgWithdraw":                    "/injective.exchange.v1beta1.MsgWithdraw",
+		"MsgSubaccountTransfer":          "/injective.exchange.v1beta1.MsgSubaccountTransfer",
+		"MsgExternalTransfer":            "/injective.exchange.v1beta1.MsgExternalTransfer",
+		"MsgCreateSpotLimitOrder":        "/injective.exchange.v1beta1.MsgCreateSpotLimitOrder",
+		"MsgCreateSpotMarketOrder":       "/injective.exchange.v1beta1.MsgCreateSpotMarketOrder",
+		"MsgCancelSpotOrder":             "/injective.exchange.v1beta1.MsgCancelSpotOrder",
+		"MsgCreateDerivativeLimitOrder":  "/injective.exchange.v1beta1.MsgCreateDerivativeLimitOrder",
 		"MsgCreateDerivativeMarketOrder": "/injective.exchange.v1beta1.MsgCreateDerivativeMarketOrder",
-		"MsgCancelDerivativeOrder": "/injective.exchange.v1beta1.MsgCancelDerivativeOrder",
+		"MsgCancelDerivativeOrder":       "/injective.exchange.v1beta1.MsgCancelDerivativeOrder",
 
 		// TokenFactory module
 		"MsgCreateDenom": "/injective.tokenfactory.v1beta1.MsgCreateDenom",
-		"MsgMint": "/injective.tokenfactory.v1beta1.MsgMint",
-		"MsgBurn": "/injective.tokenfactory.v1beta1.MsgBurn",
+		"MsgMint":        "/injective.tokenfactory.v1beta1.MsgMint",
+		"MsgBurn":        "/injective.tokenfactory.v1beta1.MsgBurn",
 
 		// WasmX module
 		"MsgExecuteContractCompat": "/injective.wasmx.v1.MsgExecuteContractCompat",
 
 		// CosmWasm
-		"MsgStoreCode": "/cosmwasm.wasm.v1.MsgStoreCode",
+		"MsgStoreCode":           "/cosmwasm.wasm.v1.MsgStoreCode",
 		"MsgInstantiateContract": "/cosmwasm.wasm.v1.MsgInstantiateContract",
-		"MsgExecuteContract": "/cosmwasm.wasm.v1.MsgExecuteContract",
-		"MsgMigrateContract": "/cosmwasm.wasm.v1.MsgMigrateContract",
+		"MsgExecuteContract":     "/cosmwasm.wasm.v1.MsgExecuteContract",
+		"MsgMigrateContract":     "/cosmwasm.wasm.v1.MsgMigrateContract",
 
 		// Gov module
 		"MsgSubmitProposal": "/cosmos.gov.v1.MsgSubmitProposal",
-		"MsgVote": "/cosmos.gov.v1.MsgVote",
-		"MsgGovDeposit": "/cosmos.gov.v1.MsgDeposit",
+		"MsgVote":           "/cosmos.gov.v1.MsgVote",
+		"MsgGovDeposit":     "/cosmos.gov.v1.MsgDeposit",
 
 		// Authz module
-		"MsgGrant": "/cosmos.authz.v1beta1.MsgGrant",
+		"MsgGrant":  "/cosmos.authz.v1beta1.MsgGrant",
 		"MsgRevoke": "/cosmos.authz.v1beta1.MsgRevoke",
-		"MsgExec": "/cosmos.authz.v1beta1.MsgExec",
+		"MsgExec":   "/cosmos.authz.v1beta1.MsgExec",
 	}
 
 	// Look up the full type URL
@@ -2872,6 +2872,32 @@ func cacheAccountTransactions(ctx context.Context, cacheKey string, txs []models
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		global.Logger.Warnf("failed to cache account transactions: %v", err)
+	}
+}
+
+// invalidateAccountTransactionCache invalidates the account transaction cache for a given address.
+// This is called when a transaction is updated to ensure cached account transactions are refreshed.
+//
+// Parameters:
+//   - ctx: Context for the cache operation
+//   - address: The account address (in database format, e.g., Ethereum format 0x...)
+func invalidateAccountTransactionCache(ctx context.Context, address string) {
+	if address == "" {
+		return
+	}
+
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+
+	// Delete the account transaction cache key
+	cacheKey := fmt.Sprintf("cache:account:txs:%s", address)
+	err := redisClient.Del(ctx, cacheKey).Err()
+	if err != nil {
+		global.Logger.Warnf("failed to invalidate account transaction cache for address %s: %v", address, err)
+	} else {
+		global.Logger.Debugf("invalidated account transaction cache for address %s", address)
 	}
 }
 
@@ -5949,9 +5975,9 @@ func (s *ExplorerService) GetAllContractTags(ctx context.Context, req *pb.GetAll
 	response := map[string]interface{}{
 		"tags": tagInfos,
 		"pagination": map[string]interface{}{
-			"page":       page,
-			"page_size":  pageSize,
-			"total":      totalCount,
+			"page":        page,
+			"page_size":   pageSize,
+			"total":       totalCount,
 			"total_pages": (totalCount + int64(pageSize) - 1) / int64(pageSize),
 		},
 	}

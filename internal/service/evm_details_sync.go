@@ -600,7 +600,7 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 		// This ensures the update can complete even if the original context timed out
 		updateCtx, updateCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer updateCancel()
-		
+
 		// Check if signer is empty in transactions table
 		var existingTx models.Transaction
 		err := db.Get().WithContext(updateCtx).
@@ -673,13 +673,23 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 				}
 
 				// Update transactions table with signer, signatures, to, and values
-				// Note: We need to manually serialize signatures to JSON array string
+				// Note: We need to manually serialize signatures and values to JSON array string
 				// because GORM's Updates(map[string]interface{}) doesn't apply the serializer:json tag
 				txUpdates := map[string]interface{}{
 					"signer": ethSigner,
 					"to":     ethTo,
-					"values": []string{ethValue},
 				}
+
+				// Manually serialize values to JSON array string to ensure proper format
+				// Values should be an array of strings, e.g., ["100000000"] not just "100000000"
+				valuesArray := []string{ethValue}
+				valuesJSON, err := sonic.Marshal(valuesArray)
+				if err != nil {
+					global.Logger.Warnf("failed to marshal values to JSON array for transaction %s: %v", evmTx.TransactionHash, err)
+				} else {
+					txUpdates["values"] = string(valuesJSON)
+				}
+
 				if signatures != nil {
 					// Marshal []string to JSON array string (e.g., ["{...}", "{...}"])
 					signaturesJSON, err := sonic.Marshal(signatures)
@@ -708,12 +718,21 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 					// Use a separate context with timeout to avoid using expired context
 					cacheCtx, cacheCancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cacheCancel()
-					
+
 					var updatedTx models.Transaction
 					if err := db.Get().WithContext(cacheCtx).
 						Where("hash = ?", evmTx.TransactionHash).
 						First(&updatedTx).Error; err == nil {
+						// Update single transaction cache
 						cacheTransaction(cacheCtx, &updatedTx)
+
+						// Invalidate account transaction caches for both signer and to addresses
+						// This ensures cached account transactions are refreshed with updated data
+						invalidateAccountTransactionCache(cacheCtx, updatedTx.Signer)
+						if updatedTx.To != "" && updatedTx.To != updatedTx.Signer {
+							invalidateAccountTransactionCache(cacheCtx, updatedTx.To)
+						}
+
 						global.Logger.Debugf("updated Redis cache for transaction %s with signatures and signer", evmTx.TransactionHash)
 					} else {
 						global.Logger.Debugf("failed to reload transaction %s for cache update: %v", evmTx.TransactionHash, err)
@@ -738,7 +757,7 @@ func (s *EVMDetailsSyncService) updateSyncError(ctx context.Context, cosmosHash 
 	// This ensures the error update can complete even if the original context timed out
 	updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer updateCancel()
-	
+
 	result := db.Get().WithContext(updateCtx).
 		Model(&models.EVMTransaction{}).
 		Where("transaction_hash = ?", cosmosHash).
@@ -800,11 +819,11 @@ func (s *EVMDetailsSyncService) retryTask(ctx context.Context, taskStr string) {
 			// Use a separate context with timeout to avoid using expired context
 			// This ensures the retry can complete even if the original context timed out
 			retryCtx, retryCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			
+
 			// Try to push the task back to the queue
 			err := s.redisClient.LPush(retryCtx, s.config.QueueKey, taskStr).Err()
 			retryCancel()
-			
+
 			if err == nil {
 				global.Logger.Infof("Task %s successfully queued for retry (attempt %d)", taskStr, attempt+1)
 				return
@@ -1047,7 +1066,15 @@ func (s *EVMDetailsSyncService) updateSignerFromEVMDetails(ctx context.Context, 
 		"to":     ethTo,
 	}
 	if value != "" {
-		txUpdates["values"] = []string{value}
+		// Manually serialize values to JSON array string to ensure proper format
+		// Values should be an array of strings, e.g., ["100000000"] not just "100000000"
+		valuesArray := []string{value}
+		valuesJSON, err := sonic.Marshal(valuesArray)
+		if err != nil {
+			global.Logger.Warnf("failed to marshal values to JSON array for transaction %s: %v", evmTx.TransactionHash, err)
+		} else {
+			txUpdates["values"] = string(valuesJSON)
+		}
 	}
 	if signatures != nil {
 		signaturesJSON, err := sonic.Marshal(signatures)
@@ -1072,7 +1099,15 @@ func (s *EVMDetailsSyncService) updateSignerFromEVMDetails(ctx context.Context, 
 	if err := db.Get().WithContext(ctx).
 		Where("hash = ?", evmTx.TransactionHash).
 		First(&updatedTx).Error; err == nil {
+		// Update single transaction cache
 		cacheTransaction(ctx, &updatedTx)
+
+		// Invalidate account transaction caches for both signer and to addresses
+		// This ensures cached account transactions are refreshed with updated data
+		invalidateAccountTransactionCache(ctx, updatedTx.Signer)
+		if updatedTx.To != "" && updatedTx.To != updatedTx.Signer {
+			invalidateAccountTransactionCache(ctx, updatedTx.To)
+		}
 	}
 
 	return nil

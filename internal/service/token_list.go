@@ -21,7 +21,7 @@ import (
 
 const (
 	// Cache key constants for token list
-	CacheKeyTokenList = "token_list:%s:%s:%d"  // chain_id:filters_hash:page (page_size included in filters_hash)
+	CacheKeyTokenList    = "token_list:%s:%s:%d" // chain_id:filters_hash:page (page_size included in filters_hash)
 	CacheExpireTokenList = 5 * time.Minute
 )
 
@@ -117,7 +117,7 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 
 	if req.Search != "" {
 		search := strings.TrimSpace(req.Search)
-		
+
 		// If search starts with 0x, treat it as an address
 		if strings.HasPrefix(search, "0x") {
 			// Full address: exact match (42 chars for address, 66 for tx hash)
@@ -145,13 +145,11 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 
 	// 6. Get total count
 	var total int64
-	var isExactCount bool
 	var countErr error
-	total, isExactCount, countErr = getApproximateCountWithError(query, &models.ContractInfo{}, queryCtx)
+	total, _, countErr = getApproximateCountWithError(query, &models.ContractInfo{}, queryCtx)
 	if countErr != nil {
 		global.Logger.Warnf("failed to get count for tokens: %v", countErr)
 		total = ApproximateCountFallback
-		isExactCount = false
 	}
 
 	// 7. Execute query (fetch more data if sorting by market data)
@@ -180,11 +178,11 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 			Id:                   uint64(contract.ID),
 			ContractAddress:      contract.ContractAddress,
 			ContractAddressShort: formatAddressShort(contract.ContractAddress),
-			TokenName:             contract.TokenName,
-			TokenSymbol:           contract.TokenSymbol,
-			Tags:                  models.ToContractTagInfoDTOs(contract.Tags),
-			FirstDeploymentTime:   formatDeploymentTime(contract.CreatedAt),
-			CreatedAt:             contract.CreatedAt.Format(time.RFC3339),
+			TokenName:            contract.TokenName,
+			TokenSymbol:          contract.TokenSymbol,
+			Tags:                 models.ToContractTagInfoDTOs(contract.Tags),
+			FirstDeploymentTime:  formatDeploymentTime(contract.CreatedAt),
+			CreatedAt:            contract.CreatedAt.Format(time.RFC3339),
 		}
 
 		// Fill market data
@@ -215,16 +213,27 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		}
 	}
 
-	// 11. Build pagination response
-	response := &pb.TokenListResponse{
-		Items:        items,
-		Page:         page,
-		PageSize:     pageSize,
-		Total:        total,
-		IsExactCount: isExactCount,
+	// 11. Build pagination info
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	paginationInfo := &pb.PaginationInfo{
+		Page:       page,
+		PageSize:   pageSize,
+		Total:      total,
+		TotalPages: totalPages,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
 	}
 
-	// 12. Cache result
+	// 12. Build pagination response
+	response := &pb.TokenListResponse{
+		Items:      items,
+		Pagination: paginationInfo,
+	}
+
+	// 13. Cache result
 	if redisClient != nil {
 		go func() {
 			cacheJSON, _ := sonic.Marshal(response)

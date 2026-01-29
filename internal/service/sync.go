@@ -1591,6 +1591,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 				msgTypesJSON string
 				sigsJSON     string
 				claimIdsJSON string
+				valuesJSON   string
 			}
 			serializedBatch := make([]serializedData, len(batch))
 
@@ -1632,6 +1633,15 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						serializedBatch[i].claimIdsJSON = string(claimIdsJSON)
 					}
 				}
+				// Serialize values - ensure it's always an array format
+				if txModel.Values != nil {
+					valuesJSON, err := sonic.Marshal(txModel.Values)
+					if err != nil {
+						global.Logger.Warnf("Failed to serialize values for transaction %s: %v", txModel.Hash, err)
+					} else {
+						serializedBatch[i].valuesJSON = string(valuesJSON)
+					}
+				}
 			}
 
 			err = db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -1660,7 +1670,7 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 						"logs":                 txModel.Logs,
 						"claim_ids":            serializedBatch[i].claimIdsJSON,
 						"to":                   txModel.To,
-						"values":                txModel.Values,
+						"values":               serializedBatch[i].valuesJSON,
 						"archived":             txModel.Archived,
 						"data_storage_key":     txModel.DataStorageKey,
 						"messages_storage_key": txModel.MessagesStorageKey,
@@ -1886,7 +1896,7 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 				"error_log":            txModel.ErrorLog,
 				"logs":                 txModel.Logs,
 				"to":                   txModel.To,
-				"values":                txModel.Values,
+				"values":               txModel.Values,
 				"archived":             txModel.Archived,
 				"data_storage_key":     txModel.DataStorageKey,
 				"messages_storage_key": txModel.MessagesStorageKey,
@@ -1908,6 +1918,12 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 			if txModel.ClaimIds != nil {
 				if claimIdsJSON, err := sonic.Marshal(txModel.ClaimIds); err == nil {
 					updateFields["claim_ids"] = string(claimIdsJSON)
+				}
+			}
+			// Serialize values - ensure it's always an array format
+			if txModel.Values != nil {
+				if valuesJSON, err := sonic.Marshal(txModel.Values); err == nil {
+					updateFields["values"] = string(valuesJSON)
 				}
 			}
 

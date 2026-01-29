@@ -31,7 +31,8 @@ message TokenListRequest {
   // Search by token name, symbol, or contract address (optional, fuzzy match)
   string search = 3 [ json_name = "search" ];
 
-  // Sort field: market_cap, volume_24h, price, holders, deployment_time (optional)
+  // Sort field: market_cap, volume_24h, price, holders, deployment_time
+  // (optional)
   string sort_by = 4 [ json_name = "sort_by" ];
 
   // Sort order: asc or desc (optional, default: desc)
@@ -52,14 +53,16 @@ message TokenListItemDTO {
   // Basic information
   uint64 id = 1;
   string contract_address = 2 [ json_name = "contract_address" ];
-  string contract_address_short = 3 [ json_name = "contract_address_short" ]; // e.g., "0x8a3d...7f2e"
+  string contract_address_short = 3
+      [ json_name = "contract_address_short" ]; // e.g., "0x8a3d...7f2e"
   string token_name = 4 [ json_name = "token_name" ];
   string token_symbol = 5 [ json_name = "token_symbol" ];
   repeated ContractTagInfoDTO tags = 6 [ json_name = "tags" ];
 
   // Token icon (optional)
-  string icon_url = 7 [ json_name = "icon_url" ];        // Token icon URL
-  string icon_gradient = 8 [ json_name = "icon_gradient" ]; // Fallback gradient CSS
+  string icon_url = 7 [ json_name = "icon_url" ]; // Token icon URL
+  string icon_gradient = 8
+      [ json_name = "icon_gradient" ]; // Fallback gradient CSS
 
   // Market data
   double price_usd = 9 [ json_name = "price_usd" ];
@@ -69,15 +72,13 @@ message TokenListItemDTO {
   int64 holders_count = 13 [ json_name = "holders_count" ];
 
   // Metadata
-  string first_deployment_time = 14 [ json_name = "first_deployment_time" ]; // Format: "2024/03/15"
-  string created_at = 15 [ json_name = "created_at" ];                      // ISO 8601 format
+  string first_deployment_time = 14
+      [ json_name = "first_deployment_time" ];         // Format: "2024/03/15"
+  string created_at = 15 [ json_name = "created_at" ]; // ISO 8601 format
 }
 
 // TokenListResponse represents the paginated response
 message TokenListResponse {
   repeated TokenListItemDTO items = 1 [ json_name = "items" ];
-  int32 page = 2;
-  int32 page_size = 3 [ json_name = "page_size" ];
-  int64 total = 4;
-  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+  PaginationInfo pagination = 2; // Pagination information
 }

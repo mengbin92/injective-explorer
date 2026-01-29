@@ -4637,6 +4637,66 @@
             "description": "禁用套餐（将状态设置为 inactive）\n\n该接口会将套餐状态设置为 inactive，禁止用户选择该套餐。\n已使用该套餐的用户不受影响。\n\n返回的数据中：\n- status: \"inactive\"\n- is_enabled: false"
           },
           "response": []
+        },
+        {
+          "name": "切换用户套餐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": \"user123\",\n    \"plan_id\": \"plan456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/plans/switch",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "plans",
+                "switch"
+              ]
+            },
+            "description": "切换用户的套餐到指定套餐"
+          },
+          "response": []
         }
       ],
       "description": "Plan management endpoints for admin"
@@ -5934,6 +5994,240 @@
               ]
             },
             "description": "获取错误请求列表（状态码 >= 400）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取使用统计概览",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('stats');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/stats?time_range=7days",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围：today/7days/30days/all"
+                }
+              ]
+            },
+            "description": "获取使用统计概览数据"
+          },
+          "response": []
+        },
+        {
+          "name": "获取按端点统计的使用数据",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has endpoints data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('endpoints');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/by-endpoint?time_range=7days&top_n=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "by-endpoint"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围：today/7days/30days/all"
+                },
+                {
+                  "key": "top_n",
+                  "value": "20",
+                  "description": "返回前N个端点，默认20"
+                }
+              ]
+            },
+            "description": "获取按API端点分组的使用统计"
+          },
+          "response": []
+        },
+        {
+          "name": "获取按错误码统计的使用数据",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has error_codes data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('error_codes');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/by-error-code?time_range=7days",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "by-error-code"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围：today/7days/30days/all"
+                }
+              ]
+            },
+            "description": "获取按错误码分组的使用统计"
+          },
+          "response": []
+        },
+        {
+          "name": "获取使用趋势",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has trends data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('trends');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/trends?time_range=7days&interval=hour",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "trends"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围：today/7days/30days/all"
+                },
+                {
+                  "key": "interval",
+                  "value": "hour",
+                  "description": "时间间隔：hour/day/week/month"
+                }
+              ]
+            },
+            "description": "获取使用趋势数据（按时间间隔）"
           },
           "response": []
         }

@@ -457,6 +457,437 @@
             "description": "Get account information. Requires Bearer token authentication."
           },
           "response": []
+        },
+        {
+          "name": "Get Token List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token list\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('tokens');",
+                  "    pm.expect(jsonData.data.tokens).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/list?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get a paginated list of tokens with market data."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Token Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token detail\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('contract_address');",
+                  "    pm.expect(jsonData.data).to.have.property('name');",
+                  "    pm.expect(jsonData.data).to.have.property('symbol');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/detail?contract_address=0x1234567890abcdef",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "detail"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "0x1234567890abcdef",
+                  "description": "Token contract address"
+                }
+              ]
+            },
+            "description": "Get detailed information for a specific token by contract address."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Contract Info",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has contract info\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('address');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/contract/info?address=0x1234567890abcdef",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contract",
+                "info"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "0x1234567890abcdef",
+                  "description": "Contract address"
+                }
+              ]
+            },
+            "description": "Get contract information by address."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Address Labels",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has labels\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('labels');",
+                  "    pm.expect(jsonData.data.labels).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/labels?address=0x1234567890abcdef",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "labels"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "0x1234567890abcdef",
+                  "description": "Address to query labels for"
+                }
+              ]
+            },
+            "description": "Get all labels for a specific address."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Address Remark",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has remark data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/address/remark?address=0x1234567890abcdef",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "address",
+                "remark"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "0x1234567890abcdef",
+                  "description": "Address to query remark for"
+                }
+              ]
+            },
+            "description": "Get remark for a specific address (backend only, not visible in frontend explorer)."
+          },
+          "response": []
+        },
+        {
+          "name": "List Webhooks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has webhooks list\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('webhooks');",
+                  "    pm.expect(jsonData.data.webhooks).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks"
+              ]
+            },
+            "description": "Get list of webhooks for the authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get EVM Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has transaction data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('hash');",
+                  "    pm.expect(jsonData.data).to.have.property('block_height');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/evm/transaction?hash=0xabc123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "evm",
+                "transaction"
+              ],
+              "query": [
+                {
+                  "key": "hash",
+                  "value": "0xabc123",
+                  "description": "Transaction hash"
+                }
+              ]
+            },
+            "description": "Get EVM transaction details by hash."
+          },
+          "response": []
+        },
+        {
+          "name": "Get EVM Account Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has transactions list\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('transactions');",
+                  "    pm.expect(jsonData.data.transactions).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}",
+                "description": "API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/evm/account/transactions?address=0x1234567890abcdef&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "evm",
+                "account",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "0x1234567890abcdef",
+                  "description": "Account address"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get EVM account transactions with pagination."
+          },
+          "response": []
         }
       ],
       "description": "API endpoints that require Bearer token authentication. Rate limiting applies: IP (100/min), Token (5/sec), User (100k/month)."
@@ -751,6 +1182,133 @@
               ]
             },
             "description": "导出使用日志为CSV格式（在JSON响应中返回CSV数据）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取活跃令牌数量",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has active token count\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('active_count');",
+                  "    pm.expect(jsonData.data.active_count).to.be.a('number');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/active-count?days=30",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tokens",
+                "active-count"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30",
+                  "description": "Number of days to look back (optional)"
+                }
+              ]
+            },
+            "description": "Get the count of active tokens for a user within a specified time period."
+          },
+          "response": []
+        },
+        {
+          "name": "获取错误代码分析",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response data has error analysis\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('error_codes');",
+                  "    pm.expect(jsonData.data.error_codes).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "User ID from external auth system"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stats/error-analysis?token_id={{token_id}}&days=7",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stats",
+                "error-analysis"
+              ],
+              "query": [
+                {
+                  "key": "token_id",
+                  "value": "{{token_id}}",
+                  "description": "Token ID to analyze (optional, analyzes all user tokens if not provided)"
+                },
+                {
+                  "key": "days",
+                  "value": "7",
+                  "description": "Number of days to analyze (optional)"
+                }
+              ]
+            },
+            "description": "Get error code analysis for a user or specific token, showing the distribution of error responses."
           },
           "response": []
         }
@@ -2717,6 +3275,281 @@
               ]
             },
             "description": "获取错误请求列表（状态码 >= 400）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取使用统计概览",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has usage stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_requests');",
+                  "        pm.expect(jsonData.data).to.have.property('success_requests');",
+                  "        pm.expect(jsonData.data).to.have.property('error_requests');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "管理员用户ID"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/stats?time_range=7days",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围: today/7days/30days"
+                }
+              ]
+            },
+            "description": "Get system usage statistics overview including total requests, success requests, and error requests."
+          },
+          "response": []
+        },
+        {
+          "name": "按端点统计使用数据",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has endpoint stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('endpoints');",
+                  "        pm.expect(jsonData.data.endpoints).to.be.an('array');",
+                  "        if (jsonData.data.endpoints.length > 0) {",
+                  "            pm.expect(jsonData.data.endpoints[0]).to.have.property('endpoint');",
+                  "            pm.expect(jsonData.data.endpoints[0]).to.have.property('count');",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "管理员用户ID"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/by-endpoint?time_range=7days&top_n=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "by-endpoint"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围: today/7days/30days"
+                },
+                {
+                  "key": "top_n",
+                  "value": "10",
+                  "description": "返回前N个端点，默认10"
+                }
+              ]
+            },
+            "description": "Get usage statistics by endpoint, showing the most frequently used API endpoints and their call counts."
+          },
+          "response": []
+        },
+        {
+          "name": "按错误码统计使用数据",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has error code stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('error_codes');",
+                  "        pm.expect(jsonData.data.error_codes).to.be.an('array');",
+                  "        if (jsonData.data.error_codes.length > 0) {",
+                  "            pm.expect(jsonData.data.error_codes[0]).to.have.property('status_code');",
+                  "            pm.expect(jsonData.data.error_codes[0]).to.have.property('count');",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "管理员用户ID"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/by-error-code?time_range=7days",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "by-error-code"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围: today/7days/30days"
+                }
+              ]
+            },
+            "description": "Get usage statistics by error code, showing the distribution of various HTTP status codes."
+          },
+          "response": []
+        },
+        {
+          "name": "获取使用趋势",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has trend data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('trends');",
+                  "        pm.expect(jsonData.data.trends).to.be.an('array');",
+                  "        if (jsonData.data.trends.length > 0) {",
+                  "            pm.expect(jsonData.data.trends[0]).to.have.property('timestamp');",
+                  "            pm.expect(jsonData.data.trends[0]).to.have.property('count');",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "{{user_id}}",
+                "description": "管理员用户ID"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/usage/trends?time_range=7days&interval=daily",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "usage",
+                "trends"
+              ],
+              "query": [
+                {
+                  "key": "time_range",
+                  "value": "7days",
+                  "description": "时间范围: today/7days/30days"
+                },
+                {
+                  "key": "interval",
+                  "value": "daily",
+                  "description": "时间间隔: hourly/daily"
+                }
+              ]
+            },
+            "description": "Get usage trends over time, showing API usage changes by time interval."
           },
           "response": []
         }
