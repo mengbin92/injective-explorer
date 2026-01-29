@@ -134,10 +134,7 @@ message TokenTransferInfo {
 // TokenTransfersResponse contains paginated transfers
 message TokenTransfersResponse {
   repeated TokenTransferInfo items = 1 [ json_name = "items" ];
-  int32 page = 2;
-  int32 page_size = 3 [ json_name = "page_size" ];
-  int64 total = 4;
-  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+  PaginationInfo pagination = 2;
 }
 
 // GetTokenHoldersRequest queries token holders
@@ -167,10 +164,7 @@ message TokenHolderInfo {
 // TokenHoldersResponse contains paginated holders
 message TokenHoldersResponse {
   repeated TokenHolderInfo items = 1 [ json_name = "items" ];
-  int32 page = 2;
-  int32 page_size = 3 [ json_name = "page_size" ];
-  int64 total = 4;
-  bool is_exact_count = 5 [ json_name = "is_exact_count" ];
+  PaginationInfo pagination = 2;
 }
 
 // GetTokenHoldersStatsRequest queries holder statistics

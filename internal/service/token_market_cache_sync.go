@@ -176,9 +176,9 @@ func (s *TokenMarketCacheSyncService) syncAllTokens() error {
 	// Build token configs
 	tokenConfigs := make(map[string]*TokenConfig)
 	for _, symbol := range tokens {
-		config, err := LoadTokenConfigFromConf(nil, symbol)
-		if err != nil {
-			global.Logger.Warnf("Failed to load token config for %s: %v", symbol, err)
+		config := GetTokenConfigOrCreate(symbol)
+		if config == nil {
+			global.Logger.Warnf("Failed to create token config for %s: no CoinGecko ID mapping", symbol)
 			continue
 		}
 		tokenConfigs[symbol] = config

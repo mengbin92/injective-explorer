@@ -303,7 +303,7 @@ func (s *AdminService) GetUsageStats(ctx context.Context, req *pb.GetUsageStatsR
 		TotalRequests   int64
 		SuccessRequests int64
 		FailedRequests  int64
-		AvgResponseTime int64
+		AvgResponseTime float64
 		UniqueUsers     int64
 		UniqueIPs       int64
 	}
@@ -400,7 +400,7 @@ func (s *AdminService) GetUsageTrends(ctx context.Context, req *pb.GetUsageTrend
 		TotalRequests   int64
 		SuccessRequests int64
 		FailedRequests  int64
-		AvgResponseTime int64
+		AvgResponseTime float64
 	}
 
 	var results []TrendResult
@@ -486,7 +486,7 @@ func (s *AdminService) GetUsageByEndpoint(ctx context.Context, req *pb.GetUsageB
 		RequestCount    int64
 		SuccessCount    int64
 		FailedCount     int64
-		AvgResponseTime int64
+		AvgResponseTime float64
 	}
 
 	var results []EndpointResult

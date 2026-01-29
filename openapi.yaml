@@ -2350,7 +2350,9 @@ paths:
                     type: string
                 - name: sort_by
                   in: query
-                  description: 'Sort field: market_cap, volume_24h, price, holders, deployment_time (optional)'
+                  description: |-
+                    Sort field: market_cap, volume_24h, price, holders, deployment_time
+                     (optional)
                   schema:
                     type: string
                 - name: sort_order

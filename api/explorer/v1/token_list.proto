@@ -75,6 +75,10 @@ message TokenListItemDTO {
   string first_deployment_time = 14
       [ json_name = "first_deployment_time" ];         // Format: "2024/03/15"
   string created_at = 15 [ json_name = "created_at" ]; // ISO 8601 format
+
+  // Token technical details
+  string denom = 16 [ json_name = "denom" ]; // Token denom (e.g., "peggy0x87aB...", "factory/...")
+  int32 decimals = 17 [ json_name = "decimals" ]; // Token decimals (default: 18)
 }
 
 // TokenListResponse represents the paginated response

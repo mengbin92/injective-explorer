@@ -120,7 +120,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 			TokenStandard: contract.ContractType,
 			Decimals:      18, // Default decimals, should be fetched from contract
 			DeployDate:    formatDeploymentTime(contract.CreatedAt),
-			CreatorShort:  contract.ContractAddress,
+			CreatorShort:  contract.Creator,
 		},
 	}
 
@@ -259,12 +259,22 @@ func (s *TokenDetailService) GetTokenTransfers(ctx context.Context, req *pb.GetT
 		items = append(items, item)
 	}
 
+	// Build pagination info
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
 	response := &pb.TokenTransfersResponse{
-		Items:        items,
-		Page:         page,
-		PageSize:     pageSize,
-		Total:        total,
-		IsExactCount: true,
+		Items: items,
+		Pagination: &pb.PaginationInfo{
+			Page:       page,
+			PageSize:   pageSize,
+			Total:      total,
+			TotalPages: totalPages,
+			HasPrev:    page > 1,
+			HasNext:    page < totalPages,
+		},
 	}
 
 	return MarshalAndReply(response, "marshal token transfers error")
@@ -392,12 +402,22 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 		items = append(items, holderInfo)
 	}
 
+	// Build pagination info
+	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
 	response := &pb.TokenHoldersResponse{
-		Items:        items,
-		Page:         page,
-		PageSize:     pageSize,
-		Total:        total,
-		IsExactCount: true,
+		Items: items,
+		Pagination: &pb.PaginationInfo{
+			Page:       page,
+			PageSize:   pageSize,
+			Total:      total,
+			TotalPages: totalPages,
+			HasPrev:    page > 1,
+			HasNext:    page < totalPages,
+		},
 	}
 
 	return MarshalAndReply(response, "marshal token holders error")

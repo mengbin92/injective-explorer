@@ -2610,9 +2610,14 @@ func (s *SyncService) historicalBlockSync() {
 	// Determine starting height for historical sync
 	var startHeight uint64
 	if persistedHeight > 0 {
-		// Recover from persisted height
-		startHeight = persistedHeight
-		global.Logger.Infof("historical block sync: resuming from persisted height %d", startHeight)
+		// Recover from persisted height, but ensure it's not below RPC's earliest height
+		if persistedHeight < earliestBlockHeight {
+			startHeight = earliestBlockHeight
+			global.Logger.Infof("historical block sync: persisted height %d is below RPC earliest height %d, adjusting to %d", persistedHeight, earliestBlockHeight, startHeight)
+		} else {
+			startHeight = persistedHeight
+			global.Logger.Infof("historical block sync: resuming from persisted height %d", startHeight)
+		}
 	} else if minHeight > earliestBlockHeight {
 		// We have blocks, but not from the beginning
 		// Start syncing from earliest block height to minHeight - 1
@@ -2635,12 +2640,12 @@ func (s *SyncService) historicalBlockSync() {
 			global.Logger.Infof("historical block sync stopped by context")
 			return
 		case <-ticker.C:
-			// // Check RPC node status before syncing
-			// status, err := s.tmClient.GetStatus(s.ctx)
-			// if err != nil {
-			// 	global.Logger.Warnf("failed to get RPC node status: %v, skipping historical sync", err)
-			// 	continue
-			// }
+			// Check RPC node status before syncing
+			status, err := s.tmClient.GetStatus(s.ctx)
+			if err != nil {
+				global.Logger.Warnf("failed to get RPC node status: %v, skipping historical sync", err)
+				continue
+			}
 
 			// Check if RPC node is syncing (not caught up)
 			if status != nil && status.SyncInfo.CatchingUp {

@@ -1970,18 +1970,32 @@ func getApproximateCountForAddressWithError(baseQuery *gorm.DB, address string) 
 //   - has_prev: Whether there is a previous page
 //   - has_next: Whether there is a next page
 func buildPaginationInfo(page, pageSize int32, total int64) map[string]interface{} {
+	paginationInfo := buildPaginationInfoProto(page, pageSize, total)
+	return map[string]interface{}{
+		"page":        paginationInfo.Page,
+		"page_size":   paginationInfo.PageSize,
+		"total":       paginationInfo.Total,
+		"total_pages": paginationInfo.TotalPages,
+		"has_prev":    paginationInfo.HasPrev,
+		"has_next":    paginationInfo.HasNext,
+	}
+}
+
+// buildPaginationInfoProto builds a PaginationInfo protobuf message.
+// This is the unified pagination format used across all APIs.
+func buildPaginationInfoProto(page, pageSize int32, total int64) *pb.PaginationInfo {
 	totalPages := int32((total + int64(pageSize) - 1) / int64(pageSize))
 	if totalPages == 0 {
 		totalPages = 1
 	}
 
-	return map[string]interface{}{
-		"page":        page,
-		"page_size":   pageSize,
-		"total":       total,
-		"total_pages": totalPages,
-		"has_prev":    page > 1,
-		"has_next":    page < totalPages,
+	return &pb.PaginationInfo{
+		Page:       page,
+		PageSize:   pageSize,
+		Total:      total,
+		TotalPages: totalPages,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
 	}
 }
 

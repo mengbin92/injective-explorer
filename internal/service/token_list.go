@@ -185,13 +185,24 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 			CreatedAt:            contract.CreatedAt.Format(time.RFC3339),
 		}
 
-		// Fill market data
-		if marketData, ok := marketDataMap[contract.TokenSymbol]; ok {
+		// Fill market data (use uppercase symbol for lookup)
+		if marketData, ok := marketDataMap[strings.ToUpper(contract.TokenSymbol)]; ok {
 			item.PriceUsd = marketData.PriceUSD
 			item.PriceChange_24H = marketData.PriceChange24h
 			item.TotalVolume_24H = marketData.TotalVolume24h
 			item.MarketCapUsd = marketData.MarketCapUSD
 			item.HoldersCount = marketData.HoldersCount
+		}
+
+		// Get token config for denom and decimals
+		tokenConfig := GetTokenConfigOrCreate(contract.TokenSymbol)
+		if tokenConfig != nil {
+			item.Denom = tokenConfig.Denom
+			item.Decimals = tokenConfig.Decimals
+		} else {
+			// Fallback: use contract address as denom and default decimals
+			item.Denom = contract.ContractAddress
+			item.Decimals = 18
 		}
 
 		items = append(items, item)
@@ -244,27 +255,81 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 	return MarshalAndReply(response, "marshal token list error")
 }
 
-// batchGetTokenMarketData fetches market data for multiple tokens in parallel
+// batchGetTokenMarketData fetches market data for multiple tokens in parallel.
+// It first tries to get data from token_market_cache table, then falls back to
+// fetching from external API via token config.
 func (s *TokenListService) batchGetTokenMarketData(ctx context.Context, symbols []string) map[string]*TokenMarketData {
-	// Build token config map
-	tokenConfigs := make(map[string]*TokenConfig)
+	result := make(map[string]*TokenMarketData)
+
+	// Step 1: Try to get data from token_market_cache table first
+	// Normalize symbols to lowercase for case-insensitive matching
+	lowerSymbols := make([]string, len(symbols))
+	for i, s := range symbols {
+		lowerSymbols[i] = strings.ToLower(s)
+	}
+
+	var cacheResults []models.TokenMarketCache
+	err := db.Get().WithContext(ctx).
+		Model(&models.TokenMarketCache{}).
+		Where("LOWER(token_symbol) IN ?", lowerSymbols).
+		Where("deleted_at IS NULL").
+		Find(&cacheResults).Error
+
+	if err != nil {
+		global.Logger.Warnf("failed to query token_market_cache: %v", err)
+	} else {
+		// Build result from cache data using original symbol case as key
+		for _, cache := range cacheResults {
+			result[strings.ToUpper(cache.TokenSymbol)] = &TokenMarketData{
+				PriceUSD:              cache.PriceUSD,
+				PriceChange24h:        cache.PriceChange24h,
+				MarketCapUSD:          cache.MarketCapUSD,
+				TotalVolume24h:        cache.TotalVolume24h,
+				HoldersCount:          cache.HoldersCount,
+				TotalSupply:           cache.TotalSupply,
+				CirculatingSupply:     cache.CirculatingSupply,
+				MaxSupply:             cache.MaxSupply,
+				FullyDilutedMarketCap: cache.FullyDilutedMarketCap,
+			}
+		}
+		global.Logger.Debugf("loaded %d tokens from token_market_cache", len(result))
+	}
+
+	// Step 2: For tokens not in cache, try to fetch via API using token config
+	tokensNeedingFetch := make([]string, 0)
 	for _, symbol := range symbols {
-		// Skip empty symbols
 		if symbol == "" {
 			continue
 		}
-
-		// Try to load token config
-		config, err := LoadTokenConfigFromConf(nil, symbol)
-		if err != nil {
-			global.Logger.Debugf("no token config for %s: %v", symbol, err)
-			continue
+		// Use uppercase for lookup
+		if _, ok := result[strings.ToUpper(symbol)]; !ok {
+			tokensNeedingFetch = append(tokensNeedingFetch, symbol)
 		}
-		tokenConfigs[symbol] = config
 	}
 
-	// Batch fetch market data
-	return BatchGetTokenMarketData(ctx, tokenConfigs)
+	if len(tokensNeedingFetch) > 0 {
+		// Build token config map for tokens not in cache
+		tokenConfigs := make(map[string]*TokenConfig)
+		for _, symbol := range tokensNeedingFetch {
+			config := GetTokenConfigOrCreate(symbol)
+			if config == nil {
+				global.Logger.Debugf("no token config for %s: unable to create from symbol", symbol)
+				continue
+			}
+			tokenConfigs[symbol] = config
+		}
+
+		// Fetch market data from API for remaining tokens
+		if len(tokenConfigs) > 0 {
+			apiResults := BatchGetTokenMarketData(ctx, tokenConfigs)
+			for symbol, data := range apiResults {
+				// Store with uppercase key
+				result[strings.ToUpper(symbol)] = data
+			}
+		}
+	}
+
+	return result
 }
 
 // extractTokenSymbols extracts unique token symbols from contracts
@@ -335,37 +400,38 @@ func (s *TokenListService) getTokensSortedFromCache(ctx context.Context, chainID
 	}
 
 	// Get contract info for these tokens
-	symbols := make([]string, 0, len(cacheResults))
+	// Normalize symbols to lowercase for case-insensitive matching
+	lowerSymbols := make([]string, 0, len(cacheResults))
 	for _, cache := range cacheResults {
-		symbols = append(symbols, cache.TokenSymbol)
+		lowerSymbols = append(lowerSymbols, strings.ToLower(cache.TokenSymbol))
 	}
 
 	var contracts []models.ContractInfo
 	err = db.Get().WithContext(ctx).
 		Preload("Tags").
-		Where("token_symbol IN ? AND chain_id = ?", symbols, chainID).
+		Where("LOWER(token_symbol) IN ? AND chain_id = ?", lowerSymbols, chainID).
 		Where("deleted_at IS NULL").
 		Find(&contracts).Error
 	if err != nil {
 		return nil, err
 	}
 
-	// Build contract lookup map
+	// Build contract lookup map using uppercase symbol as key
 	contractMap := make(map[string]*models.ContractInfo)
 	for i := range contracts {
-		contractMap[contracts[i].TokenSymbol] = &contracts[i]
+		contractMap[strings.ToUpper(contracts[i].TokenSymbol)] = &contracts[i]
 	}
 
-	// Build cache lookup map
+	// Build cache lookup map using uppercase symbol as key
 	cacheMap := make(map[string]*models.TokenMarketCache)
 	for i := range cacheResults {
-		cacheMap[cacheResults[i].TokenSymbol] = cacheResults[i]
+		cacheMap[strings.ToUpper(cacheResults[i].TokenSymbol)] = cacheResults[i]
 	}
 
 	// Assemble response items maintaining sort order from cache
 	items := make([]*pb.TokenListItemDTO, 0, len(cacheResults))
 	for _, cache := range cacheResults {
-		contract, ok := contractMap[cache.TokenSymbol]
+		contract, ok := contractMap[strings.ToUpper(cache.TokenSymbol)]
 		if !ok {
 			continue
 		}
@@ -386,6 +452,17 @@ func (s *TokenListService) getTokensSortedFromCache(ctx context.Context, chainID
 			HoldersCount:         cache.HoldersCount,
 		}
 
+		// Get token config for denom and decimals
+		tokenConfig := GetTokenConfigOrCreate(contract.TokenSymbol)
+		if tokenConfig != nil {
+			item.Denom = tokenConfig.Denom
+			item.Decimals = tokenConfig.Decimals
+		} else {
+			// Fallback: use contract address as denom and default decimals
+			item.Denom = contract.ContractAddress
+			item.Decimals = 18
+		}
+
 		items = append(items, item)
 	}
 
@@ -397,7 +474,7 @@ func formatDeploymentTime(t time.Time) string {
 	return t.Format("2006/01/02")
 }
 
-// formatAddressShort formats address to short form (e.g., "0x8a3d...7f2e")
+// formatAddressShort formats address to short form (e.g.=, "0x8a3d...7f2e")
 func formatAddressShort(address string) string {
 	if len(address) <= 10 {
 		return address

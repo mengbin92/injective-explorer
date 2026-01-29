@@ -365,7 +365,7 @@ message UsageStatsDTO {
   int64 success_requests = 2 [ json_name = "success_requests" ];
   int64 failed_requests = 3 [ json_name = "failed_requests" ];
   double error_rate = 4 [ json_name = "error_rate" ]; // Error rate percentage
-  int64 avg_response_time = 5 [ json_name = "avg_response_time" ]; // Average response time in ms
+  double avg_response_time = 5 [ json_name = "avg_response_time" ]; // Average response time in ms
   int64 unique_users = 6 [ json_name = "unique_users" ];
   int64 unique_ips = 7 [ json_name = "unique_ips" ];
 }
@@ -380,7 +380,7 @@ message UsageTrendDTO {
   int64 total_requests = 2 [ json_name = "total_requests" ];
   int64 success_requests = 3 [ json_name = "success_requests" ];
   int64 failed_requests = 4 [ json_name = "failed_requests" ];
-  int64 avg_response_time = 5 [ json_name = "avg_response_time" ];
+  double avg_response_time = 5 [ json_name = "avg_response_time" ];
 }
 
 message GetUsageByEndpointRequest {
@@ -395,7 +395,7 @@ message EndpointUsageDTO {
   int64 success_count = 4 [ json_name = "success_count" ];
   int64 failed_count = 5 [ json_name = "failed_count" ];
   double error_rate = 6 [ json_name = "error_rate" ];
-  int64 avg_response_time = 7 [ json_name = "avg_response_time" ];
+  double avg_response_time = 7 [ json_name = "avg_response_time" ];
 }
 
 message GetUsageByErrorCodeRequest {

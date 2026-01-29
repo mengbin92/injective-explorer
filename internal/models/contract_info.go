@@ -34,6 +34,9 @@ type ContractInfo struct {
 	VerifiedAt         *time.Time `json:"verified_at" gorm:"column:verified_at"`
 	VerifiedBy         string     `json:"verified_by" gorm:"column:verified_by;size:128"`
 
+	// Creator/Deployer information
+	Creator string `json:"creator" gorm:"column:creator;size:128"` // Contract deployer/creator address
+
 	// Extended fields (JSON format for storing additional information)
 	Metadata map[string]interface{} `json:"metadata" gorm:"column:metadata;serializer:json"`
 

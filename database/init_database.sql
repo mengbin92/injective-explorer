@@ -215,13 +215,15 @@ CREATE TABLE `contract_infos` (
   `is_verified` tinyint(1) DEFAULT '0',
   `verified_at` datetime(3) DEFAULT NULL,
   `verified_by` varchar(128) DEFAULT NULL,
+  `creator` varchar(128) DEFAULT NULL COMMENT '合约创建者/部署者地址',
   `metadata` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_contract_infos_deleted_at` (`deleted_at`),
   KEY `idx_token_symbol` (`token_symbol`),
   KEY `idx_contract_infos_contract_type` (`contract_type`),
   KEY `idx_contract_infos_chain_id` (`chain_id`),
-  KEY `idx_contract_infos_verification_status` (`verification_status`)
+  KEY `idx_contract_infos_verification_status` (`verification_status`),
+  KEY `idx_contract_infos_creator` (`creator`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------

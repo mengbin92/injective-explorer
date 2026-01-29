@@ -29,6 +29,62 @@ const (
 	defaultPriceSource = "coingecko"
 )
 
+// commonCoinGeckoIDMap maps common token symbols to their CoinGecko IDs.
+// This allows tokens not in config to still fetch market data using their symbol.
+var commonCoinGeckoIDMap = map[string]string{
+	"inj":    "injective-protocol",
+	"usdt":   "tether",
+	"usdc":   "usd-coin",
+	"weth":   "weth",
+	"eth":    "ethereum",
+	"btc":    "bitcoin",
+	"wbbtc":  "wrapped-bitcoin",
+	"dai":    "dai",
+	"link":   "chainlink",
+	"uni":    "uniswap",
+	"aave":   "aave",
+	"comp":   "compound-governance-token",
+	"mkr":    "maker",
+	"snx":    "havven",
+	"yfi":    "yearn-finance",
+	"crv":    "curve-dao-token",
+	"1inch":  "1inch",
+	"grt":    "the-graph",
+	"sushi":  "sushi",
+	"band":   "band-protocol",
+	"atom":   "cosmos",
+	"osmo":   "osmosis",
+	"kava":   "kava",
+	"scrt":   "secret",
+	"xprt":   "persistence",
+	"akt":    "akash-network",
+	"dvpn":   "sentinel",
+	"ion":    "ion",
+	"rowan":  "sifchain",
+	"ctk":    "certik",
+	"btsg":   "bitsong",
+	"xki":    "ki-network",
+	"umee":   "umee",
+}
+
+// GetCoinGeckoIDFromSymbol attempts to get CoinGecko ID from token symbol.
+// It first checks the common mapping, then tries to use lowercase symbol.
+func GetCoinGeckoIDFromSymbol(symbol string) string {
+	if symbol == "" {
+		return ""
+	}
+	lowerSymbol := strings.ToLower(symbol)
+
+	// Check common mapping first
+	if id, ok := commonCoinGeckoIDMap[lowerSymbol]; ok {
+		return id
+	}
+
+	// For some tokens, the CoinGecko ID is the same as the lowercase symbol
+	// This works for many tokens like "bitcoin", "ethereum", etc.
+	return lowerSymbol
+}
+
 // TokenConfig represents configuration for a token.
 type TokenConfig struct {
 	Symbol         string
@@ -87,6 +143,31 @@ type PriceAndSupplyData struct {
 	LastUpdated          int64
 	PriceSource          string
 	SupplySource         string // "coingecko" or "chain"
+}
+
+// GetTokenConfigOrCreate attempts to get token config from global config.
+// If not found in config, it creates a default config using the symbol mapping.
+func GetTokenConfigOrCreate(tokenSymbol string) *TokenConfig {
+	// Try to load from config first
+	config, err := LoadTokenConfigFromConf(nil, tokenSymbol)
+	if err == nil {
+		return config
+	}
+
+	// Create a default config using symbol mapping
+	coinGeckoID := GetCoinGeckoIDFromSymbol(tokenSymbol)
+	if coinGeckoID == "" {
+		return nil
+	}
+
+	return &TokenConfig{
+		Symbol:      strings.ToLower(tokenSymbol),
+		Denom:       strings.ToLower(tokenSymbol),
+		CoinGeckoID: coinGeckoID,
+		Decimals:    defaultDecimals,
+		PriceSource: defaultPriceSource,
+		DisplayName: strings.ToUpper(tokenSymbol),
+	}
 }
 
 // getTokenConfig retrieves token configuration from global config.

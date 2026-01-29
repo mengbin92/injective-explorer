@@ -15,6 +15,7 @@ services:
       - 9000:9000
     volumes:
       - ./configs:/data/conf
+      - ./cmd/injective-explorer/injective_data:/app/injective_data
       - ./data/GeoLite2-City.mmdb:/data/GeoLite2-City.mmdb
     networks:
       - injective-explorer-network
