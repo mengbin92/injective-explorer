@@ -120,7 +120,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 			TokenStandard: contract.ContractType,
 			Decimals:      18, // Default decimals, should be fetched from contract
 			DeployDate:    formatDeploymentTime(contract.CreatedAt),
-			CreatorShort:  formatAddressShort(contract.ContractAddress),
+			CreatorShort:  contract.ContractAddress,
 		},
 	}
 

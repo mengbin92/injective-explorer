@@ -431,3 +431,96 @@ func HexToValconsAddress(hexAddr string) (string, error) {
 
 	return valconsAddr, nil
 }
+
+// ValoperToAccAddress converts a validator operator address (injvaloper1...) to an account address (inj1...).
+// In Cosmos SDK, both addresses share the same 20-byte data, only the bech32 HRP differs.
+//
+// Parameters:
+//   - valoperAddr: The validator operator address (injvaloper1...)
+//
+// Returns:
+//   - string: The account address (inj1...)
+//   - error: Error if conversion fails
+func ValoperToAccAddress(valoperAddr string) (string, error) {
+	if valoperAddr == "" {
+		return "", fmt.Errorf("%w: empty validator address", ErrInvalidAddress)
+	}
+
+	// Validate prefix
+	if !strings.HasPrefix(valoperAddr, "injvaloper1") {
+		return "", fmt.Errorf("%w: invalid validator address format, expected injvaloper1...", ErrInvalidAddress)
+	}
+
+	// bech32 decode
+	hrp, data, err := bech32.Decode(valoperAddr)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to decode bech32 address: %v", ErrConversion, err)
+	}
+	if hrp != "injvaloper" {
+		return "", fmt.Errorf("%w: invalid HRP, expected 'injvaloper', got '%s'", ErrConversion, hrp)
+	}
+
+	// Re-encode with account HRP
+	accAddr, err := bech32.Encode("inj", data)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
+	}
+
+	return accAddr, nil
+}
+
+// AccToValoperAddress converts an account address (inj1...) to a validator operator address (injvaloper1...).
+//
+// Parameters:
+//   - accAddr: The account address (inj1...)
+//
+// Returns:
+//   - string: The validator operator address (injvaloper1...)
+//   - error: Error if conversion fails
+func AccToValoperAddress(accAddr string) (string, error) {
+	if accAddr == "" {
+		return "", fmt.Errorf("%w: empty account address", ErrInvalidAddress)
+	}
+
+	// Validate prefix
+	if !strings.HasPrefix(accAddr, "inj1") {
+		return "", fmt.Errorf("%w: invalid account address format, expected inj1...", ErrInvalidAddress)
+	}
+
+	// bech32 decode
+	hrp, data, err := bech32.Decode(accAddr)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to decode bech32 address: %v", ErrConversion, err)
+	}
+	if hrp != "inj" {
+		return "", fmt.Errorf("%w: invalid HRP, expected 'inj', got '%s'", ErrConversion, hrp)
+	}
+
+	// Re-encode with validator HRP
+	valoperAddr, err := bech32.Encode("injvaloper", data)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
+	}
+
+	return valoperAddr, nil
+}
+
+// ValoperToEthAddress converts a validator operator address (injvaloper1...) to an Ethereum address (0x...).
+// Conversion path: injvaloper1... → inj1... → 0x...
+//
+// Parameters:
+//   - valoperAddr: The validator operator address (injvaloper1...)
+//
+// Returns:
+//   - string: The Ethereum address (0x...)
+//   - error: Error if conversion fails
+func ValoperToEthAddress(valoperAddr string) (string, error) {
+	// First convert to account address
+	accAddr, err := ValoperToAccAddress(valoperAddr)
+	if err != nil {
+		return "", err
+	}
+
+	// Then convert to Ethereum address
+	return InjToEthAddress(accAddr)
+}

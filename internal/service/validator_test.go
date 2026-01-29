@@ -13,8 +13,13 @@ func TestValidateAddress(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "valid Injective address",
+			name:    "valid injective chain address",
 			address: "inj1test1234567890123456789012345678901234",
+			wantErr: false,
+		},
+		{
+			name:    "valid validator address",
+			address: "injvaloper1wcezdkvet2klmgg3jygc3qq5s52n4zwkh204f4",
 			wantErr: false,
 		},
 		{
@@ -35,6 +40,11 @@ func TestValidateAddress(t *testing.T) {
 		{
 			name:    "invalid Ethereum address (wrong prefix)",
 			address: "0X1234567890123456789012345678901234567890",
+			wantErr: true,
+		},
+		{
+			name:    "invalid validator address (too short)",
+			address: "injvaloper1test",
 			wantErr: true,
 		},
 		{
@@ -255,3 +265,4 @@ func TestSanitizeHash(t *testing.T) {
 		})
 	}
 }
+

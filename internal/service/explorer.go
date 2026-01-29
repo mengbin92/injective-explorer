@@ -4819,7 +4819,17 @@ func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address str
 		return address, nil
 	}
 
-	// If Injective format
+	// If validator operator address, convert to account address first
+	if strings.HasPrefix(address, "injvaloper1") {
+		accAddr, err := models.ValoperToAccAddress(address)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to convert validator address to account address: %s", address)
+		}
+		// Continue processing with the account address
+		address = accAddr
+	}
+
+	// If Injective format (inj1...)
 	if strings.HasPrefix(address, "inj1") {
 		if forChainQuery {
 			// For chain queries, return as-is

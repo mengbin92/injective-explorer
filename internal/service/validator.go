@@ -10,6 +10,8 @@ import (
 var (
 	// injAddressRegex validates injective chain addresses (inj1 followed by 38 base58 characters)
 	injAddressRegex = regexp.MustCompile(`^inj1[0-9a-z]{38}$`)
+	// injValoperAddressRegex validates injective chain validator addresses (injvaloper1 followed by 38 base58 characters)
+	injValoperAddressRegex = regexp.MustCompile(`^injvaloper1[0-9a-z]{38}$`)
 	// ethAddressRegex validates Ethereum addresses (0x followed by 40 hex characters)
 	ethAddressRegex = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)
 	// txHashRegex validates transaction hashes (hex string, typically 64 characters)
@@ -17,7 +19,7 @@ var (
 )
 
 // ValidateAddress validates a blockchain address format.
-// It supports both injective chain (inj1...) and Ethereum (0x...) addresses.
+// It supports injective chain (inj1...), validator (injvaloper1...) and Ethereum (0x...) addresses.
 //
 // Parameters:
 //   - address: The address string to validate
@@ -37,6 +39,14 @@ func ValidateAddress(address string) error {
 		return nil
 	}
 
+	// Check injective chain validator address format
+	if strings.HasPrefix(address, "injvaloper1") {
+		if !injValoperAddressRegex.MatchString(address) {
+			return fmt.Errorf("invalid injective chain validator address format: %s", address)
+		}
+		return nil
+	}
+
 	// Check Ethereum address format
 	if strings.HasPrefix(address, "0x") {
 		if !ethAddressRegex.MatchString(address) {
@@ -46,7 +56,7 @@ func ValidateAddress(address string) error {
 	}
 
 	// Unknown address format
-	return fmt.Errorf("unknown address format: %s (expected inj1... or 0x...)", address)
+	return fmt.Errorf("unknown address format: %s (expected inj1..., injvaloper1... or 0x...)", address)
 }
 
 // ValidateTransactionHash validates a transaction hash format.
