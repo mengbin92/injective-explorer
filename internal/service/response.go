@@ -72,13 +72,14 @@ func ToStruct(v interface{}) (*structpb.Struct, error) {
 		}
 	}
 
-	// Marshal to JSON first
+	// Use sonic for JSON operations (high performance)
+	// First marshal to JSON
 	jsonBytes, err := sonic.Marshal(v)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal to JSON")
 	}
 
-	// Unmarshal into structpb.Struct
+	// Unmarshal into structpb.Struct using standard protojson
 	var structData structpb.Struct
 	if err := protojson.Unmarshal(jsonBytes, &structData); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal JSON to struct")
