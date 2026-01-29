@@ -103,12 +103,22 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 		return nil
 	}
 
+	// Convert addresses in events to EVM format before storage
+	convertEventAddressesToEVM(detail.Events)
+
 	// Store events as JSON strings
 	eventMessages := make([]proto.Message, 0, len(detail.Events))
 	for _, event := range detail.Events {
 		eventMessages = append(eventMessages, event)
 	}
 	events, _ := MarshalProtoSliceToJSON(eventMessages)
+
+	// Convert addresses in signatures to EVM format before storage
+	for _, sig := range detail.Signatures {
+		if sig != nil && sig.Address != "" {
+			sig.Address = ConvertAddressToEthForStorage(sig.Address)
+		}
+	}
 
 	// Store signatures as JSON strings
 	sigMessages := make([]proto.Message, 0, len(detail.Signatures))
@@ -897,6 +907,59 @@ func TransactionFromGetTxResponse(getTxResp *cosmostxpb.GetTxResponse, storageTh
 	return TransactionFromProto(txDetailData, storageThreshold)
 }
 
+// convertEventAddressesToEVM converts all bech32 addresses in event attributes to EVM format.
+// This ensures consistent address display across all API responses.
+func convertEventAddressesToEVM(events []*injective_explorer_rpcpb.Event) {
+	if len(events) == 0 {
+		return
+	}
+
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+
+		attrs := event.GetAttributes()
+		if attrs == nil {
+			continue
+		}
+
+		for key, val := range attrs {
+			if val == "" {
+				continue
+			}
+
+			// Handle composite fields like "acc_seq": "address/sequence"
+			if key == "acc_seq" || key == "accSeq" {
+				parts := strings.Split(val, "/")
+				if len(parts) == 2 {
+					attrs[key] = ConvertAddressToEthForStorage(parts[0]) + "/" + parts[1]
+				}
+				continue
+			}
+
+			// Check if this is an address field
+			if isEventAddressAttribute(key) {
+				attrs[key] = ConvertAddressToEthForStorage(val)
+			}
+		}
+	}
+}
+
+// isEventAddressAttribute checks if an event attribute key represents an address field.
+func isEventAddressAttribute(key string) bool {
+	switch key {
+	case "sender", "recipient", "receiver", "from", "to", "spender",
+		"owner", "operator", "validator", "delegator", "depositor",
+		"voter", "proposer", "signer", "fee_payer", "feePayer",
+		"sender_address", "receiver_address", "validator_address",
+		"delegator_address", "grantee", "granter", "authority",
+		"submitter", "module_account", "moduleAccount":
+		return true
+	}
+	return false
+}
+
 // extractSignerFromEvents attempts to extract signer address from transaction events.
 // Common event types that may contain signer information include:
 // - "message" event with "sender" attribute
@@ -1012,6 +1075,8 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, cod
 				Attributes: attrs,
 			})
 		}
+		// Convert addresses in events to EVM format
+		convertEventAddressesToEVM(events)
 	}
 
 	// Extract signer address from events as fallback

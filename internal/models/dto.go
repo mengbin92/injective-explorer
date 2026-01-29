@@ -326,7 +326,7 @@ func ToContractTagInfoDTO(tag *ContractTag) *pb.ContractTagInfoDTO {
 		Description:     tag.Description,
 		CreatedBy:       tag.CreatedBy,
 		CreatedAt:       createdAt,
-		Visible:         tag.Visible, // Whether to display in frontend
+		Visible:         tag.Visible,  // Whether to display in frontend
 		IsPreset:        tag.IsPreset, // Whether from preset definitions
 	}
 
