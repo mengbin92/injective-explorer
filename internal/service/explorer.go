@@ -123,14 +123,25 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// First, try to query from Redis cache (only for first page without cursor)
-	if !useCursor && page == MinPage {
-		cachedBlocks, err := getBlocksFromCache(queryCtx, int(pageSize))
-		if err != nil {
+	// First, try to query from Redis cache for page-based pagination (avoids DB lag)
+	if !useCursor {
+		var cachedBlocks []models.Block
+		var cacheErr error
+		var hasMore bool
+
+		if page == MinPage {
+			// First page: use simple limit query
+			cachedBlocks, cacheErr = getBlocksFromCache(queryCtx, int(pageSize))
+		} else {
+			// Other pages: use offset-based query
+			cachedBlocks, hasMore, cacheErr = getBlocksFromCacheWithOffset(queryCtx, offset, int(pageSize))
+		}
+
+		if cacheErr != nil {
 			// Log cache error but continue to database query (graceful degradation)
-			global.Logger.Warnf("failed to get blocks from cache, fallback to DB: %v", err)
+			global.Logger.Warnf("failed to get blocks from cache, fallback to DB: %v", cacheErr)
 		} else if len(cachedBlocks) > 0 {
-			global.Logger.Debugf("blocks found in cache: count=%d", len(cachedBlocks))
+			global.Logger.Debugf("blocks found in cache: page=%d, count=%d", page, len(cachedBlocks))
 			// Try to get total count from cache first to avoid database query
 			total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalBlocks)
 			if total == 0 {
@@ -151,6 +162,9 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 			blockDTOs := models.ToBlockDTOs(cachedBlocks)
 			blocksResp := buildPaginatedResponse(blockDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedBlocks))
 			return MarshalAndReply(blocksResp, "marshal blocks error")
+		} else if page != MinPage && !hasMore {
+			// Cache doesn't have enough data for this page, fallback to DB
+			global.Logger.Debugf("cache miss for page %d, fallback to DB", page)
 		}
 	}
 
@@ -177,13 +191,13 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
-		// Note: cursor is still based on height, but we sort by timestamp for correct ordering
+		// Use height for both cursor and ordering to ensure consistent pagination
 		query = query.Where("height < ?", cursorValue).
-			Order("block_unix_timestamp DESC").
+			Order("height DESC").
 			Limit(int(pageSize))
 	} else {
 		// Use page-based pagination
-		query = query.Order("block_unix_timestamp DESC").
+		query = query.Order("height DESC").
 			Offset(offset).
 			Limit(int(pageSize))
 	}
@@ -829,14 +843,25 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// First, try to query from Redis cache (only for first page without cursor)
-	if !useCursor && page == MinPage {
-		cachedTxs, err := getTransactionsFromCache(queryCtx, int(pageSize))
-		if err != nil {
+	// First, try to query from Redis cache for page-based pagination (avoids DB lag)
+	if !useCursor {
+		var cachedTxs []models.Transaction
+		var cacheErr error
+		var hasMore bool
+
+		if page == MinPage {
+			// First page: use simple limit query
+			cachedTxs, cacheErr = getTransactionsFromCache(queryCtx, int(pageSize))
+		} else {
+			// Other pages: use offset-based query
+			cachedTxs, hasMore, cacheErr = getTransactionsFromCacheWithOffset(queryCtx, offset, int(pageSize))
+		}
+
+		if cacheErr != nil {
 			// Log cache error but continue to database query (graceful degradation)
-			global.Logger.Warnf("failed to get transactions from cache, fallback to DB: %v", err)
+			global.Logger.Warnf("failed to get transactions from cache, fallback to DB: %v", cacheErr)
 		} else if len(cachedTxs) > 0 {
-			global.Logger.Debugf("transactions found in cache: count=%d", len(cachedTxs))
+			global.Logger.Debugf("transactions found in cache: page=%d, count=%d", page, len(cachedTxs))
 			// Deduplicate cached transactions to ensure we only return complete ones
 			cachedTxs = deduplicateTransactions(cachedTxs)
 			global.Logger.Debugf("transactions after deduplication: count=%d", len(cachedTxs))
@@ -860,6 +885,9 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 			txDTOs := models.ToTransactionDTOs(cachedTxs)
 			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedTxs))
 			return MarshalAndReply(txsResp, "marshal transactions error")
+		} else if page != MinPage && !hasMore {
+			// Cache doesn't have enough data for this page, fallback to DB
+			global.Logger.Debugf("cache miss for page %d, fallback to DB", page)
 		}
 	}
 
@@ -886,13 +914,13 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 
 	if useCursor {
 		// Use cursor-based pagination (more efficient for large datasets)
-		// Cursor is tx_number, find transactions with tx_number < cursor
+		// Use tx_number for both cursor and ordering to ensure consistent pagination
 		query = query.Where("tx_number < ?", cursorValue).
-			Order("block_unix_timestamp DESC, tx_number DESC").
+			Order("tx_number DESC").
 			Limit(int(pageSize))
 	} else {
 		// Use page-based pagination
-		query = query.Order("block_unix_timestamp DESC, tx_number DESC").
+		query = query.Order("tx_number DESC").
 			Offset(offset).
 			Limit(int(pageSize))
 	}
@@ -1466,11 +1494,12 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 
 	query := baseQuery
 	if useCursor {
+		// Use tx_number for both cursor and ordering to ensure consistent pagination
 		query = query.Where("tx_number < ?", cursorValue).
-			Order("block_unix_timestamp DESC, tx_number DESC").
+			Order("tx_number DESC").
 			Limit(int(pageSize))
 	} else {
-		query = query.Order("block_unix_timestamp DESC, tx_number DESC").
+		query = query.Order("tx_number DESC").
 			Offset(offset).
 			Limit(int(pageSize))
 	}
@@ -2731,13 +2760,68 @@ func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) 
 		global.Logger.Warnf("all %d blocks failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
-	// Sort blocks by block_unix_timestamp descending to ensure correct order (newest first)
-	// Redis list order is based on insertion time, not block timestamp
+	// Sort blocks by height descending to ensure correct order (newest first)
+	// Redis list order is based on insertion time, not block height
 	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].BlockUnixTimestamp > blocks[j].BlockUnixTimestamp
+		return blocks[i].Height > blocks[j].Height
 	})
 
 	return blocks, nil
+}
+
+// getBlocksFromCacheWithOffset retrieves blocks from Redis cache with offset and limit for pagination.
+// This enables paginated access to cached blocks for better performance on multi-page requests.
+// Returns (blocks, hasMore, error) where hasMore indicates if cache has enough data.
+func getBlocksFromCacheWithOffset(ctx context.Context, offset, limit int) ([]models.Block, bool, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil, false, errors.New("redis client is nil")
+	}
+
+	// Calculate the range: we need offset+limit items from the end
+	// Redis list: newest at tail (right), oldest at head (left)
+	// To get page at offset, we need items from -(offset+limit) to -(offset+1)
+	startIdx := int64(-(offset + limit))
+	endIdx := int64(-offset - 1)
+
+	// If offset is 0, this becomes -limit to -1 (same as getBlocksFromCache)
+	data, err := redisClient.LRange(ctx, CacheKeyBlockList, startIdx, endIdx).Result()
+	if err != nil {
+		return nil, false, err
+	}
+
+	// Check if we have enough data in cache
+	if len(data) < limit {
+		// Not enough cached data for this page
+		return nil, false, nil
+	}
+
+	blocks := make([]models.Block, 0, len(data))
+	for _, item := range data {
+		var block models.Block
+		if err := sonic.Unmarshal([]byte(item), &block); err != nil {
+			global.Logger.Warnf("failed to unmarshal block from cache: %v", err)
+			continue
+		}
+		blocks = append(blocks, block)
+	}
+
+	if len(blocks) == 0 {
+		return []models.Block{}, false, nil
+	}
+
+	// Sort by height descending to ensure correct order
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].Height > blocks[j].Height
+	})
+
+	// Check if there might be more data in cache (for cursor calculation)
+	// Try to get one more item to determine hasMore
+	nextStartIdx := startIdx - int64(limit)
+	nextData, _ := redisClient.LRange(ctx, CacheKeyBlockList, nextStartIdx, startIdx-1).Result()
+	hasMore := len(nextData) > 0
+
+	return blocks, hasMore, nil
 }
 
 // getTransactionsFromCache retrieves latest transactions from Redis cache list.
@@ -2787,16 +2871,63 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
-	// Sort transactions by block_unix_timestamp descending, then tx_number descending to ensure correct order (newest first)
-	// Redis list order is based on insertion time, not transaction timestamp
+	// Sort transactions by tx_number descending to ensure correct order (newest first)
+	// Redis list order is based on insertion time, not transaction number
 	sort.Slice(txs, func(i, j int) bool {
-		if txs[i].BlockUnixTimestamp != txs[j].BlockUnixTimestamp {
-			return txs[i].BlockUnixTimestamp > txs[j].BlockUnixTimestamp
-		}
 		return txs[i].TxNumber > txs[j].TxNumber
 	})
 
 	return txs, nil
+}
+
+// getTransactionsFromCacheWithOffset retrieves transactions from Redis cache with offset and limit for pagination.
+// This enables paginated access to cached transactions for better performance on multi-page requests.
+// Returns (transactions, hasMore, error) where hasMore indicates if cache has enough data.
+func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) ([]models.Transaction, bool, error) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return nil, false, errors.New("redis client is nil")
+	}
+
+	// Calculate the range: we need offset+limit items from the end
+	startIdx := int64(-(offset + limit))
+	endIdx := int64(-offset - 1)
+
+	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, startIdx, endIdx).Result()
+	if err != nil {
+		return nil, false, err
+	}
+
+	// Check if we have enough data in cache
+	if len(data) < limit {
+		return nil, false, nil
+	}
+
+	txs := make([]models.Transaction, 0, len(data))
+	for _, item := range data {
+		var tx models.Transaction
+		if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
+			global.Logger.Warnf("failed to unmarshal transaction from cache: %v", err)
+			continue
+		}
+		txs = append(txs, tx)
+	}
+
+	if len(txs) == 0 {
+		return []models.Transaction{}, false, nil
+	}
+
+	// Sort by tx_number descending
+	sort.Slice(txs, func(i, j int) bool {
+		return txs[i].TxNumber > txs[j].TxNumber
+	})
+
+	// Check if there might be more data in cache
+	nextStartIdx := startIdx - int64(limit)
+	nextData, _ := redisClient.LRange(ctx, CacheKeyTransactionList, nextStartIdx, startIdx-1).Result()
+	hasMore := len(nextData) > 0
+
+	return txs, hasMore, nil
 }
 
 // getAccountTransactionsFromCache retrieves account transactions from Redis cache.
@@ -3771,14 +3902,15 @@ func queryFailedTransactions24h(ctx context.Context, twentyFourHoursAgoUnix uint
 	// This significantly reduces data transfer and improves query performance
 	baseQuery := db.Get().WithContext(ctx).Model(&models.Transaction{}).
 		Select("hash, block_number, block_unix_timestamp, code, codespace, error_log, signer, gas_used, gas_wanted, gas_fee, tx_type, tx_number").
-		Where("block_unix_timestamp >= ? AND code > 0", twentyFourHoursAgoUnix).
-		Order("block_unix_timestamp DESC, tx_number DESC")
+		Where("block_unix_timestamp >= ? AND code > 0", twentyFourHoursAgoUnix)
 
 	// Apply cursor-based pagination if cursor is provided
+	// Use tx_number for both cursor and ordering to ensure consistent pagination
 	if useCursor && cursorValue > 0 {
-		// For cursor pagination, use tx_number as cursor
-		// Since we order by block_unix_timestamp DESC, tx_number DESC, we use tx_number < cursorValue
-		baseQuery = baseQuery.Where("tx_number < ?", cursorValue)
+		baseQuery = baseQuery.Where("tx_number < ?", cursorValue).
+			Order("tx_number DESC")
+	} else {
+		baseQuery = baseQuery.Order("tx_number DESC")
 	}
 
 	// Apply offset-based pagination if no cursor
