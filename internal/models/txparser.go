@@ -267,7 +267,15 @@ func IsValueTransfer(msgType string, hasFunds bool) bool {
 	case "/cosmos.bank.v1beta1.MsgSend",
 		"/ibc.applications.transfer.v1.MsgTransfer",
 		"/injective.exchange.v1beta1.MsgDeposit",
-		"/injective.exchange.v1beta1.MsgWithdraw":
+		"/injective.exchange.v1beta1.MsgWithdraw",
+		"/injective.exchange.v1beta1.MsgSubaccountTransfer",
+		"/injective.exchange.v1beta1.MsgExternalTransfer",
+		"/injective.insurance.v1beta1.MsgUnderwrite",
+		"/injective.insurance.v1beta1.MsgRequestRedemption",
+		"/injective.tokenfactory.v1beta1.MsgMint",
+		"/injective.tokenfactory.v1beta1.MsgBurn",
+		"/injective.peggy.v1.MsgSendToEth",
+		"/injective.wasmx.v1.MsgExecuteContractCompat":
 		return true
 	case "/cosmwasm.wasm.v1.MsgExecuteContract":
 		// Only show to/value if funds > 0 (actual transfer to contract)
@@ -297,6 +305,16 @@ func hasAnyValueTransferMessage(tx *TxJSON) bool {
 			}
 			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
 				if len(tmp.Funds) > 0 {
+					return true
+				}
+			}
+		} else if m.Type == "/injective.wasmx.v1.MsgExecuteContractCompat" {
+			// For MsgExecuteContractCompat, check if funds string is not empty
+			var tmp struct {
+				Funds string `json:"funds"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				if tmp.Funds != "" {
 					return true
 				}
 			}
@@ -338,6 +356,17 @@ func extractFromToValue(tx *TxJSON) (*ExtractResult, error) {
 			}
 			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
 				if len(tmp.Funds) == 0 {
+					hasNonTransferMsg = true
+					break
+				}
+			}
+		} else if m.Type == "/injective.wasmx.v1.MsgExecuteContractCompat" {
+			// For MsgExecuteContractCompat, check if funds string is empty
+			var tmp struct {
+				Funds string `json:"funds"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				if tmp.Funds == "" {
 					hasNonTransferMsg = true
 					break
 				}
@@ -902,6 +931,189 @@ func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
 					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
 				}
 				found = true
+			}
+
+		case "/injective.peggy.v1.MsgSendToEth":
+			// Peggy bridge: send tokens from Injective to Ethereum
+			// shape: {"sender":"...","eth_dest":"0x...","amount":{"denom":"...","amount":"..."},"bridge_fee":{"denom":"...","amount":"..."}}
+			var tmp struct {
+				Sender  string `json:"sender"`
+				EthDest string `json:"eth_dest"`
+				Amount  struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+				BridgeFee struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"bridge_fee"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				// eth_dest is the Ethereum destination address
+				if tmp.EthDest != "" {
+					res.To = utils.FirstNonEmpty(res.To, tmp.EthDest)
+				}
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.exchange.v1beta1.MsgSubaccountTransfer":
+			// Subaccount transfer: transfer between subaccounts
+			// shape: {"sender":"...","source_subaccount_id":"...","destination_subaccount_id":"...","amount":{"denom":"...","amount":"..."}}
+			var tmp struct {
+				Sender                 string `json:"sender"`
+				SourceSubaccountID     string `json:"source_subaccount_id"`
+				DestinationSubaccountID string `json:"destination_subaccount_id"`
+				Amount                 struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				// Use destination subaccount as "to"
+				if tmp.DestinationSubaccountID != "" {
+					res.To = utils.FirstNonEmpty(res.To, tmp.DestinationSubaccountID)
+				}
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.exchange.v1beta1.MsgExternalTransfer":
+			// External transfer: transfer to external address
+			// shape: {"sender":"...","subaccount_id":"...","recipient":"...","amount":{"denom":"...","amount":"..."}}
+			var tmp struct {
+				Sender       string `json:"sender"`
+				SubaccountID string `json:"subaccount_id"`
+				Recipient    string `json:"recipient"`
+				Amount       struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				if tmp.Recipient != "" {
+					res.To = utils.FirstNonEmpty(res.To, tmp.Recipient)
+				}
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.insurance.v1beta1.MsgUnderwrite":
+			// Insurance underwrite: add funds to insurance fund
+			// shape: {"sender":"...","market_id":"...","deposit":{"denom":"...","amount":"..."}}
+			var tmp struct {
+				Sender  string `json:"sender"`
+				Deposit struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"deposit"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				// For underwrite, to is the insurance module (no specific address)
+				res.To = utils.FirstNonEmpty(res.To, "insurance")
+				if tmp.Deposit.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Deposit.Denom, Amount: tmp.Deposit.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.insurance.v1beta1.MsgRequestRedemption":
+			// Insurance redemption: request redemption from insurance fund
+			// shape: {"sender":"...","market_id":"...","amount":{"denom":"...","amount":"..."}}
+			var tmp struct {
+				Sender string `json:"sender"`
+				Amount struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				res.To = utils.FirstNonEmpty(res.To, "insurance")
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.tokenfactory.v1beta1.MsgMint":
+			// TokenFactory mint: mint new tokens
+			// shape: {"sender":"...","amount":{"denom":"...","amount":"..."},"mint_to_address":"..."}
+			var tmp struct {
+				Sender        string `json:"sender"`
+				Amount        struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+				MintToAddress string `json:"mint_to_address"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				if tmp.MintToAddress != "" {
+					res.To = utils.FirstNonEmpty(res.To, tmp.MintToAddress)
+				}
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.tokenfactory.v1beta1.MsgBurn":
+			// TokenFactory burn: burn tokens
+			// shape: {"sender":"...","amount":{"denom":"...","amount":"..."},"burn_from_address":"..."}
+			var tmp struct {
+				Sender          string `json:"sender"`
+				Amount          struct {
+					Denom  string `json:"denom"`
+					Amount string `json:"amount"`
+				} `json:"amount"`
+				BurnFromAddress string `json:"burn_from_address"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				// For burn, from is the address being burned from (or sender)
+				if tmp.BurnFromAddress != "" {
+					res.From = utils.FirstNonEmpty(res.From, tmp.BurnFromAddress)
+				} else {
+					res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+				}
+				res.To = utils.FirstNonEmpty(res.To, "burn")
+				if tmp.Amount.Amount != "" {
+					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+				}
+				found = true
+			}
+
+		case "/injective.wasmx.v1.MsgExecuteContractCompat":
+			// WasMX execute contract compat: execute contract with funds (compatible mode)
+			// shape: {"sender":"...","contract":"...","msg":"...","funds":"..."}
+			// Note: funds is a comma-separated string like "1000inj,500usdt"
+			var tmp struct {
+				Sender   string `json:"sender"`
+				Contract string `json:"contract"`
+				Funds    string `json:"funds"`
+			}
+			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
+				// Only treat as transfer if funds are present
+				if tmp.Funds != "" {
+					res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+					res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
+					// Parse funds string like "1000inj,500usdt"
+					if tmp.Funds != "" {
+						coins := parseCoinStrList(tmp.Funds)
+						res.Values = mergeCoins(res.Values, coins)
+					}
+					found = true
+				}
 			}
 
 		default:

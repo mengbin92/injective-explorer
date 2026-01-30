@@ -455,6 +455,7 @@ func (s *TokenTransferSyncService) parseTransferLogs(logs []ethtypes.Log) []*mod
 
 // saveTokenTransfers saves token transfers to database in batches.
 // Optimized using GORM's CreateInBatches for better performance.
+// Also updates transaction to/value fields if they are empty (for pure token transfers).
 func (s *TokenTransferSyncService) saveTokenTransfers(transfers []*models.TokenTransfer) error {
 	if len(transfers) == 0 {
 		return nil
@@ -472,7 +473,7 @@ func (s *TokenTransferSyncService) saveTokenTransfers(transfers []*models.TokenT
 		batchSize = s.config.BatchSize
 	}
 
-	return db.Get().Transaction(func(tx *gorm.DB) error {
+	err := db.Get().Transaction(func(tx *gorm.DB) error {
 		// Use CreateInBatches for efficient bulk insertion
 		// Pre-allocate slices to reduce memory allocations
 		for i := 0; i < len(transfers); i += batchSize {
@@ -499,6 +500,116 @@ func (s *TokenTransferSyncService) saveTokenTransfers(transfers []*models.TokenT
 		}
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+
+	// After saving transfers, update transaction to/value fields if needed
+	// This handles pure token transfers where to/value are not set during transaction parsing
+	s.updateTransactionToValueFromTransfers(transfers)
+
+	return nil
+}
+
+// updateTransactionToValueFromTransfers updates transaction to/value fields from token transfers.
+// This is needed for pure token transfers where the transaction parser doesn't set to/value
+// because there's no native coin transfer (only ERC20 token transfer).
+func (s *TokenTransferSyncService) updateTransactionToValueFromTransfers(transfers []*models.TokenTransfer) {
+	// Group transfers by transaction hash
+	txTransfers := make(map[string][]*models.TokenTransfer)
+	for _, transfer := range transfers {
+		if transfer.TransactionHash == "" {
+			continue
+		}
+		txHash := strings.ToLower(transfer.TransactionHash)
+		txTransfers[txHash] = append(txTransfers[txHash], transfer)
+	}
+
+	// For each transaction, check if to/value needs update
+	for txHash, txTransfers := range txTransfers {
+		if len(txTransfers) == 0 {
+			continue
+		}
+
+		// Get the first transfer's info for the update
+		// Use the first non-zero address as "to"
+		var toAddress string
+		var valueParts []string
+
+		for _, transfer := range txTransfers {
+			// Get token info for symbol lookup
+			tokenInfo := s.getTokenInfo(transfer.ContractAddress)
+
+			// Format amount with default decimals (18 is standard for ERC20)
+			// Note: We use default 18 decimals since ContractInfo doesn't store decimals
+			// For precise display, the frontend should format using the token's actual decimals
+			formattedAmount := FormatTokenAmount(transfer.Amount, 18)
+
+			// Build value part: "amount denom"
+			// Use token symbol as denom if available, otherwise use contract address
+			denom := transfer.ContractAddress
+			if tokenInfo != nil && tokenInfo.TokenSymbol != "" {
+				denom = tokenInfo.TokenSymbol
+			}
+			valueParts = append(valueParts, formattedAmount+" "+denom)
+
+			// Use the first non-zero to address
+			if toAddress == "" && transfer.ToAddress != "" &&
+				transfer.ToAddress != "0x0000000000000000000000000000000000000000" {
+				toAddress = transfer.ToAddress
+			}
+		}
+
+		if toAddress == "" {
+			continue
+		}
+
+		// Check if transaction needs update (to is empty or "-")
+		var tx models.Transaction
+		err := db.Get().Where("LOWER(hash) = ?", txHash).First(&tx).Error
+		if err != nil {
+			// Transaction not found or error, skip
+			continue
+		}
+
+		// Update if to is empty or "-" or values is empty
+		needsUpdate := tx.To == "" || tx.To == "-" || len(tx.Values) == 0
+		if !needsUpdate {
+			continue
+		}
+
+		// Update transaction
+		updateData := map[string]interface{}{
+			"to": toAddress,
+		}
+		if len(valueParts) > 0 && len(tx.Values) == 0 {
+			updateData["values"] = valueParts
+		}
+
+		err = db.Get().Model(&tx).Updates(updateData).Error
+		if err != nil {
+			global.Logger.Warnf("Failed to update transaction to/value for hash %s: %v", txHash, err)
+		} else {
+			global.Logger.Debugf("Updated transaction to=%s for hash %s (pure token transfer)", toAddress, txHash)
+		}
+	}
+}
+
+// getTokenInfo gets token info from database.
+// Returns nil if token info is not found.
+func (s *TokenTransferSyncService) getTokenInfo(contractAddress string) *models.ContractInfo {
+	// Normalize address
+	addr := strings.ToLower(contractAddress)
+
+	// Query from database
+	var token models.ContractInfo
+	err := db.Get().Where("LOWER(contract_address) = ?", addr).First(&token).Error
+	if err != nil {
+		return nil
+	}
+
+	return &token
 }
 
 // enrichTransactionHashes looks up Cosmos transaction hashes for EVM transaction hashes.
