@@ -2792,13 +2792,12 @@ func getBlocksFromCacheWithOffset(ctx context.Context, offset, limit int) ([]mod
 		return nil, false, errors.New("redis client is nil")
 	}
 
-	// Calculate the range: we need offset+limit items from the end
-	// Redis list: newest at tail (right), oldest at head (left)
-	// To get page at offset, we need items from -(offset+limit) to -(offset+1)
-	startIdx := int64(-(offset + limit))
-	endIdx := int64(-offset - 1)
+	// Redis list: newest at head (left, index 0), oldest at tail (right)
+	// LPUSH adds new items to the head (index 0)
+	// To get page at offset with newest first, we need items from offset to offset+limit-1
+	startIdx := int64(offset)
+	endIdx := int64(offset + limit - 1)
 
-	// If offset is 0, this becomes -limit to -1 (same as getBlocksFromCache)
 	data, err := redisClient.LRange(ctx, CacheKeyBlockList, startIdx, endIdx).Result()
 	if err != nil {
 		return nil, false, err
@@ -2824,15 +2823,16 @@ func getBlocksFromCacheWithOffset(ctx context.Context, offset, limit int) ([]mod
 		return []models.Block{}, false, nil
 	}
 
-	// Sort by height descending to ensure correct order
+	// Sort by height descending to ensure correct order (newest first)
+	// This handles any out-of-order issues from the cache
 	sort.Slice(blocks, func(i, j int) bool {
 		return blocks[i].Height > blocks[j].Height
 	})
 
 	// Check if there might be more data in cache (for cursor calculation)
 	// Try to get one more item to determine hasMore
-	nextStartIdx := startIdx - int64(limit)
-	nextData, _ := redisClient.LRange(ctx, CacheKeyBlockList, nextStartIdx, startIdx-1).Result()
+	nextStartIdx := int64(offset + limit)
+	nextData, _ := redisClient.LRange(ctx, CacheKeyBlockList, nextStartIdx, nextStartIdx).Result()
 	hasMore := len(nextData) > 0
 
 	return blocks, hasMore, nil
@@ -2903,9 +2903,11 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 		return nil, false, errors.New("redis client is nil")
 	}
 
-	// Calculate the range: we need offset+limit items from the end
-	startIdx := int64(-(offset + limit))
-	endIdx := int64(-offset - 1)
+	// Redis list: newest at head (left, index 0), oldest at tail (right)
+	// LPUSH adds new items to the head (index 0)
+	// To get page at offset with newest first, we need items from offset to offset+limit-1
+	startIdx := int64(offset)
+	endIdx := int64(offset + limit - 1)
 
 	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, startIdx, endIdx).Result()
 	if err != nil {
@@ -2931,14 +2933,16 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 		return []models.Transaction{}, false, nil
 	}
 
-	// Sort by tx_number descending
+	// Sort by tx_number descending to ensure correct order (newest first)
+	// This handles any out-of-order issues from the cache
 	sort.Slice(txs, func(i, j int) bool {
 		return txs[i].TxNumber > txs[j].TxNumber
 	})
 
-	// Check if there might be more data in cache
-	nextStartIdx := startIdx - int64(limit)
-	nextData, _ := redisClient.LRange(ctx, CacheKeyTransactionList, nextStartIdx, startIdx-1).Result()
+	// Check if there might be more data in cache (for cursor calculation)
+	// Try to get one more item to determine hasMore
+	nextStartIdx := int64(offset + limit)
+	nextData, _ := redisClient.LRange(ctx, CacheKeyTransactionList, nextStartIdx, nextStartIdx).Result()
 	hasMore := len(nextData) > 0
 
 	return txs, hasMore, nil
