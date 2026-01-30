@@ -101,7 +101,7 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		Model(&models.ContractInfo{}).
 		Preload("Tags").
 		Where("token_symbol IS NOT NULL AND token_symbol != ''").
-		Group("contract_infos.contract_address, contract_infos.chain_id")
+		Group("contract_infos.id, contract_infos.contract_address, contract_infos.chain_id")
 
 	// Apply filter conditions
 	if req.ChainId != "" {
