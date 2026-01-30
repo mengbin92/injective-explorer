@@ -1447,7 +1447,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 				cachedTotal = ApproximateCountForAddress
 				cachedIsExact = false
 			}
-			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.BlockUnixTimestamp })
 			txDTOs := models.ToTransactionDTOs(cachedTxs)
 			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, cachedTotal, cachedIsExact, useCursor, cursorValue, nextCursor, len(cachedTxs))
 			return MarshalAndReply(txsResp, "marshal transactions error")
@@ -1494,12 +1494,12 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 
 	query := baseQuery
 	if useCursor {
-		// Use tx_number for both cursor and ordering to ensure consistent pagination
-		query = query.Where("tx_number < ?", cursorValue).
-			Order("tx_number DESC").
+		// Use block_unix_timestamp for both cursor and ordering to ensure consistent pagination
+		query = query.Where("block_unix_timestamp < ?", cursorValue).
+			Order("block_unix_timestamp DESC").
 			Limit(int(pageSize))
 	} else {
-		query = query.Order("tx_number DESC").
+		query = query.Order("block_unix_timestamp DESC").
 			Offset(offset).
 			Limit(int(pageSize))
 	}
@@ -1516,7 +1516,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 			cacheAccountTransactions(dbCtx, cacheKey, dbTxs)
 		}
 
-		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.BlockUnixTimestamp })
 		txDTOs := models.ToTransactionDTOs(dbTxs)
 		txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
 		return MarshalAndReply(txsResp, "marshal transactions error")
@@ -2743,10 +2743,11 @@ func getBlocksFromCache(ctx context.Context, limit int) ([]models.Block, error) 
 		return nil, errors.New("redis client is nil")
 	}
 
-	// Use negative indices to get the latest blocks from the tail of the list
-	// LRANGE with negative indices: -limit to -1 gets the last 'limit' elements
+	// Redis list: LPUSH adds new items to the head (left, index 0)
+	// So the newest blocks are at the beginning of the list (indices 0, 1, 2...)
+	// Use LRANGE with positive indices: 0 to limit-1 gets the first 'limit' elements
 	// This ensures we get the latest (highest blockNumber) blocks first
-	data, err := redisClient.LRange(ctx, CacheKeyBlockList, int64(-limit), -1).Result()
+	data, err := redisClient.LRange(ctx, CacheKeyBlockList, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -2854,10 +2855,11 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 	if redisClient == nil {
 		return nil, errors.New("redis client is nil")
 	}
-	// Use negative indices to get the latest transactions from the tail of the list
-	// LRANGE with negative indices: -limit to -1 gets the last 'limit' elements
-	// This ensures we get the latest (highest blockNumber/txNumber) transactions first
-	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, int64(-limit), -1).Result()
+	// Redis list: LPUSH adds new items to the head (left, index 0)
+	// So the newest transactions are at the beginning of the list (indices 0, 1, 2...)
+	// Use LRANGE with positive indices: 0 to limit-1 gets the first 'limit' elements
+	// This ensures we get the latest (highest txNumber) transactions first
+	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -2966,8 +2968,10 @@ func getAccountTransactionsFromCache(ctx context.Context, cacheKey string, limit
 		return nil, errors.New("redis client is nil")
 	}
 
-	// Use negative indices to get the latest transactions from the tail of the list
-	data, err := redisClient.LRange(ctx, cacheKey, int64(-limit), -1).Result()
+	// Redis list: LPUSH adds new items to the head (left, index 0)
+	// So the newest transactions are at the beginning of the list (indices 0, 1, 2...)
+	// Use LRANGE with positive indices: 0 to limit-1 gets the first 'limit' elements
+	data, err := redisClient.LRange(ctx, cacheKey, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -2992,6 +2996,12 @@ func getAccountTransactionsFromCache(ctx context.Context, cacheKey string, limit
 	if len(txs) == 0 && len(data) > 0 {
 		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
 	}
+
+	// Sort transactions by block_unix_timestamp descending to ensure correct order (newest first)
+	// This handles any out-of-order issues from the cache
+	sort.Slice(txs, func(i, j int) bool {
+		return txs[i].BlockUnixTimestamp > txs[j].BlockUnixTimestamp
+	})
 
 	return txs, nil
 }
