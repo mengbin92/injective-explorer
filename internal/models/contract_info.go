@@ -37,6 +37,9 @@ type ContractInfo struct {
 	// Creator/Deployer information
 	Creator string `json:"creator" gorm:"column:creator;size:128"` // Contract deployer/creator address
 
+	// Token decimals for ERC20 tokens (default 18)
+	Decimals int `json:"decimals" gorm:"column:decimals;default:18"`
+
 	// Extended fields (JSON format for storing additional information)
 	Metadata map[string]interface{} `json:"metadata" gorm:"column:metadata;serializer:json"`
 

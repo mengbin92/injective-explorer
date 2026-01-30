@@ -484,6 +484,7 @@ func ToContractInfoDTO(contract *ContractInfo) *pb.ContractInfoDTO {
 		Tags:               tags,
 		CreatedAt:          createdAt,
 		UpdatedAt:          updatedAt,
+		Decimals:           int32(contract.Decimals),
 	}
 }
 

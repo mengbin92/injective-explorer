@@ -538,13 +538,12 @@ func (s *TokenTransferSyncService) updateTransactionToValueFromTransfers(transfe
 		var valueParts []string
 
 		for _, transfer := range txTransfers {
-			// Get token info for symbol lookup
+			// Get token info for symbol and decimals lookup
 			tokenInfo := s.getTokenInfo(transfer.ContractAddress)
+			decimals := s.getTokenDecimals(transfer.ContractAddress)
 
-			// Format amount with default decimals (18 is standard for ERC20)
-			// Note: We use default 18 decimals since ContractInfo doesn't store decimals
-			// For precise display, the frontend should format using the token's actual decimals
-			formattedAmount := FormatTokenAmount(transfer.Amount, 18)
+			// Format amount with actual token decimals
+			formattedAmount := FormatTokenAmount(transfer.Amount, decimals)
 
 			// Build value part: "amount denom"
 			// Use token symbol as denom if available, otherwise use contract address
@@ -597,6 +596,7 @@ func (s *TokenTransferSyncService) updateTransactionToValueFromTransfers(transfe
 }
 
 // getTokenInfo gets token info from database.
+// If the contract exists but decimals is not set (default 18), it will try to fetch from chain.
 // Returns nil if token info is not found.
 func (s *TokenTransferSyncService) getTokenInfo(contractAddress string) *models.ContractInfo {
 	// Normalize address
@@ -609,7 +609,47 @@ func (s *TokenTransferSyncService) getTokenInfo(contractAddress string) *models.
 		return nil
 	}
 
+	// If decimals is default value (18), try to fetch actual decimals from chain
+	// This handles cases where contract was created before Decimals field was added
+	if token.Decimals == 18 && s.evmClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		decimals, err := s.evmClient.GetERC20Decimals(ctx, contractAddress)
+		if err == nil && decimals != 18 {
+			// Update database with actual decimals
+			token.Decimals = decimals
+			db.Get().Model(&token).Update("decimals", decimals)
+			global.Logger.Debugf("Updated decimals for contract %s: %d", contractAddress, decimals)
+		}
+	}
+
 	return &token
+}
+
+// getTokenDecimals gets the decimals for a token contract.
+// Returns the decimals from ContractInfo if available, otherwise queries from chain or returns default 18.
+func (s *TokenTransferSyncService) getTokenDecimals(contractAddress string) int {
+	// Try to get from database first
+	tokenInfo := s.getTokenInfo(contractAddress)
+	if tokenInfo != nil {
+		return tokenInfo.Decimals
+	}
+
+	// If not in database, query from chain
+	if s.evmClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		decimals, err := s.evmClient.GetERC20Decimals(ctx, contractAddress)
+		if err == nil {
+			return decimals
+		}
+		global.Logger.Warnf("Failed to get decimals for contract %s: %v", contractAddress, err)
+	}
+
+	// Return default 18 if all else fails
+	return 18
 }
 
 // enrichTransactionHashes looks up Cosmos transaction hashes for EVM transaction hashes.

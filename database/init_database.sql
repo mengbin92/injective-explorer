@@ -216,6 +216,7 @@ CREATE TABLE `contract_infos` (
   `verified_at` datetime(3) DEFAULT NULL,
   `verified_by` varchar(128) DEFAULT NULL,
   `creator` varchar(128) DEFAULT NULL COMMENT '合约创建者/部署者地址',
+  `decimals` int DEFAULT 18 COMMENT 'ERC20代币精度（默认18位，USDC/USDT为6位）',
   `metadata` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_contract_infos_deleted_at` (`deleted_at`),
@@ -223,7 +224,8 @@ CREATE TABLE `contract_infos` (
   KEY `idx_contract_infos_contract_type` (`contract_type`),
   KEY `idx_contract_infos_chain_id` (`chain_id`),
   KEY `idx_contract_infos_verification_status` (`verification_status`),
-  KEY `idx_contract_infos_creator` (`creator`)
+  KEY `idx_contract_infos_creator` (`creator`),
+  KEY `idx_contract_infos_decimals` (`decimals`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------

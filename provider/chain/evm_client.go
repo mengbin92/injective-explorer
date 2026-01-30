@@ -377,6 +377,43 @@ func (c *EVMClient) GetKnownContracts() map[string]common.Address {
 	return contracts
 }
 
+// GetERC20Decimals queries the decimals() function of an ERC20 token contract.
+// Returns the number of decimal places for the token (e.g., 18 for most tokens, 6 for USDC/USDT).
+// If the query fails or the contract doesn't implement decimals(), returns 18 as default.
+//
+// Parameters:
+//   - ctx: Context for the request
+//   - contractAddress: The ERC20 token contract address
+//
+// Returns:
+//   - int: The number of decimal places
+//   - error: Error if the call fails (returns 18 as default on error)
+func (c *EVMClient) GetERC20Decimals(ctx context.Context, contractAddress string) (int, error) {
+	// ERC20 decimals() function signature: 0x313ce567
+	data := []byte{0x31, 0x3c, 0xe5, 0x67}
+	addr := common.HexToAddress(contractAddress)
+
+	result, err := c.client.CallContract(ctx, ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}, nil)
+	if err != nil {
+		return 18, errors.Wrapf(err, "failed to query decimals for contract %s", contractAddress)
+	}
+
+	// Decode result (uint256)
+	if len(result) == 0 {
+		return 18, nil // Contract doesn't implement decimals(), return default
+	}
+
+	decimals := new(big.Int).SetBytes(result).Int64()
+	if decimals < 0 || decimals > 255 {
+		return 18, nil // Invalid value, return default
+	}
+
+	return int(decimals), nil
+}
+
 // newCircuitBreaker creates a new circuit breaker with default settings
 func newCircuitBreaker(failureThreshold int, recoveryTimeout time.Duration) *CircuitBreaker {
 	return &CircuitBreaker{

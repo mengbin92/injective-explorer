@@ -288,6 +288,7 @@ message ContractInfoDTO {
       [ json_name = "created_at" ]; // ISO 8601 format timestamp
   string updated_at = 15
       [ json_name = "updated_at" ]; // ISO 8601 format timestamp
+  int32 decimals = 16 [ json_name = "decimals" ]; // ERC20 token decimals (default: 18)
 }
 
 // ContractTagInfoDTO represents contract tag information in the response

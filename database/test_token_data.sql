@@ -79,57 +79,57 @@ INSERT INTO token_market_cache (
 -- --------------------------------------------------------
 INSERT INTO contract_infos (
     created_at, updated_at, contract_address, name, token_name, token_symbol,
-    contract_type, chain_id, verification_status, is_verified, verified_at, creator, metadata
+    contract_type, chain_id, verification_status, is_verified, verified_at, creator, decimals, metadata
 ) VALUES
 -- INJ 原生代币
 (NOW(), NOW(), '0x0000000000000000000000000000000000000000', 'INJ Token', 'INJ Token', 'INJ',
- 'native', 'injective-1', 'verified', 1, NOW(), '0x1111111111111111111111111111111111111111',
- '{"decimals": 18, "website": "https://injective.network", "description": "Injective native token"}'),
+ 'native', 'injective-1', 'verified', 1, NOW(), '0x1111111111111111111111111111111111111111', 18,
+ '{"website": "https://injective.network", "description": "Injective native token"}'),
 
 -- USDT 合约
 (NOW(), NOW(), '0xdAC17F958D2ee523a2206206994597C13D831ec7', 'TetherToken', 'Tether USD', 'USDT',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x2222222222222222222222222222222222222222',
- '{"decimals": 6, "website": "https://tether.to", "description": "USD Tether stablecoin"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x2222222222222222222222222222222222222222', 6,
+ '{"website": "https://tether.to", "description": "USD Tether stablecoin"}'),
 
 -- USDC 合约
 (NOW(), NOW(), '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', 'FiatTokenV2', 'USD Coin', 'USDC',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x3333333333333333333333333333333333333333',
- '{"decimals": 6, "website": "https://circle.com", "description": "USD Coin stablecoin"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x3333333333333333333333333333333333333333', 6,
+ '{"website": "https://circle.com", "description": "USD Coin stablecoin"}'),
 
 -- ETH (WETH) 合约
 (NOW(), NOW(), '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', 'Wrapped Ether', 'Wrapped Ether', 'WETH',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x4444444444444444444444444444444444444444',
- '{"decimals": 18, "website": "https://weth.io", "description": "Wrapped Ether"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x4444444444444444444444444444444444444444', 18,
+ '{"website": "https://weth.io", "description": "Wrapped Ether"}'),
 
 -- WBTC 合约
 (NOW(), NOW(), '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', 'Wrapped BTC', 'Wrapped Bitcoin', 'WBTC',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x5555555555555555555555555555555555555555',
- '{"decimals": 8, "website": "https://wbtc.network", "description": "Wrapped Bitcoin"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x5555555555555555555555555555555555555555', 8,
+ '{"website": "https://wbtc.network", "description": "Wrapped Bitcoin"}'),
 
 -- LINK 合约
 (NOW(), NOW(), '0x514910771AF9Ca656af840dff83E8264EcF986CA', 'LinkToken', 'ChainLink Token', 'LINK',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x6666666666666666666666666666666666666666',
- '{"decimals": 18, "website": "https://chain.link", "description": "ChainLink Token"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x6666666666666666666666666666666666666666', 18,
+ '{"website": "https://chain.link", "description": "ChainLink Token"}'),
 
 -- UNI 合约
 (NOW(), NOW(), '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', 'Uniswap', 'Uniswap', 'UNI',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x7777777777777777777777777777777777777777',
- '{"decimals": 18, "website": "https://uniswap.org", "description": "Uniswap Governance Token"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x7777777777777777777777777777777777777777', 18,
+ '{"website": "https://uniswap.org", "description": "Uniswap Governance Token"}'),
 
 -- AAVE 合约
 (NOW(), NOW(), '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', 'AaveToken', 'Aave Token', 'AAVE',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x8888888888888888888888888888888888888888',
- '{"decimals": 18, "website": "https://aave.com", "description": "Aave Governance Token"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x8888888888888888888888888888888888888888', 18,
+ '{"website": "https://aave.com", "description": "Aave Governance Token"}'),
 
 -- COMP 合约
 (NOW(), NOW(), '0xc00e94Cb662C3520282E6f5717214004A7f26888', 'Compound', 'Compound', 'COMP',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0x9999999999999999999999999999999999999999',
- '{"decimals": 18, "website": "https://compound.finance", "description": "Compound Governance Token"}'),
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0x9999999999999999999999999999999999999999', 18,
+ '{"website": "https://compound.finance", "description": "Compound Governance Token"}'),
 
 -- MKR 合约
 (NOW(), NOW(), '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2', 'Maker Token', 'Maker', 'MKR',
- 'erc20', 'injective-1', 'verified', 1, NOW(), '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
- '{"decimals": 18, "website": "https://makerdao.com", "description": "Maker DAO Governance Token"}');
+ 'erc20', 'injective-1', 'verified', 1, NOW(), '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 18,
+ '{"website": "https://makerdao.com", "description": "Maker DAO Governance Token"}');
 
 -- --------------------------------------------------------
 -- 3. 插入代币转账记录 (token_transfers)
