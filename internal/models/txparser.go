@@ -14,11 +14,13 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
 
+	"injective-explorer/internal/global"
 	"injective-explorer/internal/utils"
 )
 
@@ -307,6 +309,8 @@ func hasAnyValueTransferMessage(tx *TxJSON) bool {
 				if len(tmp.Funds) > 0 {
 					return true
 				}
+			} else {
+				global.Logger.Debugf("Failed to unmarshal /cosmwasm.wasm.v1.MsgExecuteContract in hasAnyValueTransferMessage: %v", err)
 			}
 		} else if m.Type == "/injective.wasmx.v1.MsgExecuteContractCompat" {
 			// For MsgExecuteContractCompat, check if funds string is not empty
@@ -317,6 +321,8 @@ func hasAnyValueTransferMessage(tx *TxJSON) bool {
 				if tmp.Funds != "" {
 					return true
 				}
+			} else {
+				global.Logger.Debugf("Failed to unmarshal /injective.wasmx.v1.MsgExecuteContractCompat in hasAnyValueTransferMessage: %v", err)
 			}
 		} else if IsValueTransfer(m.Type, false) {
 			return true
@@ -359,6 +365,8 @@ func extractFromToValue(tx *TxJSON) (*ExtractResult, error) {
 					hasNonTransferMsg = true
 					break
 				}
+			} else {
+				global.Logger.Debugf("Failed to unmarshal /cosmwasm.wasm.v1.MsgExecuteContract in extractFromToValue: %v", err)
 			}
 		} else if m.Type == "/injective.wasmx.v1.MsgExecuteContractCompat" {
 			// For MsgExecuteContractCompat, check if funds string is empty
@@ -370,6 +378,8 @@ func extractFromToValue(tx *TxJSON) (*ExtractResult, error) {
 					hasNonTransferMsg = true
 					break
 				}
+			} else {
+				global.Logger.Debugf("Failed to unmarshal /injective.wasmx.v1.MsgExecuteContractCompat in extractFromToValue: %v", err)
 			}
 		} else if !IsValueTransfer(m.Type, false) {
 			// Known non-transfer message type
@@ -827,305 +837,416 @@ func addDecimalStrings(a, b string) string {
 	return utils.ReverseString(string(res))
 }
 
+// MessageExtractor defines the interface for extracting transfer information from a message.
+type MessageExtractor interface {
+	// Extract parses the message and updates the ExtractResult if transfer information is found.
+	// Returns true if transfer information was extracted, false otherwise.
+	Extract(msg json.RawMessage, res *ExtractResult) bool
+}
+
+// messageExtractorRegistry stores registered message extractors by message type.
+var (
+	messageExtractors     = make(map[string]MessageExtractor)
+	messageExtractorsOnce sync.Once
+)
+
+// registerMessageExtractor registers a message extractor for a specific message type.
+func registerMessageExtractor(msgType string, extractor MessageExtractor) {
+	messageExtractors[msgType] = extractor
+}
+
+// initMessageExtractors initializes all message extractors.
+// This function is called once using sync.Once to ensure thread-safe initialization.
+func initMessageExtractors() {
+	messageExtractorsOnce.Do(func() {
+		// Cosmos Bank
+		registerMessageExtractor("/cosmos.bank.v1beta1.MsgSend", &cosmosBankMsgSendExtractor{})
+
+		// CosmWasm
+		registerMessageExtractor("/cosmwasm.wasm.v1.MsgExecuteContract", &cosmwasmMsgExecuteContractExtractor{})
+
+		// IBC
+		registerMessageExtractor("/ibc.applications.transfer.v1.MsgTransfer", &ibcMsgTransferExtractor{})
+
+		// Injective Exchange
+		registerMessageExtractor("/injective.exchange.v1beta1.MsgDeposit", &injectiveExchangeMsgDepositExtractor{})
+		registerMessageExtractor("/injective.exchange.v1beta1.MsgWithdraw", &injectiveExchangeMsgWithdrawExtractor{})
+		registerMessageExtractor("/injective.exchange.v1beta1.MsgSubaccountTransfer", &injectiveExchangeMsgSubaccountTransferExtractor{})
+		registerMessageExtractor("/injective.exchange.v1beta1.MsgExternalTransfer", &injectiveExchangeMsgExternalTransferExtractor{})
+
+		// Injective Peggy
+		registerMessageExtractor("/injective.peggy.v1.MsgSendToEth", &injectivePeggyMsgSendToEthExtractor{})
+
+		// Injective Insurance
+		registerMessageExtractor("/injective.insurance.v1beta1.MsgUnderwrite", &injectiveInsuranceMsgUnderwriteExtractor{})
+		registerMessageExtractor("/injective.insurance.v1beta1.MsgRequestRedemption", &injectiveInsuranceMsgRequestRedemptionExtractor{})
+
+		// Injective TokenFactory
+		registerMessageExtractor("/injective.tokenfactory.v1beta1.MsgMint", &injectiveTokenFactoryMsgMintExtractor{})
+		registerMessageExtractor("/injective.tokenfactory.v1beta1.MsgBurn", &injectiveTokenFactoryMsgBurnExtractor{})
+
+		// Injective WasmX
+		registerMessageExtractor("/injective.wasmx.v1.MsgExecuteContractCompat", &injectiveWasmxMsgExecuteContractCompatExtractor{})
+	})
+}
+
 // extractFromMessagesJSON inspects the message array for known transfer Msg shapes and fills res.
 // Only processes messages that represent actual asset transfers (A → B).
 // Returns true if any transfer information was extracted.
 func extractFromMessagesJSON(tx *TxJSON, res *ExtractResult) bool {
+	// Initialize extractors on first call
+	initMessageExtractors()
+
 	found := false
 	for _, m := range tx.Messages {
-		// Only process value transfer message types
-		// Non-transfer messages (orders, staking, governance, etc.) are skipped
-		switch m.Type {
-		case "/cosmos.bank.v1beta1.MsgSend":
-			// shape: {"from_address":"...","to_address":"...","amount":[{"denom":"...","amount":"..."}]}
-			var tmp struct {
-				From   string `json:"from_address"`
-				To     string `json:"to_address"`
-				Amount []Coin `json:"amount"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.From)
-				res.To = utils.FirstNonEmpty(res.To, tmp.To)
-				res.Values = mergeCoins(res.Values, tmp.Amount)
-				found = true
-			}
+		// Look up extractor for this message type
+		extractor, ok := messageExtractors[m.Type]
+		if !ok {
+			// Unknown message type - skip (non-transfer messages like orders, staking, etc.)
+			continue
+		}
 
-		case "/cosmwasm.wasm.v1.MsgExecuteContract":
-			// shape: {"sender":"...","contract":"...","msg":{...},"funds":[{denom,amount}]}
-			// Only extract if funds > 0 (actual transfer to contract)
-			var tmp struct {
-				Sender   string `json:"sender"`
-				Contract string `json:"contract"`
-				Funds    []Coin `json:"funds"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				// Only treat as transfer if funds are present
-				if len(tmp.Funds) > 0 {
-					res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-					res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
-					res.Values = mergeCoins(res.Values, tmp.Funds)
-					found = true
-				} else {
-					// Contract call without funds - not a transfer, just record the contract
-					res.Notes = append(res.Notes, "contract call without funds: "+tmp.Contract)
-				}
-			}
-
-		case "/ibc.applications.transfer.v1.MsgTransfer":
-			var tmp struct {
-				Sender   string `json:"sender"`
-				Receiver string `json:"receiver"`
-				Token    struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"token"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				res.To = utils.FirstNonEmpty(res.To, tmp.Receiver)
-				if tmp.Token.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Token.Denom, Amount: tmp.Token.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.exchange.v1beta1.MsgDeposit":
-			// Exchange deposit: user deposits funds to exchange module
-			var tmp struct {
-				Sender       string `json:"sender"`
-				SubaccountId string `json:"subaccount_id"`
-				Amount       struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				// Exchange module doesn't have a single "to" address, use subaccount or mark as exchange
-				if tmp.SubaccountId != "" {
-					res.To = tmp.SubaccountId
-				}
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.exchange.v1beta1.MsgWithdraw":
-			// Exchange withdraw: user withdraws funds from exchange module
-			var tmp struct {
-				Sender       string `json:"sender"`
-				SubaccountId string `json:"subaccount_id"`
-				Amount       struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				// For withdraw, from is the exchange module/subaccount, to is the sender
-				if tmp.SubaccountId != "" {
-					res.From = tmp.SubaccountId
-				}
-				res.To = utils.FirstNonEmpty(res.To, tmp.Sender)
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.peggy.v1.MsgSendToEth":
-			// Peggy bridge: send tokens from Injective to Ethereum
-			// shape: {"sender":"...","eth_dest":"0x...","amount":{"denom":"...","amount":"..."},"bridge_fee":{"denom":"...","amount":"..."}}
-			var tmp struct {
-				Sender  string `json:"sender"`
-				EthDest string `json:"eth_dest"`
-				Amount  struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-				BridgeFee struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"bridge_fee"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				// eth_dest is the Ethereum destination address
-				if tmp.EthDest != "" {
-					res.To = utils.FirstNonEmpty(res.To, tmp.EthDest)
-				}
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.exchange.v1beta1.MsgSubaccountTransfer":
-			// Subaccount transfer: transfer between subaccounts
-			// shape: {"sender":"...","source_subaccount_id":"...","destination_subaccount_id":"...","amount":{"denom":"...","amount":"..."}}
-			var tmp struct {
-				Sender                 string `json:"sender"`
-				SourceSubaccountID     string `json:"source_subaccount_id"`
-				DestinationSubaccountID string `json:"destination_subaccount_id"`
-				Amount                 struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				// Use destination subaccount as "to"
-				if tmp.DestinationSubaccountID != "" {
-					res.To = utils.FirstNonEmpty(res.To, tmp.DestinationSubaccountID)
-				}
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.exchange.v1beta1.MsgExternalTransfer":
-			// External transfer: transfer to external address
-			// shape: {"sender":"...","subaccount_id":"...","recipient":"...","amount":{"denom":"...","amount":"..."}}
-			var tmp struct {
-				Sender       string `json:"sender"`
-				SubaccountID string `json:"subaccount_id"`
-				Recipient    string `json:"recipient"`
-				Amount       struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				if tmp.Recipient != "" {
-					res.To = utils.FirstNonEmpty(res.To, tmp.Recipient)
-				}
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.insurance.v1beta1.MsgUnderwrite":
-			// Insurance underwrite: add funds to insurance fund
-			// shape: {"sender":"...","market_id":"...","deposit":{"denom":"...","amount":"..."}}
-			var tmp struct {
-				Sender  string `json:"sender"`
-				Deposit struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"deposit"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				// For underwrite, to is the insurance module (no specific address)
-				res.To = utils.FirstNonEmpty(res.To, "insurance")
-				if tmp.Deposit.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Deposit.Denom, Amount: tmp.Deposit.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.insurance.v1beta1.MsgRequestRedemption":
-			// Insurance redemption: request redemption from insurance fund
-			// shape: {"sender":"...","market_id":"...","amount":{"denom":"...","amount":"..."}}
-			var tmp struct {
-				Sender string `json:"sender"`
-				Amount struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				res.To = utils.FirstNonEmpty(res.To, "insurance")
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.tokenfactory.v1beta1.MsgMint":
-			// TokenFactory mint: mint new tokens
-			// shape: {"sender":"...","amount":{"denom":"...","amount":"..."},"mint_to_address":"..."}
-			var tmp struct {
-				Sender        string `json:"sender"`
-				Amount        struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-				MintToAddress string `json:"mint_to_address"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				if tmp.MintToAddress != "" {
-					res.To = utils.FirstNonEmpty(res.To, tmp.MintToAddress)
-				}
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.tokenfactory.v1beta1.MsgBurn":
-			// TokenFactory burn: burn tokens
-			// shape: {"sender":"...","amount":{"denom":"...","amount":"..."},"burn_from_address":"..."}
-			var tmp struct {
-				Sender          string `json:"sender"`
-				Amount          struct {
-					Denom  string `json:"denom"`
-					Amount string `json:"amount"`
-				} `json:"amount"`
-				BurnFromAddress string `json:"burn_from_address"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				// For burn, from is the address being burned from (or sender)
-				if tmp.BurnFromAddress != "" {
-					res.From = utils.FirstNonEmpty(res.From, tmp.BurnFromAddress)
-				} else {
-					res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-				}
-				res.To = utils.FirstNonEmpty(res.To, "burn")
-				if tmp.Amount.Amount != "" {
-					res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
-				}
-				found = true
-			}
-
-		case "/injective.wasmx.v1.MsgExecuteContractCompat":
-			// WasMX execute contract compat: execute contract with funds (compatible mode)
-			// shape: {"sender":"...","contract":"...","msg":"...","funds":"..."}
-			// Note: funds is a comma-separated string like "1000inj,500usdt"
-			var tmp struct {
-				Sender   string `json:"sender"`
-				Contract string `json:"contract"`
-				Funds    string `json:"funds"`
-			}
-			if err := sonic.Unmarshal(m.Message, &tmp); err == nil {
-				// Only treat as transfer if funds are present
-				if tmp.Funds != "" {
-					res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
-					res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
-					// Parse funds string like "1000inj,500usdt"
-					if tmp.Funds != "" {
-						coins := parseCoinStrList(tmp.Funds)
-						res.Values = mergeCoins(res.Values, coins)
-					}
-					found = true
-				}
-			}
-
-		default:
-			// All other message types are NOT value transfers:
-			// - Exchange orders (CreateSpotOrder, CancelSpotOrder, etc.) - instructions, not transfers
-			// - Staking (Delegate, Undelegate, etc.) - state changes, not transfers
-			// - Governance (Vote, Deposit, etc.) - instructions/config, not transfers
-			// - Oracle (RelayPriceFeedPrice, etc.) - data submission, not transfers
-			// - Authz/Feegrant - permissions, not transfers
-			// - IBC control messages - channel management, not transfers
-			// These are already recorded in res.MsgTypes, but we don't extract to/value for them
+		// Extract transfer information using the registered extractor
+		if extractor.Extract(m.Message, res) {
+			found = true
 		}
 	}
 	return found
+}
+
+// Message extractor implementations
+
+// cosmosBankMsgSendExtractor extracts transfer info from Cosmos Bank MsgSend.
+type cosmosBankMsgSendExtractor struct{}
+
+func (e *cosmosBankMsgSendExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		From   string `json:"from_address"`
+		To     string `json:"to_address"`
+		Amount []Coin `json:"amount"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /cosmos.bank.v1beta1.MsgSend: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.From)
+	res.To = utils.FirstNonEmpty(res.To, tmp.To)
+	res.Values = mergeCoins(res.Values, tmp.Amount)
+	return true
+}
+
+// cosmwasmMsgExecuteContractExtractor extracts transfer info from CosmWasm MsgExecuteContract.
+type cosmwasmMsgExecuteContractExtractor struct{}
+
+func (e *cosmwasmMsgExecuteContractExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender   string `json:"sender"`
+		Contract string `json:"contract"`
+		Funds    []Coin `json:"funds"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /cosmwasm.wasm.v1.MsgExecuteContract: %v", err)
+		return false
+	}
+	// Only treat as transfer if funds are present
+	if len(tmp.Funds) > 0 {
+		res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+		res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
+		res.Values = mergeCoins(res.Values, tmp.Funds)
+		return true
+	}
+	// Contract call without funds - not a transfer, just record the contract
+	res.Notes = append(res.Notes, "contract call without funds: "+tmp.Contract)
+	return false
+}
+
+// ibcMsgTransferExtractor extracts transfer info from IBC MsgTransfer.
+type ibcMsgTransferExtractor struct{}
+
+func (e *ibcMsgTransferExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender   string `json:"sender"`
+		Receiver string `json:"receiver"`
+		Token    struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"token"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /ibc.applications.transfer.v1.MsgTransfer: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	res.To = utils.FirstNonEmpty(res.To, tmp.Receiver)
+	if tmp.Token.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Token.Denom, Amount: tmp.Token.Amount}})
+	}
+	return true
+}
+
+// injectiveExchangeMsgDepositExtractor extracts transfer info from Injective Exchange MsgDeposit.
+type injectiveExchangeMsgDepositExtractor struct{}
+
+func (e *injectiveExchangeMsgDepositExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender       string `json:"sender"`
+		SubaccountId string `json:"subaccount_id"`
+		Amount       struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.exchange.v1beta1.MsgDeposit: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	// Exchange module doesn't have a single "to" address, use subaccount or mark as exchange
+	if tmp.SubaccountId != "" {
+		res.To = tmp.SubaccountId
+	}
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectiveExchangeMsgWithdrawExtractor extracts transfer info from Injective Exchange MsgWithdraw.
+type injectiveExchangeMsgWithdrawExtractor struct{}
+
+func (e *injectiveExchangeMsgWithdrawExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender       string `json:"sender"`
+		SubaccountId string `json:"subaccount_id"`
+		Amount       struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.exchange.v1beta1.MsgWithdraw: %v", err)
+		return false
+	}
+	// For withdraw, from is the exchange module/subaccount, to is the sender
+	if tmp.SubaccountId != "" {
+		res.From = tmp.SubaccountId
+	}
+	res.To = utils.FirstNonEmpty(res.To, tmp.Sender)
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectivePeggyMsgSendToEthExtractor extracts transfer info from Injective Peggy MsgSendToEth.
+type injectivePeggyMsgSendToEthExtractor struct{}
+
+func (e *injectivePeggyMsgSendToEthExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender  string `json:"sender"`
+		EthDest string `json:"eth_dest"`
+		Amount  struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+		BridgeFee struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"bridge_fee"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.peggy.v1.MsgSendToEth: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	// eth_dest is the Ethereum destination address
+	if tmp.EthDest != "" {
+		res.To = utils.FirstNonEmpty(res.To, tmp.EthDest)
+	}
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectiveExchangeMsgSubaccountTransferExtractor extracts transfer info from Injective Exchange MsgSubaccountTransfer.
+type injectiveExchangeMsgSubaccountTransferExtractor struct{}
+
+func (e *injectiveExchangeMsgSubaccountTransferExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender                 string `json:"sender"`
+		SourceSubaccountID     string `json:"source_subaccount_id"`
+		DestinationSubaccountID string `json:"destination_subaccount_id"`
+		Amount                 struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.exchange.v1beta1.MsgSubaccountTransfer: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	// Use destination subaccount as "to"
+	if tmp.DestinationSubaccountID != "" {
+		res.To = utils.FirstNonEmpty(res.To, tmp.DestinationSubaccountID)
+	}
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectiveExchangeMsgExternalTransferExtractor extracts transfer info from Injective Exchange MsgExternalTransfer.
+type injectiveExchangeMsgExternalTransferExtractor struct{}
+
+func (e *injectiveExchangeMsgExternalTransferExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender       string `json:"sender"`
+		SubaccountID string `json:"subaccount_id"`
+		Recipient    string `json:"recipient"`
+		Amount       struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.exchange.v1beta1.MsgExternalTransfer: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	if tmp.Recipient != "" {
+		res.To = utils.FirstNonEmpty(res.To, tmp.Recipient)
+	}
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectiveInsuranceMsgUnderwriteExtractor extracts transfer info from Injective Insurance MsgUnderwrite.
+type injectiveInsuranceMsgUnderwriteExtractor struct{}
+
+func (e *injectiveInsuranceMsgUnderwriteExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender  string `json:"sender"`
+		Deposit struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"deposit"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.insurance.v1beta1.MsgUnderwrite: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	// For underwrite, to is the insurance module (no specific address)
+	res.To = utils.FirstNonEmpty(res.To, "insurance")
+	if tmp.Deposit.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Deposit.Denom, Amount: tmp.Deposit.Amount}})
+	}
+	return true
+}
+
+// injectiveInsuranceMsgRequestRedemptionExtractor extracts transfer info from Injective Insurance MsgRequestRedemption.
+type injectiveInsuranceMsgRequestRedemptionExtractor struct{}
+
+func (e *injectiveInsuranceMsgRequestRedemptionExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender string `json:"sender"`
+		Amount struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.insurance.v1beta1.MsgRequestRedemption: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	res.To = utils.FirstNonEmpty(res.To, "insurance")
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectiveTokenFactoryMsgMintExtractor extracts transfer info from Injective TokenFactory MsgMint.
+type injectiveTokenFactoryMsgMintExtractor struct{}
+
+func (e *injectiveTokenFactoryMsgMintExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender        string `json:"sender"`
+		Amount        struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+		MintToAddress string `json:"mint_to_address"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.tokenfactory.v1beta1.MsgMint: %v", err)
+		return false
+	}
+	res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	if tmp.MintToAddress != "" {
+		res.To = utils.FirstNonEmpty(res.To, tmp.MintToAddress)
+	}
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectiveTokenFactoryMsgBurnExtractor extracts transfer info from Injective TokenFactory MsgBurn.
+type injectiveTokenFactoryMsgBurnExtractor struct{}
+
+func (e *injectiveTokenFactoryMsgBurnExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender          string `json:"sender"`
+		Amount          struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+		BurnFromAddress string `json:"burn_from_address"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.tokenfactory.v1beta1.MsgBurn: %v", err)
+		return false
+	}
+	// For burn, from is the address being burned from (or sender)
+	if tmp.BurnFromAddress != "" {
+		res.From = utils.FirstNonEmpty(res.From, tmp.BurnFromAddress)
+	} else {
+		res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+	}
+	res.To = utils.FirstNonEmpty(res.To, "burn")
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+	return true
+}
+
+// injectiveWasmxMsgExecuteContractCompatExtractor extracts transfer info from Injective WasmX MsgExecuteContractCompat.
+type injectiveWasmxMsgExecuteContractCompatExtractor struct{}
+
+func (e *injectiveWasmxMsgExecuteContractCompatExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		Sender   string `json:"sender"`
+		Contract string `json:"contract"`
+		Funds    string `json:"funds"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.wasmx.v1.MsgExecuteContractCompat: %v", err)
+		return false
+	}
+	// Only treat as transfer if funds are present
+	if tmp.Funds != "" {
+		res.From = utils.FirstNonEmpty(res.From, tmp.Sender)
+		res.To = utils.FirstNonEmpty(res.To, tmp.Contract)
+		// Parse funds string like "1000inj,500usdt"
+		coins := parseCoinStrList(tmp.Funds)
+		res.Values = mergeCoins(res.Values, coins)
+		return true
+	}
+	return false
 }

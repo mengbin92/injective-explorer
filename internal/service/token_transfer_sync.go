@@ -515,7 +515,16 @@ func (s *TokenTransferSyncService) saveTokenTransfers(transfers []*models.TokenT
 // updateTransactionToValueFromTransfers updates transaction to/value fields from token transfers.
 // This is needed for pure token transfers where the transaction parser doesn't set to/value
 // because there's no native coin transfer (only ERC20 token transfer).
+//
+// This function uses batch queries to avoid N+1 query problems:
+// 1. Collects all unique contract addresses and queries token info in batch
+// 2. Collects all transaction hashes and queries transactions in batch
+// 3. Performs batch updates for all transactions that need updates
 func (s *TokenTransferSyncService) updateTransactionToValueFromTransfers(transfers []*models.TokenTransfer) {
+	if len(transfers) == 0 {
+		return
+	}
+
 	// Group transfers by transaction hash
 	txTransfers := make(map[string][]*models.TokenTransfer)
 	for _, transfer := range transfers {
@@ -526,21 +535,101 @@ func (s *TokenTransferSyncService) updateTransactionToValueFromTransfers(transfe
 		txTransfers[txHash] = append(txTransfers[txHash], transfer)
 	}
 
-	// For each transaction, check if to/value needs update
-	for txHash, txTransfers := range txTransfers {
-		if len(txTransfers) == 0 {
+	if len(txTransfers) == 0 {
+		return
+	}
+
+	// Step 1: Collect all unique contract addresses for batch token info query
+	contractAddressSet := make(map[string]bool)
+	for _, transfers := range txTransfers {
+		for _, transfer := range transfers {
+			if transfer.ContractAddress != "" {
+				contractAddressSet[strings.ToLower(transfer.ContractAddress)] = true
+			}
+		}
+	}
+
+	// Batch query token info for all contract addresses
+	contractAddresses := make([]string, 0, len(contractAddressSet))
+	for addr := range contractAddressSet {
+		contractAddresses = append(contractAddresses, addr)
+	}
+
+	tokenInfoMap := make(map[string]*models.ContractInfo)
+	if len(contractAddresses) > 0 {
+		var tokens []models.ContractInfo
+		err := db.Get().Where("LOWER(contract_address) IN ?", contractAddresses).Find(&tokens).Error
+		if err == nil {
+			for i := range tokens {
+				addr := strings.ToLower(tokens[i].ContractAddress)
+				tokenInfoMap[addr] = &tokens[i]
+			}
+		}
+	}
+
+	// Step 2: Collect all transaction hashes for batch query
+	txHashes := make([]string, 0, len(txTransfers))
+	for txHash := range txTransfers {
+		txHashes = append(txHashes, txHash)
+	}
+
+	// Batch query transactions
+	var transactions []models.Transaction
+	err := db.Get().Where("LOWER(hash) IN ?", txHashes).Find(&transactions).Error
+	if err != nil {
+		global.Logger.Warnf("Failed to batch query transactions: %v", err)
+		return
+	}
+
+	// Build transaction map for quick lookup
+	txMap := make(map[string]*models.Transaction)
+	for i := range transactions {
+		txHash := strings.ToLower(transactions[i].Hash)
+		txMap[txHash] = &transactions[i]
+	}
+
+	// Step 3: Prepare update data for each transaction
+	type updateInfo struct {
+		txHash     string
+		toAddress  string
+		valueParts []string
+	}
+	updates := make([]updateInfo, 0)
+
+	for txHash, transfers := range txTransfers {
+		if len(transfers) == 0 {
 			continue
 		}
 
-		// Get the first transfer's info for the update
-		// Use the first non-zero address as "to"
+		// Check if transaction exists and needs update
+		tx, exists := txMap[txHash]
+		if !exists {
+			continue
+		}
+
+		// Check if transaction needs update (to is empty or "-" or values is empty)
+		needsUpdate := tx.To == "" || tx.To == "-" || len(tx.Values) == 0
+		if !needsUpdate {
+			continue
+		}
+
+		// Process transfers to build to/value
 		var toAddress string
 		var valueParts []string
 
-		for _, transfer := range txTransfers {
-			// Get token info for symbol and decimals lookup
-			tokenInfo := s.getTokenInfo(transfer.ContractAddress)
-			decimals := s.getTokenDecimals(transfer.ContractAddress)
+		for _, transfer := range transfers {
+			// Get token info from map (already batch queried)
+			contractAddr := strings.ToLower(transfer.ContractAddress)
+			tokenInfo := tokenInfoMap[contractAddr]
+
+			// Get decimals (from tokenInfo if available, otherwise query or use default)
+			decimals := 18 // default
+			if tokenInfo != nil {
+				decimals = tokenInfo.Decimals
+			} else {
+				// If not in batch result, try to get from chain (this should be rare)
+				decimals = s.getTokenDecimals(transfer.ContractAddress)
+			}
 
 			// Format amount with actual token decimals
 			formattedAmount := FormatTokenAmount(transfer.Amount, decimals)
@@ -564,40 +653,62 @@ func (s *TokenTransferSyncService) updateTransactionToValueFromTransfers(transfe
 			continue
 		}
 
-		// Check if transaction needs update (to is empty or "-")
-		var tx models.Transaction
-		err := db.Get().Where("LOWER(hash) = ?", txHash).First(&tx).Error
-		if err != nil {
-			// Transaction not found or error, skip
-			continue
-		}
+		updates = append(updates, updateInfo{
+			txHash:     txHash,
+			toAddress:  toAddress,
+			valueParts: valueParts,
+		})
+	}
 
-		// Update if to is empty or "-" or values is empty
-		needsUpdate := tx.To == "" || tx.To == "-" || len(tx.Values) == 0
-		if !needsUpdate {
-			continue
-		}
+	// Step 4: Batch update transactions
+	if len(updates) == 0 {
+		return
+	}
 
-		// Update transaction
-		updateData := map[string]interface{}{
-			"to": toAddress,
-		}
-		if len(valueParts) > 0 && len(tx.Values) == 0 {
-			updateData["values"] = valueParts
-		}
+	// Use a transaction for batch updates to ensure consistency
+	err = db.Get().Transaction(func(tx *gorm.DB) error {
+		for _, update := range updates {
+			// Get the transaction from map (already queried in batch)
+			txData, exists := txMap[update.txHash]
+			if !exists {
+				continue
+			}
 
-		err = db.Get().Model(&tx).Updates(updateData).Error
-		if err != nil {
-			global.Logger.Warnf("Failed to update transaction to/value for hash %s: %v", txHash, err)
-		} else {
-			global.Logger.Debugf("Updated transaction to=%s for hash %s (pure token transfer)", toAddress, txHash)
+			updateData := map[string]interface{}{
+				"to": update.toAddress,
+			}
+			// Only update values if the transaction's values field is empty
+			if len(update.valueParts) > 0 && len(txData.Values) == 0 {
+				updateData["values"] = update.valueParts
+			}
+
+			if err := tx.Model(&models.Transaction{}).Where("LOWER(hash) = ?", update.txHash).Updates(updateData).Error; err != nil {
+				global.Logger.Warnf("Failed to update transaction to/value for hash %s: %v", update.txHash, err)
+				// Continue with other updates even if one fails
+			} else {
+				global.Logger.Debugf("Updated transaction to=%s for hash %s (pure token transfer)", update.toAddress, update.txHash)
+			}
 		}
+		return nil
+	})
+
+	if err != nil {
+		global.Logger.Warnf("Failed to batch update transactions: %v", err)
 	}
 }
 
-// getTokenInfo gets token info from database.
-// If the contract exists but decimals is not set (default 18), it will try to fetch from chain.
-// Returns nil if token info is not found.
+// getTokenInfo retrieves token information from the database for the given contract address.
+//
+// This function performs the following operations:
+//  1. Queries the ContractInfo table for the contract address
+//  2. If the contract exists but decimals is set to the default value (18), it attempts
+//     to fetch the actual decimals from the blockchain and updates the database
+//
+// Parameters:
+//   - contractAddress: The contract address to query (case-insensitive)
+//
+// Returns:
+//   - *models.ContractInfo: Pointer to the ContractInfo if found, nil otherwise
 func (s *TokenTransferSyncService) getTokenInfo(contractAddress string) *models.ContractInfo {
 	// Normalize address
 	addr := strings.ToLower(contractAddress)
@@ -627,8 +738,18 @@ func (s *TokenTransferSyncService) getTokenInfo(contractAddress string) *models.
 	return &token
 }
 
-// getTokenDecimals gets the decimals for a token contract.
-// Returns the decimals from ContractInfo if available, otherwise queries from chain or returns default 18.
+// getTokenDecimals retrieves the decimals for a token contract.
+//
+// This function attempts to get decimals in the following order:
+//  1. From the ContractInfo database record (via getTokenInfo)
+//  2. From the blockchain by querying the ERC20 contract directly
+//  3. Returns the default value of 18 if all else fails
+//
+// Parameters:
+//   - contractAddress: The contract address to query
+//
+// Returns:
+//   - int: The number of decimals for the token (default: 18)
 func (s *TokenTransferSyncService) getTokenDecimals(contractAddress string) int {
 	// Try to get from database first
 	tokenInfo := s.getTokenInfo(contractAddress)

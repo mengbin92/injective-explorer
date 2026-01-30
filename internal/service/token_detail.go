@@ -498,7 +498,7 @@ func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.G
 		circulatingSupply = totalSupply.Int64()
 
 		// Calculate percentages with 2 decimal places
-		if top10Balances != nil {
+		if top10Balances != nil && len(top10Balances) > 0 {
 			top10Amount := new(big.Int)
 			for _, balance := range top10Balances {
 				amount, _ := new(big.Int).SetString(balance.Amount, 10)
@@ -515,7 +515,7 @@ func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.G
 			}
 		}
 
-		if top100Balances != nil {
+		if top100Balances != nil && len(top100Balances) > 0 {
 			top100Amount := new(big.Int)
 			for _, balance := range top100Balances {
 				amount, _ := new(big.Int).SetString(balance.Amount, 10)
