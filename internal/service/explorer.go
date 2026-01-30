@@ -1387,6 +1387,31 @@ func normalizeMessageType(msgType string) string {
 	return msgType
 }
 
+// parseCommaSeparatedTxTypes parses tx_types that may contain comma-separated values.
+// It handles both formats:
+//   - Multiple parameters: tx_types=MsgSend&tx_types=MsgTransfer
+//   - Comma-separated: tx_types=MsgSend,MsgTransfer
+//
+// Returns a flattened slice with all individual message types.
+func parseCommaSeparatedTxTypes(txTypes []string) []string {
+	if len(txTypes) == 0 {
+		return txTypes
+	}
+
+	result := make([]string, 0, len(txTypes))
+	for _, txType := range txTypes {
+		// Split by comma and trim whitespace
+		parts := strings.Split(txType, ",")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				result = append(result, part)
+			}
+		}
+	}
+	return result
+}
+
 // GetAccountTransactions retrieves transactions for a given account address with pagination.
 // This function queries transactions where the address is either the signer (transaction initiator)
 // or the recipient (to field). It supports both page-based and cursor-based pagination.
@@ -1418,6 +1443,9 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	if req.Pagination != nil {
 		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
 	}
+
+	// Parse comma-separated tx_types (e.g., "MsgSend,MsgTransfer" -> ["MsgSend", "MsgTransfer"])
+	req.TxTypes = parseCommaSeparatedTxTypes(req.TxTypes)
 
 	// Check if transaction type filtering is requested
 	hasTxTypeFilter := len(req.TxTypes) > 0
