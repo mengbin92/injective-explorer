@@ -600,6 +600,260 @@
       ]
     },
     {
+      "name": "跨链交易接口",
+      "item": [
+        {
+          "name": "获取IBC转账交易列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ibc/transfers?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ibc",
+                "transfers"
+              ],
+              "query": [
+                {
+                  "key": "sender",
+                  "value": "{{account_address}}",
+                  "description": "Sender address (optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "receiver",
+                  "value": "",
+                  "description": "Receiver address (optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "src_channel",
+                  "value": "",
+                  "description": "Source channel (optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "src_port",
+                  "value": "",
+                  "description": "Source port (optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "dest_channel",
+                  "value": "",
+                  "description": "Destination channel (optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "dest_port",
+                  "value": "",
+                  "description": "Destination port (optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                },
+                {
+                  "key": "pagination.cursor",
+                  "value": "",
+                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取IBC跨链转账交易列表，支持按发送方、接收方、源/目标通道和端口过滤"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Peggy存款交易列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/peggy/deposits?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "peggy",
+                "deposits"
+              ],
+              "query": [
+                {
+                  "key": "sender",
+                  "value": "",
+                  "description": "Sender address (Ethereum address, optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "receiver",
+                  "value": "{{account_address}}",
+                  "description": "Receiver address (Injective address, optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                },
+                {
+                  "key": "pagination.cursor",
+                  "value": "",
+                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取Peggy存款交易列表（Ethereum -> Injective），支持按发送方和接收方过滤"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Peggy提款交易列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/peggy/withdrawals?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "peggy",
+                "withdrawals"
+              ],
+              "query": [
+                {
+                  "key": "sender",
+                  "value": "{{account_address}}",
+                  "description": "Sender address (Injective address, optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "receiver",
+                  "value": "",
+                  "description": "Receiver address (Ethereum address, optional filter)",
+                  "disabled": true
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                },
+                {
+                  "key": "pagination.cursor",
+                  "value": "",
+                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取Peggy提款交易列表（Injective -> Ethereum），支持按发送方和接收方过滤"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "账户接口",
       "item": [
         {

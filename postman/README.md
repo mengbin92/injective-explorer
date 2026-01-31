@@ -12,6 +12,7 @@ This collection includes test cases for **ALL** HTTP endpoints in the Injective 
 - **Health Check**: Health check endpoint
 - **Block APIs**: Latest blocks, block by height, latest height, gas utilization
 - **Transaction APIs**: Latest transactions, transaction by hash, stats, failed transactions
+- **Cross-Chain Transaction APIs**: IBC transfers, Peggy deposits/withdrawals
 - **Account APIs**: Account info, transactions, balances
 - **EVM APIs**: EVM transactions, EVM account transactions
 - **Token Price APIs**: Token price and market cap
@@ -90,7 +91,21 @@ This collection focuses on API token management and basic API access testing.
 - **Get Failed Transactions (Latest 1000)**: Get failure statistics for latest 1000 transactions
   - Method: `GET /api/v1/transaction/failed-1000`
 
-### 4. Account APIs
+### 4. Cross-Chain Transaction APIs
+- **Get IBC Transfer Transactions**: Get IBC cross-chain transfer transactions
+  - Method: `GET /api/v1/ibc/transfers`
+  - Query params: `sender`, `receiver`, `src_channel`, `src_port`, `dest_channel`, `dest_port`, `pagination.*`
+  - Description: Query IBC transfer transactions with optional filters for sender, receiver, source/destination channels and ports
+- **Get Peggy Deposit Transactions**: Get Peggy deposit transactions (Ethereum -> Injective)
+  - Method: `GET /api/v1/peggy/deposits`
+  - Query params: `sender`, `receiver`, `pagination.*`
+  - Description: Query Peggy deposit transactions from Ethereum to Injective
+- **Get Peggy Withdrawal Transactions**: Get Peggy withdrawal transactions (Injective -> Ethereum)
+  - Method: `GET /api/v1/peggy/withdrawals`
+  - Query params: `sender`, `receiver`, `pagination.*`
+  - Description: Query Peggy withdrawal transactions from Injective to Ethereum
+
+### 5. Account APIs
 - **Get Account Info**: Get account information
   - Method: `GET /api/v1/account/info`
   - Query params: `address`
@@ -101,7 +116,7 @@ This collection focuses on API token management and basic API access testing.
   - Method: `GET /api/v1/account/balances`
   - Query params: `address`
 
-### 5. EVM APIs
+### 6. EVM APIs
 - **Get EVM Transaction**: Get EVM transaction by hash
   - Method: `GET /api/v1/evm/transaction`
   - Query params: `hash`
@@ -113,18 +128,18 @@ This collection focuses on API token management and basic API access testing.
   - Query params: `address`, `page`, `pageSize`, `cursor`
   - Supports both `0x` and `inj1` address formats
 
-### 6. Token Price APIs
+### 7. Token Price APIs
 - **Get Token Price and Market Cap**: Get token price and market cap
   - Method: `GET /api/v1/token/price-marketcap`
   - Query params: `token_symbol` (optional, uses default if not specified)
 
-### 7. Token List APIs
+### 8. Token List APIs
 - **List Tokens**: Get paginated list of tokens with market data
   - Method: `GET /api/v1/tokens/list`
   - Query params: `chain_id`, `contract_type`, `search`, `sort_by`, `sort_order`, `tag_type`, `verification_status`, `pagination.*`
   - Supports sorting by market_cap, volume_24h, price, holders, deployment_time
 
-### 8. Token Detail APIs
+### 9. Token Detail APIs
 - **Get Token Detail**: Get detailed information for a specific token
   - Method: `GET /api/v1/tokens/detail`
   - Query params: `contract_address` (required), `chain_id` (optional)
@@ -145,7 +160,7 @@ This collection focuses on API token management and basic API access testing.
   - Query params: `contract_address`, `chain_id`
   - Returns: bytecode, source_code (if verified), compiler_version, etc.
 
-### 9. Contract Info APIs
+### 10. Contract Info APIs
 - **Create Contract Info**: Create a new contract information
   - Method: `POST /api/v1/contract/info`
   - Body: Contract info JSON
@@ -183,7 +198,7 @@ This collection focuses on API token management and basic API access testing.
   - Method: `POST /api/v1/contract/files/upload`
   - Body: Contract address, chain_id, source_code, abi, etc.
 
-### 10. Address Label APIs
+### 11. Address Label APIs
 - **Create Address Label**: Create a new address label
   - Method: `POST /api/v1/address/label`
   - Body: Address label JSON (address, chain_id, label_type, etc.)
@@ -209,7 +224,7 @@ This collection focuses on API token management and basic API access testing.
   - Method: `POST /api/v1/address/labels/batch-export`
   - Body: chain_id, format, addresses (optional)
 
-### 11. Address Remark APIs
+### 12. Address Remark APIs
 - **Set Address Remark**: Set or update an address remark
   - Method: `POST /api/v1/address/remark`
   - Body: address, chain_id, remark, created_by
@@ -220,7 +235,7 @@ This collection focuses on API token management and basic API access testing.
   - Method: `DELETE /api/v1/address/remark`
   - Query params: `address`, `chain_id`
 
-### 12. Tag Definition APIs
+### 13. Tag Definition APIs
 - **List Tag Definitions**: List tag definitions with filters
   - Method: `GET /api/v1/tag/definitions`
   - Query params: `tag_type`, `tag_category`, `is_system`, `pagination.*`
@@ -264,7 +279,7 @@ Endpoints for managing API tokens. These require `X-User-ID` header.
   - Query params: `token_id`
   - Headers: `X-User-ID`
 
-### 14. API Token Stats APIs
+### 15. API Token Stats APIs
 - **Get Active Token Count**: Get the count of active tokens for a user
   - Method: `GET /api/v1/tokens/active-count`
   - Query params: `days` (default: 30)
@@ -274,7 +289,7 @@ Endpoints for managing API tokens. These require `X-User-ID` header.
   - Query params: `token_id` (optional), `days` (default: 30)
   - Returns: error_stats grouped by status code
 
-### 15. Batch Query APIs
+### 16. Batch Query APIs
 High-performance batch query interfaces for better efficiency.
 
 - **Get Transactions Batch**: Batch query transactions by hashes
@@ -284,13 +299,13 @@ High-performance batch query interfaces for better efficiency.
   - Method: `POST /api/v1/blocks/batch`
   - Body: `{ "heights": [1000000, 1000001, ...] }`
 
-### 16. Validator Stats APIs
+### 17. Validator Stats APIs
 - **Get Validator Block Stats**: Get validator block statistics
   - Method: `GET /api/v1/validator/block-stats`
   - Query params: `validator_address` (required)
   - Returns: proposed, signed, missed blocks count, uptime_percentage
 
-### 17. Global Tag APIs
+### 18. Global Tag APIs
 Global tag management interfaces (not bound to specific contracts).
 
 - **Get All Contract Tags**: Get all contract tags with filters
@@ -303,7 +318,7 @@ Global tag management interfaces (not bound to specific contracts).
   - Method: `DELETE /api/v1/global/tag`
   - Query params: `chain_id`, `tag_type`
 
-### 18. Streaming APIs
+### 19. Streaming APIs
 **Note**: These endpoints use server-sent events (SSE) or similar streaming protocols and may not work properly in Postman. Use a proper streaming client or browser for testing.
 
 - **Stream Latest Blocks**: Stream latest blocks as they are added
@@ -316,7 +331,7 @@ Global tag management interfaces (not bound to specific contracts).
   - Method: `GET /api/v1/stream/account`
   - Query params: `address` (required), `fromTimestamp` (optional)
 
-### 19. Admin APIs
+### 20. Admin APIs
 Admin management endpoints for plans, IP management, and email blacklist.
 
 - **Plan Management**: Create, update, publish/unpublish plans
@@ -590,6 +605,24 @@ GET http://localhost:8000/api/v1/stats/error-analysis?days=30
 Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
+### Get IBC Transfer Transactions
+```http
+GET http://localhost:8000/api/v1/ibc/transfers?sender=inj1...&pagination.page=1&pagination.page_size=20
+Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Get Peggy Deposit Transactions
+```http
+GET http://localhost:8000/api/v1/peggy/deposits?receiver=inj1...&pagination.page=1&pagination.page_size=20
+Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Get Peggy Withdrawal Transactions
+```http
+GET http://localhost:8000/api/v1/peggy/withdrawals?sender=inj1...&pagination.page=1&pagination.page_size=20
+Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
 ## Notes
 
 - **Token Management**: Endpoints under `/api/v1/tokens/*` do NOT require Bearer token authentication. They require `X-User-ID` header instead (for user authentication).
@@ -618,8 +651,8 @@ Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ## Collection Statistics
 
 The Complete API Collection includes:
-- **60+ API endpoints** covering all HTTP interfaces
-- **20 categories** of APIs (Health, Blocks, Transactions, Accounts, EVM, Token Price, Token List, Token Detail, Contract Info, Address Label, Address Remark, Tag Definition, API Token Management, API Token Stats, Batch Query, Validator Stats, Global Tag, Streaming, Admin, Rate Limit Tests)
+- **63+ API endpoints** covering all HTTP interfaces
+- **21 categories** of APIs (Health, Blocks, Transactions, Cross-Chain Transactions, Accounts, EVM, Token Price, Token List, Token Detail, Contract Info, Address Label, Address Remark, Tag Definition, API Token Management, API Token Stats, Batch Query, Validator Stats, Global Tag, Streaming, Admin, Rate Limit Tests)
 - **Automated test scripts** for response validation
 - **Environment variable management** for easy configuration
 - **Comprehensive documentation** in request descriptions
