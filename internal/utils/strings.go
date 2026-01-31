@@ -4,15 +4,24 @@ package utils
 import (
 	"regexp"
 	"strings"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 var (
 	// injAddressRegex matches Injective addresses (inj1 followed by 38 base58 characters)
-	injAddressRegex = regexp.MustCompile(`inj1[0-9a-z]{38}`)
+	// Note: This regex is updated at runtime via init() to match the configured prefix
+	injAddressRegex *regexp.Regexp
 )
 
+func init() {
+	// Initialize regex with the configured account address prefix
+	prefix := sdk.GetConfig().GetBech32AccountAddrPrefix()
+	injAddressRegex = regexp.MustCompile(prefix + `1[0-9a-z]{38}`)
+}
+
 // ExtractAddressesFromString extracts Injective addresses from a string.
-// Injective addresses typically start with "inj1" and are 42 characters long.
+// Injective addresses typically start with the configured prefix (e.g., "inj1") and are 42 characters long.
 //
 // Parameters:
 //   - s: The string to extract addresses from
@@ -20,7 +29,7 @@ var (
 // Returns:
 //   - []string: A slice of unique Injective addresses found in the string
 func ExtractAddressesFromString(s string) []string {
-	// Pattern for Injective addresses: inj1 followed by 38 characters (base58 encoded)
+	// Pattern for Injective addresses: configured prefix + "1" followed by 38 characters (base58 encoded)
 	// Total length: 42 characters
 	matches := injAddressRegex.FindAllString(s, -1)
 
@@ -45,8 +54,9 @@ func ExtractAddressesFromString(s string) []string {
 // Returns:
 //   - bool: True if the address is valid, false otherwise
 func IsValidAddress(addr string) bool {
-	// Injective addresses start with "inj1" and are 42 characters long
-	return strings.HasPrefix(addr, "inj1") && len(addr) == 42
+	// Injective addresses start with the configured prefix + "1" and are 42 characters long
+	prefix := sdk.GetConfig().GetBech32AccountAddrPrefix()
+	return strings.HasPrefix(addr, prefix+"1") && len(addr) == 42
 }
 
 // ReverseString reverses a string.

@@ -21,6 +21,7 @@ import (
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -4876,7 +4877,8 @@ func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address str
 	}
 
 	// If validator operator address, convert to account address first
-	if strings.HasPrefix(address, "injvaloper1") {
+	valPrefix := sdk.GetConfig().GetBech32ValidatorAddrPrefix()
+	if strings.HasPrefix(address, valPrefix+"1") {
 		accAddr, err := models.ValoperToAccAddress(address)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to convert validator address to account address: %s", address)
@@ -4885,8 +4887,9 @@ func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address str
 		address = accAddr
 	}
 
-	// If Injective format (inj1...)
-	if strings.HasPrefix(address, "inj1") {
+	// If Injective format (account address prefix)
+	accPrefix := sdk.GetConfig().GetBech32AccountAddrPrefix()
+	if strings.HasPrefix(address, accPrefix+"1") {
 		if forChainQuery {
 			// For chain queries, return as-is
 			return address, nil

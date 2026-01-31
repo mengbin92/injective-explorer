@@ -5,21 +5,31 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 var (
-	// injAddressRegex validates injective chain addresses (inj1 followed by 38 base58 characters)
-	injAddressRegex = regexp.MustCompile(`^inj1[0-9a-z]{38}$`)
-	// injValoperAddressRegex validates injective chain validator addresses (injvaloper1 followed by 38 base58 characters)
-	injValoperAddressRegex = regexp.MustCompile(`^injvaloper1[0-9a-z]{38}$`)
 	// ethAddressRegex validates Ethereum addresses (0x followed by 40 hex characters)
 	ethAddressRegex = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)
 	// txHashRegex validates transaction hashes (hex string, typically 64 characters)
 	txHashRegex = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 )
 
+// getAccountAddressRegex returns the regex for validating account addresses
+func getAccountAddressRegex() *regexp.Regexp {
+	prefix := sdk.GetConfig().GetBech32AccountAddrPrefix()
+	return regexp.MustCompile(`^` + prefix + `1[0-9a-z]{38}$`)
+}
+
+// getValidatorAddressRegex returns the regex for validating validator addresses
+func getValidatorAddressRegex() *regexp.Regexp {
+	prefix := sdk.GetConfig().GetBech32ValidatorAddrPrefix()
+	return regexp.MustCompile(`^` + prefix + `1[0-9a-z]{38}$`)
+}
+
 // ValidateAddress validates a blockchain address format.
-// It supports injective chain (inj1...), validator (injvaloper1...) and Ethereum (0x...) addresses.
+// It supports injective chain (configured prefix...), validator (configured valoper prefix...) and Ethereum (0x...) addresses.
 //
 // Parameters:
 //   - address: The address string to validate
@@ -32,16 +42,18 @@ func ValidateAddress(address string) error {
 	}
 
 	// Check injective chain address format
-	if strings.HasPrefix(address, "inj1") {
-		if !injAddressRegex.MatchString(address) {
+	accPrefix := sdk.GetConfig().GetBech32AccountAddrPrefix()
+	if strings.HasPrefix(address, accPrefix+"1") {
+		if !getAccountAddressRegex().MatchString(address) {
 			return fmt.Errorf("invalid injective chain address format: %s", address)
 		}
 		return nil
 	}
 
 	// Check injective chain validator address format
-	if strings.HasPrefix(address, "injvaloper1") {
-		if !injValoperAddressRegex.MatchString(address) {
+	valPrefix := sdk.GetConfig().GetBech32ValidatorAddrPrefix()
+	if strings.HasPrefix(address, valPrefix+"1") {
+		if !getValidatorAddressRegex().MatchString(address) {
 			return fmt.Errorf("invalid injective chain validator address format: %s", address)
 		}
 		return nil
@@ -56,7 +68,7 @@ func ValidateAddress(address string) error {
 	}
 
 	// Unknown address format
-	return fmt.Errorf("unknown address format: %s (expected inj1..., injvaloper1... or 0x...)", address)
+	return fmt.Errorf("unknown address format: %s (expected %s1..., %s1... or 0x...)", address, accPrefix, valPrefix)
 }
 
 // ValidateTransactionHash validates a transaction hash format.

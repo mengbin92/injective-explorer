@@ -5,15 +5,11 @@ package models
 import (
 	"injective-explorer/internal/global"
 	appconstants "injective-explorer/internal/pkg/constants"
-	"fmt"
 	"time"
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
-	"github.com/cosmos/cosmos-sdk/codec"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
-	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
@@ -315,14 +311,22 @@ func ValidatorFromStakingTypes(validator stakingtypes.Validator) *Validator {
 		unbondingTime = validator.UnbondingTime.Format(time.RFC3339)
 	}
 
-	// Get consensus address from validator using GetConsAddr() method
+	// Get consensus address from validator by unpacking the consensus pubkey
+	// This uses the SDK's ConsAddress which automatically applies the configured prefix (injvalcons)
 	consensusAddress := ""
 	if validator.ConsensusPubkey != nil {
-		consensusPubKey, err := parseConsensusPubKey(validator.ConsensusPubkey)
-		if err == nil {
-			consensusAddress = consensusPubKey.Address().String()
+		// Unpack the consensus public key using our configured interface registry
+		pk, err := unpackConsensusPubKey(validator.ConsensusPubkey)
+		if err == nil && pk != nil {
+			// Get consensus address from the public key
+			// SDK's ConsAddress.String() will use the configured "injvalcons" prefix
+			consAddr := sdk.ConsAddress(pk.Address())
+			consensusAddress = consAddr.String()
+			global.Logger.Debugf("extracted consensus address for validator %s: %s", validator.OperatorAddress, consensusAddress)
+		} else if err != nil {
+			global.Logger.Warnf("failed to unpack consensus pubkey for validator %s: %v", validator.OperatorAddress, err)
 		} else {
-			global.Logger.Errorf("failed to parse consensus pubkey: %v", err)
+			global.Logger.Warnf("consensus pubkey is nil for validator %s", validator.OperatorAddress)
 		}
 	}
 
@@ -356,28 +360,4 @@ func ValidatorFromStakingTypes(validator stakingtypes.Validator) *Validator {
 		RegistrationTime:        0,
 		WalletAddress:           walletAddress,
 	}
-}
-
-func parseConsensusPubKey(any *codectypes.Any) (cryptotypes.PubKey, error) {
-	if any == nil {
-		return nil, fmt.Errorf("consensus pubkey is nil")
-	}
-
-	// Create ProtoCodec with the InterfaceRegistry
-	cdc := codec.NewProtoCodec(makeInterfaceRegistry())
-
-	// Unpack the Any type to PubKey interface
-	var pk cryptotypes.PubKey
-	err := cdc.UnpackAny(any, &pk)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack consensus pubkey: %w", err)
-	}
-
-	return pk, nil
-}
-
-func makeInterfaceRegistry() codectypes.InterfaceRegistry {
-	registry := codectypes.NewInterfaceRegistry()
-	cryptocodec.RegisterInterfaces(registry)
-	return registry
 }

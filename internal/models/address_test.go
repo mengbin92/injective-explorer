@@ -7,8 +7,22 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/btcutil/bech32"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	// Initialize SDK config for tests (if not already initialized by another package)
+	defer func() {
+		// Recover if config is already sealed
+		_ = recover()
+	}()
+	config := sdk.GetConfig()
+	config.SetBech32PrefixForAccount("inj", "injpub")
+	config.SetBech32PrefixForValidator("injvaloper", "injvaloperpub")
+	config.SetBech32PrefixForConsensusNode("injvalcons", "injvalconspub")
+	config.Seal()
+}
 
 func TestInjectiveToEthAddress(t *testing.T) {
 	tests := []struct {
@@ -19,7 +33,7 @@ func TestInjectiveToEthAddress(t *testing.T) {
 	}{
 		{
 			name:      "valid Injective address",
-			injAddr:   "inj1w9tzkuvenpeakkegdhu40tcenmy5v9lhhcq6ea",
+			injAddr:   "inj1w9tzkuvenpeakkegdhu40tcenmy5v9lh2yzahv",
 			wantEth:   "0x71562b71999873db5b286df957af199ec94617f7",
 			wantError: false,
 		},
@@ -90,5 +104,6 @@ func ethToInjectiveAddressForTest(ethAddr string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return bech32.Encode("inj", conv)
+	prefix := sdk.GetConfig().GetBech32AccountAddrPrefix()
+	return bech32.Encode(prefix, conv)
 }

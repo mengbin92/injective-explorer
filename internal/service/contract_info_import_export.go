@@ -18,6 +18,7 @@ import (
 	"injective-explorer/provider/storage"
 
 	"github.com/bytedance/sonic"
+	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
@@ -799,7 +800,8 @@ func (s *ContractInfoService) validateContractInfo(info *ContractInfoImport, row
 
 	// Address format validation (basic check)
 	if info.ContractAddress != "" {
-		if !strings.HasPrefix(info.ContractAddress, "0x") && !strings.HasPrefix(info.ContractAddress, "inj1") {
+		accPrefix := types.GetConfig().GetBech32AccountAddrPrefix()
+		if !strings.HasPrefix(info.ContractAddress, "0x") && !strings.HasPrefix(info.ContractAddress, accPrefix+"1") {
 			errors = append(errors, &ImportErrorInfo{
 				RowNumber:       rowNumber,
 				ContractAddress: info.ContractAddress,

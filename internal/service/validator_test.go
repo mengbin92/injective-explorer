@@ -3,7 +3,22 @@ package service
 
 import (
 	"testing"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
+
+func init() {
+	// Initialize SDK config for tests (if not already initialized by another package)
+	defer func() {
+		// Recover if config is already sealed
+		_ = recover()
+	}()
+	config := sdk.GetConfig()
+	config.SetBech32PrefixForAccount("inj", "injpub")
+	config.SetBech32PrefixForValidator("injvaloper", "injvaloperpub")
+	config.SetBech32PrefixForConsensusNode("injvalcons", "injvalconspub")
+	config.Seal()
+}
 
 // TestValidateAddress tests the ValidateAddress function with various inputs.
 func TestValidateAddress(t *testing.T) {

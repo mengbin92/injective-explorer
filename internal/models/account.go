@@ -265,7 +265,7 @@ var (
 )
 
 // IsValidInjectiveAddress validates a Injective address format.
-// Checks if the address conforms to the inj1... format and can be correctly decoded.
+// Checks if the address conforms to the configured account prefix format and can be correctly decoded.
 //
 // Parameters:
 //   - addr: The address string to validate
@@ -276,7 +276,8 @@ func IsValidInjectiveAddress(addr string) bool {
 	if addr == "" {
 		return false
 	}
-	if len(addr) < 10 || !strings.HasPrefix(addr, "inj1") {
+	prefix := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32AccountAddrPrefix()
+	if len(addr) < 10 || !strings.HasPrefix(addr, prefix+"1") {
 		return false
 	}
 	_, _, err := bech32.Decode(addr)
@@ -289,13 +290,13 @@ func IsValidInjectiveAddress(addr string) bool {
 	return IsValidInjectiveAddress(addr)
 }
 
-// EthToInjectiveAddress converts an Ethereum address (0x...) to Injective address (inj1...).
+// EthToInjectiveAddress converts an Ethereum address (0x...) to Injective address.
 //
 // Parameters:
 //   - ethAddr: The Ethereum address string (0x...)
 //
 // Returns:
-//   - string: The Injective address (inj1...)
+//   - string: The Injective address (with configured account prefix)
 //   - error: Error if conversion fails
 func EthToInjectiveAddress(ethAddr string) (string, error) {
 	if ethAddr == "" {
@@ -334,8 +335,9 @@ func EthToInjectiveAddress(ethAddr string) (string, error) {
 		return "", fmt.Errorf("%w: failed to convert bits: %v", ErrConversion, err)
 	}
 
-	// Encode as bech32 with "inj" prefix
-	injAddr, err := bech32.Encode("inj", conv)
+	// Encode as bech32 with account address prefix
+	prefix := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32AccountAddrPrefix()
+	injAddr, err := bech32.Encode(prefix, conv)
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
 	}
@@ -349,11 +351,11 @@ func EthToInjAddress(ethAddr string) (string, error) {
 	return EthToInjectiveAddress(ethAddr)
 }
 
-// InjectiveToEthAddress converts a Injective address (inj1...) to Ethereum address (0x...).
+// InjectiveToEthAddress converts a Injective address to Ethereum address (0x...).
 // This is the reverse operation of EthToInjectiveAddress.
 //
 // Parameters:
-//   - injAddr: The Injective address string (inj1...) or Ethereum address (0x...)
+//   - injAddr: The Injective address string (with configured prefix) or Ethereum address (0x...)
 //
 // Returns:
 //   - string: The Ethereum address (0x...)
@@ -389,8 +391,9 @@ func InjectiveToEthAddress(injAddr string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to decode bech32 address: %v", ErrConversion, err)
 	}
-	if hrp != "inj" {
-		return "", fmt.Errorf("%w: invalid HRP, expected 'inj', got '%s'", ErrConversion, hrp)
+	expectedHrp := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32AccountAddrPrefix()
+	if hrp != expectedHrp {
+		return "", fmt.Errorf("%w: invalid HRP, expected '%s', got '%s'", ErrConversion, expectedHrp, hrp)
 	}
 
 	// 2. 5-bit → 8-bit
@@ -412,14 +415,14 @@ func InjToEthAddress(injAddr string) (string, error) {
 	return InjectiveToEthAddress(injAddr)
 }
 
-// HexToValconsAddress converts a hex string address to Cosmos validator consensus address (injvalcons1...).
+// HexToValconsAddress converts a hex string address to Cosmos validator consensus address.
 // This is used to convert Tendermint proposer addresses to the bech32 format.
 //
 // Parameters:
 //   - hexAddr: The hex string address (e.g., "29F697D164538C3BDF7969F238E2097FE745D73C")
 //
 // Returns:
-//   - string: The validator consensus address in bech32 format (e.g., "injvalcons1eh644nvhkvdxwe3t6zltcee7td064mqy2p2d2n")
+//   - string: The validator consensus address in bech32 format (with configured consensus prefix)
 //   - error: Error if conversion fails
 func HexToValconsAddress(hexAddr string) (string, error) {
 	if hexAddr == "" {
@@ -441,8 +444,9 @@ func HexToValconsAddress(hexAddr string) (string, error) {
 		return "", fmt.Errorf("%w: failed to convert bits: %v", ErrConversion, err)
 	}
 
-	// Encode as bech32 with "injvalcons" prefix
-	valconsAddr, err := bech32.Encode("injvalcons", conv)
+	// Encode as bech32 with consensus address prefix
+	consPrefix := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32ConsensusAddrPrefix()
+	valconsAddr, err := bech32.Encode(consPrefix, conv)
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
 	}
@@ -450,14 +454,14 @@ func HexToValconsAddress(hexAddr string) (string, error) {
 	return valconsAddr, nil
 }
 
-// ValoperToAccAddress converts a validator operator address (injvaloper1...) to an account address (inj1...).
+// ValoperToAccAddress converts a validator operator address to an account address.
 // In Cosmos SDK, both addresses share the same 20-byte data, only the bech32 HRP differs.
 //
 // Parameters:
-//   - valoperAddr: The validator operator address (injvaloper1...)
+//   - valoperAddr: The validator operator address (with configured valoper prefix)
 //
 // Returns:
-//   - string: The account address (inj1...)
+//   - string: The account address (with configured account prefix)
 //   - error: Error if conversion fails
 func ValoperToAccAddress(valoperAddr string) (string, error) {
 	if valoperAddr == "" {
@@ -465,8 +469,9 @@ func ValoperToAccAddress(valoperAddr string) (string, error) {
 	}
 
 	// Validate prefix
-	if !strings.HasPrefix(valoperAddr, "injvaloper1") {
-		return "", fmt.Errorf("%w: invalid validator address format, expected injvaloper1...", ErrInvalidAddress)
+	valoperPrefix := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32ValidatorAddrPrefix()
+	if !strings.HasPrefix(valoperAddr, valoperPrefix+"1") {
+		return "", fmt.Errorf("%w: invalid validator address format, expected %s1...", ErrInvalidAddress, valoperPrefix)
 	}
 
 	// bech32 decode
@@ -474,12 +479,13 @@ func ValoperToAccAddress(valoperAddr string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to decode bech32 address: %v", ErrConversion, err)
 	}
-	if hrp != "injvaloper" {
-		return "", fmt.Errorf("%w: invalid HRP, expected 'injvaloper', got '%s'", ErrConversion, hrp)
+	if hrp != valoperPrefix {
+		return "", fmt.Errorf("%w: invalid HRP, expected '%s', got '%s'", ErrConversion, valoperPrefix, hrp)
 	}
 
 	// Re-encode with account HRP
-	accAddr, err := bech32.Encode("inj", data)
+	accPrefix := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32AccountAddrPrefix()
+	accAddr, err := bech32.Encode(accPrefix, data)
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
 	}
@@ -487,13 +493,13 @@ func ValoperToAccAddress(valoperAddr string) (string, error) {
 	return accAddr, nil
 }
 
-// AccToValoperAddress converts an account address (inj1...) to a validator operator address (injvaloper1...).
+// AccToValoperAddress converts an account address to a validator operator address.
 //
 // Parameters:
-//   - accAddr: The account address (inj1...)
+//   - accAddr: The account address (with configured account prefix)
 //
 // Returns:
-//   - string: The validator operator address (injvaloper1...)
+//   - string: The validator operator address (with configured valoper prefix)
 //   - error: Error if conversion fails
 func AccToValoperAddress(accAddr string) (string, error) {
 	if accAddr == "" {
@@ -501,8 +507,9 @@ func AccToValoperAddress(accAddr string) (string, error) {
 	}
 
 	// Validate prefix
-	if !strings.HasPrefix(accAddr, "inj1") {
-		return "", fmt.Errorf("%w: invalid account address format, expected inj1...", ErrInvalidAddress)
+	accPrefix := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32AccountAddrPrefix()
+	if !strings.HasPrefix(accAddr, accPrefix+"1") {
+		return "", fmt.Errorf("%w: invalid account address format, expected %s1...", ErrInvalidAddress, accPrefix)
 	}
 
 	// bech32 decode
@@ -510,12 +517,13 @@ func AccToValoperAddress(accAddr string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to decode bech32 address: %v", ErrConversion, err)
 	}
-	if hrp != "inj" {
-		return "", fmt.Errorf("%w: invalid HRP, expected 'inj', got '%s'", ErrConversion, hrp)
+	if hrp != accPrefix {
+		return "", fmt.Errorf("%w: invalid HRP, expected '%s', got '%s'", ErrConversion, accPrefix, hrp)
 	}
 
 	// Re-encode with validator HRP
-	valoperAddr, err := bech32.Encode("injvaloper", data)
+	valoperPrefix := github_com_cosmos_cosmos_sdk_types.GetConfig().GetBech32ValidatorAddrPrefix()
+	valoperAddr, err := bech32.Encode(valoperPrefix, data)
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to encode bech32 address: %v", ErrConversion, err)
 	}
@@ -523,11 +531,11 @@ func AccToValoperAddress(accAddr string) (string, error) {
 	return valoperAddr, nil
 }
 
-// ValoperToEthAddress converts a validator operator address (injvaloper1...) to an Ethereum address (0x...).
-// Conversion path: injvaloper1... → inj1... → 0x...
+// ValoperToEthAddress converts a validator operator address to an Ethereum address (0x...).
+// Conversion path: valoper address → account address → 0x...
 //
 // Parameters:
-//   - valoperAddr: The validator operator address (injvaloper1...)
+//   - valoperAddr: The validator operator address (with configured valoper prefix)
 //
 // Returns:
 //   - string: The Ethereum address (0x...)

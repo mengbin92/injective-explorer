@@ -26,6 +26,7 @@ import (
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
@@ -45,6 +46,18 @@ var (
 
 func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
+
+	// Configure Cosmos SDK Bech32 prefixes for INJ chain
+	initSDKConfig()
+}
+
+// initSDKConfig initializes the Cosmos SDK configuration with INJ chain prefixes
+func initSDKConfig() {
+	config := sdk.GetConfig()
+	config.SetBech32PrefixForAccount("inj", "injpub")
+	config.SetBech32PrefixForValidator("injvaloper", "injvaloperpub")
+	config.SetBech32PrefixForConsensusNode("injvalcons", "injvalconspub")
+	config.Seal()
 }
 
 // newApp creates a new kratos application with the given logger and servers.

@@ -12,10 +12,24 @@ import (
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/go-kratos/kratos/v2/log"
 )
 
 func TestMain(m *testing.M) {
+	// Initialize SDK config for tests (if not already initialized by another package)
+	func() {
+		defer func() {
+			// Recover if config is already sealed
+			_ = recover()
+		}()
+		config := sdk.GetConfig()
+		config.SetBech32PrefixForAccount("inj", "injpub")
+		config.SetBech32PrefixForValidator("injvaloper", "injvaloperpub")
+		config.SetBech32PrefixForConsensusNode("injvalcons", "injvalconspub")
+		config.Seal()
+	}()
+
 	// Initialize global logger if not already initialized
 	if global.Logger == nil {
 		global.Logger = log.NewHelper(log.DefaultLogger)
