@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -1982,6 +1983,18 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 		redisClient.LRem(cleanupCtx, s.config.TxHashProcessingQueueKey, 0, txHash)
 	}()
 
+	// Extract and save cross-chain transaction details
+	// This is done asynchronously to avoid blocking the main flow
+	go func() {
+		crossChainCtx, crossChainCancel := context.WithTimeout(context.Background(), CrossChainContextTimeoutSeconds*time.Second)
+		defer crossChainCancel()
+
+		if err := s.saveCrossChainTransaction(crossChainCtx, txResp, txModel); err != nil {
+			global.Logger.Warnf("failed to save cross-chain transaction %s: %v", txHash, err)
+			// Don't fail the main flow, just log the error
+		}
+	}()
+
 	// Cache transaction to Redis
 	cacheTransaction(ctx, txModel)
 
@@ -3124,5 +3137,371 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		global.Logger.Warnf("failed to cache transaction to Redis: %v", err)
+	}
+}
+
+// saveCrossChainTransaction extracts and saves cross-chain transaction details.
+// It parses IBC transfers, Peggy deposits, and Peggy withdrawals from the transaction response.
+func (s *SyncService) saveCrossChainTransaction(ctx context.Context, txResp *tx.GetTxResponse, txModel *models.Transaction) error {
+	if txResp == nil || txResp.TxResponse == nil {
+		return nil
+	}
+
+	// Parse transaction messages to extract cross-chain information
+	var txData models.TxJSON
+	if err := sonic.UnmarshalString(txModel.Messages, &txData); err != nil {
+		global.Logger.Debugf("failed to unmarshal messages for cross-chain extraction: %v", err)
+		return nil // Don't fail, just skip
+	}
+
+	// Extract logs/events for additional information
+	logsBytes := []byte(txModel.Logs)
+	if len(logsBytes) > 0 {
+		var logs []models.LogRaw
+		if err := sonic.Unmarshal(logsBytes, &logs); err == nil {
+			txData.Logs = logs
+		}
+	}
+
+	// Process each message for cross-chain transactions
+	for _, msg := range txData.Messages {
+		switch msg.Type {
+		case "/ibc.applications.transfer.v1.MsgTransfer":
+			if err := s.saveIBCTransferFromMessage(ctx, msg.Message, &txData, txModel); err != nil {
+				global.Logger.Warnf("failed to save IBC transfer: %v", err)
+			}
+
+		case "/injective.peggy.v1.MsgDepositClaim":
+			if err := s.savePeggyDepositFromMessage(ctx, msg.Message, &txData, txModel); err != nil {
+				global.Logger.Warnf("failed to save Peggy deposit: %v", err)
+			}
+
+		case "/injective.peggy.v1.MsgSendToEth":
+			if err := s.savePeggyWithdrawalFromMessage(ctx, msg.Message, &txData, txModel); err != nil {
+				global.Logger.Warnf("failed to save Peggy withdrawal: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// saveIBCTransferFromMessage extracts and saves IBC transfer details.
+func (s *SyncService) saveIBCTransferFromMessage(ctx context.Context, msg json.RawMessage, txData *models.TxJSON, txModel *models.Transaction) error {
+	var ibcMsg struct {
+		Sender           string          `json:"sender"`
+		Receiver         string          `json:"receiver"`
+		Token            struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"token"`
+		SourcePort       string          `json:"source_port"`
+		SourceChannel    string          `json:"source_channel"`
+		TimeoutHeight    json.RawMessage `json:"timeout_height"`
+		TimeoutTimestamp string          `json:"timeout_timestamp"`
+	}
+
+	if err := sonic.Unmarshal(msg, &ibcMsg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal IBC MsgTransfer")
+	}
+
+	// Extract event information
+	ibcDetail := &models.IBCTransferDetail{
+		SourcePort:    ibcMsg.SourcePort,
+		SourceChannel: ibcMsg.SourceChannel,
+	}
+
+	if len(ibcMsg.TimeoutHeight) > 0 {
+		ibcDetail.TimeoutHeight = string(ibcMsg.TimeoutHeight)
+	}
+
+	if ibcMsg.TimeoutTimestamp != "" {
+		if ts, err := parseUint64(ibcMsg.TimeoutTimestamp); err == nil {
+			ibcDetail.TimeoutTimestamp = ts
+		}
+	}
+
+	// Extract info from events
+	for _, log := range txData.Logs {
+		for _, event := range log.Events {
+			switch event.Type {
+			case "send_packet":
+				for _, attr := range event.Attributes {
+					key := attr.Key
+					value := stringifyAttrValue(attr.Value)
+					switch key {
+					case "packet_sequence":
+						if seq, err := parseUint64(value); err == nil {
+							ibcDetail.PacketSequence = seq
+						}
+					case "packet_timeout_height":
+						ibcDetail.TimeoutHeight = value
+					case "packet_timeout_timestamp":
+						if ts, err := parseUint64(value); err == nil {
+							ibcDetail.TimeoutTimestamp = ts
+						}
+					case "packet_data":
+						ibcDetail.DataHex = []byte(value)
+					}
+				}
+			case "recv_packet":
+				for _, attr := range event.Attributes {
+					key := attr.Key
+					value := stringifyAttrValue(attr.Value)
+					if key == "packet_dst_port" {
+						ibcDetail.DestinationPort = value
+					} else if key == "packet_dst_channel" {
+						ibcDetail.DestinationChannel = value
+					}
+				}
+			}
+		}
+	}
+
+	// Create and save IBC transfer record
+	ibcTx := &models.IBCTransferTx{
+		Sender:             ibcMsg.Sender,
+		Receiver:           ibcMsg.Receiver,
+		SourcePort:         ibcDetail.SourcePort,
+		SourceChannel:      ibcDetail.SourceChannel,
+		DestinationPort:    ibcDetail.DestinationPort,
+		DestinationChannel: ibcDetail.DestinationChannel,
+		Amount:             ibcMsg.Token.Amount,
+		Denom:              ibcMsg.Token.Denom,
+		TimeoutHeight:      ibcDetail.TimeoutHeight,
+		TimeoutTimestamp:   ibcDetail.TimeoutTimestamp,
+		PacketSequence:     ibcDetail.PacketSequence,
+		DataHex:            ibcDetail.DataHex,
+		State:              "completed",
+		TxHash:             txModel.Hash,
+		BlockHeight:        txModel.BlockNumber,
+		BlockTimestamp:     txModel.BlockUnixTimestamp,
+	}
+
+	return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "tx_hash"}, {Name: "packet_sequence"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"sender", "receiver", "source_port", "source_channel",
+			"destination_port", "destination_channel", "amount", "denom",
+			"timeout_height", "timeout_timestamp", "state", "updated_at",
+		}),
+	}).Create(ibcTx).Error
+}
+
+// savePeggyDepositFromMessage extracts and saves Peggy deposit details.
+func (s *SyncService) savePeggyDepositFromMessage(ctx context.Context, msg json.RawMessage, txData *models.TxJSON, txModel *models.Transaction) error {
+	var depositMsg struct {
+		EventNonce        string `json:"event_nonce"`
+		EthSender         string `json:"eth_sender"`
+		InjectiveReceiver string `json:"injective_receiver"`
+		Amount            struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+	}
+
+	if err := sonic.Unmarshal(msg, &depositMsg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal Peggy MsgDepositClaim")
+	}
+
+	// Extract event information
+	depositDetail := &models.PeggyDepositDetail{
+		ClaimType: 1, // DepositClaim
+	}
+
+	if depositMsg.EventNonce != "" {
+		if nonce, err := parseUint64(depositMsg.EventNonce); err == nil {
+			depositDetail.EventNonce = nonce
+		}
+	}
+
+	// Extract info from events
+	for _, log := range txData.Logs {
+		for _, event := range log.Events {
+			if event.Type == "deposit_claim" {
+				for _, attr := range event.Attributes {
+					key := attr.Key
+					value := stringifyAttrValue(attr.Value)
+					switch key {
+					case "event_nonce":
+						if nonce, err := parseUint64(value); err == nil {
+							depositDetail.EventNonce = nonce
+						}
+					case "event_height":
+						if height, err := parseUint64(value); err == nil {
+							depositDetail.EventHeight = height
+						}
+					case "orchestrator_address":
+						depositDetail.OrchestratorAddress = value
+					}
+				}
+			}
+		}
+	}
+
+	// Create and save Peggy deposit record
+	deposit := &models.PeggyDepositTx{
+		Sender:              depositMsg.EthSender,
+		Receiver:            depositMsg.InjectiveReceiver,
+		Amount:              depositMsg.Amount.Amount,
+		Denom:               depositMsg.Amount.Denom,
+		EventNonce:          depositDetail.EventNonce,
+		EventHeight:         depositDetail.EventHeight,
+		OrchestratorAddress: depositDetail.OrchestratorAddress,
+		State:               "completed",
+		ClaimType:           depositDetail.ClaimType,
+		TxHash:              txModel.Hash,
+		BlockHeight:         txModel.BlockNumber,
+		BlockTimestamp:      txModel.BlockUnixTimestamp,
+	}
+
+	return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "event_nonce"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"sender", "receiver", "amount", "denom",
+			"event_height", "orchestrator_address", "state", "updated_at",
+		}),
+	}).Create(deposit).Error
+}
+
+// savePeggyWithdrawalFromMessage extracts and saves Peggy withdrawal details.
+func (s *SyncService) savePeggyWithdrawalFromMessage(ctx context.Context, msg json.RawMessage, txData *models.TxJSON, txModel *models.Transaction) error {
+	var withdrawalMsg struct {
+		Sender    string `json:"sender"`
+		EthDest   string `json:"eth_dest"`
+		Amount    struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+		BridgeFee struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"bridge_fee"`
+	}
+
+	if err := sonic.Unmarshal(msg, &withdrawalMsg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal Peggy MsgSendToEth")
+	}
+
+	// Extract event information
+	withdrawalDetail := &models.PeggyWithdrawalDetail{
+		BridgeFee: withdrawalMsg.BridgeFee.Amount,
+		ClaimType: 2, // WithdrawalClaim
+	}
+
+	// Extract info from events
+	for _, log := range txData.Logs {
+		for _, event := range log.Events {
+			switch event.Type {
+			case "send_to_eth":
+				for _, attr := range event.Attributes {
+					key := attr.Key
+					value := stringifyAttrValue(attr.Value)
+					switch key {
+					case "outgoing_tx_id":
+						if id, err := parseUint64(value); err == nil {
+							withdrawalDetail.OutgoingTxId = id
+						}
+					case "batch_timeout":
+						if ts, err := parseUint64(value); err == nil {
+							withdrawalDetail.BatchTimeout = ts
+						}
+					}
+				}
+			case "withdrawal_claim":
+				for _, attr := range event.Attributes {
+					key := attr.Key
+					value := stringifyAttrValue(attr.Value)
+					switch key {
+					case "event_nonce":
+						if nonce, err := parseUint64(value); err == nil {
+							withdrawalDetail.EventNonce = nonce
+						}
+					case "event_height":
+						if height, err := parseUint64(value); err == nil {
+							withdrawalDetail.EventHeight = height
+						}
+					case "batch_nonce":
+						if nonce, err := parseUint64(value); err == nil {
+							withdrawalDetail.BatchNonce = nonce
+						}
+					case "orchestrator_address":
+						withdrawalDetail.OrchestratorAddress = value
+					}
+				}
+			}
+		}
+	}
+
+	// Determine state based on available information
+	state := "pending"
+	if withdrawalDetail.BatchNonce > 0 {
+		state = "completed"
+	} else if withdrawalDetail.BatchTimeout > 0 {
+		state = "batched"
+	}
+
+	// Create and save Peggy withdrawal record
+	withdrawal := &models.PeggyWithdrawalTx{
+		Sender:              withdrawalMsg.Sender,
+		Receiver:            withdrawalMsg.EthDest,
+		Amount:              withdrawalMsg.Amount.Amount,
+		Denom:               withdrawalMsg.Amount.Denom,
+		BridgeFee:           withdrawalDetail.BridgeFee,
+		OutgoingTxId:        withdrawalDetail.OutgoingTxId,
+		BatchTimeout:        withdrawalDetail.BatchTimeout,
+		BatchNonce:          withdrawalDetail.BatchNonce,
+		OrchestratorAddress: withdrawalDetail.OrchestratorAddress,
+		EventNonce:          withdrawalDetail.EventNonce,
+		EventHeight:         withdrawalDetail.EventHeight,
+		State:               state,
+		ClaimType:           withdrawalDetail.ClaimType,
+		TxHash:              txModel.Hash,
+		BlockHeight:         txModel.BlockNumber,
+		BlockTimestamp:      txModel.BlockUnixTimestamp,
+	}
+
+	return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "outgoing_tx_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"sender", "receiver", "amount", "denom", "bridge_fee",
+			"batch_timeout", "batch_nonce", "orchestrator_address",
+			"event_nonce", "event_height", "state", "updated_at",
+		}),
+	}).Create(withdrawal).Error
+}
+
+// parseUint64 safely parses a uint64 from string.
+func parseUint64(s string) (uint64, error) {
+	if s == "" {
+		return 0, nil
+	}
+	var result uint64
+	_, err := fmt.Sscanf(s, "%d", &result)
+	return result, err
+}
+
+// stringifyAttrValue converts an attribute value to string.
+// Handles both string and []interface{} types.
+func stringifyAttrValue(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch val := v.(type) {
+	case string:
+		return val
+	case []byte:
+		return string(val)
+	case []interface{}:
+		// Join array elements
+		var parts []string
+		for _, item := range val {
+			if s := stringifyAttrValue(item); s != "" {
+				parts = append(parts, s)
+			}
+		}
+		return strings.Join(parts, ",")
+	default:
+		return fmt.Sprintf("%v", val)
 	}
 }

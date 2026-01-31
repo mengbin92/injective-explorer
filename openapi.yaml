@@ -1882,6 +1882,160 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.CheckHealthyResponse'
+    /api/v1/ibc/transfers:
+        get:
+            tags:
+                - Explorer
+            description: |-
+                Cross-chain transaction query interfaces
+                 Get IBC transfer transactions
+            operationId: Explorer_GetIBCTransferTxs
+            parameters:
+                - name: sender
+                  in: query
+                  description: Sender address (optional filter)
+                  schema:
+                    type: string
+                - name: receiver
+                  in: query
+                  description: Receiver address (optional filter)
+                  schema:
+                    type: string
+                - name: src_channel
+                  in: query
+                  description: Source channel (optional filter)
+                  schema:
+                    type: string
+                - name: src_port
+                  in: query
+                  description: Source port (optional filter)
+                  schema:
+                    type: string
+                - name: dest_channel
+                  in: query
+                  description: Destination channel (optional filter)
+                  schema:
+                    type: string
+                - name: dest_port
+                  in: query
+                  description: Destination port (optional filter)
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/peggy/deposits:
+        get:
+            tags:
+                - Explorer
+            description: Get Peggy deposit transactions (Ethereum -> Injective)
+            operationId: Explorer_GetPeggyDepositTxs
+            parameters:
+                - name: sender
+                  in: query
+                  description: Sender address (Ethereum address, optional filter)
+                  schema:
+                    type: string
+                - name: receiver
+                  in: query
+                  description: Receiver address (Injective address, optional filter)
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/peggy/withdrawals:
+        get:
+            tags:
+                - Explorer
+            description: Get Peggy withdrawal transactions (Injective -> Ethereum)
+            operationId: Explorer_GetPeggyWithdrawalTxs
+            parameters:
+                - name: sender
+                  in: query
+                  description: Sender address (Injective address, optional filter)
+                  schema:
+                    type: string
+                - name: receiver
+                  in: query
+                  description: Receiver address (Ethereum address, optional filter)
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/stats/error-analysis:
         get:
             tags:

@@ -41,6 +41,42 @@ type ExtractResult struct {
 	// ShouldShowValue indicates whether this transaction should display to/value
 	// Only true for actual asset transfers (A → B), not for instructions/state changes
 	ShouldShowValue bool `json:"should_show_value,omitempty"`
+	// Cross-chain transaction details
+	IBCTransfer     *IBCTransferDetail     `json:"ibc_transfer,omitempty"`
+	PeggyDeposit    *PeggyDepositDetail    `json:"peggy_deposit,omitempty"`
+	PeggyWithdrawal *PeggyWithdrawalDetail `json:"peggy_withdrawal,omitempty"`
+}
+
+// IBCTransferDetail contains IBC transfer transaction details.
+type IBCTransferDetail struct {
+	SourcePort         string
+	SourceChannel      string
+	DestinationPort    string
+	DestinationChannel string
+	PacketSequence     uint64
+	TimeoutHeight      string
+	TimeoutTimestamp   uint64
+	DataHex            []byte
+}
+
+// PeggyDepositDetail contains Peggy deposit transaction details.
+type PeggyDepositDetail struct {
+	EventNonce          uint64
+	EventHeight         uint64
+	OrchestratorAddress string
+	ClaimType           int32
+}
+
+// PeggyWithdrawalDetail contains Peggy withdrawal transaction details.
+type PeggyWithdrawalDetail struct {
+	BridgeFee           string
+	OutgoingTxId        uint64
+	BatchTimeout        uint64
+	BatchNonce          uint64
+	OrchestratorAddress string
+	EventNonce          uint64
+	EventHeight         uint64
+	ClaimType           int32
 }
 
 // Minimal structs matching the JSON layout. We only include the fields we need.
@@ -876,6 +912,7 @@ func initMessageExtractors() {
 
 		// Injective Peggy
 		registerMessageExtractor("/injective.peggy.v1.MsgSendToEth", &injectivePeggyMsgSendToEthExtractor{})
+		registerMessageExtractor("/injective.peggy.v1.MsgDepositClaim", &injectivePeggyMsgDepositClaimExtractor{})
 
 		// Injective Insurance
 		registerMessageExtractor("/injective.insurance.v1beta1.MsgUnderwrite", &injectiveInsuranceMsgUnderwriteExtractor{})
@@ -965,12 +1002,16 @@ type ibcMsgTransferExtractor struct{}
 
 func (e *ibcMsgTransferExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
 	var tmp struct {
-		Sender   string `json:"sender"`
-		Receiver string `json:"receiver"`
-		Token    struct {
+		Sender           string          `json:"sender"`
+		Receiver         string          `json:"receiver"`
+		Token            struct {
 			Denom  string `json:"denom"`
 			Amount string `json:"amount"`
 		} `json:"token"`
+		SourcePort       string          `json:"source_port"`
+		SourceChannel    string          `json:"source_channel"`
+		TimeoutHeight    json.RawMessage `json:"timeout_height"`
+		TimeoutTimestamp string          `json:"timeout_timestamp"`
 	}
 	if err := sonic.Unmarshal(msg, &tmp); err != nil {
 		global.Logger.Debugf("Failed to unmarshal /ibc.applications.transfer.v1.MsgTransfer: %v", err)
@@ -981,6 +1022,25 @@ func (e *ibcMsgTransferExtractor) Extract(msg json.RawMessage, res *ExtractResul
 	if tmp.Token.Amount != "" {
 		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Token.Denom, Amount: tmp.Token.Amount}})
 	}
+
+	// Extract cross-chain details
+	res.IBCTransfer = &IBCTransferDetail{
+		SourcePort:    tmp.SourcePort,
+		SourceChannel: tmp.SourceChannel,
+	}
+
+	// Parse timeout_height
+	if len(tmp.TimeoutHeight) > 0 {
+		res.IBCTransfer.TimeoutHeight = string(tmp.TimeoutHeight)
+	}
+
+	// Parse timeout_timestamp
+	if tmp.TimeoutTimestamp != "" {
+		if ts, err := parseUint64(tmp.TimeoutTimestamp); err == nil {
+			res.IBCTransfer.TimeoutTimestamp = ts
+		}
+	}
+
 	return true
 }
 
@@ -1066,6 +1126,13 @@ func (e *injectivePeggyMsgSendToEthExtractor) Extract(msg json.RawMessage, res *
 	if tmp.Amount.Amount != "" {
 		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
 	}
+
+	// Extract cross-chain withdrawal details
+	res.PeggyWithdrawal = &PeggyWithdrawalDetail{
+		BridgeFee: tmp.BridgeFee.Amount,
+		ClaimType: 2, // WithdrawalClaim
+	}
+
 	return true
 }
 
@@ -1249,4 +1316,183 @@ func (e *injectiveWasmxMsgExecuteContractCompatExtractor) Extract(msg json.RawMe
 		return true
 	}
 	return false
+}
+
+// Cross-chain event extraction helpers
+
+// extractIBCInfoFromEvents extracts IBC-specific information from events.
+func extractIBCInfoFromEvents(events []EventRaw, detail *IBCTransferDetail) {
+	for _, event := range events {
+		switch event.Type {
+		case "send_packet":
+			for _, attr := range event.Attributes {
+				key := attr.Key
+				value := stringifyAttrValue(attr.Value)
+
+				switch key {
+				case "packet_sequence":
+					if seq, err := parseUint64(value); err == nil {
+						detail.PacketSequence = seq
+					}
+				case "packet_timeout_height":
+					detail.TimeoutHeight = value
+				case "packet_timeout_timestamp":
+					if ts, err := parseUint64(value); err == nil {
+						detail.TimeoutTimestamp = ts
+					}
+				case "packet_data":
+					detail.DataHex = []byte(value)
+					// Parse packet_data to extract destination info
+					extractDestinationFromPacketData(value, detail)
+				}
+			}
+
+		case "recv_packet":
+			for _, attr := range event.Attributes {
+				key := attr.Key
+				value := stringifyAttrValue(attr.Value)
+
+				if key == "packet_dst_port" {
+					detail.DestinationPort = value
+				} else if key == "packet_dst_channel" {
+					detail.DestinationChannel = value
+				}
+			}
+		}
+	}
+}
+
+// extractPeggyDepositFromEvents extracts Peggy deposit information from events.
+func extractPeggyDepositFromEvents(events []EventRaw, detail *PeggyDepositDetail) {
+	for _, event := range events {
+		if event.Type == "deposit_claim" {
+			for _, attr := range event.Attributes {
+				key := attr.Key
+				value := stringifyAttrValue(attr.Value)
+
+				switch key {
+				case "event_nonce":
+					if nonce, err := parseUint64(value); err == nil {
+						detail.EventNonce = nonce
+					}
+				case "event_height":
+					if height, err := parseUint64(value); err == nil {
+						detail.EventHeight = height
+					}
+				case "orchestrator_address":
+					detail.OrchestratorAddress = value
+				}
+			}
+		}
+	}
+}
+
+// extractPeggyWithdrawalFromEvents extracts Peggy withdrawal information from events.
+func extractPeggyWithdrawalFromEvents(events []EventRaw, detail *PeggyWithdrawalDetail) {
+	for _, event := range events {
+		switch event.Type {
+		case "send_to_eth":
+			for _, attr := range event.Attributes {
+				key := attr.Key
+				value := stringifyAttrValue(attr.Value)
+
+				switch key {
+				case "outgoing_tx_id":
+					if id, err := parseUint64(value); err == nil {
+						detail.OutgoingTxId = id
+					}
+				case "batch_timeout":
+					if ts, err := parseUint64(value); err == nil {
+						detail.BatchTimeout = ts
+					}
+				}
+			}
+
+		case "withdrawal_claim":
+			for _, attr := range event.Attributes {
+				key := attr.Key
+				value := stringifyAttrValue(attr.Value)
+
+				switch key {
+				case "event_nonce":
+					if nonce, err := parseUint64(value); err == nil {
+						detail.EventNonce = nonce
+					}
+				case "event_height":
+					if height, err := parseUint64(value); err == nil {
+						detail.EventHeight = height
+					}
+				case "batch_nonce":
+					if nonce, err := parseUint64(value); err == nil {
+						detail.BatchNonce = nonce
+					}
+				case "orchestrator_address":
+					detail.OrchestratorAddress = value
+				}
+			}
+		}
+	}
+}
+
+// extractDestinationFromPacketData parses packet_data JSON to extract destination info.
+func extractDestinationFromPacketData(packetData string, detail *IBCTransferDetail) {
+	var data struct {
+		Receiver string `json:"receiver"`
+		// Other fields can be added as needed
+	}
+	if err := sonic.UnmarshalString(packetData, &data); err != nil {
+		return
+	}
+	// Receiver is already captured from message, but we can add more parsing here if needed
+}
+
+// parseUint64 safely parses a uint64 from string.
+func parseUint64(s string) (uint64, error) {
+	if s == "" {
+		return 0, nil
+	}
+	var result uint64
+	_, err := fmt.Sscanf(s, "%d", &result)
+	return result, err
+}
+
+// injectivePeggyMsgDepositClaimExtractor extracts transfer info from Injective Peggy MsgDepositClaim.
+type injectivePeggyMsgDepositClaimExtractor struct{}
+
+func (e *injectivePeggyMsgDepositClaimExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
+	var tmp struct {
+		EventNonce        string `json:"event_nonce"`
+		EthSender         string `json:"eth_sender"`
+		InjectiveReceiver string `json:"injective_receiver"`
+		Amount            struct {
+			Denom  string `json:"denom"`
+			Amount string `json:"amount"`
+		} `json:"amount"`
+	}
+	if err := sonic.Unmarshal(msg, &tmp); err != nil {
+		global.Logger.Debugf("Failed to unmarshal /injective.peggy.v1.MsgDepositClaim: %v", err)
+		return false
+	}
+
+	// eth_sender is the Ethereum source address
+	res.From = utils.FirstNonEmpty(res.From, tmp.EthSender)
+	// injective_receiver is the Injective destination address
+	res.To = utils.FirstNonEmpty(res.To, tmp.InjectiveReceiver)
+
+	if tmp.Amount.Amount != "" {
+		res.Values = mergeCoins(res.Values, []Coin{{Denom: tmp.Amount.Denom, Amount: tmp.Amount.Amount}})
+	}
+
+	// Extract cross-chain deposit details
+	res.PeggyDeposit = &PeggyDepositDetail{
+		ClaimType: 1, // DepositClaim
+	}
+
+	if tmp.EventNonce != "" {
+		if nonce, err := parseUint64(tmp.EventNonce); err == nil {
+			res.PeggyDeposit.EventNonce = nonce
+		}
+	}
+
+	return true
 }

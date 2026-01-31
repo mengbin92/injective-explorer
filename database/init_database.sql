@@ -893,5 +893,107 @@ CREATE INDEX idx_address_label_value_prefix ON address_labels(label_value(50));
 -- Query: WHERE chain_id = ? AND label_type = ? ORDER BY id DESC
 CREATE INDEX idx_address_label_list ON address_labels(chain_id, label_type, id DESC);
 
+-- ----------------------------
+-- Table structure for ibc_transfer_txs
+-- ----------------------------
+DROP TABLE IF EXISTS `ibc_transfer_txs`;
+CREATE TABLE `ibc_transfer_txs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `sender` varchar(128) NOT NULL COMMENT '发送地址',
+  `receiver` varchar(128) NOT NULL COMMENT '接收地址',
+  `source_port` varchar(100) DEFAULT NULL COMMENT '源端口',
+  `source_channel` varchar(100) DEFAULT NULL COMMENT '源通道',
+  `destination_port` varchar(100) DEFAULT NULL COMMENT '目标端口',
+  `destination_channel` varchar(100) DEFAULT NULL COMMENT '目标通道',
+  `amount` varchar(100) DEFAULT NULL COMMENT '转账金额',
+  `denom` varchar(100) DEFAULT NULL COMMENT '代币denom',
+  `timeout_height` varchar(100) DEFAULT NULL COMMENT '超时高度',
+  `timeout_timestamp` bigint unsigned DEFAULT NULL COMMENT '超时时间戳',
+  `packet_sequence` bigint unsigned DEFAULT NULL COMMENT '包序列号',
+  `data_hex` blob COMMENT '原始数据(hex)',
+  `state` varchar(50) DEFAULT 'completed' COMMENT '状态: completed/pending/failed',
+  `tx_hash` varchar(128) NOT NULL COMMENT '交易hash',
+  `block_height` bigint unsigned DEFAULT NULL COMMENT '区块高度',
+  `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
+  PRIMARY KEY (`id`),
+  KEY `idx_ibc_transfer_txs_deleted_at` (`deleted_at`),
+  KEY `idx_ibc_transfer_txs_sender` (`sender`),
+  KEY `idx_ibc_transfer_txs_receiver` (`receiver`),
+  KEY `idx_ibc_transfer_txs_source_channel` (`source_channel`),
+  KEY `idx_ibc_transfer_txs_destination_channel` (`destination_channel`),
+  KEY `idx_ibc_transfer_txs_tx_hash` (`tx_hash`),
+  KEY `idx_ibc_transfer_txs_block_height` (`block_height`),
+  KEY `idx_ibc_transfer_txs_block_timestamp` (`block_timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IBC跨链转账交易表';
+
+-- ----------------------------
+-- Table structure for peggy_deposit_txs
+-- ----------------------------
+DROP TABLE IF EXISTS `peggy_deposit_txs`;
+CREATE TABLE `peggy_deposit_txs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `sender` varchar(128) NOT NULL COMMENT '发送地址(以太坊地址)',
+  `receiver` varchar(128) NOT NULL COMMENT '接收地址(injective地址)',
+  `amount` varchar(100) DEFAULT NULL COMMENT '存款金额',
+  `denom` varchar(100) DEFAULT NULL COMMENT '代币denom',
+  `event_nonce` bigint unsigned DEFAULT NULL COMMENT '事件nonce',
+  `event_height` bigint unsigned DEFAULT NULL COMMENT '事件高度',
+  `orchestrator_address` varchar(128) DEFAULT NULL COMMENT '协调者地址',
+  `state` varchar(50) DEFAULT 'completed' COMMENT '状态: completed/pending/failed',
+  `claim_type` int DEFAULT 1 COMMENT '声明类型: 1=deposit',
+  `tx_hash` varchar(128) NOT NULL COMMENT '交易hash',
+  `block_height` bigint unsigned DEFAULT NULL COMMENT '区块高度',
+  `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_peggy_deposit_event_nonce` (`event_nonce`),
+  KEY `idx_peggy_deposit_txs_deleted_at` (`deleted_at`),
+  KEY `idx_peggy_deposit_txs_sender` (`sender`),
+  KEY `idx_peggy_deposit_txs_receiver` (`receiver`),
+  KEY `idx_peggy_deposit_txs_tx_hash` (`tx_hash`),
+  KEY `idx_peggy_deposit_txs_block_height` (`block_height`),
+  KEY `idx_peggy_deposit_txs_block_timestamp` (`block_timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链存款交易表';
+
+-- ----------------------------
+-- Table structure for peggy_withdrawal_txs
+-- ----------------------------
+DROP TABLE IF EXISTS `peggy_withdrawal_txs`;
+CREATE TABLE `peggy_withdrawal_txs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `sender` varchar(128) NOT NULL COMMENT '发送地址(injective地址)',
+  `receiver` varchar(128) NOT NULL COMMENT '接收地址(以太坊地址)',
+  `amount` varchar(100) DEFAULT NULL COMMENT '提款金额',
+  `denom` varchar(100) DEFAULT NULL COMMENT '代币denom',
+  `bridge_fee` varchar(100) DEFAULT NULL COMMENT '跨链桥费用',
+  `outgoing_tx_id` bigint unsigned DEFAULT NULL COMMENT '出账交易ID',
+  `batch_timeout` bigint unsigned DEFAULT NULL COMMENT '批次超时时间',
+  `batch_nonce` bigint unsigned DEFAULT NULL COMMENT '批次nonce',
+  `orchestrator_address` varchar(128) DEFAULT NULL COMMENT '协调者地址',
+  `event_nonce` bigint unsigned DEFAULT NULL COMMENT '事件nonce',
+  `event_height` bigint unsigned DEFAULT NULL COMMENT '事件高度',
+  `state` varchar(50) DEFAULT 'pending' COMMENT '状态: pending/completed/failed',
+  `claim_type` int DEFAULT 2 COMMENT '声明类型: 2=withdrawal',
+  `tx_hash` varchar(128) NOT NULL COMMENT '交易hash',
+  `block_height` bigint unsigned DEFAULT NULL COMMENT '区块高度',
+  `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_peggy_withdrawal_outgoing_tx_id` (`outgoing_tx_id`),
+  KEY `idx_peggy_withdrawal_txs_deleted_at` (`deleted_at`),
+  KEY `idx_peggy_withdrawal_txs_sender` (`sender`),
+  KEY `idx_peggy_withdrawal_txs_receiver` (`receiver`),
+  KEY `idx_peggy_withdrawal_txs_tx_hash` (`tx_hash`),
+  KEY `idx_peggy_withdrawal_txs_block_height` (`block_height`),
+  KEY `idx_peggy_withdrawal_txs_block_timestamp` (`block_timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链提款交易表';
+
 SET FOREIGN_KEY_CHECKS = 1;
 

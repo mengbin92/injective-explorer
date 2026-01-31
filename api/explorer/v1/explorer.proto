@@ -197,6 +197,28 @@ service Explorer {
       delete : "/api/v1/global/tag"
     };
   }
+
+  // Cross-chain transaction query interfaces
+  // Get IBC transfer transactions
+  rpc GetIBCTransferTxs(GetIBCTransferTxsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/ibc/transfers"
+    };
+  }
+
+  // Get Peggy deposit transactions (Ethereum -> Injective)
+  rpc GetPeggyDepositTxs(GetPeggyDepositTxsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/peggy/deposits"
+    };
+  }
+
+  // Get Peggy withdrawal transactions (Injective -> Ethereum)
+  rpc GetPeggyWithdrawalTxs(GetPeggyWithdrawalTxsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/peggy/withdrawals"
+    };
+  }
 }
 
 message GetBlockByHeightRequest { int64 height = 1; }
@@ -665,4 +687,144 @@ message TokenPriceAndMarketCapResponse {
   // On-chain supply (before burn) in human-readable format
   string total_supply_from_chain_formatted = 12
       [ json_name = "total_supply_from_chain_formatted" ];
+}
+
+// Cross-chain transaction request messages
+// GetIBCTransferTxsRequest requests IBC transfer transactions
+message GetIBCTransferTxsRequest {
+  // Sender address (optional filter)
+  string sender = 1;
+  // Receiver address (optional filter)
+  string receiver = 2;
+  // Source channel (optional filter)
+  string src_channel = 3 [ json_name = "src_channel" ];
+  // Source port (optional filter)
+  string src_port = 4 [ json_name = "src_port" ];
+  // Destination channel (optional filter)
+  string dest_channel = 5 [ json_name = "dest_channel" ];
+  // Destination port (optional filter)
+  string dest_port = 6 [ json_name = "dest_port" ];
+  // Pagination parameters
+  PaginationRequest pagination = 7;
+}
+
+// GetPeggyDepositTxsRequest requests Peggy deposit transactions
+message GetPeggyDepositTxsRequest {
+  // Sender address (Ethereum address, optional filter)
+  string sender = 1;
+  // Receiver address (Injective address, optional filter)
+  string receiver = 2;
+  // Pagination parameters
+  PaginationRequest pagination = 3;
+}
+
+// GetPeggyWithdrawalTxsRequest requests Peggy withdrawal transactions
+message GetPeggyWithdrawalTxsRequest {
+  // Sender address (Injective address, optional filter)
+  string sender = 1;
+  // Receiver address (Ethereum address, optional filter)
+  string receiver = 2;
+  // Pagination parameters
+  PaginationRequest pagination = 3;
+}
+
+// Cross-chain transaction DTOs
+// IBCTransferTxDTO represents IBC transfer transaction in API response
+message IBCTransferTxDTO {
+  // Sender address
+  string sender = 1;
+  // Receiver address
+  string receiver = 2;
+  // Source port
+  string source_port = 3 [ json_name = "source_port" ];
+  // Source channel
+  string source_channel = 4 [ json_name = "source_channel" ];
+  // Destination port
+  string destination_port = 5 [ json_name = "destination_port" ];
+  // Destination channel
+  string destination_channel = 6 [ json_name = "destination_channel" ];
+  // Transfer amount
+  string amount = 7;
+  // Token denomination
+  string denom = 8;
+  // Timeout height
+  string timeout_height = 9 [ json_name = "timeout_height" ];
+  // Timeout timestamp (nanoseconds)
+  uint64 timeout_timestamp = 10 [ json_name = "timeout_timestamp" ];
+  // Packet sequence number
+  uint64 packet_sequence = 11 [ json_name = "packet_sequence" ];
+  // Data in hex format
+  bytes data_hex = 12 [ json_name = "data_hex" ];
+  // Transaction state (pending, completed, failed, timeout)
+  string state = 13;
+  // Transaction hashes (array for compatibility)
+  repeated string tx_hashes = 14 [ json_name = "tx_hashes" ];
+  // Creation timestamp (ISO 8601 format)
+  string created_at = 15 [ json_name = "created_at" ];
+  // Last update timestamp (ISO 8601 format)
+  string updated_at = 16 [ json_name = "updated_at" ];
+}
+
+// PeggyDepositTxDTO represents Peggy deposit transaction in API response
+message PeggyDepositTxDTO {
+  // Sender address (Ethereum address)
+  string sender = 1;
+  // Receiver address (Injective address)
+  string receiver = 2;
+  // Event nonce
+  uint64 event_nonce = 3 [ json_name = "event_nonce" ];
+  // Event height
+  uint64 event_height = 4 [ json_name = "event_height" ];
+  // Deposit amount
+  string amount = 5;
+  // Token denomination
+  string denom = 6;
+  // Orchestrator address
+  string orchestrator_address = 7 [ json_name = "orchestrator_address" ];
+  // Transaction state (pending, completed, failed)
+  string state = 8;
+  // Claim type (1 for DepositClaim)
+  int32 claim_type = 9 [ json_name = "claim_type" ];
+  // Transaction hashes
+  repeated string tx_hashes = 10 [ json_name = "tx_hashes" ];
+  // Creation timestamp (ISO 8601 format)
+  string created_at = 11 [ json_name = "created_at" ];
+  // Last update timestamp (ISO 8601 format)
+  string updated_at = 12 [ json_name = "updated_at" ];
+}
+
+// PeggyWithdrawalTxDTO represents Peggy withdrawal transaction in API response
+message PeggyWithdrawalTxDTO {
+  // Sender address (Injective address)
+  string sender = 1;
+  // Receiver address (Ethereum address)
+  string receiver = 2;
+  // Withdrawal amount
+  string amount = 3;
+  // Token denomination
+  string denom = 4;
+  // Bridge fee
+  string bridge_fee = 5 [ json_name = "bridge_fee" ];
+  // Outgoing transaction ID
+  uint64 outgoing_tx_id = 6 [ json_name = "outgoing_tx_id" ];
+  // Batch timeout timestamp
+  uint64 batch_timeout = 7 [ json_name = "batch_timeout" ];
+  // Batch nonce
+  uint64 batch_nonce = 8 [ json_name = "batch_nonce" ];
+  // Orchestrator address
+  string orchestrator_address = 9 [ json_name = "orchestrator_address" ];
+  // Event nonce
+  uint64 event_nonce = 10 [ json_name = "event_nonce" ];
+  // Event height
+  uint64 event_height = 11 [ json_name = "event_height" ];
+  // Transaction state (pending, batched, completed, failed)
+  string state = 12;
+  // Claim type (2 for WithdrawalClaim)
+  int32 claim_type = 13 [ json_name = "claim_type" ];
+  // Transaction hashes
+  repeated string tx_hashes = 14 [ json_name = "tx_hashes" ];
+  // Creation timestamp (ISO 8601 format)
+  string created_at = 15 [ json_name = "created_at" ];
+  // Last update timestamp (ISO 8601 format)
+  string updated_at = 16 [ json_name = "updated_at" ];
 }

@@ -6276,3 +6276,156 @@ func (s *ExplorerService) RemoveGlobalTag(ctx context.Context, req *pb.RemoveGlo
 		Message: "success",
 	}, nil
 }
+
+// GetIBCTransferTxs queries IBC transfer transactions with filters and pagination.
+func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCTransferTxsRequest) (*pb.Reply, error) {
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get IBC transfer txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	query := db.Get().WithContext(queryCtx).Model(&models.IBCTransferTx{})
+
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
+	if req.SrcChannel != "" {
+		query = query.Where("source_channel = ?", req.SrcChannel)
+	}
+	if req.SrcPort != "" {
+		query = query.Where("source_port = ?", req.SrcPort)
+	}
+	if req.DestChannel != "" {
+		query = query.Where("destination_channel = ?", req.DestChannel)
+	}
+	if req.DestPort != "" {
+		query = query.Where("destination_port = ?", req.DestPort)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		global.Logger.Errorf("count IBC transfers failed: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	}
+
+	var txs []*models.IBCTransferTx
+	dbQuery := query.Order("block_timestamp DESC").Limit(int(pageSize))
+	if useCursor {
+		dbQuery = dbQuery.Where("block_timestamp < ?", cursorValue)
+	} else {
+		dbQuery = dbQuery.Offset(offset)
+	}
+
+	if err := dbQuery.Find(&txs).Error; err != nil {
+		global.Logger.Errorf("query IBC transfers failed: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	}
+
+	dtos := models.ToIBCTransferTxProtos(txs)
+	nextCursor := calculateNextCursor(useCursor, cursorValue, txs, func(t *models.IBCTransferTx) uint64 { return t.BlockTimestamp })
+	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(txs))
+	return MarshalAndReply(resp, "marshal IBC transfers error")
+}
+
+// GetPeggyDepositTxs queries Peggy deposit transactions with filters and pagination.
+func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeggyDepositTxsRequest) (*pb.Reply, error) {
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get Peggy deposit txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	query := db.Get().WithContext(queryCtx).Model(&models.PeggyDepositTx{})
+
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		global.Logger.Errorf("count Peggy deposits failed: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	}
+
+	var txs []*models.PeggyDepositTx
+	dbQuery := query.Order("block_timestamp DESC").Limit(int(pageSize))
+	if useCursor {
+		dbQuery = dbQuery.Where("block_timestamp < ?", cursorValue)
+	} else {
+		dbQuery = dbQuery.Offset(offset)
+	}
+
+	if err := dbQuery.Find(&txs).Error; err != nil {
+		global.Logger.Errorf("query Peggy deposits failed: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	}
+
+	dtos := models.ToPeggyDepositTxProtos(txs)
+	nextCursor := calculateNextCursor(useCursor, cursorValue, txs, func(t *models.PeggyDepositTx) uint64 { return t.BlockTimestamp })
+	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(txs))
+	return MarshalAndReply(resp, "marshal Peggy deposits error")
+}
+
+// GetPeggyWithdrawalTxs queries Peggy withdrawal transactions with filters and pagination.
+func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.GetPeggyWithdrawalTxsRequest) (*pb.Reply, error) {
+	if req == nil {
+		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get Peggy withdrawal txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	query := db.Get().WithContext(queryCtx).Model(&models.PeggyWithdrawalTx{})
+
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		global.Logger.Errorf("count Peggy withdrawals failed: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	}
+
+	var txs []*models.PeggyWithdrawalTx
+	dbQuery := query.Order("block_timestamp DESC").Limit(int(pageSize))
+	if useCursor {
+		dbQuery = dbQuery.Where("block_timestamp < ?", cursorValue)
+	} else {
+		dbQuery = dbQuery.Offset(offset)
+	}
+
+	if err := dbQuery.Find(&txs).Error; err != nil {
+		global.Logger.Errorf("query Peggy withdrawals failed: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	}
+
+	dtos := models.ToPeggyWithdrawalTxProtos(txs)
+	nextCursor := calculateNextCursor(useCursor, cursorValue, txs, func(t *models.PeggyWithdrawalTx) uint64 { return t.BlockTimestamp })
+	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(txs))
+	return MarshalAndReply(resp, "marshal Peggy withdrawals error")
+}
