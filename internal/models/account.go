@@ -264,7 +264,7 @@ var (
 	ErrConversion     = fmt.Errorf("address conversion failed")
 )
 
-// IsValidInjectiveAddress validates an Injective address format.
+// IsValidInjectiveAddress validates a Injective address format.
 // Checks if the address conforms to the inj1... format and can be correctly decoded.
 //
 // Parameters:
@@ -283,7 +283,13 @@ func IsValidInjectiveAddress(addr string) bool {
 	return err == nil
 }
 
-// EthToInjAddress converts an Ethereum address (0x...) to Injective address (inj1...).
+// IsValidInjectiveAddress is an alias for IsValidInjectiveAddress for backward compatibility.
+// Deprecated: Use IsValidInjectiveAddress instead.
+func IsValidInjectiveAddress(addr string) bool {
+	return IsValidInjectiveAddress(addr)
+}
+
+// EthToInjectiveAddress converts an Ethereum address (0x...) to Injective address (inj1...).
 //
 // Parameters:
 //   - ethAddr: The Ethereum address string (0x...)
@@ -291,7 +297,7 @@ func IsValidInjectiveAddress(addr string) bool {
 // Returns:
 //   - string: The Injective address (inj1...)
 //   - error: Error if conversion fails
-func EthToInjAddress(ethAddr string) (string, error) {
+func EthToInjectiveAddress(ethAddr string) (string, error) {
 	if ethAddr == "" {
 		return "", fmt.Errorf("%w: empty address", ErrInvalidAddress)
 	}
@@ -337,8 +343,14 @@ func EthToInjAddress(ethAddr string) (string, error) {
 	return injAddr, nil
 }
 
-// InjToEthAddress converts an Injective address (inj1...) to Ethereum address (0x...).
-// This is the reverse operation of EthToInjAddress.
+// EthToInjAddress is an alias for EthToInjectiveAddress for backward compatibility.
+// Deprecated: Use EthToInjectiveAddress instead.
+func EthToInjAddress(ethAddr string) (string, error) {
+	return EthToInjectiveAddress(ethAddr)
+}
+
+// InjectiveToEthAddress converts a Injective address (inj1...) to Ethereum address (0x...).
+// This is the reverse operation of EthToInjectiveAddress.
 //
 // Parameters:
 //   - injAddr: The Injective address string (inj1...) or Ethereum address (0x...)
@@ -346,7 +358,7 @@ func EthToInjAddress(ethAddr string) (string, error) {
 // Returns:
 //   - string: The Ethereum address (0x...)
 //   - error: Error if conversion fails
-func InjToEthAddress(injAddr string) (string, error) {
+func InjectiveToEthAddress(injAddr string) (string, error) {
 	if injAddr == "" {
 		return "", fmt.Errorf("%w: empty address", ErrInvalidAddress)
 	}
@@ -392,6 +404,12 @@ func InjToEthAddress(injAddr string) (string, error) {
 
 	// 3. bytes → hex with 0x prefix (lowercase for consistency)
 	return fmt.Sprintf("0x%s", strings.ToLower(hex.EncodeToString(conv))), nil
+}
+
+// InjToEthAddress is an alias for InjectiveToEthAddress for backward compatibility.
+// Deprecated: Use InjectiveToEthAddress instead.
+func InjToEthAddress(injAddr string) (string, error) {
+	return InjectiveToEthAddress(injAddr)
 }
 
 // HexToValconsAddress converts a hex string address to Cosmos validator consensus address (injvalcons1...).

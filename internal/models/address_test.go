@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInjToEthAddress(t *testing.T) {
+func TestInjectiveToEthAddress(t *testing.T) {
 	tests := []struct {
 		name      string
 		injAddr   string
@@ -45,13 +45,13 @@ func TestInjToEthAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := InjToEthAddress(tt.injAddr)
+			got, err := InjectiveToEthAddress(tt.injAddr)
 			if (err != nil) != tt.wantError {
-				t.Errorf("InjToEthAddress() error = %v, wantError %v", err, tt.wantError)
+				t.Errorf("InjectiveToEthAddress() error = %v, wantError %v", err, tt.wantError)
 				return
 			}
 			if got != tt.wantEth {
-				t.Errorf("InjToEthAddress() = %v, want %v", got, tt.wantEth)
+				t.Errorf("InjectiveToEthAddress() = %v, want %v", got, tt.wantEth)
 			}
 		})
 	}
@@ -62,11 +62,11 @@ func TestAddressConversionRoundTrip(t *testing.T) {
 	ethAddr := "0x71562b71999873db5b286df957af199ec94617f7"
 
 	// Convert Ethereum to Injective
-	injAddr, err := ethToInjAddressForTest(ethAddr)
+	injAddr, err := ethToInjectiveAddressForTest(ethAddr)
 	assert.NoError(t, err, "failed to convert Ethereum to Injective")
 
 	// Convert back to Ethereum
-	ethAddr2, err := InjToEthAddress(injAddr)
+	ethAddr2, err := InjectiveToEthAddress(injAddr)
 	assert.NoError(t, err, "failed to convert Injective to Ethereum")
 
 	// Compare (case-insensitive for hex)
@@ -76,8 +76,8 @@ func TestAddressConversionRoundTrip(t *testing.T) {
 	}
 }
 
-// Helper function for testing (simplified version of EthToInjAddress)
-func ethToInjAddressForTest(ethAddr string) (string, error) {
+// Helper function for testing (simplified version of EthToInjectiveAddress)
+func ethToInjectiveAddressForTest(ethAddr string) (string, error) {
 	ethAddr = strings.TrimPrefix(ethAddr, "0x")
 	addrBytes, err := hex.DecodeString(ethAddr)
 	if err != nil {
