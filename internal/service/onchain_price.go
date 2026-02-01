@@ -72,7 +72,19 @@ func NewOnChainPriceProviderWithSharedClient(logger *log.Helper) (*OnChainPriceP
 func (p *OnChainPriceProvider) GetPriceFromSpotMarket(
 	ctx context.Context,
 	marketID string,
-) (*models.PriceInfo, error) {
+) (priceInfo *models.PriceInfo, err error) {
+	// Recover from any panic to prevent service crash
+	defer func() {
+		if r := recover(); r != nil {
+			p.logger.Errorw("panic in GetPriceFromSpotMarket",
+				"market_id", marketID,
+				"recover", r,
+			)
+			priceInfo = nil
+			err = errors.Errorf("panic in price fetch: %v", r)
+		}
+	}()
+
 	cacheKey := p.getCacheKey("spot", marketID)
 
 	// Check cache first
@@ -105,19 +117,34 @@ func (p *OnChainPriceProvider) GetPriceFromSpotMarket(
 		return nil, errors.Wrap(err, "failed to fetch mid price")
 	}
 
+	// Check if midPriceResp is nil or has nil price fields
+	if midPriceResp == nil || midPriceResp.MidPrice == nil {
+		return nil, errors.Errorf("no mid price available for market: %s", marketID)
+	}
+
 	// Parse price from raw value
 	price, err := p.parsePrice(midPriceResp.MidPrice.String())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse price")
 	}
 
-	priceInfo := &models.PriceInfo{
+	// Safely get optional price fields
+	bestBuy := ""
+	if midPriceResp.BestBuyPrice != nil {
+		bestBuy = midPriceResp.BestBuyPrice.String()
+	}
+	bestSell := ""
+	if midPriceResp.BestSellPrice != nil {
+		bestSell = midPriceResp.BestSellPrice.String()
+	}
+
+	priceInfo = &models.PriceInfo{
 		Symbol:     p.extractSymbol(market.Ticker),
 		Denom:      market.BaseDenom,
 		PriceUSD:   price,
 		PriceRaw:   midPriceResp.MidPrice.String(),
-		BestBuy:    midPriceResp.BestBuyPrice.String(),
-		BestSell:   midPriceResp.BestSellPrice.String(),
+		BestBuy:    bestBuy,
+		BestSell:   bestSell,
 		Source:     "spot_market",
 		MarketID:   marketID,
 		Timestamp:  time.Now().Unix(),
@@ -150,12 +177,22 @@ func (p *OnChainPriceProvider) FindMarketByDenom(
 		return "", errors.Wrap(err, "failed to fetch markets")
 	}
 
+	// Debug: log first few markets to see what's available
+	if len(marketsResp.Markets) > 0 {
+		p.logger.Debugw("sample markets from chain",
+			"total_markets", len(marketsResp.Markets),
+			"market_0_base", marketsResp.Markets[0].BaseDenom,
+			"market_0_quote", marketsResp.Markets[0].QuoteDenom,
+			"market_0_ticker", marketsResp.Markets[0].Ticker,
+		)
+	}
+
 	// Find the best matching market
 	for _, quote := range preferredQuotes {
 		for _, market := range marketsResp.Markets {
 			if strings.EqualFold(market.BaseDenom, baseDenom) &&
 				strings.EqualFold(market.QuoteDenom, quote) {
-				p.logger.Debugw("found market for denom",
+				p.logger.Infow("found market for denom",
 					"denom", baseDenom,
 					"market_id", market.MarketId,
 					"ticker", market.Ticker,
@@ -163,6 +200,27 @@ func (p *OnChainPriceProvider) FindMarketByDenom(
 				return market.MarketId, nil
 			}
 		}
+	}
+
+	// Debug: log available markets for this denom to help troubleshooting
+	var availableMarkets []string
+	for _, market := range marketsResp.Markets {
+		if strings.EqualFold(market.BaseDenom, baseDenom) {
+			availableMarkets = append(availableMarkets,
+				fmt.Sprintf("%s/%s(id=%s)", market.BaseDenom, market.QuoteDenom, market.MarketId[:20]))
+		}
+	}
+	if len(availableMarkets) > 0 {
+		p.logger.Infow("markets found for denom but no preferred quote match",
+			"denom", baseDenom,
+			"preferred_quotes", preferredQuotes,
+			"available_markets", availableMarkets,
+		)
+	} else {
+		p.logger.Infow("no markets found for denom at all",
+			"denom", baseDenom,
+			"total_markets_checked", len(marketsResp.Markets),
+		)
 	}
 
 	return "", errors.Errorf("no market found for denom: %s", baseDenom)
@@ -221,6 +279,22 @@ func (p *OnChainPriceProvider) BatchGetPrices(
 
 	for _, denom := range denoms {
 		go func(d string) {
+			// Recover from any panic in goroutine to prevent service crash
+			defer func() {
+				if r := recover(); r != nil {
+					p.logger.Errorw("panic in BatchGetPrices goroutine",
+						"denom", d,
+						"recover", r,
+					)
+					resultChan <- resultItem{
+						denom: d,
+						price: nil,
+						err:   errors.Errorf("panic: %v", r),
+					}
+					<-semaphore
+				}
+			}()
+
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 

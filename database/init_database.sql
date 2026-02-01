@@ -734,6 +734,53 @@ CREATE TABLE `validator_block_stats` (
   KEY `idx_validator_stats_period` (`period_start_height`, `period_end_height`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Validator block statistics by period (aggregated)';
 
+-- ----------------------------
+-- Table structure for onchain_prices
+-- ----------------------------
+DROP TABLE IF EXISTS `onchain_prices`;
+CREATE TABLE `onchain_prices` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `symbol` varchar(50) NOT NULL COMMENT '代币符号',
+  `denom` varchar(100) DEFAULT NULL COMMENT '代币denom',
+  `market_id` varchar(100) DEFAULT NULL COMMENT '市场ID',
+  `price_usd` decimal(32,18) DEFAULT NULL COMMENT 'USD价格',
+  `price_raw` varchar(100) DEFAULT NULL COMMENT '原始价格（18位小数）',
+  `best_buy` varchar(100) DEFAULT NULL COMMENT '最优买价',
+  `best_sell` varchar(100) DEFAULT NULL COMMENT '最优卖价',
+  `source` varchar(50) DEFAULT NULL COMMENT '价格来源：spot_market/derivative_market',
+  `timestamp` bigint DEFAULT NULL COMMENT '价格时间戳',
+  `block_height` bigint DEFAULT NULL COMMENT '区块高度',
+  `confidence` decimal(5,4) DEFAULT NULL COMMENT '置信度 0-1',
+  PRIMARY KEY (`id`),
+  KEY `idx_onchain_prices_symbol` (`symbol`),
+  KEY `idx_onchain_prices_denom` (`denom`),
+  KEY `idx_onchain_prices_market_id` (`market_id`),
+  KEY `idx_onchain_prices_timestamp` (`timestamp`),
+  KEY `idx_symbol_time` (`symbol`,`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='链上价格记录表';
+
+-- ----------------------------
+-- Table structure for token_market_mappings
+-- ----------------------------
+DROP TABLE IF EXISTS `token_market_mappings`;
+CREATE TABLE `token_market_mappings` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `symbol` varchar(50) DEFAULT NULL COMMENT '代币符号',
+  `denom` varchar(100) DEFAULT NULL COMMENT '代币denom',
+  `spot_market_id` varchar(100) DEFAULT NULL COMMENT '现货市场ID',
+  `is_active` tinyint(1) DEFAULT '1' COMMENT '是否激活',
+  `priority` int DEFAULT '0' COMMENT '优先级',
+  `last_updated` datetime(3) DEFAULT NULL COMMENT '最后更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_token_market_mappings_denom` (`denom`),
+  KEY `idx_token_market_mappings_symbol` (`symbol`),
+  KEY `idx_token_market_mappings_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='代币与市场映射表';
+
 
 -- ============================================================================
 -- PRESET TAG DEFINITIONS DATA

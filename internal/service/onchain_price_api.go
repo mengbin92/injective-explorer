@@ -43,9 +43,23 @@ func NewOnChainPriceService(logger log.Logger) *OnChainPriceService {
 	// Add CoinGecko as fallback source
 	aggregator.AddSource(NewCoinGeckoPriceSource())
 
+	// Create syncer for price history
+	var syncer *OnChainPriceSyncer
+	if provider != nil {
+		syncer = NewOnChainPriceSyncer(provider, helper)
+		// Start the syncer in background
+		go func() {
+			if err := syncer.Start(context.Background()); err != nil {
+				helper.Warnw("failed to start price syncer", "error", err)
+			}
+		}()
+		helper.Infow("on-chain price syncer started")
+	}
+
 	return &OnChainPriceService{
 		provider:   provider,
 		aggregator: aggregator,
+		syncer:     syncer,
 		logger:     helper,
 	}
 }
