@@ -1377,3 +1377,73 @@ func float64ToBigInt(value float64, decimals int32) *big.Int {
 	result, _ := valueBigFloat.Int(nil)
 	return result
 }
+
+// GetNativeTokenPriceFromChain fetches native token price from chain via Exchange gRPC.
+// This function queries spot markets to find trading pairs with stablecoins (USDT/USDC)
+// and returns the native token price in USD.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - chainClient: Chain client for querying exchange data
+//   - nativeTokenDenom: The denom of the native token (e.g., "inj")
+//   - quoteDenoms: List of quote token denoms to search for (e.g., ["usdt", "usdc"])
+//
+// Returns:
+//   - priceUSD: Price in USD (0 if not found)
+//   - error: Error if query fails
+func GetNativeTokenPriceFromChain(ctx context.Context, chainClient chainclient.ChainClientV2, nativeTokenDenom string, quoteDenoms []string) (float64, error) {
+	if chainClient == nil {
+		return 0, errors.New("chain client is required")
+	}
+
+	if nativeTokenDenom == "" {
+		return 0, errors.New("native token denom is required")
+	}
+
+	// Default quote denoms if not provided
+	if len(quoteDenoms) == 0 {
+		quoteDenoms = []string{"usdt", "usdc", "usd"}
+	}
+
+	cacheKey := fmt.Sprintf("price:chain:%s", nativeTokenDenom)
+
+	// Check cache first
+	redisClient := cache.GetRedisClient()
+	if redisClient != nil {
+		cachedPrice, err := redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var cachedData struct {
+				Price       float64 `json:"price"`
+				LastUpdated int64   `json:"last_updated"`
+			}
+			if err := sonic.Unmarshal([]byte(cachedPrice), &cachedData); err == nil {
+				ttl := 1 * time.Minute // Cache for 1 minute
+				if time.Now().Unix()-cachedData.LastUpdated < int64(ttl.Seconds()) {
+					global.Logger.Debugf("returning cached chain price for %s: $%.2f",
+						nativeTokenDenom, cachedData.Price)
+					return cachedData.Price, nil
+				}
+			}
+		}
+	}
+
+	// Try to query spot markets from chain
+	// Note: This requires the chain to have Exchange module and spot markets configured
+	// For now, we'll return an error indicating this feature needs Exchange gRPC implementation
+	// The actual implementation would use chainClient to query spot markets like:
+	// markets, err := chainClient.GetSpotMarkets(ctx, ...)
+	// Then find markets where base_denom == nativeTokenDenom and quote_denom in quoteDenoms
+	// Finally, get the latest price from the market
+
+	global.Logger.Warnf("GetNativeTokenPriceFromChain: Exchange gRPC query not yet implemented. "+
+		"Native token: %s, Quote denoms: %v", nativeTokenDenom, quoteDenoms)
+
+	// TODO: Implement Exchange gRPC query for spot market prices
+	// This would involve:
+	// 1. Query spot markets: chainClient.GetSpotMarkets(ctx)
+	// 2. Filter markets by base_denom (nativeTokenDenom) and quote_denom (in quoteDenoms)
+	// 3. Get market summary or orderbook to extract latest price
+	// 4. Convert price to USD (if quote is stablecoin, use 1:1; otherwise need conversion)
+
+	return 0, errors.New("chain price query not yet implemented - requires Exchange gRPC integration")
+}

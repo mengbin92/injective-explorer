@@ -155,25 +155,48 @@ type proposerInfo struct {
 	OperatorAddress string `json:"operator_address"`
 }
 
+// fetchProposerInfo retrieves validator information from the database using the proposer's hex address.
+// It converts the hex address to valcons format and queries the validator table for moniker and operator address.
+// If conversion fails or no validator is found, it falls back to using the hex address as the operator address.
+//
+// Parameters:
+//   - proposerHex: The proposer address in hex format from Tendermint block header
+//
+// Returns:
+//   - proposerInfo: The validator info containing moniker and operator address
+func fetchProposerInfo(proposerHex string) proposerInfo {
+	var info proposerInfo
+
+	// Convert proposer address from hex to valcons format for database lookup
+	// This conversion is necessary because the database stores validators by their consensus address
+	proposerValcons, err := HexToValconsAddress(proposerHex)
+	if err != nil {
+		global.Logger.Warnf("failed to convert proposer hex to valcons address: %v, using hex as fallback", err)
+		info.OperatorAddress = proposerHex
+		return info
+	}
+
+	// Query validator info from database
+	if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerValcons).First(&info).Error; err != nil {
+		global.Logger.Warnf("validator not found for consensus address %s: %v, using hex as fallback", proposerValcons, err)
+	}
+
+	// If no validator found (OperatorAddress is empty), use the hex address as fallback
+	if info.OperatorAddress == "" {
+		info.OperatorAddress = proposerHex
+	}
+
+	return info
+}
+
 func BlockFromTM(block *coretypes.ResultBlock) *Block {
 	txs := make([]string, 0, len(block.Block.Data.Txs))
 	for _, tx := range block.Block.Data.Txs {
 		txs = append(txs, hex.EncodeToString(tx.Hash()))
 	}
 
-	var proposerInfo proposerInfo
-	// Convert proposer address from hex to injvalcons format for database lookup
 	proposerHex := block.Block.Header.ProposerAddress.String()
-	proposerValcons, err := HexToValconsAddress(proposerHex)
-	if err != nil {
-		global.Logger.Errorf("failed to convert proposer hex to valcons address: %v", err)
-	}
-	if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerValcons).First(&proposerInfo).Error; err != nil {
-		global.Logger.Errorf("failed to get moniker by consensus address: %v", err)
-	}
-	if proposerInfo.OperatorAddress == "" {
-		proposerInfo.OperatorAddress = proposerHex
-	}
+	proposerInfo := fetchProposerInfo(proposerHex)
 
 	return &Block{
 		Height:             uint64(block.Block.Height),
@@ -213,18 +236,8 @@ func BlockFromTMWithPool(detail *coretypes.ResultBlock, poolBlock *Block) *Block
 			txs = append(txs, txHash)
 		}
 
-		var proposerInfo proposerInfo
 		proposerHex := detail.Block.Header.ProposerAddress.String()
-		proposerValcons, err := HexToValconsAddress(proposerHex)
-		if err != nil {
-			global.Logger.Errorf("failed to convert proposer hex to valcons address: %v", err)
-		}
-		if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerValcons).First(&proposerInfo).Error; err != nil {
-			global.Logger.Errorf("failed to get moniker by consensus address: %v", err)
-		}
-		if proposerInfo.OperatorAddress == "" {
-			proposerInfo.OperatorAddress = proposerHex
-		}
+		proposerInfo := fetchProposerInfo(proposerHex)
 
 		// Populate block fields
 		block.Height = uint64(detail.Block.Height)
