@@ -146,6 +146,22 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 // GetQuoteTokenConfig returns the quote token configuration for on-chain price fetching.
 // It retrieves the configuration from TokenPriceConfig and falls back to default values
 // if not configured.
+//
+// Returns:
+//   - QuoteTokenConfig: The configuration containing USDT/USDC contract addresses and
+//     quote token priority list. If TokenPriceConfig is nil or OnChain config is not set,
+//     returns DefaultQuoteTokens.
+//
+// The function ensures that empty values are replaced with defaults:
+//   - USDTAddress defaults to "peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5"
+//   - USDCAddress defaults to "peggy0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+//   - QuotePriority defaults to [USDTAddress, USDCAddress]
+//
+// Example usage:
+//
+//	config := GetQuoteTokenConfig()
+//	usdtAddr := config.USDTAddress
+//	priority := config.QuotePriority
 func GetQuoteTokenConfig() QuoteTokenConfig {
 	if TokenPriceConfig == nil || TokenPriceConfig.OnChain == nil {
 		return DefaultQuoteTokens
