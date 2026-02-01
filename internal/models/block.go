@@ -164,7 +164,11 @@ func BlockFromTM(block *coretypes.ResultBlock) *Block {
 	var proposerInfo proposerInfo
 	// Convert proposer address from hex to injvalcons format for database lookup
 	proposerHex := block.Block.Header.ProposerAddress.String()
-	if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerHex).First(&proposerInfo).Error; err != nil {
+	proposerValcons, err := HexToValconsAddress(proposerHex)
+	if err != nil {
+		global.Logger.Errorf("failed to convert proposer hex to valcons address: %v", err)
+	}
+	if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerValcons).First(&proposerInfo).Error; err != nil {
 		global.Logger.Errorf("failed to get moniker by consensus address: %v", err)
 	}
 	if proposerInfo.OperatorAddress == "" {
@@ -211,7 +215,11 @@ func BlockFromTMWithPool(detail *coretypes.ResultBlock, poolBlock *Block) *Block
 
 		var proposerInfo proposerInfo
 		proposerHex := detail.Block.Header.ProposerAddress.String()
-		if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerHex).First(&proposerInfo).Error; err != nil {
+		proposerValcons, err := HexToValconsAddress(proposerHex)
+		if err != nil {
+			global.Logger.Errorf("failed to convert proposer hex to valcons address: %v", err)
+		}
+		if err := db.Get().Model(&Validator{}).Where("consensus_address = ?", proposerValcons).First(&proposerInfo).Error; err != nil {
 			global.Logger.Errorf("failed to get moniker by consensus address: %v", err)
 		}
 		if proposerInfo.OperatorAddress == "" {
