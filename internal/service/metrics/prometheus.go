@@ -220,6 +220,52 @@ var (
 		},
 		[]string{"state"},
 	)
+
+	// OnChainPriceUSD tracks the current on-chain price in USD.
+	OnChainPriceUSD = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "onchain_price_usd",
+			Help: "Current on-chain price in USD",
+		},
+		[]string{"symbol", "denom"},
+	)
+
+	// OnChainPriceConfidence tracks the confidence level of on-chain price.
+	OnChainPriceConfidence = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "onchain_price_confidence",
+			Help: "Confidence level of on-chain price (0-1)",
+		},
+		[]string{"symbol"},
+	)
+
+	// OnChainPriceSyncDuration tracks the duration of price sync operations.
+	OnChainPriceSyncDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "onchain_price_sync_duration_seconds",
+			Help:    "Duration of on-chain price sync operations",
+			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30},
+		},
+		[]string{"operation", "status"},
+	)
+
+	// OnChainPriceSyncErrors tracks the number of price sync errors.
+	OnChainPriceSyncErrors = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "onchain_price_sync_errors_total",
+			Help: "Total number of on-chain price sync errors",
+		},
+		[]string{"operation", "error_type"},
+	)
+
+	// OnChainPriceAPICalls tracks the number of price API calls.
+	OnChainPriceAPICalls = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "onchain_price_api_calls_total",
+			Help: "Total number of on-chain price API calls",
+		},
+		[]string{"endpoint", "status"},
+	)
 )
 
 // RecordHTTPRequestDuration records the duration of an HTTP request.
@@ -337,4 +383,29 @@ func SetDatabaseConnectionStats(statType string, value float64) {
 // SetRedisConnections sets Redis connection pool metrics.
 func SetRedisConnections(state string, count float64) {
 	RedisConnections.WithLabelValues(state).Set(count)
+}
+
+// SetOnChainPrice sets the current on-chain price metric.
+func SetOnChainPrice(symbol, denom string, price float64) {
+	OnChainPriceUSD.WithLabelValues(symbol, denom).Set(price)
+}
+
+// SetOnChainPriceConfidence sets the on-chain price confidence metric.
+func SetOnChainPriceConfidence(symbol string, confidence float64) {
+	OnChainPriceConfidence.WithLabelValues(symbol).Set(confidence)
+}
+
+// RecordOnChainPriceSyncDuration records the duration of a price sync operation.
+func RecordOnChainPriceSyncDuration(operation string, status string, duration float64) {
+	OnChainPriceSyncDuration.WithLabelValues(operation, status).Observe(duration)
+}
+
+// RecordOnChainPriceSyncError records a price sync error.
+func RecordOnChainPriceSyncError(operation string, errorType string) {
+	OnChainPriceSyncErrors.WithLabelValues(operation, errorType).Inc()
+}
+
+// RecordOnChainPriceAPICall records an on-chain price API call.
+func RecordOnChainPriceAPICall(endpoint string, status string) {
+	OnChainPriceAPICalls.WithLabelValues(endpoint, status).Inc()
 }

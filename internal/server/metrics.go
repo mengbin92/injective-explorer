@@ -56,4 +56,9 @@ func init() {
 	_ = metrics.AppMemoryBytes
 	_ = metrics.AppGCStats
 	_ = metrics.RedisConnections
+	_ = metrics.OnChainPriceUSD
+	_ = metrics.OnChainPriceConfidence
+	_ = metrics.OnChainPriceSyncDuration
+	_ = metrics.OnChainPriceSyncErrors
+	_ = metrics.OnChainPriceAPICalls
 }

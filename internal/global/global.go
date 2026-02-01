@@ -35,6 +35,23 @@ var (
 	APIManagementConfig *conf.APIManagement
 )
 
+// QuoteTokenConfig holds the configuration for quote tokens used in on-chain price fetching.
+type QuoteTokenConfig struct {
+	USDTAddress   string
+	USDCAddress   string
+	QuotePriority []string
+}
+
+// DefaultQuoteTokens provides default quote token configuration.
+var DefaultQuoteTokens = QuoteTokenConfig{
+	USDTAddress: "peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5",
+	USDCAddress: "peggy0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+	QuotePriority: []string{
+		"peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5",
+		"peggy0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+	},
+}
+
 // Init initializes global variables including the logger, chain configuration, and archive configuration.
 // It loads the chain configuration based on the network type specified in the bootstrap configuration.
 // It also saves the archive configuration globally for use by archive services.
@@ -124,4 +141,33 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 			panic(err)
 		}
 	}
+}
+
+// GetQuoteTokenConfig returns the quote token configuration for on-chain price fetching.
+// It retrieves the configuration from TokenPriceConfig and falls back to default values
+// if not configured.
+func GetQuoteTokenConfig() QuoteTokenConfig {
+	if TokenPriceConfig == nil || TokenPriceConfig.OnChain == nil {
+		return DefaultQuoteTokens
+	}
+
+	onChain := TokenPriceConfig.OnChain
+	config := QuoteTokenConfig{
+		USDTAddress:   onChain.UsdtAddress,
+		USDCAddress:   onChain.UsdcAddress,
+		QuotePriority: onChain.QuotePriority,
+	}
+
+	// Use defaults if not configured
+	if config.USDTAddress == "" {
+		config.USDTAddress = DefaultQuoteTokens.USDTAddress
+	}
+	if config.USDCAddress == "" {
+		config.USDCAddress = DefaultQuoteTokens.USDCAddress
+	}
+	if len(config.QuotePriority) == 0 {
+		config.QuotePriority = DefaultQuoteTokens.QuotePriority
+	}
+
+	return config
 }

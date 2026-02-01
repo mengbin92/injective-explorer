@@ -199,6 +199,26 @@ token_price:
   price_cache_ttl: 300s
   supply_cache_ttl: 3600s
 
+  # On-chain price service configuration
+  on_chain:
+    # Enable on-chain price fetching (default: true)
+    enabled: true
+    # USDT token contract address
+    usdt_address: ${USDT_ADDRESS:peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238}
+    # USDC token contract address
+    usdc_address: ${USDC_ADDRESS:peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238}
+    # Quote token priority (default: usdt, usdc)
+    quote_priority:
+      - peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+      - peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+    # Native tokens to sync (e.g., "inj")
+    native_tokens:
+      - inj
+    # Sync intervals
+    sync:
+      native: 30s
+      all_markets: 60s
+
 # API management configuration
 # Service enable/disable configuration
 # All services default to true (enabled) except pprof which defaults to false

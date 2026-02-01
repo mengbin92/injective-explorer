@@ -2036,6 +2036,151 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/price/aggregated:
+        get:
+            tags:
+                - OnChainPriceService
+            description: Get aggregated price from multiple sources
+            operationId: OnChainPriceService_GetAggregatedPrice
+            parameters:
+                - name: symbol
+                  in: query
+                  schema:
+                    type: string
+                - name: include_sources
+                  in: query
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/price/onchain:
+        get:
+            tags:
+                - OnChainPriceService
+            description: Get current token price from on-chain sources
+            operationId: OnChainPriceService_GetOnChainPrice
+            parameters:
+                - name: symbol
+                  in: query
+                  schema:
+                    type: string
+                - name: denom
+                  in: query
+                  schema:
+                    type: string
+                - name: use_cache
+                  in: query
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/price/onchain/batch:
+        post:
+            tags:
+                - OnChainPriceService
+            description: Batch get token prices
+            operationId: OnChainPriceService_GetBatchOnChainPrices
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.GetBatchOnChainPricesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/price/onchain/history:
+        get:
+            tags:
+                - OnChainPriceService
+            description: Get token price history
+            operationId: OnChainPriceService_GetOnChainPriceHistory
+            parameters:
+                - name: symbol
+                  in: query
+                  schema:
+                    type: string
+                - name: start_time
+                  in: query
+                  schema:
+                    type: string
+                - name: end_time
+                  in: query
+                  schema:
+                    type: string
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: interval
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/price/sources:
+        get:
+            tags:
+                - OnChainPriceService
+            description: Get available price sources
+            operationId: OnChainPriceService_GetPriceSources
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/price/sync/status:
+        get:
+            tags:
+                - OnChainPriceService
+            description: Get sync service status
+            operationId: OnChainPriceService_GetSyncStatus
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/price/sync/trigger:
+        post:
+            tags:
+                - OnChainPriceService
+            description: Trigger manual sync (admin only)
+            operationId: OnChainPriceService_TriggerSync
+            requestBody:
+                content:
+                    application/json: {}
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/stats/error-analysis:
         get:
             tags:
@@ -3239,6 +3384,19 @@ components:
                 is_contract_create:
                     type: boolean
             description: EVMTransactionDTO represents an EVM transaction in Etherscan-like format
+        api.explorer.v1.GetBatchOnChainPricesRequest:
+            type: object
+            properties:
+                symbols:
+                    type: array
+                    items:
+                        type: string
+                denoms:
+                    type: array
+                    items:
+                        type: string
+                use_cache:
+                    type: boolean
         api.explorer.v1.GetBlocksBatchRequest:
             type: object
             properties:
@@ -3606,6 +3764,8 @@ tags:
          services. This service supports various contract types (token contracts, NFT
          contracts, etc.), with token contracts being the primary use case currently.
     - name: Explorer
+    - name: OnChainPriceService
+      description: OnChainPriceService provides on-chain price fetching and aggregation
     - name: TagDefinitionService
       description: |-
         TagDefinitionService manages predefined tag definitions.

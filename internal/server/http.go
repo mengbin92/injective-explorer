@@ -163,6 +163,10 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	tokenDetailService := service.NewTokenDetailService(explorerService)
 	v1.RegisterTokenDetailServiceHTTPServer(srv, tokenDetailService)
 
+	// Register on-chain price service
+	onChainPriceService := service.NewOnChainPriceService(logger)
+	v1.RegisterOnChainPriceServiceHTTPServer(srv, onChainPriceService)
+
 	registerExportRoutes(srv, apiTokenService, logger)
 
 	// Register Prometheus metrics endpoint

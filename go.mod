@@ -4,6 +4,7 @@ go 1.25.3
 
 require (
 	cosmossdk.io/errors v1.0.1
+	cosmossdk.io/math v1.4.0
 	github.com/InjectiveLabs/sdk-go v1.59.0
 	github.com/InjectiveLabs/suplog v1.3.3
 	github.com/aws/aws-sdk-go-v2 v1.41.0
@@ -31,6 +32,7 @@ require (
 	go.uber.org/automaxprocs v1.5.2
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.18.0
+	golang.org/x/time v0.9.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250106144421-5f5ef82da422
 	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.8
@@ -49,7 +51,6 @@ require (
 	cosmossdk.io/core v0.12.1-0.20231114100755-569e3ff6a0d7 // indirect
 	cosmossdk.io/depinject v1.1.0 // indirect
 	cosmossdk.io/log v1.4.1 // indirect
-	cosmossdk.io/math v1.4.0 // indirect
 	cosmossdk.io/store v1.1.1 // indirect
 	cosmossdk.io/x/evidence v0.1.1 // indirect
 	cosmossdk.io/x/feegrant v0.1.1 // indirect
@@ -297,7 +298,6 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/time v0.9.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect

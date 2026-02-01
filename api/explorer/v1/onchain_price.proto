@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// OnChainPriceService provides on-chain price fetching and aggregation
+service OnChainPriceService {
+  // Get current token price from on-chain sources
+  rpc GetOnChainPrice(GetOnChainPriceRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/price/onchain"
+    };
+  }
+
+  // Batch get token prices
+  rpc GetBatchOnChainPrices(GetBatchOnChainPricesRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/price/onchain/batch"
+      body : "*"
+    };
+  }
+
+  // Get token price history
+  rpc GetOnChainPriceHistory(GetOnChainPriceHistoryRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/price/onchain/history"
+    };
+  }
+
+  // Get aggregated price from multiple sources
+  rpc GetAggregatedPrice(GetAggregatedPriceRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/price/aggregated"
+    };
+  }
+
+  // Get sync service status
+  rpc GetSyncStatus(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/price/sync/status"
+    };
+  }
+
+  // Trigger manual sync (admin only)
+  rpc TriggerSync(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/price/sync/trigger"
+      body : "*"
+    };
+  }
+
+  // Get available price sources
+  rpc GetPriceSources(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/price/sources"
+    };
+  }
+}
+
+// Request messages
+
+message GetOnChainPriceRequest {
+  string symbol = 1;
+  string denom = 2;
+  bool use_cache = 3 [json_name = "use_cache"];
+}
+
+message GetBatchOnChainPricesRequest {
+  repeated string symbols = 1;
+  repeated string denoms = 2;
+  bool use_cache = 3 [json_name = "use_cache"];
+}
+
+message GetOnChainPriceHistoryRequest {
+  string symbol = 1;
+  int64 start_time = 2 [json_name = "start_time"];
+  int64 end_time = 3 [json_name = "end_time"];
+  int32 limit = 4;
+  string interval = 5;
+}
+
+message GetAggregatedPriceRequest {
+  string symbol = 1;
+  bool include_sources = 2 [json_name = "include_sources"];
+}
+
+// Response data messages (used in Reply.data as Struct)
+
+// OnChainPriceDTO represents price data from on-chain sources
+message OnChainPriceDTO {
+  string symbol = 1;
+  string denom = 2;
+  double price_usd = 3 [json_name = "price_usd"];
+  string price_raw = 4 [json_name = "price_raw"];
+  string best_buy = 5 [json_name = "best_buy"];
+  string best_sell = 6 [json_name = "best_sell"];
+  string source = 7;
+  string market_id = 8 [json_name = "market_id"];
+  int64 timestamp = 9;
+  double confidence = 10;
+  int64 block_height = 11 [json_name = "block_height"];
+}
+
+// AggregatedPriceDTO represents price aggregated from multiple sources
+message AggregatedPriceDTO {
+  string symbol = 1;
+  double price_usd = 2 [json_name = "price_usd"];
+  map<string, double> sources = 3;
+  string best_source = 4 [json_name = "best_source"];
+  double confidence = 5;
+  int64 timestamp = 6;
+  bool is_outlier = 7 [json_name = "is_outlier"];
+  string outlier_reason = 8 [json_name = "outlier_reason"];
+}
+
+// PriceHistoryPointDTO represents a single point in price history
+message PriceHistoryPointDTO {
+  int64 timestamp = 1;
+  double price_usd = 2 [json_name = "price_usd"];
+  double confidence = 3;
+}
+
+// BatchOnChainPricesDTO represents batch price response data
+message BatchOnChainPricesDTO {
+  repeated OnChainPriceDTO prices = 1;
+  int32 total_count = 2 [json_name = "total_count"];
+  int32 success_count = 3 [json_name = "success_count"];
+  int32 failed_count = 4 [json_name = "failed_count"];
+}
+
+// OnChainPriceHistoryDTO represents price history response data
+message OnChainPriceHistoryDTO {
+  string symbol = 1;
+  repeated PriceHistoryPointDTO data = 2;
+  int32 count = 3;
+}
+
+// PriceSourceInfoDTO represents information about a price source
+message PriceSourceInfoDTO {
+  string name = 1;
+  string description = 2;
+  bool is_available = 3 [json_name = "is_available"];
+  int32 priority = 4;
+  int64 last_updated = 5 [json_name = "last_updated"];
+}
+
+// PriceSourcesDTO represents price sources response data
+message PriceSourcesDTO {
+  repeated PriceSourceInfoDTO sources = 1;
+}
+
+// SyncStatusDTO represents sync service status
+message SyncStatusDTO {
+  bool is_enabled = 1 [json_name = "is_enabled"];
+  string native_interval = 2 [json_name = "native_interval"];
+  string all_markets_interval = 3 [json_name = "all_markets_interval"];
+  repeated string native_tokens = 4 [json_name = "native_tokens"];
+  int32 batch_size = 5 [json_name = "batch_size"];
+  int64 last_sync_time = 6 [json_name = "last_sync_time"];
+  bool is_syncing = 7 [json_name = "is_syncing"];
+}
+
+// TriggerSyncDTO represents trigger sync response data
+message TriggerSyncDTO {
+  bool success = 1;
+  int64 triggered_at = 2 [json_name = "triggered_at"];
+}

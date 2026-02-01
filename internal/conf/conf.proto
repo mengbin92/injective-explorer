@@ -219,6 +219,32 @@ message TokenPrice {
   google.protobuf.Duration price_cache_ttl = 3;
   // Supply cache TTL (default: 1 hour)
   google.protobuf.Duration supply_cache_ttl = 4;
+  // On-chain price configuration
+  OnChainPrice on_chain = 5;
+}
+
+// On-chain price service configuration
+message OnChainPrice {
+  // Enable on-chain price fetching (default: true)
+  bool enabled = 1;
+  // USDT token contract address
+  string usdt_address = 2;
+  // USDC token contract address
+  string usdc_address = 3;
+  // Quote token priority (default: usdt, usdc)
+  // List of token denoms in priority order for price lookup
+  repeated string quote_priority = 4;
+  // Native tokens to sync (e.g., "inj", "inj")
+  repeated string native_tokens = 5;
+  // Sync intervals
+  SyncIntervals sync = 6;
+
+  message SyncIntervals {
+    // Native token sync interval (default: 30s)
+    google.protobuf.Duration native = 1;
+    // All markets sync interval (default: 60s)
+    google.protobuf.Duration all_markets = 2;
+  }
 }
 
 message TokenConfig {

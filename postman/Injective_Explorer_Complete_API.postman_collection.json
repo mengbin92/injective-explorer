@@ -1264,6 +1264,484 @@
       ]
     },
     {
+      "name": "链上价格接口",
+      "item": [
+        {
+          "name": "获取链上代币价格",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has price data when successful\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('symbol');",
+                  "        pm.expect(jsonData.data).to.have.property('price_usd');",
+                  "        pm.expect(jsonData.data).to.have.property('denom');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/price/onchain?symbol=INJ&denom=inj&use_cache=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "price",
+                "onchain"
+              ],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "INJ",
+                  "description": "Token symbol (e.g., INJ, INJ)"
+                },
+                {
+                  "key": "denom",
+                  "value": "inj",
+                  "description": "Token denom on chain (e.g., inj, inj)"
+                },
+                {
+                  "key": "use_cache",
+                  "value": "true",
+                  "description": "Whether to use cached data (default: true)"
+                }
+              ]
+            },
+            "description": "获取指定代币的链上价格。支持通过 symbol 或 denom 查询。优先返回链上现货市场价格。"
+          },
+          "response": []
+        },
+        {
+          "name": "批量获取链上代币价格",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has batch price data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('prices');",
+                  "        pm.expect(jsonData.data).to.have.property('total_count');",
+                  "        pm.expect(jsonData.data).to.have.property('success_count');",
+                  "        pm.expect(jsonData.data).to.have.property('failed_count');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbols\": [\"INJ\", \"INJ\"],\n    \"denoms\": [\"inj\", \"inj\"],\n    \"use_cache\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/price/onchain/batch",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "price",
+                "onchain",
+                "batch"
+              ]
+            },
+            "description": "批量获取多个代币的链上价格。支持通过 symbols 或 denoms 列表查询。"
+          },
+          "response": []
+        },
+        {
+          "name": "获取链上价格历史",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has history data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('symbol');",
+                  "        pm.expect(jsonData.data).to.have.property('data');",
+                  "        pm.expect(jsonData.data).to.have.property('count');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/price/onchain/history?symbol=INJ&start_time=1704067200&end_time=1706659200&limit=100&interval=1h",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "price",
+                "onchain",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "INJ",
+                  "description": "Token symbol (required)"
+                },
+                {
+                  "key": "start_time",
+                  "value": "1704067200",
+                  "description": "Start timestamp (Unix seconds)"
+                },
+                {
+                  "key": "end_time",
+                  "value": "1706659200",
+                  "description": "End timestamp (Unix seconds)"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Max records to return (default: 100, max: 1000)"
+                },
+                {
+                  "key": "interval",
+                  "value": "1h",
+                  "description": "Time interval: 1m, 5m, 15m, 1h, 4h, 1d (default: 1h)"
+                }
+              ]
+            },
+            "description": "获取指定代币的链上价格历史数据。支持时间范围查询和间隔设置。"
+          },
+          "response": []
+        },
+        {
+          "name": "获取聚合价格",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has aggregated price data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('symbol');",
+                  "        pm.expect(jsonData.data).to.have.property('price_usd');",
+                  "        pm.expect(jsonData.data).to.have.property('sources');",
+                  "        pm.expect(jsonData.data).to.have.property('confidence');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/price/aggregated?symbol=INJ&include_sources=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "price",
+                "aggregated"
+              ],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "INJ",
+                  "description": "Token symbol (required)"
+                },
+                {
+                  "key": "include_sources",
+                  "value": "true",
+                  "description": "Whether to include source prices in response"
+                }
+              ]
+            },
+            "description": "获取多个来源聚合的代币价格。支持链上价格和 CoinGecko 等外部源的聚合。"
+          },
+          "response": []
+        },
+        {
+          "name": "获取同步服务状态",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has sync status data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('is_enabled');",
+                  "        pm.expect(jsonData.data).to.have.property('native_interval');",
+                  "        pm.expect(jsonData.data).to.have.property('all_markets_interval');",
+                  "        pm.expect(jsonData.data).to.have.property('is_syncing');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/price/sync/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "price",
+                "sync",
+                "status"
+              ]
+            },
+            "description": "获取价格同步服务的当前状态，包括是否启用、同步间隔、正在同步的代币等。"
+          },
+          "response": []
+        },
+        {
+          "name": "触发手动同步",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Sync triggered successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('success');",
+                  "        pm.expect(jsonData.data.success).to.be.true;",
+                  "        pm.expect(jsonData.data).to.have.property('triggered_at');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/price/sync/trigger",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "price",
+                "sync",
+                "trigger"
+              ]
+            },
+            "description": "手动触发价格同步（仅管理员可用）。用于紧急情况下立即更新价格数据。"
+          },
+          "response": []
+        },
+        {
+          "name": "获取价格数据源",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has price sources\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('sources');",
+                  "        pm.expect(jsonData.data.sources).to.be.an('array');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/price/sources",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "price",
+                "sources"
+              ]
+            },
+            "description": "获取所有可用的价格数据源列表，包括链上价格和外部 API 源。"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "合约信息接口",
       "item": [
         {
