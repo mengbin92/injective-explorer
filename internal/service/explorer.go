@@ -6286,8 +6286,12 @@ func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCT
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
+	// Set default pagination if not provided
 	if req.Pagination == nil {
-		return ErrorReply(http.StatusBadRequest, "pagination cannot be nil", errors.New("nil pagination")), errors.New("nil pagination")
+		req.Pagination = &pb.PaginationRequest{
+			Page:     1,
+			PageSize: DefaultPageSize,
+		}
 	}
 
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
@@ -6349,8 +6353,12 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
+	// Set default pagination if not provided
 	if req.Pagination == nil {
-		return ErrorReply(http.StatusBadRequest, "pagination cannot be nil", errors.New("nil pagination")), errors.New("nil pagination")
+		req.Pagination = &pb.PaginationRequest{
+			Page:     1,
+			PageSize: DefaultPageSize,
+		}
 	}
 
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
@@ -6400,8 +6408,12 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
+	// Set default pagination if not provided
 	if req.Pagination == nil {
-		return ErrorReply(http.StatusBadRequest, "pagination cannot be nil", errors.New("nil pagination")), errors.New("nil pagination")
+		req.Pagination = &pb.PaginationRequest{
+			Page:     1,
+			PageSize: DefaultPageSize,
+		}
 	}
 
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)

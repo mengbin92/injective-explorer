@@ -341,6 +341,7 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 	// Query account balances for this denom
 	var balances []models.AccountBalance
 	query := db.Get().WithContext(ctx).
+		Model(&models.AccountBalance{}).
 		Where("denom = ?", denom).
 		Where("amount != ?", "0") // Exclude zero balances
 
