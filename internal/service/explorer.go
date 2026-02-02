@@ -6286,6 +6286,10 @@ func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCT
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
+	if req.Pagination == nil {
+		return ErrorReply(http.StatusBadRequest, "pagination cannot be nil", errors.New("nil pagination")), errors.New("nil pagination")
+	}
+
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
 
 	global.Logger.Debugf("get IBC transfer txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
@@ -6345,6 +6349,10 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
+	if req.Pagination == nil {
+		return ErrorReply(http.StatusBadRequest, "pagination cannot be nil", errors.New("nil pagination")), errors.New("nil pagination")
+	}
+
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
 
 	global.Logger.Debugf("get Peggy deposit txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
@@ -6390,6 +6398,10 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.GetPeggyWithdrawalTxsRequest) (*pb.Reply, error) {
 	if req == nil {
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	}
+
+	if req.Pagination == nil {
+		return ErrorReply(http.StatusBadRequest, "pagination cannot be nil", errors.New("nil pagination")), errors.New("nil pagination")
 	}
 
 	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)

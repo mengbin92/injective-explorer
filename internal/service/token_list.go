@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"net/http"
 	"sort"
 	"strings"
@@ -287,9 +288,9 @@ func (s *TokenListService) batchGetTokenMarketData(ctx context.Context, symbols 
 				MarketCapUSD:          cache.MarketCapUSD,
 				TotalVolume24h:        cache.TotalVolume24h,
 				HoldersCount:          cache.HoldersCount,
-				TotalSupply:           cache.TotalSupply,
-				CirculatingSupply:     cache.CirculatingSupply,
-				MaxSupply:             cache.MaxSupply,
+				TotalSupply:           parseBigInt(cache.TotalSupply),
+				CirculatingSupply:     parseBigInt(cache.CirculatingSupply),
+				MaxSupply:             parseBigInt(cache.MaxSupply),
 				FullyDilutedMarketCap: cache.FullyDilutedMarketCap,
 			}
 		}
@@ -553,4 +554,16 @@ func buildCacheKeySuffix(req *pb.TokenListRequest, pageSize int32) string {
 		return "default"
 	}
 	return sb.String()
+}
+
+// parseBigInt parses a string to *big.Int, returns nil if empty or invalid.
+func parseBigInt(s string) *big.Int {
+	if s == "" {
+		return nil
+	}
+	n := new(big.Int)
+	if _, ok := n.SetString(s, 10); !ok {
+		return nil
+	}
+	return n
 }
