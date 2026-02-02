@@ -278,3 +278,21 @@ api_management:
       - ::1
       - 106.3.198.222
       - 192.168.65.1
+
+  # User service configuration (optional)
+  # External user detail service for enhanced authentication
+  # When configured, /api/v1/tokens endpoints will validate user identity
+  # by calling the external user service before processing requests
+  user_service:
+    # Base URL of the user service (required)
+    base_url: ${USER_SERVICE_BASE_URL:https://prv.gapi-adm-rwa.injective.network:7443}
+    # API version path (default: api/v1)
+    api_version: ${USER_SERVICE_API_VERSION:api/v1}
+    # Bearer token for authenticating with user service (optional)
+    # This token is used as Authorization: Bearer {api_key} when calling user service
+    # Get this token from the user service administrator
+    api_key: ${USER_SERVICE_API_KEY:}
+    # Request timeout (default: 5s)
+    timeout: ${USER_SERVICE_TIMEOUT:5s}
+    # Max retry attempts on failure (default: 3)
+    max_retries: ${USER_SERVICE_MAX_RETRIES:3}

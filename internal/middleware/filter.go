@@ -18,7 +18,7 @@ const whitelistedTokenID = uint(0)
 // SelectiveAuthAndRateLimitMiddleware returns a middleware that conditionally applies authentication,
 // rate limiting, and statistics recording based on the request path and configuration.
 // When testMode is true, all middleware is bypassed.
-// Token management endpoints use user authentication handled in the service layer.
+// Token management endpoints use user authentication (enhanced with user service if configured).
 // Whitelisted IPs bypass authentication and rate limiting but still have statistics recorded.
 func SelectiveAuthAndRateLimitMiddleware(
 	rateLimiter *RateLimiter,
@@ -26,10 +26,19 @@ func SelectiveAuthAndRateLimitMiddleware(
 	ipLocationService *service.IPLocationService,
 	ipWhitelistChecker *IPWhitelistChecker,
 	testMode bool,
+	userClient *service.UserServiceClient,
 ) middleware.Middleware {
 	authMiddleware := AuthMiddleware()
 	rateLimitMiddleware := RateLimitMiddleware(rateLimiter)
 	statsMiddleware := StatsMiddleware(statsService, ipLocationService)
+
+	// Use enhanced user auth if user service is configured
+	var userAuthMiddleware middleware.Middleware
+	if userClient != nil {
+		userAuthMiddleware = EnhancedUserAuthMiddleware(userClient, true)
+	} else {
+		userAuthMiddleware = UserAuthMiddleware()
+	}
 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
@@ -48,8 +57,9 @@ func SelectiveAuthAndRateLimitMiddleware(
 				return handler(ctx, req)
 			}
 
+			// Token management endpoints use user authentication
 			if strings.HasPrefix(path, "/api/v1/tokens") {
-				return handler(ctx, req)
+				return userAuthMiddleware(handler)(ctx, req)
 			}
 
 			if ipWhitelistChecker != nil {

@@ -273,6 +273,7 @@ message APIManagement {
   ArchiveUsage archive_usage = 4;
   IPWhitelist ip_whitelist = 5; // IP whitelist configuration
   bool test_mode = 6; // Test mode: bypasses authentication and rate limiting for testing
+  UserService user_service = 7; // External user service configuration
 
   message RateLimit {
     int32 ip_per_minute = 1;         // IP rate limit per minute
@@ -301,5 +302,14 @@ message APIManagement {
     // Whitelisted IPs bypass token authentication and rate limiting
     // Examples: "127.0.0.1", "192.168.1.0/24", "::1", "2001:db8::/32"
     repeated string ips = 1;
+  }
+
+  // UserService configuration for external user detail service
+  message UserService {
+    string base_url = 1;              // Base URL of user service, e.g., "https://prv.gapi-adm-rwa.injective.network:7443"
+    string api_version = 2;           // API version path, e.g., "api/v1"
+    string api_key = 3;               // Service-to-service API key for authentication
+    google.protobuf.Duration timeout = 4; // Request timeout, default 5s
+    int32 max_retries = 5;            // Max retry attempts on failure, default 3
   }
 }

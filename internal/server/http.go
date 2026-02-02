@@ -99,10 +99,17 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 		testMode = bootstrap.ApiManagement.GetTestMode()
 	}
 
+	// Initialize user service client if configured
+	var userClient *service.UserServiceClient
+	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.UserService != nil {
+		userClient = service.NewUserServiceClient(bootstrap.ApiManagement.UserService)
+		log.NewHelper(logger).Info("User service client initialized")
+	}
+
 	opts := []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
-			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService, ipWhitelistChecker, testMode),
+			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService, ipWhitelistChecker, testMode, userClient),
 		),
 	}
 

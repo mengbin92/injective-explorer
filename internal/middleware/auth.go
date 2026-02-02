@@ -30,6 +30,8 @@ const (
 	ContextKeyUserID contextKey = "user_id"
 	// ContextKeyPlanType is the context key for plan type
 	ContextKeyPlanType contextKey = "plan_type"
+	// ContextKeyUserDetail is the context key for user detail from external service
+	ContextKeyUserDetail contextKey = "user_detail"
 )
 
 // AuthMiddleware validates API token from Authorization header.
