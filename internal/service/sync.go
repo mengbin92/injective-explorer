@@ -65,6 +65,17 @@ func (v *validatorQueryClientImpl) GetValidators(ctx interface{}) ([]stakingtype
 	return validatorsResp.Validators, nil
 }
 
+// GetValidatorByConsensusAddress queries a single validator by consensus address.
+// This is an optimized method that attempts to find the validator without fetching all validators.
+// Since Cosmos SDK staking module doesn't provide a direct query by consensus address,
+// this method returns an error to indicate fallback to GetValidators is needed.
+func (v *validatorQueryClientImpl) GetValidatorByConsensusAddress(ctx context.Context, consAddr string) (*stakingtypes.Validator, error) {
+	// Cosmos SDK staking module doesn't provide a direct query by consensus address.
+	// We return an error to indicate that the caller should fall back to GetValidators.
+	// The BlockSignerService will handle this fallback automatically.
+	return nil, fmt.Errorf("direct query by consensus address not supported, fallback to GetValidators")
+}
+
 // SyncService handles blockchain synchronization tasks using WebSocket streaming.
 // It receives new blocks in real-time via gRPC streaming, stores block data,
 // processes transactions, and updates account information.
@@ -84,6 +95,9 @@ type SyncService struct {
 
 	// EVM details sync service
 	evmDetailsSyncService *EVMDetailsSyncService
+
+	// Block signer service for processing block signers
+	blockSignerService *models.BlockSignerService
 
 	// Current processed block height
 	currentHeight uint64
@@ -272,8 +286,11 @@ func (s *SyncService) Start() error {
 		return errors.Wrap(err, "failed to initialize clients")
 	}
 
-	// Set up validator query client for real-time validator lookup during block processing
-	models.SetValidatorQueryClient(&validatorQueryClientImpl{chainClient: s.chainClient})
+	// Set up block signer service with dependency injection
+	validatorQueryClient := &validatorQueryClientImpl{chainClient: s.chainClient}
+	s.blockSignerService = models.NewBlockSignerService(validatorQueryClient)
+	// Set default service for backward compatibility (deprecated)
+	models.SetDefaultBlockSignerService(s.blockSignerService)
 
 	// Start initialization in background goroutine
 	// This allows the service to start immediately without waiting for initialization to complete
@@ -1030,9 +1047,15 @@ func (s *SyncService) processBlocksBatch(heights []uint64, batchSize int) error 
 	// Save block signers information asynchronously (proposer and signers)
 	// This is done in background to avoid blocking batch processing
 	go func() {
+		// Capture service reference for goroutine
+		service := s.blockSignerService
+		if service == nil {
+			global.Logger.Warnf("block signer service not initialized, using default")
+			service = models.NewBlockSignerService(&validatorQueryClientImpl{chainClient: s.chainClient})
+		}
 		for _, bd := range collectedBlocks {
 			if bd.err == nil && bd.blockResp != nil {
-				if err := models.SaveBlockSigners(bd.blockResp); err != nil {
+				if err := service.SaveBlockSigners(bd.blockResp); err != nil {
 					global.Logger.Warnf("failed to save block signers for height %d: %v", bd.height, err)
 					// Don't fail batch processing if signer saving fails
 				}
@@ -1172,7 +1195,13 @@ func (s *SyncService) processBlockOptimizedSkipCheck(height uint64) error {
 	// Save block signers information (proposer and signers)
 	// This is done asynchronously to avoid blocking block processing
 	go func() {
-		if err := models.SaveBlockSigners(blockResp); err != nil {
+		// Capture service reference for goroutine
+		service := s.blockSignerService
+		if service == nil {
+			global.Logger.Warnf("block signer service not initialized, using default")
+			service = models.NewBlockSignerService(&validatorQueryClientImpl{chainClient: s.chainClient})
+		}
+		if err := service.SaveBlockSigners(blockResp); err != nil {
 			global.Logger.Warnf("failed to save block signers for height %d: %v", height, err)
 			// Don't fail block processing if signer saving fails
 		}
@@ -3213,9 +3242,9 @@ func (s *SyncService) saveCrossChainTransaction(ctx context.Context, txResp *tx.
 // saveIBCTransferFromMessage extracts and saves IBC transfer details.
 func (s *SyncService) saveIBCTransferFromMessage(ctx context.Context, msg json.RawMessage, txData *models.TxJSON, txModel *models.Transaction) error {
 	var ibcMsg struct {
-		Sender           string          `json:"sender"`
-		Receiver         string          `json:"receiver"`
-		Token            struct {
+		Sender   string `json:"sender"`
+		Receiver string `json:"receiver"`
+		Token    struct {
 			Denom  string `json:"denom"`
 			Amount string `json:"amount"`
 		} `json:"token"`
@@ -3391,9 +3420,9 @@ func (s *SyncService) savePeggyDepositFromMessage(ctx context.Context, msg json.
 // savePeggyWithdrawalFromMessage extracts and saves Peggy withdrawal details.
 func (s *SyncService) savePeggyWithdrawalFromMessage(ctx context.Context, msg json.RawMessage, txData *models.TxJSON, txModel *models.Transaction) error {
 	var withdrawalMsg struct {
-		Sender    string `json:"sender"`
-		EthDest   string `json:"eth_dest"`
-		Amount    struct {
+		Sender  string `json:"sender"`
+		EthDest string `json:"eth_dest"`
+		Amount  struct {
 			Denom  string `json:"denom"`
 			Amount string `json:"amount"`
 		} `json:"amount"`

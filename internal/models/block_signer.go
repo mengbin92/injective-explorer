@@ -6,8 +6,12 @@ package models
 import (
 	"injective-explorer/internal/global"
 	"injective-explorer/provider/db"
+	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -19,19 +23,40 @@ import (
 type ValidatorQueryClient interface {
 	// GetValidators queries all validators from chain
 	GetValidators(ctx interface{}) ([]stakingtypes.Validator, error)
+	// GetValidatorByConsensusAddress queries a single validator by consensus address.
+	// If not implemented, returns an error and the caller should fall back to GetValidators.
+	GetValidatorByConsensusAddress(ctx context.Context, consAddr string) (*stakingtypes.Validator, error)
 }
 
-// validatorQueryClient is the global query client set by service layer
-var validatorQueryClient ValidatorQueryClient
+// BlockSignerService handles block signer operations with dependency injection.
+// This service replaces the previous global variable approach for better testability and thread safety.
+type BlockSignerService struct {
+	validatorQueryClient ValidatorQueryClient
+	// Cache for validators fetched from chain to avoid repeated expensive queries
+	validatorCache  map[string]*Validator
+	cacheMutex      sync.RWMutex
+	cacheExpiry     time.Duration
+	lastCacheUpdate time.Time
+}
 
-// SetValidatorQueryClient sets the global validator query client.
-// This should be called once during service initialization.
-func SetValidatorQueryClient(client ValidatorQueryClient) {
-	validatorQueryClient = client
+// NewBlockSignerService creates a new BlockSignerService instance.
+//
+// Parameters:
+//   - validatorQueryClient: The client for querying validators from chain
+//
+// Returns:
+//   - *BlockSignerService: A new service instance
+func NewBlockSignerService(validatorQueryClient ValidatorQueryClient) *BlockSignerService {
+	return &BlockSignerService{
+		validatorQueryClient: validatorQueryClient,
+		validatorCache:       make(map[string]*Validator),
+		cacheExpiry:          5 * time.Minute, // Cache expires after 5 minutes
+	}
 }
 
 // hexToConsAddress converts hex consensus address to bech32 format.
 // Block header proposer address is in hex format (uppercase), but DB stores bech32 format.
+// This function uses encoding/hex.DecodeString for better performance and clarity.
 func hexToConsAddress(hexAddr string) string {
 	// If already in bech32 format (contains "1" which is the separator), return as-is
 	if strings.Contains(hexAddr, "1") {
@@ -39,25 +64,14 @@ func hexToConsAddress(hexAddr string) string {
 	}
 
 	// Remove "0x" prefix if present
-	if len(hexAddr) >= 2 && (hexAddr[0:2] == "0x" || hexAddr[0:2] == "0X") {
-		hexAddr = hexAddr[2:]
-	}
+	hexAddr = strings.TrimPrefix(strings.TrimPrefix(hexAddr, "0x"), "0X")
 
-	// Hex decode
-	if len(hexAddr)%2 != 0 {
-		return hexAddr // Invalid hex, return as-is
-	}
-
-	addrBytes := make([]byte, len(hexAddr)/2)
-	for i := 0; i < len(hexAddr); i += 2 {
-		var b byte
-		if _, err := fmt.Sscanf(hexAddr[i:i+2], "%02X", &b); err != nil {
-			// Try lowercase
-			if _, err := fmt.Sscanf(hexAddr[i:i+2], "%02x", &b); err != nil {
-				return hexAddr // Invalid hex, return as-is
-			}
-		}
-		addrBytes[i/2] = b
+	// Decode hex string using standard library
+	addrBytes, err := hex.DecodeString(hexAddr)
+	if err != nil {
+		// Invalid hex, return as-is
+		global.Logger.Warnf("failed to decode hex address %s: %v", hexAddr, err)
+		return hexAddr
 	}
 
 	// Convert to bech32 consensus address
@@ -68,7 +82,9 @@ func hexToConsAddress(hexAddr string) string {
 // getOrFetchValidator gets validator from local DB, or fetches from chain if not found.
 // It saves the fetched validator to local DB for future use.
 // consensusAddress can be either hex format (from block header) or bech32 format.
-func getOrFetchValidator(consensusAddress string) (*Validator, error) {
+//
+// This method uses caching to avoid repeated expensive chain queries for the same validator.
+func (s *BlockSignerService) getOrFetchValidator(consensusAddress string) (*Validator, error) {
 	// Convert hex address to bech32 format if needed
 	bech32ConsAddress := hexToConsAddress(consensusAddress)
 
@@ -79,38 +95,90 @@ func getOrFetchValidator(consensusAddress string) (*Validator, error) {
 		return &validator, nil
 	}
 
+	// Check cache first
+	s.cacheMutex.RLock()
+	cachedValidator, cached := s.validatorCache[bech32ConsAddress]
+	cacheValid := time.Since(s.lastCacheUpdate) < s.cacheExpiry
+	s.cacheMutex.RUnlock()
+
+	if cached && cacheValid && cachedValidator != nil {
+		global.Logger.Debugf("validator with consensus address %s found in cache", consensusAddress)
+		return cachedValidator, nil
+	}
+
 	// If not found in local DB and we have a query client, try to fetch from chain
-	if validatorQueryClient != nil {
-		global.Logger.Debugf("validator with consensus address %s not found in local DB, fetching from chain", consensusAddress)
+	if s.validatorQueryClient == nil {
+		return nil, fmt.Errorf("validator query client not available")
+	}
 
-		// Fetch all validators from chain
-		validators, err := validatorQueryClient.GetValidators(nil)
+	global.Logger.Debugf("validator with consensus address %s not found in local DB, fetching from chain", consensusAddress)
+
+	// Try to use optimized query method if available
+	ctx := context.Background()
+	stakingValidator, err := s.validatorQueryClient.GetValidatorByConsensusAddress(ctx, bech32ConsAddress)
+	if err == nil && stakingValidator != nil {
+		// Found via optimized query
+		validatorModel := ValidatorFromStakingTypes(*stakingValidator)
+		if validatorModel == nil {
+			return nil, fmt.Errorf("failed to convert validator from staking types")
+		}
+
+		// Save/update validator to local DB
+		err := db.Get().Where("operator_address = ?", validatorModel.OperatorAddress).
+			Assign(validatorModel).
+			FirstOrCreate(&Validator{}).Error
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch validators from chain: %w", err)
+			global.Logger.Warnf("failed to save validator %s to DB: %v", validatorModel.OperatorAddress, err)
 		}
 
-		// Find the validator with matching consensus address and save to DB
-		for _, v := range validators {
-			validatorModel := ValidatorFromStakingTypes(v)
-			if validatorModel == nil {
-				continue
-			}
+		// Update cache
+		s.cacheMutex.Lock()
+		s.validatorCache[bech32ConsAddress] = validatorModel
+		s.lastCacheUpdate = time.Now()
+		s.cacheMutex.Unlock()
 
-			// Save/update validator to local DB
-			err := db.Get().Where("operator_address = ?", validatorModel.OperatorAddress).
-				Assign(validatorModel).
-				FirstOrCreate(&Validator{}).Error
-			if err != nil {
-				global.Logger.Warnf("failed to save validator %s to DB: %v", validatorModel.OperatorAddress, err)
-				continue
-			}
+		return validatorModel, nil
+	}
 
-			// Check if this is the validator we're looking for
-			// Compare with bech32 format address
-			if validatorModel.ConsensusAddress == bech32ConsAddress {
-				return validatorModel, nil
-			}
+	// Fallback to fetching all validators (less efficient but works)
+	// This should be avoided if possible by implementing GetValidatorByConsensusAddress
+	validators, err := s.validatorQueryClient.GetValidators(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch validators from chain: %w", err)
+	}
+
+	// Find the validator with matching consensus address and save to DB
+	var foundValidator *Validator
+	for _, v := range validators {
+		validatorModel := ValidatorFromStakingTypes(v)
+		if validatorModel == nil {
+			continue
 		}
+
+		// Save/update validator to local DB
+		err := db.Get().Where("operator_address = ?", validatorModel.OperatorAddress).
+			Assign(validatorModel).
+			FirstOrCreate(&Validator{}).Error
+		if err != nil {
+			global.Logger.Warnf("failed to save validator %s to DB: %v", validatorModel.OperatorAddress, err)
+			continue
+		}
+
+		// Check if this is the validator we're looking for
+		// Compare with bech32 format address
+		if validatorModel.ConsensusAddress == bech32ConsAddress {
+			foundValidator = validatorModel
+		}
+
+		// Update cache for all validators we fetch
+		s.cacheMutex.Lock()
+		s.validatorCache[validatorModel.ConsensusAddress] = validatorModel
+		s.lastCacheUpdate = time.Now()
+		s.cacheMutex.Unlock()
+	}
+
+	if foundValidator != nil {
+		return foundValidator, nil
 	}
 
 	return nil, fmt.Errorf("validator with consensus address %s not found", consensusAddress)
@@ -119,7 +187,7 @@ func getOrFetchValidator(consensusAddress string) (*Validator, error) {
 // SignerInfo represents a validator's participation in a block (used internally, not stored in DB).
 type SignerInfo struct {
 	ValidatorOperatorAddress string
-	IsProposer              bool
+	IsProposer               bool
 }
 
 // SaveBlockSigners extracts validator signer information from a Tendermint block
@@ -130,8 +198,9 @@ type SignerInfo struct {
 //   - block: The Tendermint ResultBlock containing block and commit information
 //
 // Returns:
-//   - error: Error if update fails
-func SaveBlockSigners(block *coretypes.ResultBlock) error {
+//   - error: Error if update fails. Returns an error if proposer validator cannot be found,
+//     as this is critical information that should not be silently ignored.
+func (s *BlockSignerService) SaveBlockSigners(block *coretypes.ResultBlock) error {
 	if block == nil || block.Block == nil {
 		return fmt.Errorf("block is nil")
 	}
@@ -140,10 +209,10 @@ func SaveBlockSigners(block *coretypes.ResultBlock) error {
 	proposerHex := block.Block.Header.ProposerAddress.String()
 
 	// Get proposer validator info - fetch from chain if not in local DB
-	proposerValidator, err := getOrFetchValidator(proposerHex)
+	// This is critical information - if we can't find the proposer, we should return an error
+	proposerValidator, err := s.getOrFetchValidator(proposerHex)
 	if err != nil {
-		global.Logger.Warnf("cannot find validator for proposer consensus address %s at height %d: %v", proposerHex, height, err)
-		return nil // Skip this block if proposer not found
+		return fmt.Errorf("cannot find validator for proposer consensus address %s at height %d: %w", proposerHex, height, err)
 	}
 	proposerOperatorAddress := proposerValidator.OperatorAddress
 
@@ -153,7 +222,7 @@ func SaveBlockSigners(block *coretypes.ResultBlock) error {
 	// Add proposer
 	signers = append(signers, SignerInfo{
 		ValidatorOperatorAddress: proposerOperatorAddress,
-		IsProposer:              true,
+		IsProposer:               true,
 	})
 
 	// Extract signers from LastCommit
@@ -181,7 +250,9 @@ func SaveBlockSigners(block *coretypes.ResultBlock) error {
 			signerBech32Addr := hexToConsAddress(signerConsensusHex)
 
 			// Get validator operator address - fetch from chain if not in local DB
-			signerValidator, err := getOrFetchValidator(signerBech32Addr)
+			// For signers, we log a warning but continue processing other signers
+			// as missing a signer is less critical than missing the proposer
+			signerValidator, err := s.getOrFetchValidator(signerBech32Addr)
 			if err != nil {
 				global.Logger.Warnf("cannot find validator for signer consensus address %s (bech32: %s) at height %d: %v", signerConsensusHex, signerBech32Addr, height, err)
 				continue // Skip this signer if not found
@@ -192,7 +263,7 @@ func SaveBlockSigners(block *coretypes.ResultBlock) error {
 			if sig.Signature != nil {
 				signers = append(signers, SignerInfo{
 					ValidatorOperatorAddress: signerOperatorAddress,
-					IsProposer:              false,
+					IsProposer:               false,
 				})
 			}
 		}
@@ -210,8 +281,8 @@ func SaveBlockSigners(block *coretypes.ResultBlock) error {
 					signer.ValidatorOperatorAddress,
 					height,
 					signer.IsProposer,
-					true,  // signed=true (they're in the signers list)
-					true,  // shouldSign=true (they signed, so they should have signed)
+					true, // signed=true (they're in the signers list)
+					true, // shouldSign=true (they signed, so they should have signed)
 				); err != nil {
 					global.Logger.Warnf("failed to update validator stats for %s at height %d: %v",
 						signer.ValidatorOperatorAddress, height, err)
@@ -222,4 +293,34 @@ func SaveBlockSigners(block *coretypes.ResultBlock) error {
 	}
 
 	return nil
+}
+
+// SaveBlockSigners is a convenience function that uses a default service instance.
+// This maintains backward compatibility but is deprecated. Use BlockSignerService instead.
+//
+// Deprecated: Use BlockSignerService.SaveBlockSigners instead for better dependency injection.
+var defaultBlockSignerService *BlockSignerService
+var defaultServiceMutex sync.Mutex
+
+// SetDefaultBlockSignerService sets the default service instance for backward compatibility.
+func SetDefaultBlockSignerService(service *BlockSignerService) {
+	defaultServiceMutex.Lock()
+	defer defaultServiceMutex.Unlock()
+	defaultBlockSignerService = service
+}
+
+// SaveBlockSigners is the legacy function signature maintained for backward compatibility.
+// It uses the default service instance if available, otherwise returns an error.
+//
+// Deprecated: Use BlockSignerService.SaveBlockSigners instead.
+func SaveBlockSigners(block *coretypes.ResultBlock) error {
+	defaultServiceMutex.Lock()
+	service := defaultBlockSignerService
+	defaultServiceMutex.Unlock()
+
+	if service == nil {
+		return fmt.Errorf("default block signer service not initialized, use BlockSignerService directly")
+	}
+
+	return service.SaveBlockSigners(block)
 }
