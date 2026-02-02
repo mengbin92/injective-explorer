@@ -293,6 +293,52 @@ service AdminService {
       get : "/api/v1/admin/user/token-stats"
     };
   }
+
+  // ========== Account Management ==========
+  // ListAccounts lists all API accounts with search, filter, and pagination
+  rpc ListAccounts(ListAccountsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/accounts"
+    };
+  }
+
+  // GetAccountDetail gets detailed information for a specific API account
+  rpc GetAccountDetail(GetAccountDetailRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/accounts/detail"
+    };
+  }
+
+  // GetAccountStats gets API account statistics (total accounts, active
+  // accounts, token count, etc.)
+  rpc GetAccountStats(google.protobuf.Empty) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/accounts/stats"
+    };
+  }
+
+  // ToggleAccountStatus enables or disables an account
+  rpc ToggleAccountStatus(ToggleAccountStatusRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/accounts/status"
+      body : "*"
+    };
+  }
+
+  // ExportAccounts exports account list to CSV/Excel format
+  rpc ExportAccounts(ExportAccountsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/admin/accounts/export"
+    };
+  }
+
+  // ToggleTokenStatus enables or disables a token
+  rpc ToggleTokenStatus(ToggleTokenStatusRequest) returns (Reply) {
+    option (google.api.http) = {
+      put : "/api/v1/admin/tokens/status"
+      body : "*"
+    };
+  }
 }
 
 // ========== Plan Management Messages ==========
@@ -317,9 +363,9 @@ message CreatePlanRequest {
       [ json_name = "max_tokens" ]; // Maximum number of tokens (required)
   bool enable_webhook = 6 [
     json_name = "enable_webhook"
-  ];                 // Whether to enable webhook (optional, default false)
-  double price = 7;  // Plan price (optional, default 0.00)
-  string status = 8; // Status: active/inactive (optional, default active)
+  ];                      // Whether to enable webhook (optional, default false)
+  double price = 7;       // Plan price (optional, default 0.00)
+  string status = 8;      // Status: active/inactive (optional, default active)
   string description = 9; // Plan description (optional)
 }
 
@@ -332,8 +378,9 @@ message UpdatePlanRequest {
       [ json_name = "rate_limit_per_second" ];       // Rate limit per second
   int32 max_tokens = 5 [ json_name = "max_tokens" ]; // Maximum number of tokens
   double price = 6;                                  // Plan price
-  string status = 7;                                 // Plan status: active/inactive
-  bool enable_webhook = 8 [ json_name = "enable_webhook" ]; // Enable webhook feature
+  string status = 7; // Plan status: active/inactive
+  bool enable_webhook = 8
+      [ json_name = "enable_webhook" ]; // Enable webhook feature
 }
 
 message GetPlanStatsRequest { uint64 id = 1; }
@@ -365,14 +412,15 @@ message UsageStatsDTO {
   int64 success_requests = 2 [ json_name = "success_requests" ];
   int64 failed_requests = 3 [ json_name = "failed_requests" ];
   double error_rate = 4 [ json_name = "error_rate" ]; // Error rate percentage
-  double avg_response_time = 5 [ json_name = "avg_response_time" ]; // Average response time in ms
+  double avg_response_time = 5
+      [ json_name = "avg_response_time" ]; // Average response time in ms
   int64 unique_users = 6 [ json_name = "unique_users" ];
   int64 unique_ips = 7 [ json_name = "unique_ips" ];
 }
 
 message GetUsageTrendsRequest {
   string time_range = 1 [ json_name = "time_range" ]; // 7days/30days/90days
-  string interval = 2; // day/week/month
+  string interval = 2;                                // day/week/month
 }
 
 message UsageTrendDTO {
@@ -385,7 +433,9 @@ message UsageTrendDTO {
 
 message GetUsageByEndpointRequest {
   string time_range = 1 [ json_name = "time_range" ]; // today/7days/30days/all
-  int32 top_n = 2 [ json_name = "top_n" ]; // Number of top endpoints to return (default: 10)
+  int32 top_n = 2
+      [ json_name =
+            "top_n" ]; // Number of top endpoints to return (default: 10)
 }
 
 message EndpointUsageDTO {
@@ -406,7 +456,8 @@ message ErrorCodeUsageDTO {
   int32 status_code = 1 [ json_name = "status_code" ];
   int64 count = 2;
   double percentage = 3; // Percentage of total errors
-  repeated string top_error_messages = 4 [ json_name = "top_error_messages" ]; // Top 5 error messages
+  repeated string top_error_messages = 4
+      [ json_name = "top_error_messages" ]; // Top 5 error messages
 }
 
 message PlanDTO {
@@ -418,8 +469,9 @@ message PlanDTO {
   int32 rate_limit_per_second = 6 [ json_name = "rate_limit_per_second" ];
   int32 max_tokens = 7 [ json_name = "max_tokens" ];
   double price = 8;
-  string status = 9;                                      // Plan status: active/inactive
-  bool is_enabled = 14 [ json_name = "is_enabled" ];     // Boolean flag: true if status is active
+  string status = 9; // Plan status: active/inactive
+  bool is_enabled = 14
+      [ json_name = "is_enabled" ]; // Boolean flag: true if status is active
   int64 token_count = 10
       [ json_name = "token_count" ]; // Number of tokens using this plan
   int64 user_count = 11
@@ -622,7 +674,8 @@ message BatchImportEmailDomainsDTO {
   int32 duplicate = 4;
   repeated string invalid_domains = 5 [ json_name = "invalid_domains" ];
   repeated string duplicate_domains = 6 [ json_name = "duplicate_domains" ];
-  repeated string new_domains = 7 [ json_name = "new_domains" ]; // Newly added domains
+  repeated string new_domains = 7
+      [ json_name = "new_domains" ]; // Newly added domains
 }
 
 message PreviewImportEmailDomainsRequest {
@@ -691,7 +744,7 @@ message UsageErrorDTO {
 // ========== User Token Management Messages ==========
 message ListUserTokensRequest {
   string user_id = 1 [ json_name = "user_id" ]; // User ID to query
-  PaginationRequest pagination = 2; // Pagination parameters
+  PaginationRequest pagination = 2;             // Pagination parameters
 }
 
 message GetUserTokenStatsRequest {
@@ -700,10 +753,120 @@ message GetUserTokenStatsRequest {
 
 message UserTokenStatsDTO {
   int32 token_count = 1 [ json_name = "token_count" ]; // Total number of tokens
-  int32 active_token_count = 2 [ json_name = "active_token_count" ]; // Active tokens
-  int32 disabled_token_count = 3 [ json_name = "disabled_token_count" ]; // Disabled tokens
-  uint64 monthly_used = 4 [ json_name = "monthly_used" ]; // Monthly usage
+  int32 active_token_count = 2
+      [ json_name = "active_token_count" ]; // Active tokens
+  int32 disabled_token_count = 3
+      [ json_name = "disabled_token_count" ];               // Disabled tokens
+  uint64 monthly_used = 4 [ json_name = "monthly_used" ];   // Monthly usage
   uint64 monthly_limit = 5 [ json_name = "monthly_limit" ]; // Monthly limit
-  uint64 total_usage = 6 [ json_name = "total_usage" ]; // Total historical usage
+  uint64 total_usage = 6
+      [ json_name = "total_usage" ];                // Total historical usage
   string plan_type = 7 [ json_name = "plan_type" ]; // User's plan type
+}
+
+// ========== Account Management Messages ==========
+message ListAccountsRequest {
+  PaginationRequest pagination = 1;
+  string search = 2; // Search by username or email (optional)
+  string status =
+      3; // Filter by status: active/pending/disabled (optional, empty for all)
+  string usage_filter = 4 [
+    json_name = "usage_filter"
+  ]; // Filter by usage: high/medium/low (optional, empty for all)
+  // high: >80%, medium: 50-80%, low: <50%
+}
+
+message GetAccountDetailRequest {
+  string user_id = 1 [ json_name = "user_id" ]; // User ID (required)
+}
+
+message ToggleAccountStatusRequest {
+  string user_id = 1 [ json_name = "user_id" ]; // User ID (required)
+  string action = 2; // Action: enable/disable (required)
+}
+
+message ExportAccountsRequest {
+  string search = 1; // Search by username or email (optional)
+  string status = 2; // Filter by status: active/pending/disabled (optional)
+  string usage_filter = 3
+      [ json_name =
+            "usage_filter" ]; // Filter by usage: high/medium/low (optional)
+  string format = 4;          // Export format: csv/excel (default: csv)
+}
+
+// APIAccountDTO represents API account information in list
+message APIAccountDTO {
+  string user_id = 1 [ json_name = "user_id" ]; // User ID
+  string username = 2; // Username (from external system, may be empty)
+  string email = 3;    // Email (from external system, may be empty)
+  int32 token_count = 4 [ json_name = "token_count" ];      // Number of tokens
+  uint64 monthly_used = 5 [ json_name = "monthly_used" ];   // Monthly usage
+  uint64 monthly_limit = 6 [ json_name = "monthly_limit" ]; // Monthly limit
+  double usage_percentage = 7
+      [ json_name = "usage_percentage" ];           // Usage percentage (0-100)
+  string plan_type = 8 [ json_name = "plan_type" ]; // Plan type: free/paid
+  string status = 9; // Account status: active/pending/disabled
+  string created_at = 10 [ json_name = "created_at" ]; // Registration time
+  string last_active_at = 11
+      [ json_name =
+            "last_active_at" ]; // Last active time (empty if never active)
+}
+
+// APIAccountDetailDTO represents detailed API account information
+message APIAccountDetailDTO {
+  string user_id = 1 [ json_name = "user_id" ]; // User ID
+  string username = 2; // Username (from external system, may be empty)
+  string email = 3;    // Email (from external system, may be empty)
+  string status = 4;   // Account status: active/pending/disabled
+  string plan_type = 5 [ json_name = "plan_type" ];   // Plan type: free/paid
+  string created_at = 6 [ json_name = "created_at" ]; // Registration time
+  string last_active_at = 7
+      [ json_name =
+            "last_active_at" ]; // Last active time (empty if never active)
+  // Usage statistics (account level)
+  uint64 monthly_used = 8 [ json_name = "monthly_used" ];   // Monthly usage
+  uint64 monthly_limit = 9 [ json_name = "monthly_limit" ]; // Monthly limit
+  uint64 monthly_remaining = 10
+      [ json_name = "monthly_remaining" ]; // Monthly remaining
+  double usage_percentage = 11
+      [ json_name = "usage_percentage" ]; // Usage percentage (0-100)
+  uint64 total_usage = 12
+      [ json_name = "total_usage" ]; // Total historical usage
+  // Token list
+  repeated APIAccountTokenDTO tokens = 13; // List of tokens
+}
+
+// APIAccountTokenDTO represents token information in API account detail
+message APIAccountTokenDTO {
+  int64 id = 1 [ json_name = "id" ]; // Token ID
+  string name = 2;                   // Token name
+  string token_preview = 3
+      [ json_name = "token_preview" ]; // Token preview (inj_xxx...xxx)
+  string status = 4;                   // Token status: active/disabled
+  string created_at = 5 [ json_name = "created_at" ]; // Creation time
+  string last_used_at = 6
+      [ json_name = "last_used_at" ]; // Last used time (empty if never used)
+}
+
+// APIAccountStatsDTO represents API account statistics
+message APIAccountStatsDTO {
+  int64 total_accounts = 1
+      [ json_name = "total_accounts" ]; // Total registered accounts
+  int64 active_accounts = 2
+      [ json_name = "active_accounts" ];                 // Active accounts
+  int64 total_tokens = 3 [ json_name = "total_tokens" ]; // Total tokens
+  int64 monthly_active_accounts = 4
+      [ json_name = "monthly_active_accounts" ]; // Monthly active accounts
+}
+
+// ListAccountsResponse represents paginated account list
+message ListAccountsResponse {
+  repeated APIAccountDTO accounts = 1;
+  PaginationInfo pagination = 2;
+}
+
+// ToggleTokenStatusRequest enables or disables a token
+message ToggleTokenStatusRequest {
+  int64 token_id = 1 [ json_name = "token_id" ]; // Token ID (required)
+  string action = 2; // Action: enable/disable (required)
 }

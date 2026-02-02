@@ -342,6 +342,134 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/accounts:
+        get:
+            tags:
+                - AdminService
+            description: |-
+                ========== Account Management ==========
+                 ListAccounts lists all API accounts with search, filter, and pagination
+            operationId: AdminService_ListAccounts
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+                - name: search
+                  in: query
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  schema:
+                    type: string
+                - name: usage_filter
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/accounts/detail:
+        get:
+            tags:
+                - AdminService
+            description: GetAccountDetail gets detailed information for a specific API account
+            operationId: AdminService_GetAccountDetail
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/accounts/export:
+        get:
+            tags:
+                - AdminService
+            description: ExportAccounts exports account list to CSV/Excel format
+            operationId: AdminService_ExportAccounts
+            parameters:
+                - name: search
+                  in: query
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  schema:
+                    type: string
+                - name: usage_filter
+                  in: query
+                  schema:
+                    type: string
+                - name: format
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/accounts/stats:
+        get:
+            tags:
+                - AdminService
+            description: GetAccountStats gets API account statistics (total accounts, active accounts, token count, etc.)
+            operationId: AdminService_GetAccountStats
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/accounts/status:
+        put:
+            tags:
+                - AdminService
+            description: ToggleAccountStatus enables or disables an account
+            operationId: AdminService_ToggleAccountStatus
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.ToggleAccountStatusRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/email/blacklist:
         get:
             tags:
@@ -981,6 +1109,25 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/api.explorer.v1.UnpublishPlanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/tokens/status:
+        put:
+            tags:
+                - AdminService
+            description: ToggleTokenStatus enables or disables a token
+            operationId: AdminService_ToggleTokenStatus
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.ToggleTokenStatusRequest'
                 required: true
             responses:
                 "200":
@@ -3499,11 +3646,26 @@ components:
                     type: string
                 plan_id:
                     type: string
+        api.explorer.v1.ToggleAccountStatusRequest:
+            type: object
+            properties:
+                user_id:
+                    type: string
+                action:
+                    type: string
         api.explorer.v1.ToggleEmailDomainStatusRequest:
             type: object
             properties:
                 id:
                     type: string
+        api.explorer.v1.ToggleTokenStatusRequest:
+            type: object
+            properties:
+                token_id:
+                    type: string
+                action:
+                    type: string
+            description: ToggleTokenStatusRequest enables or disables a token
         api.explorer.v1.TransactionDTO:
             type: object
             properties:

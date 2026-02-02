@@ -8122,6 +8122,392 @@
         }
       ],
       "description": "Tests for rate limiting and authentication scenarios."
+    },
+    {
+      "name": "账户管理 (Account Management)",
+      "item": [
+        {
+          "name": "List Accounts - 获取账户列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has accounts data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('accounts');",
+                  "        pm.expect(jsonData.data).to.have.property('pagination');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/accounts?page=1&page_size=20&search=&status=&usage_filter=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "accounts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "页码，从1开始"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "每页数量，默认20，最大100"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "搜索用户名或邮箱",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "按状态筛选: active/pending/disabled",
+                  "disabled": true
+                },
+                {
+                  "key": "usage_filter",
+                  "value": "",
+                  "description": "按使用量筛选: high/medium/low",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取所有API账户列表，支持搜索、筛选和分页"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Account Detail - 获取账户详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has account detail\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('user_id');",
+                  "        pm.expect(jsonData.data).to.have.property('username');",
+                  "        pm.expect(jsonData.data).to.have.property('email');",
+                  "        pm.expect(jsonData.data).to.have.property('tokens');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/accounts/detail?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "accounts",
+                "detail"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "用户ID (必填)"
+                }
+              ]
+            },
+            "description": "获取指定API账户的详细信息"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Account Stats - 获取账户统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has stats data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('total_accounts');",
+                  "        pm.expect(jsonData.data).to.have.property('active_accounts');",
+                  "        pm.expect(jsonData.data).to.have.property('total_tokens');",
+                  "        pm.expect(jsonData.data).to.have.property('monthly_active_accounts');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/accounts/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "accounts",
+                "stats"
+              ]
+            },
+            "description": "获取API账户统计信息（总账户数、活跃账户数、Token数量等）"
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Account Status - 切换账户状态",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has success message\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"action\": \"disable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/accounts/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "accounts",
+                "status"
+              ]
+            },
+            "description": "启用或禁用账户。action可以是'enable'或'disable'。"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Accounts - 导出账户列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/accounts/export?format=csv&search=&status=&usage_filter=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "accounts",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "csv",
+                  "description": "导出格式: csv/excel (默认: csv)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "搜索用户名或邮箱",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "按状态筛选",
+                  "disabled": true
+                },
+                {
+                  "key": "usage_filter",
+                  "value": "",
+                  "description": "按使用量筛选",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "导出账户列表为CSV/Excel格式"
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Token Status - 切换Token状态",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has success message\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData.code).to.equal(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "description": "Admin API token for authentication"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token_id\": {{token_id}},\n    \"action\": \"disable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/tokens/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "tokens",
+                "status"
+              ]
+            },
+            "description": "启用或禁用Token。action可以是'enable'或'disable'。"
+          },
+          "response": []
+        }
+      ],
+      "description": "账户管理接口，用于管理员管理API账户"
     }
   ],
   "event": [
@@ -8209,6 +8595,12 @@
       "key": "plan_id",
       "value": "1",
       "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string",
+      "description": "Admin API token for admin endpoints"
     }
   ]
 }

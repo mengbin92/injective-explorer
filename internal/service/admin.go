@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pkg/errors"
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
+
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
@@ -180,11 +181,8 @@ func (s *AdminService) ListUserTokens(ctx context.Context, req *pb.ListUserToken
 	// Convert to DTOs using the ToDTOs method
 	tokenDTOs := models.ToTokenDTOs(tokens)
 
-	// Calculate pagination metadata
-	hasNext := (int64(offset) + int64(len(tokens))) < totalCount
-	hasPrev := page > 1
-
-	response := buildPaginatedResponse(tokenDTOs, page, pageSize, totalCount, hasNext, hasPrev, uint64(offset), "", len(tokens))
+	// Build paginated response
+	response := buildPaginatedResponse(tokenDTOs, page, pageSize, totalCount, true, false, 0, "", len(tokens))
 	return MarshalAndReply(response, "marshal list user tokens response error")
 }
 
@@ -611,10 +609,10 @@ func (s *AdminService) GetUsageByErrorCode(ctx context.Context, req *pb.GetUsage
 		}
 
 		errorCodes = append(errorCodes, &pb.ErrorCodeUsageDTO{
-			StatusCode:        er.StatusCode,
-			Count:             er.Count,
-			Percentage:        percentage,
-			TopErrorMessages:  topMessages,
+			StatusCode:       er.StatusCode,
+			Count:            er.Count,
+			Percentage:       percentage,
+			TopErrorMessages: topMessages,
 		})
 	}
 
