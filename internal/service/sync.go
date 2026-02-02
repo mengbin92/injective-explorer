@@ -30,7 +30,9 @@ import (
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	github_com_cosmos_cosmos_sdk_types "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/query"
 	"github.com/cosmos/cosmos-sdk/types/tx"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -42,6 +44,25 @@ type processResult struct {
 	height   uint64
 	err      error
 	duration time.Duration
+}
+
+// validatorQueryClientImpl implements models.ValidatorQueryClient interface
+type validatorQueryClientImpl struct {
+	chainClient chainclient.ChainClientV2
+}
+
+// GetValidators queries all validators from chain
+func (v *validatorQueryClientImpl) GetValidators(ctx interface{}) ([]stakingtypes.Validator, error) {
+	stakingClient := stakingtypes.NewQueryClient(v.chainClient.QueryClient())
+	validatorsResp, err := stakingClient.Validators(context.Background(), &stakingtypes.QueryValidatorsRequest{
+		Pagination: &query.PageRequest{
+			Limit: MaxValidatorQueryLimit,
+		},
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query validators from chain")
+	}
+	return validatorsResp.Validators, nil
 }
 
 // SyncService handles blockchain synchronization tasks using WebSocket streaming.
@@ -250,6 +271,9 @@ func (s *SyncService) Start() error {
 	if err := s.initClients(); err != nil {
 		return errors.Wrap(err, "failed to initialize clients")
 	}
+
+	// Set up validator query client for real-time validator lookup during block processing
+	models.SetValidatorQueryClient(&validatorQueryClientImpl{chainClient: s.chainClient})
 
 	// Start initialization in background goroutine
 	// This allows the service to start immediately without waiting for initialization to complete

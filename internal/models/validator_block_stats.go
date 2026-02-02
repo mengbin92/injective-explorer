@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
@@ -57,9 +58,18 @@ func GetCurrentPeriodEndHeight(blockHeight uint64) uint64 {
 //
 // Returns:
 //   - error: Error if update fails
+// UpdateValidatorStatsForBlock updates validator statistics for a single block.
+// This increments the counters for the validator in the current period.
+// Only accepts bech32 format validator operator addresses (e.g., injvaloper1...).
 func UpdateValidatorStatsForBlock(validatorOperatorAddress string, blockHeight uint64, isProposer, signed, shouldSign bool) error {
 	if validatorOperatorAddress == "" {
 		return fmt.Errorf("validator operator address is required")
+	}
+
+	// Validate address format - must be bech32 operator address, not hex
+	valoperPrefix := sdk.GetConfig().GetBech32ValidatorAddrPrefix()
+	if !strings.HasPrefix(validatorOperatorAddress, valoperPrefix) {
+		return fmt.Errorf("invalid validator operator address format: %s (must be bech32 format starting with '%s')", validatorOperatorAddress, valoperPrefix)
 	}
 
 	periodStart := GetCurrentPeriodStartHeight(blockHeight)
