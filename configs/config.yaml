@@ -240,7 +240,7 @@ api_management:
   # Test mode: bypasses authentication and rate limiting for testing
   # IMPORTANT: Only enable this in development/testing environments
   # WARNING: Do NOT enable in production as it disables all security restrictions
-  test_mode: true
+  test_mode: false
 
   # Rate limit configuration
   rate_limit:
@@ -285,7 +285,7 @@ api_management:
   # by calling the external user service before processing requests
   user_service:
     # Base URL of the user service (required)
-    base_url: ${USER_SERVICE_BASE_URL:https://prv.gapi-adm-rwa.injective.network:7443}
+    base_url: ${USER_SERVICE_BASE_URL:http://47.238.214.9:8175}
     # API version path (default: api/v1)
     api_version: ${USER_SERVICE_API_VERSION:api/v1}
     # Bearer token for authenticating with user service (optional)
@@ -296,3 +296,6 @@ api_management:
     timeout: ${USER_SERVICE_TIMEOUT:5s}
     # Max retry attempts on failure (default: 3)
     max_retries: ${USER_SERVICE_MAX_RETRIES:3}
+    # Fallback mode: allow access when user service fails (default: false)
+    # WARNING: Setting to true reduces security - only use in development
+    fallback_enabled: false

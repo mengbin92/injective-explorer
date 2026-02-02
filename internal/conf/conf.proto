@@ -311,5 +311,6 @@ message APIManagement {
     string api_key = 3;               // Service-to-service API key for authentication
     google.protobuf.Duration timeout = 4; // Request timeout, default 5s
     int32 max_retries = 5;            // Max retry attempts on failure, default 3
+    bool fallback_enabled = 6;        // Allow access when user service fails, default false (strict mode)
   }
 }

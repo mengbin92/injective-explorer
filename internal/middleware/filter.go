@@ -27,6 +27,7 @@ func SelectiveAuthAndRateLimitMiddleware(
 	ipWhitelistChecker *IPWhitelistChecker,
 	testMode bool,
 	userClient *service.UserServiceClient,
+	fallbackEnabled bool,
 ) middleware.Middleware {
 	authMiddleware := AuthMiddleware()
 	rateLimitMiddleware := RateLimitMiddleware(rateLimiter)
@@ -35,7 +36,7 @@ func SelectiveAuthAndRateLimitMiddleware(
 	// Use enhanced user auth if user service is configured
 	var userAuthMiddleware middleware.Middleware
 	if userClient != nil {
-		userAuthMiddleware = EnhancedUserAuthMiddleware(userClient, true)
+		userAuthMiddleware = EnhancedUserAuthMiddleware(userClient, fallbackEnabled)
 	} else {
 		userAuthMiddleware = UserAuthMiddleware()
 	}

@@ -101,15 +101,20 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 
 	// Initialize user service client if configured
 	var userClient *service.UserServiceClient
+	var fallbackEnabled bool
 	if bootstrap != nil && bootstrap.ApiManagement != nil && bootstrap.ApiManagement.UserService != nil {
 		userClient = service.NewUserServiceClient(bootstrap.ApiManagement.UserService)
+		fallbackEnabled = bootstrap.ApiManagement.UserService.GetFallbackEnabled()
 		log.NewHelper(logger).Info("User service client initialized")
+		if fallbackEnabled {
+			log.NewHelper(logger).Warn("User service fallback is enabled - allowing access when user service fails")
+		}
 	}
 
 	opts := []khttp.ServerOption{
 		khttp.Middleware(
 			recovery.Recovery(),
-			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService, ipWhitelistChecker, testMode, userClient),
+			middleware.SelectiveAuthAndRateLimitMiddleware(rateLimiter, statsService, ipLocationService, ipWhitelistChecker, testMode, userClient, fallbackEnabled),
 		),
 	}
 
