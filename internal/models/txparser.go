@@ -65,6 +65,7 @@ type PeggyDepositDetail struct {
 	EventHeight         uint64
 	OrchestratorAddress string
 	ClaimType           int32
+	EthTxHash           string
 }
 
 // PeggyWithdrawalDetail contains Peggy withdrawal transaction details.
@@ -77,6 +78,7 @@ type PeggyWithdrawalDetail struct {
 	EventNonce          uint64
 	EventHeight         uint64
 	ClaimType           int32
+	EthTxHash           string
 }
 
 // Minimal structs matching the JSON layout. We only include the fields we need.
@@ -508,12 +510,12 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 
 	// Collect candidate transfers across all logs; prefer explicit transfer or coin_received
 	type transferCandidate struct {
-		From     string
-		To       string
-		Amount   []Coin
-		Priority int    // lower is higher priority
-		MsgIndex string // msg_index from log, empty means gas fee or transaction-level event
-		HasMsgIndex bool // true if msg_index is valid (not empty and not "0" for gas fee)
+		From        string
+		To          string
+		Amount      []Coin
+		Priority    int    // lower is higher priority
+		MsgIndex    string // msg_index from log, empty means gas fee or transaction-level event
+		HasMsgIndex bool   // true if msg_index is valid (not empty and not "0" for gas fee)
 	}
 
 	cands := []transferCandidate{}
@@ -533,7 +535,7 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 					break
 				}
 			}
-			
+
 			// Use event-level msg_index if available, otherwise use log-level msg_index
 			effectiveMsgIndex := eventMsgIndex
 			if effectiveMsgIndex == "" {
@@ -545,7 +547,7 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 			// 2. If event is from logsBytes (log.MsgIndex != "-1"), it's valid (even without msg_index attribute)
 			// 3. If event is from protobuf (log.MsgIndex == "-1") and has no msg_index attribute, it's invalid (gas fee)
 			eventHasValidMsgIndex := (eventMsgIndex != "" && eventMsgIndex != "-1") || (log.MsgIndex != "" && log.MsgIndex != "-1")
-			
+
 			switch ev.Type {
 			case "transfer":
 				// attributes: recipient, sender, amount
@@ -1002,9 +1004,9 @@ type ibcMsgTransferExtractor struct{}
 
 func (e *ibcMsgTransferExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
 	var tmp struct {
-		Sender           string          `json:"sender"`
-		Receiver         string          `json:"receiver"`
-		Token            struct {
+		Sender   string `json:"sender"`
+		Receiver string `json:"receiver"`
+		Token    struct {
 			Denom  string `json:"denom"`
 			Amount string `json:"amount"`
 		} `json:"token"`
@@ -1141,10 +1143,10 @@ type injectiveExchangeMsgSubaccountTransferExtractor struct{}
 
 func (e *injectiveExchangeMsgSubaccountTransferExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
 	var tmp struct {
-		Sender                 string `json:"sender"`
-		SourceSubaccountID     string `json:"source_subaccount_id"`
+		Sender                  string `json:"sender"`
+		SourceSubaccountID      string `json:"source_subaccount_id"`
 		DestinationSubaccountID string `json:"destination_subaccount_id"`
-		Amount                 struct {
+		Amount                  struct {
 			Denom  string `json:"denom"`
 			Amount string `json:"amount"`
 		} `json:"amount"`
@@ -1243,8 +1245,8 @@ type injectiveTokenFactoryMsgMintExtractor struct{}
 
 func (e *injectiveTokenFactoryMsgMintExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
 	var tmp struct {
-		Sender        string `json:"sender"`
-		Amount        struct {
+		Sender string `json:"sender"`
+		Amount struct {
 			Denom  string `json:"denom"`
 			Amount string `json:"amount"`
 		} `json:"amount"`
@@ -1269,8 +1271,8 @@ type injectiveTokenFactoryMsgBurnExtractor struct{}
 
 func (e *injectiveTokenFactoryMsgBurnExtractor) Extract(msg json.RawMessage, res *ExtractResult) bool {
 	var tmp struct {
-		Sender          string `json:"sender"`
-		Amount          struct {
+		Sender string `json:"sender"`
+		Amount struct {
 			Denom  string `json:"denom"`
 			Amount string `json:"amount"`
 		} `json:"amount"`
@@ -1381,6 +1383,15 @@ func extractPeggyDepositFromEvents(events []EventRaw, detail *PeggyDepositDetail
 					}
 				case "orchestrator_address":
 					detail.OrchestratorAddress = value
+				case "eth_tx_hash", "bridge_tx_hash", "ethereum_tx_hash":
+					// Extract ETH transaction hash from deposit claim event
+					hash := strings.TrimSpace(value)
+					if hash != "" {
+						if !strings.HasPrefix(hash, "0x") {
+							hash = "0x" + hash
+						}
+						detail.EthTxHash = hash
+					}
 				}
 			}
 		}
@@ -1428,6 +1439,15 @@ func extractPeggyWithdrawalFromEvents(events []EventRaw, detail *PeggyWithdrawal
 					}
 				case "orchestrator_address":
 					detail.OrchestratorAddress = value
+				case "eth_tx_hash", "bridge_tx_hash", "ethereum_tx_hash":
+					// Extract ETH transaction hash from withdrawal claim event
+					hash := strings.TrimSpace(value)
+					if hash != "" {
+						if !strings.HasPrefix(hash, "0x") {
+							hash = "0x" + hash
+						}
+						detail.EthTxHash = hash
+					}
 				}
 			}
 		}

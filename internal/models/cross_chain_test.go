@@ -150,6 +150,7 @@ func TestExtractPeggyDepositFromEvents(t *testing.T) {
 				{Key: "event_nonce", Value: "42"},
 				{Key: "event_height", Value: "100000"},
 				{Key: "orchestrator_address", Value: "inj1orch..."},
+				{Key: "eth_tx_hash", Value: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
 			},
 		},
 	}
@@ -160,6 +161,7 @@ func TestExtractPeggyDepositFromEvents(t *testing.T) {
 	assert.Equal(t, uint64(42), detail.EventNonce)
 	assert.Equal(t, uint64(100000), detail.EventHeight)
 	assert.Equal(t, "inj1orch...", detail.OrchestratorAddress)
+	assert.Equal(t, "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", detail.EthTxHash)
 }
 
 // TestExtractPeggyWithdrawalFromEvents tests Peggy withdrawal event extraction
@@ -179,6 +181,7 @@ func TestExtractPeggyWithdrawalFromEvents(t *testing.T) {
 				{Key: "event_height", Value: "100001"},
 				{Key: "batch_nonce", Value: "10"},
 				{Key: "orchestrator_address", Value: "inj1orch..."},
+				{Key: "eth_tx_hash", Value: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"},
 			},
 		},
 	}
@@ -191,6 +194,7 @@ func TestExtractPeggyWithdrawalFromEvents(t *testing.T) {
 	assert.Equal(t, uint64(55), detail.EventNonce)
 	assert.Equal(t, uint64(100001), detail.EventHeight)
 	assert.Equal(t, uint64(10), detail.BatchNonce)
+	assert.Equal(t, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", detail.EthTxHash)
 	assert.Equal(t, "inj1orch...", detail.OrchestratorAddress)
 }
 
@@ -371,14 +375,14 @@ func BenchmarkIBCExtractor(b *testing.B) {
 // BenchmarkToProto benchmarks DTO conversion performance
 func BenchmarkIBCTransferTx_ToProto(b *testing.B) {
 	tx := &IBCTransferTx{
-		Sender:         "inj1sender",
-		Receiver:       "cosmos1receiver",
-		SourcePort:     "transfer",
-		SourceChannel:  "channel-0",
-		Amount:         "1000000",
-		Denom:          "inj",
-		State:          "completed",
-		TxHash:         "0xabc123",
+		Sender:        "inj1sender",
+		Receiver:      "cosmos1receiver",
+		SourcePort:    "transfer",
+		SourceChannel: "channel-0",
+		Amount:        "1000000",
+		Denom:         "inj",
+		State:         "completed",
+		TxHash:        "0xabc123",
 	}
 
 	b.ResetTimer()

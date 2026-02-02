@@ -605,7 +605,7 @@ message TransactionDTO {
       22; // Transaction initiator (first signer), may differ from fee payer
   string to = 23;    // Recipient address (corresponds to 'to' field in ethereum
                      // tx, or recipient in other tx types)
-  string value   = 24; // Transaction value
+  string value = 24; // Transaction value
   EVMTransactionDTO evm_transaction = 25 [
     json_name = "evm_transaction"
   ]; // EVM transaction details (only present for EVM transactions)
@@ -791,6 +791,8 @@ message PeggyDepositTxDTO {
   string created_at = 11 [ json_name = "created_at" ];
   // Last update timestamp (ISO 8601 format)
   string updated_at = 12 [ json_name = "updated_at" ];
+  // Ethereum transaction hash (for the original ETH chain transaction)
+  string eth_tx_hash = 13 [ json_name = "eth_tx_hash" ];
 }
 
 // PeggyWithdrawalTxDTO represents Peggy withdrawal transaction in API response
@@ -827,4 +829,7 @@ message PeggyWithdrawalTxDTO {
   string created_at = 15 [ json_name = "created_at" ];
   // Last update timestamp (ISO 8601 format)
   string updated_at = 16 [ json_name = "updated_at" ];
+  // Ethereum transaction hash (for the ETH chain transaction when withdrawal is
+  // completed)
+  string eth_tx_hash = 17 [ json_name = "eth_tx_hash" ];
 }

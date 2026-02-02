@@ -995,6 +995,7 @@ CREATE TABLE `peggy_deposit_txs` (
   `state` varchar(50) DEFAULT 'completed' COMMENT '状态: completed/pending/failed',
   `claim_type` int DEFAULT 1 COMMENT '声明类型: 1=deposit',
   `tx_hash` varchar(128) NOT NULL COMMENT '交易hash',
+  `eth_tx_hash` varchar(128) DEFAULT NULL COMMENT '以太坊链交易hash',
   `block_height` bigint unsigned DEFAULT NULL COMMENT '区块高度',
   `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
   PRIMARY KEY (`id`),
@@ -1003,6 +1004,7 @@ CREATE TABLE `peggy_deposit_txs` (
   KEY `idx_peggy_deposit_txs_sender` (`sender`),
   KEY `idx_peggy_deposit_txs_receiver` (`receiver`),
   KEY `idx_peggy_deposit_txs_tx_hash` (`tx_hash`),
+  KEY `idx_peggy_deposit_txs_eth_tx_hash` (`eth_tx_hash`),
   KEY `idx_peggy_deposit_txs_block_height` (`block_height`),
   KEY `idx_peggy_deposit_txs_block_timestamp` (`block_timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链存款交易表';
@@ -1030,6 +1032,7 @@ CREATE TABLE `peggy_withdrawal_txs` (
   `state` varchar(50) DEFAULT 'pending' COMMENT '状态: pending/completed/failed',
   `claim_type` int DEFAULT 2 COMMENT '声明类型: 2=withdrawal',
   `tx_hash` varchar(128) NOT NULL COMMENT '交易hash',
+  `eth_tx_hash` varchar(128) DEFAULT NULL COMMENT '以太坊链交易hash',
   `block_height` bigint unsigned DEFAULT NULL COMMENT '区块高度',
   `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
   PRIMARY KEY (`id`),
@@ -1038,6 +1041,7 @@ CREATE TABLE `peggy_withdrawal_txs` (
   KEY `idx_peggy_withdrawal_txs_sender` (`sender`),
   KEY `idx_peggy_withdrawal_txs_receiver` (`receiver`),
   KEY `idx_peggy_withdrawal_txs_tx_hash` (`tx_hash`),
+  KEY `idx_peggy_withdrawal_txs_eth_tx_hash` (`eth_tx_hash`),
   KEY `idx_peggy_withdrawal_txs_block_height` (`block_height`),
   KEY `idx_peggy_withdrawal_txs_block_timestamp` (`block_timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链提款交易表';
