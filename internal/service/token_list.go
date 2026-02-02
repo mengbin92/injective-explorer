@@ -288,9 +288,9 @@ func (s *TokenListService) batchGetTokenMarketData(ctx context.Context, symbols 
 				MarketCapUSD:          cache.MarketCapUSD,
 				TotalVolume24h:        cache.TotalVolume24h,
 				HoldersCount:          cache.HoldersCount,
-				TotalSupply:           parseBigInt(cache.TotalSupply),
-				CirculatingSupply:     parseBigInt(cache.CirculatingSupply),
-				MaxSupply:             parseBigInt(cache.MaxSupply),
+				TotalSupply:           parseBigIntPtr(cache.TotalSupply),
+				CirculatingSupply:     parseBigIntPtr(cache.CirculatingSupply),
+				MaxSupply:             parseBigIntPtr(cache.MaxSupply),
 				FullyDilutedMarketCap: cache.FullyDilutedMarketCap,
 			}
 		}
@@ -563,6 +563,17 @@ func parseBigInt(s string) *big.Int {
 	}
 	n := new(big.Int)
 	if _, ok := n.SetString(s, 10); !ok {
+		return nil
+	}
+	return n
+}
+
+func parseBigIntPtr(s *string) *big.Int {
+	if s == nil || *s == "" {
+		return nil
+	}
+	n := new(big.Int)
+	if _, ok := n.SetString(*s, 10); !ok {
 		return nil
 	}
 	return n

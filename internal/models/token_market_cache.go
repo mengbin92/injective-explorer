@@ -26,10 +26,10 @@ type TokenMarketCache struct {
 	TotalVolume24h       float64 `json:"total_volume_24h" gorm:"column:total_volume_24h;type:decimal(40,2)"` // 24h trading volume in USD
 
 	// Supply data
-	HoldersCount       int64  `json:"holders_count" gorm:"column:holders_count"`                          // Number of holders
-	TotalSupply        string `json:"total_supply" gorm:"column:total_supply;type:decimal(78,0)"`         // Total supply (raw units as string)
-	CirculatingSupply  string `json:"circulating_supply" gorm:"column:circulating_supply;type:decimal(78,0)"` // Circulating supply (raw units as string)
-	MaxSupply          string `json:"max_supply" gorm:"column:max_supply;type:decimal(78,0)"`             // Max supply (raw units as string, empty if unlimited)
+	HoldersCount       int64   `json:"holders_count" gorm:"column:holders_count"`                          // Number of holders
+	TotalSupply        *string `json:"total_supply" gorm:"column:total_supply;type:decimal(78,0)"`         // Total supply (raw units as string)
+	CirculatingSupply  *string `json:"circulating_supply" gorm:"column:circulating_supply;type:decimal(78,0)"` // Circulating supply (raw units as string)
+	MaxSupply          *string `json:"max_supply" gorm:"column:max_supply;type:decimal(78,0)"`             // Max supply (raw units as string, NULL if unlimited)
 
 	// Metadata
 	LastUpdated int64  `json:"last_updated" gorm:"column:last_updated"` // Unix timestamp of last data update
@@ -73,9 +73,9 @@ type TokenMarketCacheUpdate struct {
 	FullyDilutedMarketCap float64
 	TotalVolume24h        float64
 	HoldersCount          int64
-	TotalSupply           string
-	CirculatingSupply     string
-	MaxSupply             string
+	TotalSupply           *string
+	CirculatingSupply     *string
+	MaxSupply             *string
 	LastUpdated           int64
 	DataSource            string
 }

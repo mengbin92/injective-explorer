@@ -268,15 +268,18 @@ func (s *TokenMarketCacheSyncService) updateTokenCache(symbol string, config *To
 		DataSource:            "coingecko",
 	}
 
-	// Convert supply values from *big.Int to string
+	// Convert supply values from *big.Int to *string
 	if data.TotalSupply != nil {
-		cache.TotalSupply = data.TotalSupply.String()
+		s := data.TotalSupply.String()
+		cache.TotalSupply = &s
 	}
 	if data.CirculatingSupply != nil {
-		cache.CirculatingSupply = data.CirculatingSupply.String()
+		s := data.CirculatingSupply.String()
+		cache.CirculatingSupply = &s
 	}
 	if data.MaxSupply != nil {
-		cache.MaxSupply = data.MaxSupply.String()
+		s := data.MaxSupply.String()
+		cache.MaxSupply = &s
 	}
 
 	// Upsert to database
