@@ -609,6 +609,10 @@ message TransactionDTO {
   EVMTransactionDTO evm_transaction = 25 [
     json_name = "evm_transaction"
   ]; // EVM transaction details (only present for EVM transactions)
+  repeated TokenTransferDTO token_transfers = 26
+      [ json_name =
+            "token_transfers" ]; // ERC20/ERC721 token transfers (only present
+                                 // for EVM transactions with token transfers)
 }
 
 // EVMTransactionDTO represents an EVM transaction in Etherscan-like format
@@ -654,6 +658,21 @@ message EVMLogDTO {
   string tx_hash = 5 [ json_name = "tx_hash" ];           // Transaction hash
   uint32 tx_index = 6 [ json_name = "tx_index" ]; // Transaction index in block
   uint32 log_index = 7 [ json_name = "log_index" ]; // Log index in transaction
+}
+
+// TokenTransferDTO represents an ERC20/ERC721 token transfer
+message TokenTransferDTO {
+  string contract_address = 1
+      [ json_name = "contract_address" ]; // Token contract address
+  string from_address = 2 [ json_name = "from_address" ]; // Sender address
+  string to_address = 3 [ json_name = "to_address" ];     // Receiver address
+  string amount = 4; // Transfer amount (raw units)
+  string token_symbol = 5
+      [ json_name =
+            "token_symbol" ]; // Token symbol (optional, from contract_info)
+  string token_name = 6 [ json_name = "token_name" ]; // Token name (optional)
+  int32 decimals = 7; // Token decimals (optional, default 18)
+  string method = 8;  // Transfer type: Transfer, Mint, Burn
 }
 
 // TokenPriceAndMarketCapResponse contains token price and market cap

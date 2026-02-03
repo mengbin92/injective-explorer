@@ -424,6 +424,7 @@ CREATE TABLE `transactions` (
   `data_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `messages_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
   `logs_storage_key` varchar(255) DEFAULT NULL COMMENT '对象存储key，格式: {type}/{hash[:8]}/{hash}',
+  `has_token_transfer` tinyint(1) DEFAULT '0' NOT NULL COMMENT 'Indicates if this transaction has ERC20/ERC721 token transfers (for efficient filtering)',
   PRIMARY KEY (`id`),
   KEY `idx_transactions_deleted_at` (`deleted_at`),
   KEY `idx_block_tx` (`block_number`,`tx_number`),
@@ -437,7 +438,8 @@ CREATE TABLE `transactions` (
   KEY `idx_timestamp_code_deleted` (`block_unix_timestamp`,`code`,`deleted_at`),
   -- Performance indexes for transaction pagination and query patterns (added after optimization analysis)
   KEY `idx_timestamp_tx_pagination` (`block_unix_timestamp` DESC,`tx_number` DESC,`id`),
-  KEY `idx_signer_timestamp_tx` (`signer`,`block_unix_timestamp` DESC,`tx_number` DESC)
+  KEY `idx_signer_timestamp_tx` (`signer`,`block_unix_timestamp` DESC,`tx_number` DESC),
+  KEY `idx_transactions_has_token_transfer` (`has_token_transfer`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------

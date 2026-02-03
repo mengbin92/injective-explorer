@@ -27,15 +27,15 @@ import (
 
 // TokenTransferSyncService handles token transfer synchronization from EVM logs.
 type TokenTransferSyncService struct {
-	ctx              context.Context
-	cancel           context.CancelFunc
-	config           *TokenTransferSyncConfig
-	evmClient        *chain.EVMClient
-	wg               sync.WaitGroup
-	syncMutex        sync.Mutex
-	isRunning        bool
-	cleanupTicker    *time.Ticker // Ticker for periodic cleanup
-	retentionDays    int          // How many days to retain transfer data
+	ctx           context.Context
+	cancel        context.CancelFunc
+	config        *TokenTransferSyncConfig
+	evmClient     *chain.EVMClient
+	wg            sync.WaitGroup
+	syncMutex     sync.Mutex
+	isRunning     bool
+	cleanupTicker *time.Ticker // Ticker for periodic cleanup
+	retentionDays int          // How many days to retain transfer data
 }
 
 // TokenTransferSyncConfig holds the token transfer sync service configuration.
@@ -496,6 +496,32 @@ func (s *TokenTransferSyncService) saveTokenTransfers(transfers []*models.TokenT
 			if err != nil {
 				global.Logger.Warnf("Failed to insert batch of %d transfers: %v", len(batch), err)
 				// Continue processing other batches even if one fails
+			} else {
+				// Update has_token_transfer flag for transactions
+				// Collect unique transaction hashes from this batch
+				txHashSet := make(map[string]bool)
+				for _, transfer := range batch {
+					if transfer.TransactionHash != "" {
+						txHashSet[transfer.TransactionHash] = true
+					}
+				}
+
+				// Update has_token_transfer flag for all affected transactions
+				if len(txHashSet) > 0 {
+					txHashes := make([]string, 0, len(txHashSet))
+					for hash := range txHashSet {
+						txHashes = append(txHashes, hash)
+					}
+
+					// Update transactions table
+					updateErr := tx.Model(&models.Transaction{}).
+						Where("hash IN ?", txHashes).
+						Update("has_token_transfer", true).Error
+					if updateErr != nil {
+						global.Logger.Warnf("Failed to update has_token_transfer flag for transactions: %v", updateErr)
+						// Don't fail the whole operation
+					}
+				}
 			}
 		}
 		return nil

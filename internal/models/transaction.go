@@ -36,34 +36,35 @@ type Transaction struct {
 
 	Id string `json:"id" gorm:"column:tx_data_id"` // Id is the transaction data ID
 
-	BlockNumber          uint64     `json:"block_number" gorm:"column:block_number"`                               // BlockNumber is the block number containing this transaction
-	BlockTimestamp       string     `json:"block_timestamp" gorm:"column:block_timestamp"`                         // BlockTimestamp is the timestamp of the block containing this transaction
-	Hash                 string     `json:"hash" gorm:"column:hash"`                                               // Hash is the transaction hash
-	Code                 uint32     `json:"code" gorm:"column:code"`                                               // Code is the transaction execution code (0 = success, non-zero = error)
-	Data                 string     `json:"data" gorm:"column:data"`                                               // Data contains the transaction data (stored as string, originally []byte)
-	Info                 string     `json:"info" gorm:"column:info"`                                               // Info contains additional transaction information
-	GasWanted            int64      `json:"gas_wanted" gorm:"column:gas_wanted"`                                   // GasWanted is the maximum gas requested for the transaction
-	GasUsed              int64      `json:"gas_used" gorm:"column:gas_used"`                                       // GasUsed is the actual gas used by the transaction
-	GasFee               string     `json:"gas_fee" gorm:"column:gas_fee"`                                         // GasFee is the gas fee paid for the transaction
-	Codespace            string     `json:"codespace" gorm:"column:codespace"`                                     // Codespace is the error codespace if the transaction failed
-	Events               []string   `json:"events" gorm:"column:events;serializer:json"`                           // Events is a list of events emitted by the transaction (stored as JSON)
-	TxType               string     `json:"tx_type" gorm:"column:tx_type"`                                         // TxType is the type of the transaction
-	MessageTypes         []string   `json:"message_types" gorm:"column:message_types;serializer:json"`             // MessageTypes is a list of message type URLs extracted from Messages (e.g., ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit"]), stored as JSON array for efficient filtering
-	Messages             string     `json:"messages" gorm:"column:messages"`                                       // Messages contains the transaction messages (stored as string, originally []byte)
-	Signatures           []string   `json:"signatures" gorm:"column:signatures;serializer:json"`                   // Signatures is a list of transaction signatures (stored as JSON)
-	Memo                 string     `json:"memo" gorm:"column:memo"`                                               // Memo is the memo field of the transaction
-	TxNumber             uint64     `json:"tx_number" gorm:"column:tx_number"`                                     // TxNumber is the transaction number
-	BlockUnixTimestamp   uint64     `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp"`               // BlockUnixTimestamp is the Unix timestamp of the block containing this transaction
-	ErrorLog             string     `json:"error_log" gorm:"column:error_log"`                                     // ErrorLog contains error information if the transaction failed
-	Logs                 string     `json:"logs" gorm:"column:logs"`                                               // Logs contains execution logs (stored as string, originally []byte)
-	ClaimIds             []int64    `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                     // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
-	Signer               string     `json:"signer" gorm:"type:varchar(128);column:signer"`                         // Signer is the transaction initiator address (first signer)
-	To                   string     `json:"to" gorm:"type:varchar(128);column:to"`                                 // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
-	Values               []string   `json:"value" gorm:"column:values;serializer:json"`                            // Values is the transaction values as an array for multi-currency transfers, e.g., ["1000000inj", "500atom"]. Stored in 'values' column to avoid MySQL reserved word 'value'
-	Archived             bool       `json:"archived" gorm:"column:archived"`                                       // Archived indicates whether this transaction has been archived
-	DataStorageKey       string     `json:"data_storage_key" gorm:"column:data_storage_key"`                       // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
-	MessagesStorageKey   string     `json:"messages_storage_key" gorm:"column:messages_storage_key"`               // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
-	LogsStorageKey       string     `json:"logs_storage_key" gorm:"column:logs_storage_key"`                       // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)
+	BlockNumber        uint64   `json:"block_number" gorm:"column:block_number"`                                 // BlockNumber is the block number containing this transaction
+	BlockTimestamp     string   `json:"block_timestamp" gorm:"column:block_timestamp"`                           // BlockTimestamp is the timestamp of the block containing this transaction
+	Hash               string   `json:"hash" gorm:"column:hash"`                                                 // Hash is the transaction hash
+	Code               uint32   `json:"code" gorm:"column:code"`                                                 // Code is the transaction execution code (0 = success, non-zero = error)
+	Data               string   `json:"data" gorm:"column:data"`                                                 // Data contains the transaction data (stored as string, originally []byte)
+	Info               string   `json:"info" gorm:"column:info"`                                                 // Info contains additional transaction information
+	GasWanted          int64    `json:"gas_wanted" gorm:"column:gas_wanted"`                                     // GasWanted is the maximum gas requested for the transaction
+	GasUsed            int64    `json:"gas_used" gorm:"column:gas_used"`                                         // GasUsed is the actual gas used by the transaction
+	GasFee             string   `json:"gas_fee" gorm:"column:gas_fee"`                                           // GasFee is the gas fee paid for the transaction
+	Codespace          string   `json:"codespace" gorm:"column:codespace"`                                       // Codespace is the error codespace if the transaction failed
+	Events             []string `json:"events" gorm:"column:events;serializer:json"`                             // Events is a list of events emitted by the transaction (stored as JSON)
+	TxType             string   `json:"tx_type" gorm:"column:tx_type"`                                           // TxType is the type of the transaction
+	MessageTypes       []string `json:"message_types" gorm:"column:message_types;serializer:json"`               // MessageTypes is a list of message type URLs extracted from Messages (e.g., ["/cosmos.bank.v1beta1.MsgSend", "/injective.exchange.v1beta1.MsgDeposit"]), stored as JSON array for efficient filtering
+	Messages           string   `json:"messages" gorm:"column:messages"`                                         // Messages contains the transaction messages (stored as string, originally []byte)
+	Signatures         []string `json:"signatures" gorm:"column:signatures;serializer:json"`                     // Signatures is a list of transaction signatures (stored as JSON)
+	Memo               string   `json:"memo" gorm:"column:memo"`                                                 // Memo is the memo field of the transaction
+	TxNumber           uint64   `json:"tx_number" gorm:"column:tx_number"`                                       // TxNumber is the transaction number
+	BlockUnixTimestamp uint64   `json:"block_unix_timestamp" gorm:"column:block_unix_timestamp"`                 // BlockUnixTimestamp is the Unix timestamp of the block containing this transaction
+	ErrorLog           string   `json:"error_log" gorm:"column:error_log"`                                       // ErrorLog contains error information if the transaction failed
+	Logs               string   `json:"logs" gorm:"column:logs"`                                                 // Logs contains execution logs (stored as string, originally []byte)
+	ClaimIds           []int64  `json:"claim_ids" gorm:"column:claim_ids;serializer:json"`                       // ClaimIds is a list of claim IDs associated with this transaction (stored as JSONB)
+	Signer             string   `json:"signer" gorm:"type:varchar(128);column:signer"`                           // Signer is the transaction initiator address (first signer)
+	To                 string   `json:"to" gorm:"type:varchar(128);column:to"`                                   // To is the recipient address for ethereum transactions (corresponds to 'to' field in ethereum tx)
+	Values             []string `json:"value" gorm:"column:values;serializer:json"`                              // Values is the transaction values as an array for multi-currency transfers, e.g., ["1000000inj", "500atom"]. Stored in 'values' column to avoid MySQL reserved word 'value'
+	Archived           bool     `json:"archived" gorm:"column:archived"`                                         // Archived indicates whether this transaction has been archived
+	DataStorageKey     string   `json:"data_storage_key" gorm:"column:data_storage_key"`                         // DataStorageKey is the object storage key for Data field (no index: only used in migration with IS NULL checks)
+	MessagesStorageKey string   `json:"messages_storage_key" gorm:"column:messages_storage_key"`                 // MessagesStorageKey is the object storage key for Messages field (no index: only used in migration with IS NULL checks)
+	LogsStorageKey     string   `json:"logs_storage_key" gorm:"column:logs_storage_key"`                         // LogsStorageKey is the object storage key for Logs field (no index: only used in migration with IS NULL checks)
+	HasTokenTransfer   bool     `json:"has_token_transfer" gorm:"column:has_token_transfer;default:false;index"` // HasTokenTransfer indicates if this transaction has ERC20/ERC721 token transfers (for efficient filtering)
 
 	// Composite index for performance optimization
 	// This field is not a real column, just used to define the composite index
@@ -376,7 +377,7 @@ func marshalMessagesToJSON(messagesBytes []byte) string {
 	} else {
 		global.Logger.Warnf("WARN: failed to create structpb.Struct from raw bytes, error: %v", err)
 	}
-	
+
 	// If all methods fail, return empty string
 	global.Logger.Errorf("ERROR: failed to marshal Messages to structpb JSON, returning empty string")
 	return ""
@@ -386,12 +387,12 @@ func marshalMessagesToJSON(messagesBytes []byte) string {
 func marshalTxBodyToStructPBJSON(txBody *cosmostxpb.TxBody) string {
 	// Build a map structure from TxBody
 	jsonObj := make(map[string]interface{})
-	
+
 	// Add memo
 	if txBody.Memo != "" {
 		jsonObj["memo"] = txBody.Memo
 	}
-	
+
 	// Convert messages to array of structpb values
 	messages := make([]interface{}, 0, len(txBody.Messages))
 	for _, msgAny := range txBody.Messages {
@@ -409,14 +410,14 @@ func marshalTxBodyToStructPBJSON(txBody *cosmostxpb.TxBody) string {
 	if len(messages) > 0 {
 		jsonObj["messages"] = messages
 	}
-	
+
 	// Convert to structpb.Struct
 	structData, err := structpb.NewStruct(jsonObj)
 	if err != nil {
 		global.Logger.Warnf("WARN: failed to create structpb.Struct from TxBody, error: %v", err)
 		return ""
 	}
-	
+
 	// Marshal structpb.Struct to JSON
 	marshaler := protojson.MarshalOptions{
 		EmitUnpopulated: true,
@@ -427,7 +428,7 @@ func marshalTxBodyToStructPBJSON(txBody *cosmostxpb.TxBody) string {
 		global.Logger.Warnf("WARN: failed to marshal structpb.Struct to JSON, error: %v", err)
 		return ""
 	}
-	
+
 	return string(jsonBytes)
 }
 

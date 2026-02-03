@@ -13,6 +13,7 @@ import (
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/provider/chain"
+	"injective-explorer/provider/db"
 	"injective-explorer/provider/storage"
 
 	"github.com/bytedance/sonic"
@@ -301,6 +302,71 @@ func ToTransactionDTOs(txs []Transaction) []*pb.TransactionDTO {
 	dtos := make([]*pb.TransactionDTO, 0, len(txs))
 	for _, tx := range txs {
 		dtos = append(dtos, ToTransactionDTO(&tx, DTOModeWithoutDetail))
+	}
+	return dtos
+}
+
+// ToTransactionDTOsWithTokenTransfers converts a slice of Transaction models to proto TransactionDTOs,
+// with token transfers pre-loaded from the provided map.
+func ToTransactionDTOsWithTokenTransfers(txs []Transaction, tokenTransfersMap map[string][]TokenTransfer) []*pb.TransactionDTO {
+	if txs == nil {
+		return nil
+	}
+	dtos := make([]*pb.TransactionDTO, 0, len(txs))
+	for _, tx := range txs {
+		dto := ToTransactionDTO(&tx, DTOModeWithoutDetail)
+		// Add token transfers if available
+		if transfers, ok := tokenTransfersMap[tx.Hash]; ok && len(transfers) > 0 {
+			dto.TokenTransfers = ToTokenTransferDTOs(transfers)
+		} else {
+			// Ensure empty slice instead of nil for consistency
+			dto.TokenTransfers = []*pb.TokenTransferDTO{}
+		}
+		dtos = append(dtos, dto)
+	}
+	return dtos
+}
+
+// ToTokenTransferDTO converts a TokenTransfer model to proto TokenTransferDTO.
+func ToTokenTransferDTO(transfer *TokenTransfer) *pb.TokenTransferDTO {
+	if transfer == nil {
+		return nil
+	}
+
+	// Try to get token info from contract_info table
+	var tokenSymbol, tokenName string
+	var decimals int32 = 18 // Default decimals
+	var contractInfo ContractInfo
+	if err := db.Get().WithContext(context.Background()).
+		Where("contract_address = ?", transfer.ContractAddress).
+		First(&contractInfo).Error; err == nil {
+		tokenSymbol = contractInfo.TokenSymbol
+		tokenName = contractInfo.TokenName
+		if contractInfo.Decimals > 0 {
+			decimals = int32(contractInfo.Decimals)
+		}
+	}
+
+	return &pb.TokenTransferDTO{
+		ContractAddress: transfer.ContractAddress,
+		FromAddress:     transfer.FromAddress,
+		ToAddress:       transfer.ToAddress,
+		Amount:          transfer.Amount,
+		TokenSymbol:     tokenSymbol,
+		TokenName:       tokenName,
+		Decimals:        decimals,
+		Method:          transfer.GetMethod(),
+	}
+}
+
+// ToTokenTransferDTOs converts a slice of TokenTransfer models to proto TokenTransferDTOs.
+func ToTokenTransferDTOs(transfers []TokenTransfer) []*pb.TokenTransferDTO {
+	if len(transfers) == 0 {
+		return nil
+	}
+	dtos := make([]*pb.TokenTransferDTO, 0, len(transfers))
+	for i := range transfers {
+		dtos = append(dtos, ToTokenTransferDTO(&transfers[i]))
 	}
 	return dtos
 }

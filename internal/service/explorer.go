@@ -21,9 +21,9 @@ import (
 
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/bytedance/sonic"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -1309,6 +1309,37 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	return MarshalAndReply(accountDTO, "marshal account error")
 }
 
+// isTransferMessageType checks if a message type represents a transfer transaction.
+// Transfer message types include: MsgSend, MsgTransfer, MsgDeposit, MsgWithdraw, etc.
+func isTransferMessageType(msgType string) bool {
+	transferTypes := map[string]bool{
+		"/cosmos.bank.v1beta1.MsgSend":                      true,
+		"/ibc.applications.transfer.v1.MsgTransfer":         true,
+		"/injective.peggy.v1.MsgSendToEth":                  true,
+		"/injective.exchange.v1beta1.MsgDeposit":            true,
+		"/injective.exchange.v1beta1.MsgWithdraw":           true,
+		"/injective.exchange.v1beta1.MsgSubaccountTransfer": true,
+		"/injective.exchange.v1beta1.MsgExternalTransfer":   true,
+		"MsgSend":     true,
+		"MsgTransfer": true,
+		"MsgDeposit":  true,
+		"MsgWithdraw": true,
+	}
+	return transferTypes[msgType]
+}
+
+// containsMsgEthereumTx checks if message types contain MsgEthereumTx.
+func containsMsgEthereumTx(messageTypes []string) bool {
+	for _, msgType := range messageTypes {
+		if strings.Contains(msgType, "MsgEthereumTx") ||
+			strings.Contains(msgType, "ethermint.evm.v1") ||
+			strings.Contains(msgType, "injective.evm.v1") {
+			return true
+		}
+	}
+	return false
+}
+
 // normalizeMessageType converts a short message type name to its full type URL.
 // If the input is already a full type URL (starts with "/"), it returns as is.
 // Otherwise, it looks up the full type URL from a predefined mapping.
@@ -1490,6 +1521,16 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		conditions := make([]string, 0, len(req.TxTypes))
 		args := make([]interface{}, 0, len(req.TxTypes)*2)
 
+		// Check if any requested type is a transfer type
+		hasTransferFilter := false
+		for _, msgType := range req.TxTypes {
+			normalizedType := normalizeMessageType(msgType)
+			if isTransferMessageType(normalizedType) || isTransferMessageType(msgType) {
+				hasTransferFilter = true
+				break
+			}
+		}
+
 		for _, msgType := range req.TxTypes {
 			// Normalize message type: convert short name to full type URL
 			normalizedType := normalizeMessageType(msgType)
@@ -1503,6 +1544,26 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 			} else {
 				conditions = append(conditions, "message_types LIKE ?")
 				args = append(args, fmt.Sprintf(`%%"%s"%%`, normalizedType))
+			}
+		}
+
+		// If requesting transfer types, also include EVM transfers
+		if hasTransferFilter {
+			if dbType == "mysql" {
+				// EVM native coin transfer: to field not empty, values not empty
+				evmNativeTransferCondition := "((tx_type = 'MsgEthereumTx' OR JSON_SEARCH(message_types, 'one', '%MsgEthereumTx%') IS NOT NULL) AND `to` != '' AND `to` IS NOT NULL AND JSON_LENGTH(values) > 0)"
+				conditions = append(conditions, evmNativeTransferCondition)
+
+				// EVM ERC20 token transfer: has_token_transfer flag is true
+				evmTokenTransferCondition := "(tx_type = 'MsgEthereumTx' AND has_token_transfer = TRUE)"
+				conditions = append(conditions, evmTokenTransferCondition)
+			} else if dbType == "postgres" {
+				// PostgreSQL version
+				evmNativeTransferCondition := "((tx_type = 'MsgEthereumTx' OR message_types::text LIKE '%MsgEthereumTx%') AND \"to\" != '' AND \"to\" IS NOT NULL AND jsonb_array_length(values::jsonb) > 0)"
+				conditions = append(conditions, evmNativeTransferCondition)
+
+				evmTokenTransferCondition := "(tx_type = 'MsgEthereumTx' AND has_token_transfer = TRUE)"
+				conditions = append(conditions, evmTokenTransferCondition)
 			}
 		}
 
@@ -1545,8 +1606,11 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 			cacheAccountTransactions(dbCtx, cacheKey, dbTxs)
 		}
 
+		// Batch query token transfers for EVM transactions
+		tokenTransfersMap := s.batchGetTokenTransfers(dbCtx, dbTxs)
+
 		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.BlockUnixTimestamp })
-		txDTOs := models.ToTransactionDTOs(dbTxs)
+		txDTOs := models.ToTransactionDTOsWithTokenTransfers(dbTxs, tokenTransfersMap)
 		txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
 		return MarshalAndReply(txsResp, "marshal transactions error")
 	}
@@ -1558,6 +1622,48 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 
 	global.Logger.Debugf("no account transactions found in database: address=%s", address)
 	return ErrorReply(http.StatusNotFound, "no transactions found", nil), nil
+}
+
+// batchGetTokenTransfers batch queries token transfers for EVM transactions.
+// Returns a map of transaction hash to token transfers list.
+func (s *ExplorerService) batchGetTokenTransfers(ctx context.Context, txs []models.Transaction) map[string][]models.TokenTransfer {
+	if len(txs) == 0 {
+		return make(map[string][]models.TokenTransfer)
+	}
+
+	// Collect EVM transaction hashes
+	txHashes := make([]string, 0, len(txs))
+	for _, tx := range txs {
+		// Only query for EVM transactions
+		if tx.TxType == "MsgEthereumTx" || containsMsgEthereumTx(tx.MessageTypes) {
+			txHashes = append(txHashes, tx.Hash)
+		}
+	}
+
+	if len(txHashes) == 0 {
+		return make(map[string][]models.TokenTransfer)
+	}
+
+	// Batch query token transfers
+	var transfers []models.TokenTransfer
+	err := db.Get().WithContext(ctx).
+		Where("transaction_hash IN ?", txHashes).
+		Order("transaction_hash, log_index ASC").
+		Find(&transfers).Error
+
+	if err != nil {
+		global.Logger.Warnf("failed to batch query token transfers: %v", err)
+		return make(map[string][]models.TokenTransfer)
+	}
+
+	// Group by transaction hash
+	result := make(map[string][]models.TokenTransfer)
+	for i := range transfers {
+		hash := transfers[i].TransactionHash
+		result[hash] = append(result[hash], transfers[i])
+	}
+
+	return result
 }
 
 // GetAccountBalances retrieves account balances for a given address.

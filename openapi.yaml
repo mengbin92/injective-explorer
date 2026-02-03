@@ -442,7 +442,9 @@ paths:
         get:
             tags:
                 - AdminService
-            description: GetAccountStats gets API account statistics (total accounts, active accounts, token count, etc.)
+            description: |-
+                GetAccountStats gets API account statistics (total accounts, active
+                 accounts, token count, etc.)
             operationId: AdminService_GetAccountStats
             responses:
                 "200":
@@ -3666,6 +3668,27 @@ components:
                 action:
                     type: string
             description: ToggleTokenStatusRequest enables or disables a token
+        api.explorer.v1.TokenTransferDTO:
+            type: object
+            properties:
+                contract_address:
+                    type: string
+                from_address:
+                    type: string
+                to_address:
+                    type: string
+                amount:
+                    type: string
+                token_symbol:
+                    type: string
+                token_name:
+                    type: string
+                decimals:
+                    type: integer
+                    format: int32
+                method:
+                    type: string
+            description: TokenTransferDTO represents an ERC20/ERC721 token transfer
         api.explorer.v1.TransactionDTO:
             type: object
             properties:
@@ -3727,6 +3750,10 @@ components:
                     description: tx, or recipient in other tx types)
                 evm_transaction:
                     $ref: '#/components/schemas/api.explorer.v1.EVMTransactionDTO'
+                token_transfers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.explorer.v1.TokenTransferDTO'
         api.explorer.v1.TransactionSignature:
             type: object
             properties:
