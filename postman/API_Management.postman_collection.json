@@ -489,7 +489,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/tokens/list?page=1&page_size=20",
+              "raw": "{{base_url}}/api/v1/tokens/list?pagination.page=1&pagination.page_size=20",
               "host": [
                 "{{base_url}}"
               ],
@@ -501,12 +501,12 @@
               ],
               "query": [
                 {
-                  "key": "page",
+                  "key": "pagination.page",
                   "value": "1",
                   "description": "Page number"
                 },
                 {
-                  "key": "page_size",
+                  "key": "pagination.page_size",
                   "value": "20",
                   "description": "Items per page"
                 }
@@ -3883,7 +3883,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/address/label/list?chain_id={{chain_id}}&label_type=exchange&page=1&page_size=20",
+              "raw": "{{base_url}}/api/v1/address/label/list?chain_id={{chain_id}}&label_type=exchange&pagination.page=1&pagination.page_size=20",
               "host": [
                 "{{base_url}}"
               ],
@@ -3918,12 +3918,12 @@
                   "disabled": true
                 },
                 {
-                  "key": "page",
+                  "key": "pagination.page",
                   "value": "1",
                   "description": "Page number (default: 1)"
                 },
                 {
-                  "key": "page_size",
+                  "key": "pagination.page_size",
                   "value": "20",
                   "description": "Page size (default: 20, max: 100)"
                 },
@@ -4203,7 +4203,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/tag/definitions?tag_type=contract&page=1&page_size=20",
+              "raw": "{{base_url}}/api/v1/tag/definitions?tag_type=contract&pagination.page=1&pagination.page_size=20",
               "host": [
                 "{{base_url}}"
               ],
@@ -4232,12 +4232,12 @@
                   "disabled": true
                 },
                 {
-                  "key": "page",
+                  "key": "pagination.page",
                   "value": "1",
                   "description": "页码 (默认1)"
                 },
                 {
-                  "key": "page_size",
+                  "key": "pagination.page_size",
                   "value": "20",
                   "description": "每页数量 (默认20)"
                 }
@@ -4935,7 +4935,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/admin/accounts?page=1&page_size=20&search=&status=&usage_filter=",
+              "raw": "{{base_url}}/api/v1/admin/accounts?pagination.page=1&pagination.page_size=20&search=&status=&usage_filter=",
               "host": [
                 "{{base_url}}"
               ],
@@ -4947,12 +4947,12 @@
               ],
               "query": [
                 {
-                  "key": "page",
+                  "key": "pagination.page",
                   "value": "1",
                   "description": "Page number, starts from 1"
                 },
                 {
-                  "key": "page_size",
+                  "key": "pagination.page_size",
                   "value": "20",
                   "description": "Page size, default 20, max 100"
                 },
