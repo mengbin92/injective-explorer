@@ -163,6 +163,7 @@ func ToBlockDTO(block *Block, isDetail bool) *pb.BlockDTO {
 	} else {
 		return &pb.BlockDTO{
 			Height:             block.Height,
+			Moniker:            block.Moniker,
 			Proposer:           block.Proposer,
 			BlockHash:          block.BlockHash,
 			NumTxs:             block.NumTxs,
