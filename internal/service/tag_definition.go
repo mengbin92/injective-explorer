@@ -189,7 +189,11 @@ func (s *TagDefinitionService) UpdateTagDefinition(ctx context.Context, req *pb.
 	err := db.Get().WithContext(queryCtx).First(&definition, req.Id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "tag definition not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "tag definition not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to find tag definition: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to find tag definition", err), err
@@ -273,7 +277,11 @@ func (s *TagDefinitionService) DeleteTagDefinition(ctx context.Context, req *pb.
 	err := db.Get().WithContext(queryCtx).First(&definition, req.Id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "tag definition not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "tag definition not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to find tag definition: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to find tag definition", err), err

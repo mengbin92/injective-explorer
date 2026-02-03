@@ -230,7 +230,11 @@ func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req 
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "contract info not found", errors.New("contract info not found")), errors.New("contract info not found")
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "contract info not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get contract info: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to get contract info", err), err
@@ -468,7 +472,11 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "contract info not found", errors.New("contract info not found")), errors.New("contract info not found")
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "contract info not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get contract info: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to get contract info", err), err
@@ -625,7 +633,11 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 			First(&tagDef).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrorReply(http.StatusNotFound, "tag definition not found", err), err
+				return &pb.Reply{
+					Code:    int32(http.StatusOK),
+					Message: "tag definition not found",
+					Data:    nil,
+				}, nil
 			}
 			global.Logger.Errorf("failed to query tag definition: %v", err)
 			return ErrorReply(http.StatusInternalServerError, "failed to query tag definition", err), err
@@ -988,7 +1000,11 @@ func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.U
 		First(&contractInfo).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "contract not found", errors.New("contract not found")), errors.New("contract not found")
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "contract not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to check contract existence: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to check contract existence", err), err

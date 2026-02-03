@@ -78,7 +78,11 @@ func (s *OnChainPriceService) GetOnChainPrice(ctx context.Context, req *v1.GetOn
 	priceInfo, err := s.provider.GetPriceByDenom(ctx, denom)
 	if err != nil {
 		s.logger.Warnw("failed to get on-chain price", "symbol", req.Symbol, "denom", denom, "error", err)
-		return ErrorReply(http.StatusNotFound, "failed to get price", err), nil
+		return &v1.Reply{
+			Code:    int32(http.StatusOK),
+			Message: "failed to get price",
+			Data:    nil,
+		}, nil
 	}
 
 	// Convert to DTO
@@ -182,7 +186,11 @@ func (s *OnChainPriceService) GetAggregatedPrice(ctx context.Context, req *v1.Ge
 	aggPrice, err := s.aggregator.GetAggregatedPrice(ctx, req.Symbol)
 	if err != nil {
 		s.logger.Warnw("failed to get aggregated price", "symbol", req.Symbol, "error", err)
-		return ErrorReply(http.StatusNotFound, "failed to get aggregated price", err), nil
+		return &v1.Reply{
+			Code:    int32(http.StatusOK),
+			Message: "failed to get aggregated price",
+			Data:    nil,
+		}, nil
 	}
 
 	// Convert to DTO

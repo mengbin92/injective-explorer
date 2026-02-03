@@ -220,7 +220,7 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 	}
 	// Database error (not just record not found), log and continue to query from chain
 	global.Logger.Warnf("database query error (not record not found), querying from chain: error=%v", err)
-	return ErrorReply(http.StatusNotFound, "database query error", err), err
+	return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 }
 
 // loadArchivedBlockTxs loads archived block transaction data if the block is archived.
@@ -1287,13 +1287,21 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	// Check if account or account.Account is nil
 	if account == nil || account.Account == nil {
 		global.Logger.Errorf("account or account.Account is nil for address: %s", chainQueryAddress)
-		return ErrorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account is nil")), errors.New("account is nil")
+		return &pb.Reply{
+			Code:    int32(http.StatusOK),
+			Message: fmt.Sprintf("account %s not found", address),
+			Data:    nil,
+		}, nil
 	}
 
 	// Check if account value is empty
 	if len(account.Account.Value) == 0 {
 		global.Logger.Errorf("account value is empty for address: %s", chainQueryAddress)
-		return ErrorReply(http.StatusNotFound, fmt.Sprintf("account %s not found", address), errors.New("account value is empty")), errors.New("account value is empty")
+		return &pb.Reply{
+			Code:    int32(http.StatusOK),
+			Message: fmt.Sprintf("account %s not found", address),
+			Data:    nil,
+		}, nil
 	}
 
 	ethAccount := &types.EthAccount{}
@@ -1624,7 +1632,11 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	}
 
 	global.Logger.Debugf("no account transactions found in database: address=%s", address)
-	return ErrorReply(http.StatusNotFound, "no transactions found", nil), nil
+	return &pb.Reply{
+		Code:    int32(http.StatusOK),
+		Message: "no transactions found",
+		Data:    nil,
+	}, nil
 }
 
 // batchGetTokenTransfers batch queries token transfers for EVM transactions.
@@ -5209,7 +5221,11 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 		First(&evmTx).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction %s not found", evmHash), err), status.Errorf(codes.NotFound, "EVM transaction %s not found", evmHash)
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: fmt.Sprintf("EVM transaction %s not found", evmHash),
+				Data:    nil,
+			}, nil
 		}
 		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 	}
@@ -5221,7 +5237,11 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 		First(&dbTx).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, fmt.Sprintf("Cosmos transaction %s not found for EVM transaction %s", evmTx.TransactionHash, evmHash), err), status.Errorf(codes.NotFound, "Cosmos transaction not found")
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: fmt.Sprintf("Cosmos transaction %s not found for EVM transaction %s", evmTx.TransactionHash, evmHash),
+				Data:    nil,
+			}, nil
 		}
 		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
 	}
@@ -5245,7 +5265,11 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 
 		evmDetails, err = evmClient.GetTransactionDetails(evmCtx, ethcommon.HexToHash(evmTx.EVMHash))
 		if err != nil {
-			return ErrorReply(http.StatusNotFound, fmt.Sprintf("EVM transaction details not found for %s", evmTx.EVMHash), err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: fmt.Sprintf("EVM transaction details not found for %s", evmTx.EVMHash),
+				Data:    nil,
+			}, nil
 		}
 
 		// Cache the fetched details asynchronously
@@ -6164,7 +6188,11 @@ func (s *ExplorerService) GetValidatorBlockStats(ctx context.Context, req *pb.Ge
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "validator not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "validator not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to query validator: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query validator", err), err

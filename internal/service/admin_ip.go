@@ -176,7 +176,11 @@ func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailReque
 	}
 
 	if len(records) == 0 {
-		return ErrorReply(http.StatusNotFound, "IP address not found", nil), nil
+		return &pb.Reply{
+			Code:    int32(http.StatusOK),
+			Message: "IP address not found",
+			Data:    nil,
+		}, nil
 	}
 
 	// Get IP location (from first record)
@@ -368,7 +372,11 @@ func (s *AdminService) RemoveIPFromBlacklist(ctx context.Context, req *pb.Remove
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "IP not found in blacklist", nil), nil
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "IP not found in blacklist",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get IP blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query IP blacklist", err), err

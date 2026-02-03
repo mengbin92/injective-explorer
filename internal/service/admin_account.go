@@ -498,7 +498,11 @@ func (s *AdminService) ToggleTokenStatus(ctx context.Context, req *pb.ToggleToke
 		First(&token).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return ErrorReply(http.StatusNotFound, "token not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "token not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to query token %d: %v", req.TokenId, err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query token", err), err

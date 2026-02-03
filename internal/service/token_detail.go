@@ -77,7 +77,11 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 		First(&contract).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "contract not found", err), nil
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "contract not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to query contract: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query contract", err), err
@@ -326,7 +330,11 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 		First(&contract).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "contract not found", err), nil
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "contract not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to query contract: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query contract", err), err
@@ -442,7 +450,11 @@ func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.G
 		First(&contract).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "contract not found", err), nil
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "contract not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to query contract: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query contract", err), err

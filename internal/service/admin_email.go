@@ -163,7 +163,11 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "email domain not found", nil), nil
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "email domain not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get email blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
@@ -223,7 +227,11 @@ func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmai
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "email domain not found", nil), nil
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "email domain not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get email blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
@@ -365,7 +373,11 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "email domain not found", nil), nil
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "email domain not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get email blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err

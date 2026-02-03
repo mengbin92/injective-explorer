@@ -172,7 +172,11 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "address label not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "address label not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to find address label: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to find address label", err), err

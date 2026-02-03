@@ -28,7 +28,11 @@ func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb
 	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "plan not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "plan not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
@@ -216,7 +220,11 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "plan not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "plan not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
@@ -359,7 +367,11 @@ func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest
 	err := db.Get().WithContext(queryCtx).Where("id = ?", req.PlanId).First(&targetPlan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "target plan not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "target plan not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get target plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query target plan", err), err
@@ -382,8 +394,11 @@ func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest
 	}
 
 	if len(tokens) == 0 {
-		err := errors.New("no tokens found for user")
-		return ErrorReply(http.StatusNotFound, "no active tokens found for user", err), err
+		return &pb.Reply{
+			Code:    int32(http.StatusOK),
+			Message: "no active tokens found for user",
+			Data:    nil,
+		}, nil
 	}
 
 	// Update all tokens to new plan type
@@ -432,7 +447,11 @@ func (s *AdminService) PublishPlan(ctx context.Context, req *pb.PublishPlanReque
 	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "plan not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "plan not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
@@ -481,7 +500,11 @@ func (s *AdminService) UnpublishPlan(ctx context.Context, req *pb.UnpublishPlanR
 	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrorReply(http.StatusNotFound, "plan not found", err), err
+			return &pb.Reply{
+				Code:    int32(http.StatusOK),
+				Message: "plan not found",
+				Data:    nil,
+			}, nil
 		}
 		global.Logger.Errorf("failed to get plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query plan", err), err
