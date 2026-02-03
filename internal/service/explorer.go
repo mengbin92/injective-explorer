@@ -156,7 +156,9 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 					isExactCount = false
 				} else {
 					// Cache the total count for future queries
-					cacheTotal(queryCtx, CacheKeyTotalBlocks, total)
+					if err := cacheTotal(queryCtx, CacheKeyTotalBlocks, total); err != nil {
+						global.Logger.Warnf("failed to cache total blocks count: %v", err)
+					}
 				}
 			}
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedBlocks, func(b models.Block) uint64 { return b.Height })
@@ -184,7 +186,9 @@ func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.Paginatio
 		isExactCount = false
 	} else {
 		// Cache the total count for future queries
-		cacheTotal(queryCtx, CacheKeyTotalBlocks, total)
+		if err := cacheTotal(queryCtx, CacheKeyTotalBlocks, total); err != nil {
+			global.Logger.Warnf("failed to cache total blocks count: %v", err)
+		}
 	}
 
 	// Build query based on pagination type
@@ -879,7 +883,9 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 					isExactCount = false
 				} else {
 					// Cache the total count for future queries
-					cacheTotal(queryCtx, CacheKeyTotalTransactions, total)
+					if err := cacheTotal(queryCtx, CacheKeyTotalTransactions, total); err != nil {
+						global.Logger.Warnf("failed to cache total transactions count: %v", err)
+					}
 				}
 			}
 			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
@@ -907,7 +913,9 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 		isExactCount = false
 	} else {
 		// Cache the total count for future queries
-		cacheTotal(queryCtx, CacheKeyTotalTransactions, total)
+		if err := cacheTotal(queryCtx, CacheKeyTotalTransactions, total); err != nil {
+			global.Logger.Warnf("failed to cache total transactions count: %v", err)
+		}
 	}
 
 	// Build query based on pagination type
@@ -947,7 +955,9 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 	}
 
 	// Cache the total count for future queries
-	cacheTotal(queryCtx, CacheKeyTotalTransactions, total)
+	if err := cacheTotal(queryCtx, CacheKeyTotalTransactions, total); err != nil {
+		global.Logger.Warnf("failed to cache total transactions count: %v", err)
+	}
 
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 	txDTOs := models.ToTransactionDTOs(dbTxs)
@@ -3244,17 +3254,18 @@ func getTotalFromCache(ctx context.Context, key string) (int64, bool) {
 //   - ctx: Context for the cache operation
 //   - key: The cache key for the total count
 //   - total: The total count to cache
-func cacheTotal(ctx context.Context, key string, total int64) {
+func cacheTotal(ctx context.Context, key string, total int64) error {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
-		return
+		return nil
 	}
 
 	// Store total as string with TTL
 	err := redisClient.Set(ctx, key, fmt.Sprintf("%d", total), CacheTotalTTL).Err()
 	if err != nil {
-		global.Logger.Warnf("failed to cache total (key=%s): %v", key, err)
+		return fmt.Errorf("failed to cache total (key=%s): %w", key, err)
 	}
+	return nil
 }
 
 // transactionStatsData holds intermediate statistics data during parallel queries

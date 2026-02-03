@@ -238,7 +238,8 @@ func TestCacheTotal(t *testing.T) {
 	testTotal := int64(12345)
 
 	// Cache the total
-	cacheTotal(ctx, testKey, testTotal)
+	err := cacheTotal(ctx, testKey, testTotal)
+	assert.NoError(t, err)
 
 	// Retrieve it
 	total, isExact := getTotalFromCache(ctx, testKey)

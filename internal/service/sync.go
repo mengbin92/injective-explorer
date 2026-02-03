@@ -3193,6 +3193,7 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 		Member: string(txJSON),
 	})
 	// Maintain only the latest CacheMaxSize entries (remove old ones with lowest scores)
+	// Use -int64(CacheMaxSize)-1 to keep elements from rank -CacheMaxSize to -1 (newest CacheMaxSize entries)
 	pipe.ZRemRangeByRank(ctx, CacheKeyTransactionZSet, 0, -int64(CacheMaxSize)-1)
 	// Set expiration for the sorted set
 	pipe.Expire(ctx, CacheKeyTransactionZSet, CacheTransactionTTL)
