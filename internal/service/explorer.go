@@ -1551,7 +1551,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		if hasTransferFilter {
 			if dbType == "mysql" {
 				// EVM native coin transfer: to field not empty, values not empty
-				evmNativeTransferCondition := "((tx_type = 'MsgEthereumTx' OR JSON_SEARCH(message_types, 'one', '%MsgEthereumTx%') IS NOT NULL) AND `to` != '' AND `to` IS NOT NULL AND JSON_LENGTH(values) > 0)"
+				evmNativeTransferCondition := "((tx_type = 'MsgEthereumTx' OR JSON_SEARCH(message_types, 'one', '%MsgEthereumTx%') IS NOT NULL) AND `to` != '' AND `to` IS NOT NULL AND JSON_LENGTH(`values`) > 0)"
 				conditions = append(conditions, evmNativeTransferCondition)
 
 				// EVM ERC20 token transfer: has_token_transfer flag is true
