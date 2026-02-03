@@ -132,7 +132,8 @@ const (
 // Redis cache key constants
 const (
 	CacheKeyBlockList             = "cache:block:list"              // Block list cache key
-	CacheKeyTransactionList       = "cache:transaction:list"        // Transaction list cache key
+	CacheKeyTransactionList       = "cache:transaction:list"        // Transaction list cache key (deprecated, use ZSet)
+	CacheKeyTransactionZSet       = "cache:transaction:zset"        // Transaction sorted set cache key (for deduplication)
 	CacheKeyBlockPrefix           = "cache:block:"                  // Block cache key prefix
 	CacheKeyTransactionPrefix     = "cache:transaction:"            // Transaction cache key prefix
 	CacheKeyTotalBlocks           = "cache:total:blocks"            // Total blocks cache key

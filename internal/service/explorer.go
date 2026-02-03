@@ -946,6 +946,9 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 		global.Logger.Debugf("no transactions found in database")
 	}
 
+	// Cache the total count for future queries
+	cacheTotal(queryCtx, CacheKeyTotalTransactions, total)
+
 	nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
 	txDTOs := models.ToTransactionDTOs(dbTxs)
 	txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
@@ -2990,11 +2993,10 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 	if redisClient == nil {
 		return nil, errors.New("redis client is nil")
 	}
-	// Redis list: LPUSH adds new items to the head (left, index 0)
-	// So the newest transactions are at the beginning of the list (indices 0, 1, 2...)
-	// Use LRANGE with positive indices: 0 to limit-1 gets the first 'limit' elements
-	// This ensures we get the latest (highest txNumber) transactions first
-	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, 0, int64(limit-1)).Result()
+	// Use Sorted Set ZREVRANGE: returns elements in reverse order of score (highest first)
+	// With tx_number as score, this gives us newest transactions first (highest tx_number)
+	// Indices 0 to limit-1 gets the 'limit' most recent transactions
+	data, err := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -3022,11 +3024,8 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
-	// Sort transactions by tx_number descending to ensure correct order (newest first)
-	// Redis list order is based on insertion time, not transaction number
-	sort.Slice(txs, func(i, j int) bool {
-		return txs[i].TxNumber > txs[j].TxNumber
-	})
+	// No need to sort - ZREVRANGE already returns in correct order (highest tx_number first)
+	// Sorted Set guarantees order by score (tx_number)
 
 	return txs, nil
 }
@@ -3040,13 +3039,13 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 		return nil, false, errors.New("redis client is nil")
 	}
 
-	// Redis list: newest at head (left, index 0), oldest at tail (right)
-	// LPUSH adds new items to the head (index 0)
+	// Use Sorted Set ZREVRANGE: returns elements in reverse order of score (highest first)
+	// With tx_number as score, this gives us newest transactions first
 	// To get page at offset with newest first, we need items from offset to offset+limit-1
 	startIdx := int64(offset)
 	endIdx := int64(offset + limit - 1)
 
-	data, err := redisClient.LRange(ctx, CacheKeyTransactionList, startIdx, endIdx).Result()
+	data, err := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, startIdx, endIdx).Result()
 	if err != nil {
 		return nil, false, err
 	}
@@ -3070,16 +3069,13 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 		return []models.Transaction{}, false, nil
 	}
 
-	// Sort by tx_number descending to ensure correct order (newest first)
-	// This handles any out-of-order issues from the cache
-	sort.Slice(txs, func(i, j int) bool {
-		return txs[i].TxNumber > txs[j].TxNumber
-	})
+	// No need to sort - ZREVRANGE already returns in correct order (highest tx_number first)
+	// Sorted Set guarantees order by score (tx_number)
 
 	// Check if there might be more data in cache (for cursor calculation)
 	// Try to get one more item to determine hasMore
 	nextStartIdx := int64(offset + limit)
-	nextData, _ := redisClient.LRange(ctx, CacheKeyTransactionList, nextStartIdx, nextStartIdx).Result()
+	nextData, _ := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, nextStartIdx, nextStartIdx).Result()
 	hasMore := len(nextData) > 0
 
 	return txs, hasMore, nil

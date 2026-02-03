@@ -3167,7 +3167,10 @@ func cacheBlock(ctx context.Context, block *models.Block) {
 	}
 }
 
-// cacheTransaction caches a transaction to Redis, maintaining the latest 1000 transactions.
+// cacheTransaction caches a transaction to Redis using Sorted Set for automatic deduplication.
+// Uses tx_number as score to maintain chronological order. Duplicate transactions (same hash)
+// are automatically overwritten with the latest data.
+// Maintains the latest 1000 transactions by removing old entries.
 func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
@@ -3181,10 +3184,18 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 		return
 	}
 
-	// Add to list and maintain size
+	// Use Sorted Set with tx_number as score for automatic deduplication and ordering
+	// Member is the JSON string itself (automatically deduplicated by content)
+	// Score is tx_number for chronological ordering
 	pipe := redisClient.Pipeline()
-	pipe.LPush(ctx, CacheKeyTransactionList, txJSON)
-	pipe.LTrim(ctx, CacheKeyTransactionList, 0, CacheMaxSize-1)
+	pipe.ZAdd(ctx, CacheKeyTransactionZSet, redis.Z{
+		Score:  float64(tx.BlockUnixTimestamp),
+		Member: string(txJSON),
+	})
+	// Maintain only the latest CacheMaxSize entries (remove old ones with lowest scores)
+	pipe.ZRemRangeByRank(ctx, CacheKeyTransactionZSet, 0, -int64(CacheMaxSize)-1)
+	// Set expiration for the sorted set
+	pipe.Expire(ctx, CacheKeyTransactionZSet, CacheTransactionTTL)
 	// Also cache by hash for direct lookup with TTL to prevent memory leak
 	pipe.Set(ctx, CacheKeyTransactionPrefix+tx.Hash, txJSON, CacheTransactionTTL)
 	_, err = pipe.Exec(ctx)
