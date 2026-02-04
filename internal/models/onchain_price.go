@@ -5,14 +5,14 @@ import (
 	"time"
 )
 
-// OnChainPrice 链上价格记录
+// OnChainPrice represents an on-chain price record.
 type OnChainPrice struct {
 	ID          uint64    `gorm:"primaryKey"`
 	Symbol      string    `gorm:"index:idx_symbol_time"`
 	Denom       string    `gorm:"index"`
 	MarketID    string    `gorm:"index"`
 	PriceUSD    float64   `gorm:"type:decimal(32,18)"`
-	PriceRaw    string    `gorm:"type:varchar(100)"` // 原始价格（18位小数）
+	PriceRaw    string    `gorm:"type:varchar(100)"` // Raw price (18 decimals)
 	BestBuy     string    `gorm:"type:varchar(100)"`
 	BestSell    string    `gorm:"type:varchar(100)"`
 	Source      string    // "spot_market" / "derivative_market"
@@ -22,12 +22,12 @@ type OnChainPrice struct {
 	CreatedAt   time.Time
 }
 
-// TableName 返回表名
+// TableName returns the table name.
 func (OnChainPrice) TableName() string {
 	return "onchain_prices"
 }
 
-// TokenMarketMapping 代币与市场映射
+// TokenMarketMapping represents token to market mapping.
 type TokenMarketMapping struct {
 	ID           uint64 `gorm:"primaryKey"`
 	Symbol       string `gorm:"index"`
@@ -38,27 +38,27 @@ type TokenMarketMapping struct {
 	LastUpdated  time.Time
 }
 
-// TableName 返回表名
+// TableName returns the table name.
 func (TokenMarketMapping) TableName() string {
 	return "token_market_mappings"
 }
 
-// PriceInfo 价格信息（内存中使用）
+// PriceInfo represents price information (used in memory).
 type PriceInfo struct {
 	Symbol      string
 	Denom       string
 	PriceUSD    float64
-	PriceRaw    string  // 原始价格字符串（18位小数）
-	BestBuy     string  // 最优买价
-	BestSell    string  // 最优卖价
+	PriceRaw    string  // Raw price string (18 decimals)
+	BestBuy     string  // Best buy price
+	BestSell    string  // Best sell price
 	Source      string  // "spot_market" / "derivative_market"
 	MarketID    string
 	Timestamp   int64
 	BlockHeight int64
-	Confidence  float64 // 置信度 0-1
+	Confidence  float64 // Confidence level 0-1
 }
 
-// CacheData 缓存数据结构
+// PriceCacheData represents cache data structure.
 type PriceCacheData struct {
 	Price       float64 `json:"price"`
 	PriceRaw    string  `json:"price_raw"`
@@ -71,14 +71,14 @@ type PriceCacheData struct {
 	Confidence  float64 `json:"confidence"`
 }
 
-// QuoteTokenConfig 报价代币配置
+// QuoteTokenConfig represents quote token configuration.
 type QuoteTokenConfig struct {
 	USDTAddress    string
 	USDCAddress    string
 	QuotePriority []string
 }
 
-// DefaultQuoteTokens 默认报价代币配置
+// DefaultQuoteTokens is the default quote token configuration.
 var DefaultQuoteTokens = QuoteTokenConfig{
 	USDTAddress: "peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5",
 	USDCAddress: "peggy0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",

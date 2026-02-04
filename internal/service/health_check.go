@@ -13,19 +13,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-// HealthStatus 健康状态
+// HealthStatus represents the health status.
 type HealthStatus string
 
 const (
-	// HealthStatusHealthy 健康
+	// HealthStatusHealthy indicates healthy status.
 	HealthStatusHealthy HealthStatus = "healthy"
-	// HealthStatusDegraded 降级
+	// HealthStatusDegraded indicates degraded status.
 	HealthStatusDegraded HealthStatus = "degraded"
-	// HealthStatusUnhealthy 不健康
+	// HealthStatusUnhealthy indicates unhealthy status.
 	HealthStatusUnhealthy HealthStatus = "unhealthy"
 )
 
-// ComponentHealth 组件健康状态
+// ComponentHealth represents the health status of a component.
 type ComponentHealth struct {
 	Name      string            `json:"name"`
 	Status    HealthStatus      `json:"status"`
@@ -35,7 +35,7 @@ type ComponentHealth struct {
 	LastCheck time.Time         `json:"last_check"`
 }
 
-// HealthReport 健康报告
+// HealthReport represents a health report.
 type HealthReport struct {
 	Status      HealthStatus       `json:"status"`
 	Timestamp   time.Time          `json:"timestamp"`
@@ -44,18 +44,18 @@ type HealthReport struct {
 	OverallLatency time.Duration   `json:"overall_latency"`
 }
 
-// HealthChecker 健康检查器
+// HealthChecker performs health checks.
 type HealthChecker struct {
 	provider   *OnChainPriceProvider
 	logger     *log.Helper
 
-	// 检查结果缓存
+	// Cache for check results.
 	lastReport   *HealthReport
 	reportMutex  sync.RWMutex
 	cacheExpiry  time.Duration
 }
 
-// NewHealthChecker 创建健康检查器
+// NewHealthChecker creates a new health checker.
 func NewHealthChecker(provider *OnChainPriceProvider, logger *log.Helper) *HealthChecker {
 	return &HealthChecker{
 		provider:    provider,
@@ -64,11 +64,11 @@ func NewHealthChecker(provider *OnChainPriceProvider, logger *log.Helper) *Healt
 	}
 }
 
-// CheckHealth 执行健康检查
+// CheckHealth performs a health check.
 func (h *HealthChecker) CheckHealth(ctx context.Context) *HealthReport {
 	start := time.Now()
 
-	// 检查缓存是否过期
+	// Check if cache has expired.
 	h.reportMutex.RLock()
 	cached := h.lastReport
 	h.reportMutex.RUnlock()
@@ -83,27 +83,27 @@ func (h *HealthChecker) CheckHealth(ctx context.Context) *HealthReport {
 		Components: make([]*ComponentHealth, 0),
 	}
 
-	// 1. 检查链客户端
+	// 1. Check chain client.
 	chainHealth := h.checkChainClient(ctx)
 	report.Components = append(report.Components, chainHealth)
 
-	// 2. 检查数据库
+	// 2. Check database.
 	dbHealth := h.checkDatabase(ctx)
 	report.Components = append(report.Components, dbHealth)
 
-	// 3. 检查Redis
+	// 3. Check Redis.
 	redisHealth := h.checkRedis(ctx)
 	report.Components = append(report.Components, redisHealth)
 
-	// 4. 检查价格获取能力
+	// 4. Check price fetching capability.
 	priceHealth := h.checkPriceFetching(ctx)
 	report.Components = append(report.Components, priceHealth)
 
-	// 计算整体状态
+	// Calculate overall status.
 	report.Status = h.calculateOverallStatus(report.Components)
 	report.OverallLatency = time.Since(start)
 
-	// 缓存结果
+	// Cache result.
 	h.reportMutex.Lock()
 	h.lastReport = report
 	h.reportMutex.Unlock()
@@ -111,12 +111,12 @@ func (h *HealthChecker) CheckHealth(ctx context.Context) *HealthReport {
 	return report
 }
 
-// checkChainClient 检查链客户端
+// checkChainClient checks the chain client.
 func (h *HealthChecker) checkChainClient(ctx context.Context) *ComponentHealth {
 	start := time.Now()
 	health := &ComponentHealth{
 		Name:    "chain_client",
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 
 	if h.provider == nil {
@@ -126,11 +126,11 @@ func (h *HealthChecker) checkChainClient(ctx context.Context) *ComponentHealth {
 		return health
 	}
 
-	// 尝试获取链上市场列表
+	// Try to query on-chain market list.
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	// 这里我们通过尝试获取一个已知市场来检查连接
+	// Check connection by querying a known market.
 	marketID, err := h.provider.FindMarketByDenom(queryCtx, "inj", nil)
 	health.Latency = time.Since(start)
 	health.LastCheck = time.Now()
@@ -146,12 +146,12 @@ func (h *HealthChecker) checkChainClient(ctx context.Context) *ComponentHealth {
 	return health
 }
 
-// checkDatabase 检查数据库
+// checkDatabase checks the database.
 func (h *HealthChecker) checkDatabase(ctx context.Context) *ComponentHealth {
 	start := time.Now()
 	health := &ComponentHealth{
 		Name:    "database",
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 
 	dbInstance := db.Get()
@@ -162,7 +162,7 @@ func (h *HealthChecker) checkDatabase(ctx context.Context) *ComponentHealth {
 		return health
 	}
 
-	// 执行简单查询
+	// Execute simple query.
 	sqlDB, err := dbInstance.DB()
 	if err != nil {
 		health.Status = HealthStatusUnhealthy
@@ -174,13 +174,13 @@ func (h *HealthChecker) checkDatabase(ctx context.Context) *ComponentHealth {
 	health.Latency = time.Since(start)
 	health.LastCheck = time.Now()
 
-	// 检查连接池状态
+	// Check connection pool status.
 	stats := sqlDB.Stats()
 	health.Details["open_connections"] = stats.OpenConnections
 	health.Details["in_use"] = stats.InUse
 	health.Details["idle"] = stats.Idle
 
-	// 判断健康状态
+	// Determine health status.
 	if stats.OpenConnections > int(stats.MaxOpenConnections)*90/100 {
 		health.Status = HealthStatusDegraded
 		health.Error = "connection pool near capacity"
@@ -191,12 +191,12 @@ func (h *HealthChecker) checkDatabase(ctx context.Context) *ComponentHealth {
 	return health
 }
 
-// checkRedis 检查Redis
+// checkRedis checks Redis.
 func (h *HealthChecker) checkRedis(ctx context.Context) *ComponentHealth {
 	start := time.Now()
 	health := &ComponentHealth{
 		Name:    "redis",
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 
 	redisClient := cache.GetRedisClient()
@@ -207,7 +207,7 @@ func (h *HealthChecker) checkRedis(ctx context.Context) *ComponentHealth {
 		return health
 	}
 
-	// 执行PING
+	// Execute PING.
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -224,12 +224,12 @@ func (h *HealthChecker) checkRedis(ctx context.Context) *ComponentHealth {
 	return health
 }
 
-// checkPriceFetching 检查价格获取能力
+// checkPriceFetching checks price fetching capability.
 func (h *HealthChecker) checkPriceFetching(ctx context.Context) *ComponentHealth {
 	start := time.Now()
 	health := &ComponentHealth{
 		Name:    "price_fetching",
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 
 	if h.provider == nil {
@@ -239,7 +239,7 @@ func (h *HealthChecker) checkPriceFetching(ctx context.Context) *ComponentHealth
 		return health
 	}
 
-	// 尝试获取INJ价格
+	// Try to get INJ price.
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -259,7 +259,7 @@ func (h *HealthChecker) checkPriceFetching(ctx context.Context) *ComponentHealth
 	return health
 }
 
-// calculateOverallStatus 计算整体健康状态
+// calculateOverallStatus calculates the overall health status.
 func (h *HealthChecker) calculateOverallStatus(components []*ComponentHealth) HealthStatus {
 	hasUnhealthy := false
 	hasDegraded := false
@@ -282,7 +282,7 @@ func (h *HealthChecker) calculateOverallStatus(components []*ComponentHealth) He
 	return HealthStatusHealthy
 }
 
-// IsHealthy 是否健康
+// IsHealthy checks if the system is healthy.
 func (h *HealthChecker) IsHealthy() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -291,7 +291,7 @@ func (h *HealthChecker) IsHealthy() bool {
 	return report.Status == HealthStatusHealthy
 }
 
-// GetComponentHealth 获取特定组件健康状态
+// GetComponentHealth gets the health status of a specific component.
 func (h *HealthChecker) GetComponentHealth(componentName string) *ComponentHealth {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -305,13 +305,13 @@ func (h *HealthChecker) GetComponentHealth(componentName string) *ComponentHealt
 	return nil
 }
 
-// SelfCheck 自检（简化版，用于快速检查）
+// SelfCheck performs a self-check (simplified version for quick checks).
 func (h *HealthChecker) SelfCheck() bool {
 	if h.provider == nil {
 		return false
 	}
 
-	// 简单检查：链客户端是否可用
+	// Simple check: verify chain client is available.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -319,7 +319,7 @@ func (h *HealthChecker) SelfCheck() bool {
 	return err == nil
 }
 
-// HealthCheckHandler HTTP健康检查处理器
+// HealthCheckHandler is the HTTP health check handler.
 func (h *HealthChecker) HealthCheckHandler(ctx context.Context) (map[string]interface{}, error) {
 	report := h.CheckHealth(ctx)
 
@@ -332,11 +332,11 @@ func (h *HealthChecker) HealthCheckHandler(ctx context.Context) (map[string]inte
 	}, nil
 }
 
-// ReadinessCheck 就绪检查
+// ReadinessCheck performs a readiness check.
 func (h *HealthChecker) ReadinessCheck(ctx context.Context) bool {
 	report := h.CheckHealth(ctx)
 
-	// 只要链客户端和价格获取健康，就认为已就绪
+	// Ready if chain client and price fetching are healthy.
 	for _, c := range report.Components {
 		if c.Name == "chain_client" || c.Name == "price_fetching" {
 			if c.Status != HealthStatusHealthy {
@@ -347,8 +347,8 @@ func (h *HealthChecker) ReadinessCheck(ctx context.Context) bool {
 	return true
 }
 
-// LivenessCheck 存活检查
+// LivenessCheck performs a liveness check.
 func (h *HealthChecker) LivenessCheck() bool {
-	// 简单检查进程是否存活
+	// Simple check if the process is alive.
 	return h != nil
 }

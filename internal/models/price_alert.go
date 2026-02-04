@@ -7,72 +7,72 @@ import (
 	"gorm.io/gorm"
 )
 
-// PriceAlertType 价格预警类型
+// PriceAlertType represents the type of price alert.
 type PriceAlertType string
 
 const (
-	// PriceAlertTypeAbove 价格上涨超过阈值
+	// PriceAlertTypeAbove indicates price rising above threshold.
 	PriceAlertTypeAbove PriceAlertType = "above"
-	// PriceAlertTypeBelow 价格下跌低于阈值
+	// PriceAlertTypeBelow indicates price falling below threshold.
 	PriceAlertTypeBelow PriceAlertType = "below"
-	// PriceAlertTypeChangeUp 价格涨幅超过百分比
+	// PriceAlertTypeChangeUp indicates price increase exceeding percentage threshold.
 	PriceAlertTypeChangeUp PriceAlertType = "change_up"
-	// PriceAlertTypeChangeDown 价格跌幅超过百分比
+	// PriceAlertTypeChangeDown indicates price decrease exceeding percentage threshold.
 	PriceAlertTypeChangeDown PriceAlertType = "change_down"
 )
 
-// PriceAlertStatus 预警状态
+// PriceAlertStatus represents the status of a price alert.
 type PriceAlertStatus string
 
 const (
-	// PriceAlertStatusActive 活跃状态
+	// PriceAlertStatusActive indicates the alert is active.
 	PriceAlertStatusActive PriceAlertStatus = "active"
-	// PriceAlertStatusTriggered 已触发
+	// PriceAlertStatusTriggered indicates the alert has been triggered.
 	PriceAlertStatusTriggered PriceAlertStatus = "triggered"
-	// PriceAlertStatusDisabled 已禁用
+	// PriceAlertStatusDisabled indicates the alert is disabled.
 	PriceAlertStatusDisabled PriceAlertStatus = "disabled"
 )
 
-// PriceAlert 价格预警配置
+// PriceAlert represents a price alert configuration.
 type PriceAlert struct {
 	gorm.Model
 
-	// 基本信息
+	// Basic information
 	Symbol   string           `gorm:"index:idx_symbol_status" json:"symbol"`
 	Denom    string           `gorm:"index" json:"denom"`
 	AlertType PriceAlertType  `gorm:"index" json:"alert_type"`
 	Status   PriceAlertStatus `gorm:"index:idx_symbol_status" json:"status"`
 
-	// 阈值配置
-	ThresholdPrice   float64 `gorm:"type:decimal(30,18)" json:"threshold_price"`   // 价格阈值
-	ThresholdPercent float64 `gorm:"type:decimal(10,4)" json:"threshold_percent"`   // 百分比阈值
-	ReferencePrice   float64 `gorm:"type:decimal(30,18)" json:"reference_price"`   // 参考价格（用于计算涨跌幅）
+	// Threshold configuration
+	ThresholdPrice   float64 `gorm:"type:decimal(30,18)" json:"threshold_price"`   // Price threshold
+	ThresholdPercent float64 `gorm:"type:decimal(10,4)" json:"threshold_percent"`   // Percentage threshold
+	ReferencePrice   float64 `gorm:"type:decimal(30,18)" json:"reference_price"`   // Reference price for calculating change
 
-	// 通知配置
+	// Notification configuration
 	NotificationChannels []string `gorm:"serializer:json" json:"notification_channels"` // webhook, email, slack
 	WebhookURL          string   `gorm:"size:512" json:"webhook_url"`
 	Email              string   `gorm:"size:256" json:"email"`
 
-	// 触发限制
-	CooldownMinutes int `json:"cooldown_minutes"` // 冷却时间（分钟）
-	MaxTriggers     int `json:"max_triggers"`     // 最大触发次数
+	// Trigger limits
+	CooldownMinutes int `json:"cooldown_minutes"` // Cooldown period in minutes
+	MaxTriggers     int `json:"max_triggers"`     // Maximum number of triggers
 
-	// 触发统计
+	// Trigger statistics
 	TriggerCount  int       `json:"trigger_count"`
 	LastTriggered time.Time `json:"last_triggered"`
 	LastPrice     float64   `gorm:"type:decimal(30,18)" json:"last_price"`
 
-	// 元数据
+	// Metadata
 	Description string `gorm:"size:500" json:"description"`
 	CreatedBy   string `gorm:"size:128" json:"created_by"`
 }
 
-// TableName 返回表名
+// TableName returns the table name.
 func (PriceAlert) TableName() string {
 	return "price_alerts"
 }
 
-// IsCooldownActive 检查是否处于冷却期
+// IsCooldownActive checks if the alert is in cooldown period.
 func (a *PriceAlert) IsCooldownActive() bool {
 	if a.LastTriggered.IsZero() || a.CooldownMinutes <= 0 {
 		return false
@@ -80,7 +80,7 @@ func (a *PriceAlert) IsCooldownActive() bool {
 	return time.Since(a.LastTriggered) < time.Duration(a.CooldownMinutes)*time.Minute
 }
 
-// CanTrigger 检查是否可以触发
+// CanTrigger checks if the alert can be triggered.
 func (a *PriceAlert) CanTrigger() bool {
 	if a.Status != PriceAlertStatusActive {
 		return false
@@ -94,7 +94,7 @@ func (a *PriceAlert) CanTrigger() bool {
 	return true
 }
 
-// ShouldTrigger 检查是否应该触发预警
+// ShouldTrigger checks if the alert should be triggered based on current price.
 func (a *PriceAlert) ShouldTrigger(currentPrice float64) bool {
 	if !a.CanTrigger() {
 		return false
@@ -122,14 +122,14 @@ func (a *PriceAlert) ShouldTrigger(currentPrice float64) bool {
 	return false
 }
 
-// RecordTrigger 记录触发
+// RecordTrigger records a trigger event.
 func (a *PriceAlert) RecordTrigger(price float64) {
 	a.TriggerCount++
 	a.LastTriggered = time.Now()
 	a.LastPrice = price
 }
 
-// PriceAlertHistory 预警触发历史
+// PriceAlertHistory represents the trigger history of price alerts.
 type PriceAlertHistory struct {
 	gorm.Model
 
@@ -145,47 +145,47 @@ type PriceAlertHistory struct {
 	NotificationError string `gorm:"size:500" json:"notification_error"`
 }
 
-// TableName 返回表名
+// TableName returns the table name.
 func (PriceAlertHistory) TableName() string {
 	return "price_alert_history"
 }
 
-// AggregatedPriceData 聚合价格数据（K线）
+// AggregatedPriceData represents aggregated price data (candlestick/K-line).
 type AggregatedPriceData struct {
 	gorm.Model
 
 	Symbol   string `gorm:"index:idx_symbol_interval_time" json:"symbol"`
 	Interval string `gorm:"index:idx_symbol_interval_time" json:"interval"` // 1m, 5m, 15m, 1h, 4h, 1d
 
-	// 时间戳（对齐到区间边界）
+	// Timestamp aligned to interval boundary
 	Timestamp int64 `gorm:"index:idx_symbol_interval_time" json:"timestamp"`
 
-	// OHLCV 数据
+	// OHLCV data
 	Open   float64 `gorm:"type:decimal(30,18)" json:"open"`
 	High   float64 `gorm:"type:decimal(30,18)" json:"high"`
 	Low    float64 `gorm:"type:decimal(30,18)" json:"low"`
 	Close  float64 `gorm:"type:decimal(30,18)" json:"close"`
 	Volume float64 `gorm:"type:decimal(40,8)" json:"volume"`
 
-	// 额外统计
+	// Additional statistics
 	TradeCount int     `json:"trade_count"`
 	AvgPrice   float64 `gorm:"type:decimal(30,18)" json:"avg_price"`
 
-	// 数据源
+	// Data source
 	DataSource string `json:"data_source"` // onchain, aggregated
 }
 
-// TableName 返回表名
+// TableName returns the table name.
 func (AggregatedPriceData) TableName() string {
 	return "aggregated_price_data"
 }
 
-// IsComplete 检查该时间段数据是否完整
+// IsComplete checks if the data for this time period is complete.
 func (d *AggregatedPriceData) IsComplete() bool {
 	return d.High >= d.Low && d.High > 0 && d.Low > 0
 }
 
-// GetPriceChange 获取价格变化
+// GetPriceChange returns the price change percentage.
 func (d *AggregatedPriceData) GetPriceChange() float64 {
 	if d.Open == 0 {
 		return 0
@@ -193,7 +193,7 @@ func (d *AggregatedPriceData) GetPriceChange() float64 {
 	return (d.Close - d.Open) / d.Open * 100
 }
 
-// PriceAlertQuery 预警查询参数
+// PriceAlertQuery represents query parameters for price alerts.
 type PriceAlertQuery struct {
 	Symbol   string
 	Status   PriceAlertStatus
@@ -202,7 +202,7 @@ type PriceAlertQuery struct {
 	PageSize int
 }
 
-// AggregatedPriceQuery 聚合价格查询参数
+// AggregatedPriceQuery represents query parameters for aggregated price data.
 type AggregatedPriceQuery struct {
 	Symbol    string
 	Interval  string

@@ -17,20 +17,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// PriceAlertService 价格预警服务
+// PriceAlertService provides price alert functionality.
 type PriceAlertService struct {
 	db     *gorm.DB
 	logger *log.Helper
 
-	// 活跃预警缓存
+	// Cache for active alerts.
 	activeAlerts   map[string][]*models.PriceAlert
 	alertsMutex    sync.RWMutex
 
-	// 通知客户端
+	// HTTP client for notifications.
 	httpClient *http.Client
 }
 
-// NewPriceAlertService 创建价格预警服务
+// NewPriceAlertService creates a new price alert service.
 func NewPriceAlertService(logger *log.Helper) *PriceAlertService {
 	return &PriceAlertService{
 		db:           db.Get(),
@@ -42,27 +42,27 @@ func NewPriceAlertService(logger *log.Helper) *PriceAlertService {
 	}
 }
 
-// CreateAlert 创建价格预警
+// CreateAlert creates a new price alert.
 func (s *PriceAlertService) CreateAlert(ctx context.Context, alert *models.PriceAlert) error {
-	// 验证参数
+	// Validate parameters.
 	if err := s.validateAlert(alert); err != nil {
 		return err
 	}
 
-	// 设置默认值
+	// Set default values.
 	if alert.Status == "" {
 		alert.Status = models.PriceAlertStatusActive
 	}
 	if alert.CooldownMinutes == 0 {
-		alert.CooldownMinutes = 60 // 默认1小时冷却
+		alert.CooldownMinutes = 60 // Default cooldown is 1 hour.
 	}
 
-	// 保存到数据库
+	// Save to database.
 	if err := s.db.WithContext(ctx).Create(alert).Error; err != nil {
 		return errors.Wrap(err, "failed to create alert")
 	}
 
-	// 添加到活跃缓存
+	// Add to active cache.
 	s.addAlertToCache(alert)
 
 	s.logger.Infow("price alert created",
@@ -74,19 +74,19 @@ func (s *PriceAlertService) CreateAlert(ctx context.Context, alert *models.Price
 	return nil
 }
 
-// UpdateAlert 更新价格预警
+// UpdateAlert updates a price alert.
 func (s *PriceAlertService) UpdateAlert(ctx context.Context, alert *models.PriceAlert) error {
 	if err := s.db.WithContext(ctx).Save(alert).Error; err != nil {
 		return errors.Wrap(err, "failed to update alert")
 	}
 
-	// 更新缓存
+	// Update cache.
 	s.updateAlertInCache(alert)
 
 	return nil
 }
 
-// DeleteAlert 删除价格预警
+// DeleteAlert deletes a price alert.
 func (s *PriceAlertService) DeleteAlert(ctx context.Context, alertID uint) error {
 	var alert models.PriceAlert
 	if err := s.db.WithContext(ctx).First(&alert, alertID).Error; err != nil {
@@ -97,13 +97,13 @@ func (s *PriceAlertService) DeleteAlert(ctx context.Context, alertID uint) error
 		return errors.Wrap(err, "failed to delete alert")
 	}
 
-	// 从缓存移除
+	// Remove from cache.
 	s.removeAlertFromCache(&alert)
 
 	return nil
 }
 
-// GetAlert 获取单个预警详情
+// GetAlert gets a single alert by ID.
 func (s *PriceAlertService) GetAlert(ctx context.Context, alertID uint) (*models.PriceAlert, error) {
 	var alert models.PriceAlert
 	if err := s.db.WithContext(ctx).First(&alert, alertID).Error; err != nil {
@@ -115,7 +115,7 @@ func (s *PriceAlertService) GetAlert(ctx context.Context, alertID uint) (*models
 	return &alert, nil
 }
 
-// ListAlerts 查询预警列表
+// ListAlerts queries the list of price alerts.
 func (s *PriceAlertService) ListAlerts(ctx context.Context, query *models.PriceAlertQuery) ([]*models.PriceAlert, int64, error) {
 	dbQuery := s.db.WithContext(ctx).Model(&models.PriceAlert{})
 
@@ -152,7 +152,7 @@ func (s *PriceAlertService) ListAlerts(ctx context.Context, query *models.PriceA
 	return alerts, total, nil
 }
 
-// CheckPriceAndTrigger 检查价格并触发预警
+// CheckPriceAndTrigger checks price and triggers alerts.
 func (s *PriceAlertService) CheckPriceAndTrigger(ctx context.Context, symbol string, currentPrice float64) error {
 	alerts := s.getAlertsForSymbol(symbol)
 
@@ -161,7 +161,7 @@ func (s *PriceAlertService) CheckPriceAndTrigger(ctx context.Context, symbol str
 			continue
 		}
 
-		// 触发预警
+		// Trigger the alert.
 		if err := s.triggerAlert(ctx, alert, currentPrice); err != nil {
 			s.logger.Warnw("failed to trigger alert",
 				"alert_id", alert.ID,
@@ -173,17 +173,17 @@ func (s *PriceAlertService) CheckPriceAndTrigger(ctx context.Context, symbol str
 	return nil
 }
 
-// triggerAlert 触发单个预警
+// triggerAlert triggers a single alert.
 func (s *PriceAlertService) triggerAlert(ctx context.Context, alert *models.PriceAlert, currentPrice float64) error {
-	// 记录触发
+	// Record trigger.
 	alert.RecordTrigger(currentPrice)
 
-	// 更新数据库
+	// Update database.
 	if err := s.db.WithContext(ctx).Save(alert).Error; err != nil {
 		return errors.Wrap(err, "failed to update alert trigger count")
 	}
 
-	// 创建历史记录
+	// Create history record.
 	history := &models.PriceAlertHistory{
 		AlertID:        alert.ID,
 		Symbol:         alert.Symbol,
@@ -196,7 +196,7 @@ func (s *PriceAlertService) triggerAlert(ctx context.Context, alert *models.Pric
 		history.ChangePercent = (currentPrice - alert.ReferencePrice) / alert.ReferencePrice * 100
 	}
 
-	// 发送通知
+	// Send notification.
 	if err := s.sendNotification(ctx, alert, currentPrice); err != nil {
 		history.NotificationError = err.Error()
 		s.logger.Warnw("notification failed",
@@ -207,7 +207,7 @@ func (s *PriceAlertService) triggerAlert(ctx context.Context, alert *models.Pric
 		history.NotificationSent = true
 	}
 
-	// 保存历史记录
+	// Save history record.
 	if err := s.db.WithContext(ctx).Create(history).Error; err != nil {
 		s.logger.Warnw("failed to save alert history", "error", err)
 	}
@@ -222,21 +222,21 @@ func (s *PriceAlertService) triggerAlert(ctx context.Context, alert *models.Pric
 	return nil
 }
 
-// sendNotification 发送通知
+// sendNotification sends notifications.
 func (s *PriceAlertService) sendNotification(ctx context.Context, alert *models.PriceAlert, currentPrice float64) error {
-	// 发送 Webhook 通知
+	// Send webhook notification.
 	if alert.WebhookURL != "" {
 		if err := s.sendWebhookNotification(ctx, alert, currentPrice); err != nil {
 			return err
 		}
 	}
 
-	// 可以扩展其他通知渠道（邮件、Slack等）
+	// Can be extended with other notification channels (email, Slack, etc.).
 
 	return nil
 }
 
-// sendWebhookNotification 发送 Webhook 通知
+// sendWebhookNotification sends a webhook notification.
 func (s *PriceAlertService) sendWebhookNotification(ctx context.Context, alert *models.PriceAlert, currentPrice float64) error {
 	payload := map[string]interface{}{
 		"alert_id":        alert.ID,
@@ -275,7 +275,7 @@ func (s *PriceAlertService) sendWebhookNotification(ctx context.Context, alert *
 	return nil
 }
 
-// LoadActiveAlerts 从数据库加载活跃预警到缓存
+// LoadActiveAlerts loads active alerts from database into cache.
 func (s *PriceAlertService) LoadActiveAlerts(ctx context.Context) error {
 	var alerts []*models.PriceAlert
 	if err := s.db.WithContext(ctx).
@@ -296,7 +296,7 @@ func (s *PriceAlertService) LoadActiveAlerts(ctx context.Context) error {
 	return nil
 }
 
-// getAlertsForSymbol 获取某个币种的预警
+// getAlertsForSymbol gets alerts for a specific symbol.
 func (s *PriceAlertService) getAlertsForSymbol(symbol string) []*models.PriceAlert {
 	s.alertsMutex.RLock()
 	defer s.alertsMutex.RUnlock()
@@ -304,7 +304,7 @@ func (s *PriceAlertService) getAlertsForSymbol(symbol string) []*models.PriceAle
 	return s.activeAlerts[symbol]
 }
 
-// addAlertToCache 添加预警到缓存
+// addAlertToCache adds an alert to the cache.
 func (s *PriceAlertService) addAlertToCache(alert *models.PriceAlert) {
 	if alert.Status != models.PriceAlertStatusActive {
 		return
@@ -316,7 +316,7 @@ func (s *PriceAlertService) addAlertToCache(alert *models.PriceAlert) {
 	s.activeAlerts[alert.Symbol] = append(s.activeAlerts[alert.Symbol], alert)
 }
 
-// updateAlertInCache 更新缓存中的预警
+// updateAlertInCache updates an alert in the cache.
 func (s *PriceAlertService) updateAlertInCache(alert *models.PriceAlert) {
 	s.alertsMutex.Lock()
 	defer s.alertsMutex.Unlock()
@@ -327,20 +327,20 @@ func (s *PriceAlertService) updateAlertInCache(alert *models.PriceAlert) {
 			if alert.Status == models.PriceAlertStatusActive {
 				alerts[i] = alert
 			} else {
-				// 移除非活跃预警
+				// Remove non-active alerts.
 				s.activeAlerts[alert.Symbol] = append(alerts[:i], alerts[i+1:]...)
 			}
 			return
 		}
 	}
 
-	// 如果是新的活跃预警，添加到缓存
+	// Add to cache if it's a new active alert.
 	if alert.Status == models.PriceAlertStatusActive {
 		s.activeAlerts[alert.Symbol] = append(s.activeAlerts[alert.Symbol], alert)
 	}
 }
 
-// removeAlertFromCache 从缓存中移除预警
+// removeAlertFromCache removes an alert from the cache.
 func (s *PriceAlertService) removeAlertFromCache(alert *models.PriceAlert) {
 	s.alertsMutex.Lock()
 	defer s.alertsMutex.Unlock()
@@ -354,7 +354,7 @@ func (s *PriceAlertService) removeAlertFromCache(alert *models.PriceAlert) {
 	}
 }
 
-// validateAlert 验证预警参数
+// validateAlert validates alert parameters.
 func (s *PriceAlertService) validateAlert(alert *models.PriceAlert) error {
 	if alert.Symbol == "" {
 		return errors.New("symbol is required")
@@ -383,7 +383,7 @@ func (s *PriceAlertService) validateAlert(alert *models.PriceAlert) error {
 	return nil
 }
 
-// GetAlertHistory 获取预警触发历史
+// GetAlertHistory gets the alert trigger history.
 func (s *PriceAlertService) GetAlertHistory(ctx context.Context, alertID uint, limit int) ([]*models.PriceAlertHistory, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20

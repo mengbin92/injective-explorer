@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 	"github.com/bytedance/sonic"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	"github.com/cometbft/cometbft/crypto/tmhash"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -6465,179 +6467,431 @@ func (s *ExplorerService) RemoveGlobalTag(ctx context.Context, req *pb.RemoveGlo
 	}, nil
 }
 
-// GetIBCTransferTxs queries IBC transfer transactions with filters and pagination.
+// GetIBCTransferTxs retrieves IBC transfer transactions from the chain.
+// This function scans blocks from the chain (not from database) and parses IBC transfer messages.
 func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCTransferTxsRequest) (*pb.Reply, error) {
 	if req == nil {
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
-	// Set default pagination if not provided
-	if req.Pagination == nil {
-		req.Pagination = &pb.PaginationRequest{
-			Page:     1,
-			PageSize: DefaultPageSize,
+	// Normalize pagination
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get IBC transfer txs: page=%d, page_size=%d", page, pageSize)
+
+	// Get chain client
+	chainClient, err := GetSharedChainClient()
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to get chain client", err), err
+	}
+
+	// Create parser
+	parser, err := NewCrossChainTxParser(chainClient)
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to create parser", err), err
+	}
+
+	// Get latest block height
+	tmClient := GetSharedTmClient()
+	latestHeightInt, err := tmClient.GetLatestBlockHeight(ctx)
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to get latest block height", err), err
+	}
+	latestHeight := uint64(latestHeightInt)
+
+	// Scan blocks backwards (from latest to older)
+	// Limit to recent blocks for performance (e.g., last 1000 blocks)
+	scanLimit := uint64(1000)
+	startHeight := latestHeight
+	if startHeight > scanLimit {
+		startHeight = startHeight - scanLimit
+	}
+
+	var allTransfers []*IBCTransferInfo
+	scanCtx, scanCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer scanCancel()
+
+	// Scan blocks and collect IBC transfers
+	for h := latestHeight; h >= startHeight && len(allTransfers) < int(pageSize*int32(page+1)); h-- {
+		height := int64(h)
+		block, err := chainClient.FetchBlockByHeight(scanCtx, height)
+		if err != nil {
+			global.Logger.Debugf("failed to fetch block %d: %v", height, err)
+			continue
+		}
+
+		if block == nil || block.Block == nil || len(block.Block.Data.Txs) == 0 {
+			continue
+		}
+
+		// Get block timestamp from header
+		var timestamp time.Time
+		if !block.Block.Header.Time.IsZero() {
+			timestamp = block.Block.Header.Time
+		} else {
+			timestamp = time.Now()
+		}
+
+		// Process transactions in this block
+		for _, txBytes := range block.Block.Data.Txs {
+			if len(txBytes) == 0 {
+				continue
+			}
+
+			txHash := strings.ToUpper(hex.EncodeToString(tmhash.Sum(txBytes)))
+
+			// Parse transaction
+			ibcTransfers, _, _, err := parser.ParseTxFromChain(scanCtx, txHash, height, timestamp)
+			if err != nil {
+				global.Logger.Debugf("failed to parse tx %s: %v", txHash, err)
+				continue
+			}
+
+			// Apply filters
+			for _, transfer := range ibcTransfers {
+				if req.Sender != "" && transfer.Sender != req.Sender {
+					continue
+				}
+				if req.Receiver != "" && transfer.Receiver != req.Receiver {
+					continue
+				}
+				if req.SrcChannel != "" && transfer.SourceChannel != req.SrcChannel {
+					continue
+				}
+				if req.SrcPort != "" && transfer.SourcePort != req.SrcPort {
+					continue
+				}
+				if req.DestChannel != "" && transfer.DestinationChannel != req.DestChannel {
+					continue
+				}
+				if req.DestPort != "" && transfer.DestinationPort != req.DestPort {
+					continue
+				}
+
+				allTransfers = append(allTransfers, transfer)
+			}
 		}
 	}
 
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
-
-	global.Logger.Debugf("get IBC transfer txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
-	defer queryCancel()
-
-	query := db.Get().WithContext(queryCtx).Model(&models.IBCTransferTx{})
-
-	if req.Sender != "" {
-		query = query.Where("sender = ?", req.Sender)
+	// Apply pagination
+	startIdx := offset
+	endIdx := offset + int(pageSize)
+	if startIdx > len(allTransfers) {
+		startIdx = len(allTransfers)
 	}
-	if req.Receiver != "" {
-		query = query.Where("receiver = ?", req.Receiver)
-	}
-	if req.SrcChannel != "" {
-		query = query.Where("source_channel = ?", req.SrcChannel)
-	}
-	if req.SrcPort != "" {
-		query = query.Where("source_port = ?", req.SrcPort)
-	}
-	if req.DestChannel != "" {
-		query = query.Where("destination_channel = ?", req.DestChannel)
-	}
-	if req.DestPort != "" {
-		query = query.Where("destination_port = ?", req.DestPort)
+	if endIdx > len(allTransfers) {
+		endIdx = len(allTransfers)
 	}
 
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		global.Logger.Errorf("count IBC transfers failed: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	var pageTransfers []*IBCTransferInfo
+	if startIdx < endIdx {
+		pageTransfers = allTransfers[startIdx:endIdx]
 	}
 
-	var txs []*models.IBCTransferTx
-	dbQuery := query.Order("block_timestamp DESC").Limit(int(pageSize))
-	if useCursor {
-		dbQuery = dbQuery.Where("block_timestamp < ?", cursorValue)
-	} else {
-		dbQuery = dbQuery.Offset(offset)
+	// Convert to DTOs
+	dtos := make([]*pb.IBCTransferTxDTO, len(pageTransfers))
+	for i, transfer := range pageTransfers {
+		dtos[i] = &pb.IBCTransferTxDTO{
+			Sender:             transfer.Sender,
+			Receiver:           transfer.Receiver,
+			SourcePort:         transfer.SourcePort,
+			SourceChannel:      transfer.SourceChannel,
+			DestinationPort:    transfer.DestinationPort,
+			DestinationChannel: transfer.DestinationChannel,
+			Amount:             transfer.Amount,
+			Denom:              transfer.Denom,
+			TimeoutHeight:      transfer.TimeoutHeight,
+			TimeoutTimestamp:   transfer.TimeoutTimestamp,
+			PacketSequence:     transfer.PacketSequence,
+			DataHex:            transfer.DataHex,
+			State:              "completed", // Default state
+			TxHashes:           []string{transfer.TxHash},
+			CreatedAt:          transfer.Timestamp.Format(time.RFC3339),
+			UpdatedAt:          transfer.Timestamp.Format(time.RFC3339),
+		}
 	}
 
-	if err := dbQuery.Find(&txs).Error; err != nil {
-		global.Logger.Errorf("query IBC transfers failed: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	total := int64(len(allTransfers))
+	nextCursor := ""
+	if useCursor && len(pageTransfers) > 0 {
+		nextCursor = fmt.Sprintf("%d", pageTransfers[len(pageTransfers)-1].Height)
 	}
 
-	dtos := models.ToIBCTransferTxProtos(txs)
-	nextCursor := calculateNextCursor(useCursor, cursorValue, txs, func(t *models.IBCTransferTx) uint64 { return t.BlockTimestamp })
-	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(txs))
-	return MarshalAndReply(resp, "marshal IBC transfers error")
+	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(dtos))
+	return MarshalAndReply(resp, "marshal IBC transfer txs error")
 }
 
-// GetPeggyDepositTxs queries Peggy deposit transactions with filters and pagination.
+// GetPeggyDepositTxs retrieves Peggy deposit transactions from the chain.
+// This function scans blocks from the chain and parses MsgDepositClaim messages.
 func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeggyDepositTxsRequest) (*pb.Reply, error) {
 	if req == nil {
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
-	// Set default pagination if not provided
-	if req.Pagination == nil {
-		req.Pagination = &pb.PaginationRequest{
-			Page:     1,
-			PageSize: DefaultPageSize,
+	// Normalize pagination
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get Peggy deposit txs: page=%d, page_size=%d", page, pageSize)
+
+	// Get chain client
+	chainClient, err := GetSharedChainClient()
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to get chain client", err), err
+	}
+
+	// Create parser
+	parser, err := NewCrossChainTxParser(chainClient)
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to create parser", err), err
+	}
+
+	// Get latest block height
+	tmClient := GetSharedTmClient()
+	latestHeightInt, err := tmClient.GetLatestBlockHeight(ctx)
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to get latest block height", err), err
+	}
+	latestHeight := uint64(latestHeightInt)
+
+	// Scan blocks backwards
+	scanLimit := uint64(1000)
+	startHeight := latestHeight
+	if startHeight > scanLimit {
+		startHeight = startHeight - scanLimit
+	}
+
+	var allDeposits []*PeggyDepositInfo
+	scanCtx, scanCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer scanCancel()
+
+	// Scan blocks and collect Peggy deposits
+	for h := latestHeight; h >= startHeight && len(allDeposits) < int(pageSize*int32(page+1)); h-- {
+		height := int64(h)
+		block, err := chainClient.FetchBlockByHeight(scanCtx, height)
+		if err != nil {
+			global.Logger.Debugf("failed to fetch block %d: %v", height, err)
+			continue
+		}
+
+		if block == nil || block.Block == nil || len(block.Block.Data.Txs) == 0 {
+			continue
+		}
+
+		// Get block timestamp from header
+		var timestamp time.Time
+		if !block.Block.Header.Time.IsZero() {
+			timestamp = block.Block.Header.Time
+		} else {
+			timestamp = time.Now()
+		}
+
+		// Process transactions in this block
+		for _, txBytes := range block.Block.Data.Txs {
+			if len(txBytes) == 0 {
+				continue
+			}
+
+			txHash := strings.ToUpper(hex.EncodeToString(tmhash.Sum(txBytes)))
+
+			// Parse transaction
+			_, peggyDeposits, _, err := parser.ParseTxFromChain(scanCtx, txHash, height, timestamp)
+			if err != nil {
+				global.Logger.Debugf("failed to parse tx %s: %v", txHash, err)
+				continue
+			}
+
+			// Apply filters
+			for _, deposit := range peggyDeposits {
+				if req.Sender != "" && deposit.EthereumSender != req.Sender {
+					continue
+				}
+				if req.Receiver != "" && deposit.CosmosReceiver != req.Receiver {
+					continue
+				}
+
+				allDeposits = append(allDeposits, deposit)
+			}
 		}
 	}
 
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
-
-	global.Logger.Debugf("get Peggy deposit txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
-	defer queryCancel()
-
-	query := db.Get().WithContext(queryCtx).Model(&models.PeggyDepositTx{})
-
-	if req.Sender != "" {
-		query = query.Where("sender = ?", req.Sender)
+	// Apply pagination
+	startIdx := offset
+	endIdx := offset + int(pageSize)
+	if startIdx > len(allDeposits) {
+		startIdx = len(allDeposits)
 	}
-	if req.Receiver != "" {
-		query = query.Where("receiver = ?", req.Receiver)
+	if endIdx > len(allDeposits) {
+		endIdx = len(allDeposits)
 	}
 
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		global.Logger.Errorf("count Peggy deposits failed: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	var pageDeposits []*PeggyDepositInfo
+	if startIdx < endIdx {
+		pageDeposits = allDeposits[startIdx:endIdx]
 	}
 
-	var txs []*models.PeggyDepositTx
-	dbQuery := query.Order("block_timestamp DESC").Limit(int(pageSize))
-	if useCursor {
-		dbQuery = dbQuery.Where("block_timestamp < ?", cursorValue)
-	} else {
-		dbQuery = dbQuery.Offset(offset)
+	// Convert to DTOs
+	dtos := make([]*pb.PeggyDepositTxDTO, len(pageDeposits))
+	for i, deposit := range pageDeposits {
+		dtos[i] = &pb.PeggyDepositTxDTO{
+			Sender:              deposit.EthereumSender,
+			Receiver:            deposit.CosmosReceiver,
+			EventNonce:          deposit.EventNonce,
+			EventHeight:         deposit.EventHeight,
+			Amount:              deposit.Amount,
+			Denom:               "", // Will be extracted from token contract if needed
+			OrchestratorAddress: deposit.Orchestrator,
+			State:               "completed",
+			ClaimType:           1, // DepositClaim
+			TxHashes:             []string{deposit.TxHash},
+			CreatedAt:            deposit.Timestamp.Format(time.RFC3339),
+			UpdatedAt:            deposit.Timestamp.Format(time.RFC3339),
+			EthTxHash:            "", // Will be filled if available
+		}
 	}
 
-	if err := dbQuery.Find(&txs).Error; err != nil {
-		global.Logger.Errorf("query Peggy deposits failed: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	total := int64(len(allDeposits))
+	nextCursor := ""
+	if useCursor && len(pageDeposits) > 0 {
+		nextCursor = fmt.Sprintf("%d", pageDeposits[len(pageDeposits)-1].Height)
 	}
 
-	dtos := models.ToPeggyDepositTxProtos(txs)
-	nextCursor := calculateNextCursor(useCursor, cursorValue, txs, func(t *models.PeggyDepositTx) uint64 { return t.BlockTimestamp })
-	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(txs))
-	return MarshalAndReply(resp, "marshal Peggy deposits error")
+	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(dtos))
+	return MarshalAndReply(resp, "marshal Peggy deposit txs error")
 }
 
-// GetPeggyWithdrawalTxs queries Peggy withdrawal transactions with filters and pagination.
+// GetPeggyWithdrawalTxs retrieves Peggy withdrawal transactions from the chain.
+// This function scans blocks from the chain and parses MsgWithdrawClaim messages.
 func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.GetPeggyWithdrawalTxsRequest) (*pb.Reply, error) {
 	if req == nil {
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
-	// Set default pagination if not provided
-	if req.Pagination == nil {
-		req.Pagination = &pb.PaginationRequest{
-			Page:     1,
-			PageSize: DefaultPageSize,
+	// Normalize pagination
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+
+	global.Logger.Debugf("get Peggy withdrawal txs: page=%d, page_size=%d", page, pageSize)
+
+	// Get chain client
+	chainClient, err := GetSharedChainClient()
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to get chain client", err), err
+	}
+
+	// Create parser
+	parser, err := NewCrossChainTxParser(chainClient)
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to create parser", err), err
+	}
+
+	// Get latest block height
+	tmClient := GetSharedTmClient()
+	latestHeightInt, err := tmClient.GetLatestBlockHeight(ctx)
+	if err != nil {
+		return ErrorReply(http.StatusInternalServerError, "failed to get latest block height", err), err
+	}
+	latestHeight := uint64(latestHeightInt)
+
+	// Scan blocks backwards
+	scanLimit := uint64(1000)
+	startHeight := latestHeight
+	if startHeight > scanLimit {
+		startHeight = startHeight - scanLimit
+	}
+
+	var allWithdrawals []*PeggyWithdrawalInfo
+	scanCtx, scanCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer scanCancel()
+
+	// Scan blocks and collect Peggy withdrawals
+	for h := latestHeight; h >= startHeight && len(allWithdrawals) < int(pageSize*int32(page+1)); h-- {
+		height := int64(h)
+		block, err := chainClient.FetchBlockByHeight(scanCtx, height)
+		if err != nil {
+			global.Logger.Debugf("failed to fetch block %d: %v", height, err)
+			continue
+		}
+
+		if block == nil || block.Block == nil || len(block.Block.Data.Txs) == 0 {
+			continue
+		}
+
+		// Get block timestamp from header
+		var timestamp time.Time
+		if !block.Block.Header.Time.IsZero() {
+			timestamp = block.Block.Header.Time
+		} else {
+			timestamp = time.Now()
+		}
+
+		// Process transactions in this block
+		for _, txBytes := range block.Block.Data.Txs {
+			if len(txBytes) == 0 {
+				continue
+			}
+
+			txHash := strings.ToUpper(hex.EncodeToString(tmhash.Sum(txBytes)))
+
+			// Parse transaction
+			_, _, peggyWithdrawals, err := parser.ParseTxFromChain(scanCtx, txHash, height, timestamp)
+			if err != nil {
+				global.Logger.Debugf("failed to parse tx %s: %v", txHash, err)
+				continue
+			}
+
+			// Apply filters (Note: WithdrawalClaim doesn't have sender/receiver in the claim itself)
+			// We'll need to extract from related MsgSendToEth if available
+			for _, withdrawal := range peggyWithdrawals {
+				allWithdrawals = append(allWithdrawals, withdrawal)
+			}
 		}
 	}
 
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
-
-	global.Logger.Debugf("get Peggy withdrawal txs: page=%d, page_size=%d, sender=%s, receiver=%s", page, pageSize, req.Sender, req.Receiver)
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
-	defer queryCancel()
-
-	query := db.Get().WithContext(queryCtx).Model(&models.PeggyWithdrawalTx{})
-
-	if req.Sender != "" {
-		query = query.Where("sender = ?", req.Sender)
+	// Apply pagination
+	startIdx := offset
+	endIdx := offset + int(pageSize)
+	if startIdx > len(allWithdrawals) {
+		startIdx = len(allWithdrawals)
 	}
-	if req.Receiver != "" {
-		query = query.Where("receiver = ?", req.Receiver)
+	if endIdx > len(allWithdrawals) {
+		endIdx = len(allWithdrawals)
 	}
 
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		global.Logger.Errorf("count Peggy withdrawals failed: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	var pageWithdrawals []*PeggyWithdrawalInfo
+	if startIdx < endIdx {
+		pageWithdrawals = allWithdrawals[startIdx:endIdx]
 	}
 
-	var txs []*models.PeggyWithdrawalTx
-	dbQuery := query.Order("block_timestamp DESC").Limit(int(pageSize))
-	if useCursor {
-		dbQuery = dbQuery.Where("block_timestamp < ?", cursorValue)
-	} else {
-		dbQuery = dbQuery.Offset(offset)
+	// Convert to DTOs
+	dtos := make([]*pb.PeggyWithdrawalTxDTO, len(pageWithdrawals))
+	for i, withdrawal := range pageWithdrawals {
+		dtos[i] = &pb.PeggyWithdrawalTxDTO{
+			Sender:              "", // Will be filled from related MsgSendToEth if available
+			Receiver:            "", // Will be filled from related MsgSendToEth if available
+			Amount:              "", // Will be filled from batch info if available
+			Denom:               "", // Will be extracted from token contract if needed
+			BridgeFee:           "",
+			OutgoingTxId:        0,
+			BatchTimeout:        0,
+			BatchNonce:          withdrawal.BatchNonce,
+			OrchestratorAddress: withdrawal.Orchestrator,
+			EventNonce:          withdrawal.EventNonce,
+			EventHeight:         withdrawal.EventHeight,
+			State:               "completed",
+			ClaimType:           2, // WithdrawalClaim
+			TxHashes:             []string{withdrawal.TxHash},
+			CreatedAt:            withdrawal.Timestamp.Format(time.RFC3339),
+			UpdatedAt:            withdrawal.Timestamp.Format(time.RFC3339),
+			EthTxHash:            "", // Will be filled if available
+		}
 	}
 
-	if err := dbQuery.Find(&txs).Error; err != nil {
-		global.Logger.Errorf("query Peggy withdrawals failed: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "query failed", err), err
+	total := int64(len(allWithdrawals))
+	nextCursor := ""
+	if useCursor && len(pageWithdrawals) > 0 {
+		nextCursor = fmt.Sprintf("%d", pageWithdrawals[len(pageWithdrawals)-1].Height)
 	}
 
-	dtos := models.ToPeggyWithdrawalTxProtos(txs)
-	nextCursor := calculateNextCursor(useCursor, cursorValue, txs, func(t *models.PeggyWithdrawalTx) uint64 { return t.BlockTimestamp })
-	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(txs))
-	return MarshalAndReply(resp, "marshal Peggy withdrawals error")
+	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(dtos))
+	return MarshalAndReply(resp, "marshal Peggy withdrawal txs error")
 }
+

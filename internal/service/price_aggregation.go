@@ -16,13 +16,13 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// PriceAggregationService 价格聚合服务
+// PriceAggregationService provides price data aggregation (OHLCV) functionality.
 type PriceAggregationService struct {
 	db     *gorm.DB
 	logger *log.Helper
 }
 
-// NewPriceAggregationService 创建价格聚合服务
+// NewPriceAggregationService creates a new price aggregation service.
 func NewPriceAggregationService(logger *log.Helper) *PriceAggregationService {
 	return &PriceAggregationService{
 		db:     db.Get(),
@@ -30,14 +30,14 @@ func NewPriceAggregationService(logger *log.Helper) *PriceAggregationService {
 	}
 }
 
-// AggregatePriceData 聚合价格数据生成K线
+// AggregatePriceData aggregates price data to generate K-line (OHLCV) data.
 func (s *PriceAggregationService) AggregatePriceData(
 	ctx context.Context,
 	symbol string,
 	interval string,
 	startTime, endTime int64,
 ) (*models.AggregatedPriceData, error) {
-	// 获取该时间段内的价格数据
+	// Fetch price data for the time range.
 	var prices []models.OnChainPrice
 	if err := s.db.WithContext(ctx).
 		Where("symbol = ? AND timestamp >= ? AND timestamp < ?", symbol, startTime, endTime).
@@ -50,13 +50,13 @@ func (s *PriceAggregationService) AggregatePriceData(
 		return nil, errors.New("no price data found for aggregation")
 	}
 
-	// 计算OHLCV
+	// Calculate OHLCV.
 	agg := s.calculateOHLCV(prices, interval, startTime)
 
 	return agg, nil
 }
 
-// calculateOHLCV 计算OHLCV数据
+// calculateOHLCV calculates OHLCV data from price records.
 func (s *PriceAggregationService) calculateOHLCV(
 	prices []models.OnChainPrice,
 	interval string,
@@ -81,8 +81,8 @@ func (s *PriceAggregationService) calculateOHLCV(
 			low = p.PriceUSD
 		}
 		totalPrice += p.PriceUSD
-		// 简化处理，使用价格作为交易量指标
-		// 实际应该使用真实的交易数据
+		// Simplified: use price as volume indicator.
+		// Real implementation should use actual trading volume.
 		totalVolume += p.PriceUSD
 	}
 
@@ -103,12 +103,12 @@ func (s *PriceAggregationService) calculateOHLCV(
 	}
 }
 
-// SaveAggregatedData 保存聚合数据
+// SaveAggregatedData saves aggregated data to database.
 func (s *PriceAggregationService) SaveAggregatedData(
 	ctx context.Context,
 	data *models.AggregatedPriceData,
 ) error {
-	// 使用UPSERT避免重复
+	// Use UPSERT to avoid duplicates.
 	result := s.db.WithContext(ctx).Clauses(
 		clause.OnConflict{
 			Columns:   []clause.Column{{Name: "symbol"}, {Name: "interval"}, {Name: "timestamp"}},
@@ -123,7 +123,7 @@ func (s *PriceAggregationService) SaveAggregatedData(
 	return nil
 }
 
-// GetAggregatedData 查询聚合数据（K线）
+// GetAggregatedData queries aggregated data (K-line).
 func (s *PriceAggregationService) GetAggregatedData(
 	ctx context.Context,
 	query *models.AggregatedPriceQuery,
@@ -152,7 +152,7 @@ func (s *PriceAggregationService) GetAggregatedData(
 	return data, nil
 }
 
-// BatchAggregateHistoricalData 批量聚合历史数据
+// BatchAggregateHistoricalData performs batch aggregation for historical data.
 func (s *PriceAggregationService) BatchAggregateHistoricalData(
 	ctx context.Context,
 	symbol string,
@@ -162,7 +162,7 @@ func (s *PriceAggregationService) BatchAggregateHistoricalData(
 	endTime := time.Now().Unix()
 	startTime := endTime - int64(days*24*3600)
 
-	// 获取时间间隔（秒）
+	// Get interval in seconds.
 	intervalSeconds := s.getIntervalSeconds(interval)
 	if intervalSeconds == 0 {
 		return errors.Errorf("invalid interval: %s", interval)
@@ -174,11 +174,11 @@ func (s *PriceAggregationService) BatchAggregateHistoricalData(
 		"days", days,
 	)
 
-	// 按时间段分批聚合
+	// Aggregate by time intervals.
 	for ts := startTime; ts < endTime; ts += intervalSeconds {
 		agg, err := s.AggregatePriceData(ctx, symbol, interval, ts, ts+intervalSeconds)
 		if err != nil {
-			// 没有数据是正常情况，继续下一个时间段
+			// No data is normal, continue to next interval.
 			if err.Error() == "no price data found for aggregation" {
 				continue
 			}
@@ -199,7 +199,7 @@ func (s *PriceAggregationService) BatchAggregateHistoricalData(
 	return nil
 }
 
-// getIntervalSeconds 获取间隔对应的秒数
+// getIntervalSeconds returns the seconds for the given interval.
 func (s *PriceAggregationService) getIntervalSeconds(interval string) int64 {
 	switch interval {
 	case models.Interval1Minute:
@@ -221,7 +221,7 @@ func (s *PriceAggregationService) getIntervalSeconds(interval string) int64 {
 	}
 }
 
-// AlignTimestamp 对齐时间戳到区间边界
+// AlignTimestamp aligns timestamp to interval boundary.
 func (s *PriceAggregationService) AlignTimestamp(timestamp int64, interval string) int64 {
 	intervalSeconds := s.getIntervalSeconds(interval)
 	if intervalSeconds == 0 {
@@ -231,14 +231,14 @@ func (s *PriceAggregationService) AlignTimestamp(timestamp int64, interval strin
 	return (timestamp / intervalSeconds) * intervalSeconds
 }
 
-// CalculateIndicators 计算技术指标
+// CalculateIndicators calculates technical indicators.
 func (s *PriceAggregationService) CalculateIndicators(
 	ctx context.Context,
 	symbol string,
 	interval string,
-	period int, // 计算周期
+	period int, // Calculation period
 ) (*TechnicalIndicators, error) {
-	// 获取最近的数据
+	// Fetch recent data
 	endTime := time.Now().Unix()
 	startTime := endTime - int64(period*24*3600)
 
@@ -247,7 +247,7 @@ func (s *PriceAggregationService) CalculateIndicators(
 		Interval:  interval,
 		StartTime: startTime,
 		EndTime:   endTime,
-		Limit:     period * 2, // 获取更多数据以确保计算准确
+		Limit:     period * 2, // Fetch more data to ensure accurate calculation
 	}
 
 	data, err := s.GetAggregatedData(ctx, query)
@@ -261,22 +261,22 @@ func (s *PriceAggregationService) CalculateIndicators(
 
 	indicators := &TechnicalIndicators{}
 
-	// 计算SMA
+	// Calculate SMA
 	indicators.SMA = s.calculateSMA(data, period)
 
-	// 计算EMA
+	// Calculate EMA
 	indicators.EMA = s.calculateEMA(data, period)
 
-	// 计算RSI
+	// Calculate RSI
 	indicators.RSI = s.calculateRSI(data, period)
 
-	// 计算波动率
+	// Calculate volatility
 	indicators.Volatility = s.calculateVolatility(data, period)
 
 	return indicators, nil
 }
 
-// TechnicalIndicators 技术指标
+// TechnicalIndicators represents technical indicators.
 type TechnicalIndicators struct {
 	SMA        float64 `json:"sma"`
 	EMA        float64 `json:"ema"`
@@ -284,7 +284,7 @@ type TechnicalIndicators struct {
 	Volatility float64 `json:"volatility"`
 }
 
-// calculateSMA 计算简单移动平均线
+// calculateSMA calculates Simple Moving Average.
 func (s *PriceAggregationService) calculateSMA(data []*models.AggregatedPriceData, period int) float64 {
 	if len(data) < period {
 		return 0
@@ -298,7 +298,7 @@ func (s *PriceAggregationService) calculateSMA(data []*models.AggregatedPriceDat
 	return sum / float64(period)
 }
 
-// calculateEMA 计算指数移动平均线
+// calculateEMA calculates Exponential Moving Average.
 func (s *PriceAggregationService) calculateEMA(data []*models.AggregatedPriceData, period int) float64 {
 	if len(data) < period {
 		return 0
@@ -308,7 +308,7 @@ func (s *PriceAggregationService) calculateEMA(data []*models.AggregatedPriceDat
 	// k = 2 / (N + 1)
 	k := 2.0 / float64(period+1)
 
-	// 使用SMA作为初始EMA值
+	// Use SMA as initial EMA value
 	ema := s.calculateSMA(data[:period], period)
 
 	for i := period; i < len(data); i++ {
@@ -318,7 +318,7 @@ func (s *PriceAggregationService) calculateEMA(data []*models.AggregatedPriceDat
 	return ema
 }
 
-// calculateRSI 计算相对强弱指数
+// calculateRSI calculates Relative Strength Index.
 func (s *PriceAggregationService) calculateRSI(data []*models.AggregatedPriceData, period int) float64 {
 	if len(data) < period+1 {
 		return 0
@@ -327,7 +327,7 @@ func (s *PriceAggregationService) calculateRSI(data []*models.AggregatedPriceDat
 	var gains, losses float64
 	count := 0
 
-	// 计算平均涨跌
+	// Calculate average gains and losses
 	for i := len(data) - period; i < len(data); i++ {
 		change := data[i].Close - data[i-1].Close
 		if change > 0 {
@@ -355,13 +355,13 @@ func (s *PriceAggregationService) calculateRSI(data []*models.AggregatedPriceDat
 	return rsi
 }
 
-// calculateVolatility 计算波动率（标准差）
+// calculateVolatility calculates volatility (standard deviation).
 func (s *PriceAggregationService) calculateVolatility(data []*models.AggregatedPriceData, period int) float64 {
 	if len(data) < period {
 		return 0
 	}
 
-	// 计算收益率
+	// Calculate returns
 	returns := make([]float64, 0, len(data)-1)
 	for i := 1; i < len(data); i++ {
 		if data[i-1].Close != 0 {
@@ -374,25 +374,25 @@ func (s *PriceAggregationService) calculateVolatility(data []*models.AggregatedP
 		return 0
 	}
 
-	// 计算平均收益率
+	// Calculate average return
 	var sum float64
 	for _, r := range returns {
 		sum += r
 	}
 	mean := sum / float64(len(returns))
 
-	// 计算方差
+	// Calculate variance
 	var variance float64
 	for _, r := range returns {
 		variance += math.Pow(r-mean, 2)
 	}
 	variance /= float64(len(returns))
 
-	// 返回标准差（日波动率）
+	// Return standard deviation (daily volatility)
 	return math.Sqrt(variance)
 }
 
-// GetSupportedIntervals 获取支持的K线间隔
+// GetSupportedIntervals returns supported K-line intervals.
 func (s *PriceAggregationService) GetSupportedIntervals() []string {
 	return []string{
 		models.Interval1Minute,
@@ -405,7 +405,7 @@ func (s *PriceAggregationService) GetSupportedIntervals() []string {
 	}
 }
 
-// CleanupOldData 清理过期的聚合数据
+// CleanupOldData cleans up expired aggregated data.
 func (s *PriceAggregationService) CleanupOldData(ctx context.Context, retentionDays int) error {
 	cutoffTime := time.Now().AddDate(0, 0, -retentionDays).Unix()
 
@@ -425,13 +425,13 @@ func (s *PriceAggregationService) CleanupOldData(ctx context.Context, retentionD
 	return nil
 }
 
-// FormatKlineResponse 格式化K线数据响应
+// FormatKlineResponse formats K-line data response.
 func (s *PriceAggregationService) FormatKlineResponse(data []*models.AggregatedPriceData) [][]interface{} {
 	result := make([][]interface{}, len(data))
 
 	for i, d := range data {
-		result[i] = []interface{}{
-			d.Timestamp * 1000, // 转换为毫秒时间戳
+		result[i] = []any{
+			d.Timestamp * 1000, // Convert to millisecond timestamp
 			fmt.Sprintf("%.8f", d.Open),
 			fmt.Sprintf("%.8f", d.High),
 			fmt.Sprintf("%.8f", d.Low),
