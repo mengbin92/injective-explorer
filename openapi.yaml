@@ -3405,6 +3405,9 @@ components:
                     type: array
                     items:
                         type: string
+                decimals:
+                    type: integer
+                    format: int32
             description: Request messages
         api.explorer.v1.CreatePlanRequest:
             type: object
@@ -3827,6 +3830,9 @@ components:
                     type: object
                     additionalProperties:
                         type: string
+                decimals:
+                    type: integer
+                    format: int32
         api.explorer.v1.UpdateEmailDomainRequest:
             type: object
             properties:

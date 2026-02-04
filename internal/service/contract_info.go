@@ -119,6 +119,12 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 		return ErrorReply(http.StatusInternalServerError, "failed to check existing contract", err), err
 	}
 
+	// Set decimals (default 18 if not provided or invalid)
+	decimals := 18
+	if req.Decimals >= 0 {
+		decimals = int(req.Decimals)
+	}
+
 	// Create contract info
 	contractInfo := &models.ContractInfo{
 		ContractAddress:    contractAddress,
@@ -129,6 +135,7 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 		ChainID:            chainID,
 		VerificationStatus: verificationStatus,
 		IsVerified:         false,
+		Decimals:           decimals,
 	}
 
 	// Convert metadata from map[string]string to map[string]interface{}
@@ -500,6 +507,9 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 		updates["verification_status"] = req.VerificationStatus
 		// Update is_verified based on verification_status
 		updates["is_verified"] = (req.VerificationStatus == "verified")
+	}
+	if req.Decimals > 0 {
+		updates["decimals"] = req.Decimals
 	}
 	if len(req.Metadata) > 0 {
 		metadata := make(map[string]interface{})

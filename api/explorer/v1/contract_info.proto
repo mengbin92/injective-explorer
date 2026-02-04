@@ -123,6 +123,7 @@ message CreateContractInfoRequest {
       7; // Verification status (optional, default: unverified)
   map<string, string> metadata = 8; // Extended metadata (optional)
   repeated string tags = 9;         // Tag list (optional)
+  int32 decimals = 10;              // Token decimals (optional, default: 18, for ERC20 tokens)
 }
 
 message GetContractInfoByAddressRequest {
@@ -156,6 +157,7 @@ message UpdateContractInfoRequest {
   string contract_type = 6;    // Contract type (optional)
   string verification_status = 7;   // Verification status (optional)
   map<string, string> metadata = 8; // Extended metadata (optional)
+  int32 decimals = 9;               // Token decimals (optional, for ERC20 tokens)
 }
 
 message DeleteContractInfoRequest {
