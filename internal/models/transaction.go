@@ -4,6 +4,7 @@ package models
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -18,6 +19,9 @@ import (
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	cosmostxpb "github.com/cosmos/cosmos-sdk/types/tx"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
+	tmtypes "github.com/cometbft/cometbft/types"
+	"github.com/cometbft/cometbft/crypto/tmhash"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -893,13 +897,15 @@ func getFirstBytes(data []byte, n int) []byte {
 // TransactionFromGetTxResponse converts a chainClient.GetTx response to a Transaction model.
 // Converts GetTxResponse to TxDetailData format, then uses TransactionFromProto.
 // The codec parameter is optional; if provided, it will be used to derive addresses from public keys.
-func TransactionFromGetTxResponse(getTxResp *cosmostxpb.GetTxResponse, storageThreshold int, codec codec.Codec) *Transaction {
+// The blockResp parameter is optional; if provided, it will be used for authoritative tx_number calculation.
+// Implementation: tx_number = tx_index + 1 (per-block, 1-based)
+func TransactionFromGetTxResponse(getTxResp *cosmostxpb.GetTxResponse, storageThreshold int, codec codec.Codec, blockResp *coretypes.ResultBlock) *Transaction {
 	if getTxResp == nil {
 		return nil
 	}
 
 	// Convert GetTxResponse to TxDetailData
-	txDetailData := ConvertGetTxResponseToTxDetailData(getTxResp, codec)
+	txDetailData := ConvertGetTxResponseToTxDetailData(getTxResp, codec, blockResp)
 	if txDetailData == nil {
 		return nil
 	}
@@ -995,10 +1001,113 @@ func extractSignerFromEvents(events []*injective_explorer_rpcpb.Event) string {
 	return ""
 }
 
+// CalculateTxIndexFromBlock calculates the transaction index (tx_index) from block data.
+// This is the authoritative source for transaction execution order within a block.
+//
+// Implementation:
+// - tx_index: 0-based index in block.Block.Data.Txs (authoritative execution order)
+// - tx_number: tx_index + 1 (per-block, 1-based, human-readable)
+//
+// Parameters:
+//   - blockResp: The block response containing transaction data (can be nil)
+//   - txHash: The transaction hash to find (in format "0x..." or hex without prefix)
+//
+// Returns:
+//   - txIndex: The 0-based transaction index, or -1 if not found or block is nil
+//   - txNumber: The 1-based transaction number (txIndex + 1), or 0 if not found
+//   - found: Whether the transaction was found in the block
+func CalculateTxIndexFromBlock(blockResp *coretypes.ResultBlock, txHash string) (txIndex int, txNumber uint64, found bool) {
+	if blockResp == nil {
+		global.Logger.Warnf("CalculateTxIndexFromBlock: blockResp is nil for tx %s", txHash)
+		return -1, 0, false
+	}
+	if blockResp.Block == nil {
+		global.Logger.Warnf("CalculateTxIndexFromBlock: blockResp.Block is nil for tx %s", txHash)
+		return -1, 0, false
+	}
+	if len(blockResp.Block.Data.Txs) == 0 {
+		global.Logger.Warnf("CalculateTxIndexFromBlock: block has no transactions (len=%d) for tx %s", len(blockResp.Block.Data.Txs), txHash)
+		return -1, 0, false
+	}
+
+	global.Logger.Debugf("CalculateTxIndexFromBlock: searching for tx %s in block with %d transactions", txHash, len(blockResp.Block.Data.Txs))
+	return calculateTxIndexFromTxs(blockResp.Block.Data.Txs, txHash)
+}
+
+// CalculateTxIndexFromTmBlock calculates the transaction index from tmtypes.Block.
+// This is a convenience wrapper for blocks returned by ChainClientV2.FetchBlockByHeight().
+// Returns tx_index (0-based) and tx_number (tx_index + 1, per-block, 1-based).
+func CalculateTxIndexFromTmBlock(tmBlock *tmtypes.Block, txHash string) (txIndex int, txNumber uint64, found bool) {
+	if tmBlock == nil || len(tmBlock.Data.Txs) == 0 {
+		global.Logger.Debugf("CalculateTxIndexFromTmBlock: tmBlock is nil or has no transactions")
+		return -1, 0, false
+	}
+
+	return calculateTxIndexFromTxs(tmBlock.Data.Txs, txHash)
+}
+
+// calculateTxIndexFromTxs is the core implementation that works with tmtypes.Txs transaction data.
+// tmtypes.Txs is a slice type that can be iterated, and each element is []byte.
+// Returns tx_index (0-based) and tx_number (tx_index + 1, per-block, 1-based).
+func calculateTxIndexFromTxs(txs tmtypes.Txs, txHash string) (txIndex int, txNumber uint64, found bool) {
+	if len(txs) == 0 {
+		return -1, 0, false
+	}
+
+	// Normalize txHash: remove "0x" prefix if present, convert to lowercase
+	// Handle both "0x" and "0X" prefixes, and ensure lowercase
+	txHashNormalized := strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(txHash, "0x"), "0X"))
+	global.Logger.Debugf("calculateTxIndexFromTxs: searching for tx hash %s (normalized: %s) in block with %d transactions",
+		txHash, txHashNormalized, len(txs))
+
+	// Iterate through block transactions to find the matching hash
+	for i, txBytes := range txs {
+		// Calculate hash of the transaction bytes using tmhash.Sum (same as CometBFT)
+		calculatedHash := hex.EncodeToString(tmhash.Sum(txBytes))
+		calculatedHashLower := strings.ToLower(calculatedHash)
+		
+		// Compare hashes (both should be lowercase hex strings without 0x prefix)
+		if calculatedHashLower == txHashNormalized {
+			// Found! tx_index is the array index (0-based)
+			txIndex = i
+			txNumber = uint64(i + 1) // tx_number = tx_index + 1 (per-block, 1-based)
+			global.Logger.Infof("✓ calculateTxIndexFromTxs: FOUND tx %s at index %d (tx_number=%d) in block",
+				txHash, txIndex, txNumber)
+			return txIndex, txNumber, true
+		}
+		
+		// Debug: log first few hashes for troubleshooting
+		if i < 3 {
+			global.Logger.Debugf("calculateTxIndexFromTxs: tx[%d] hash=%s (looking for %s)", i, calculatedHashLower, txHashNormalized)
+		}
+	}
+
+	// Transaction not found in block - log for debugging
+	global.Logger.Warnf("calculateTxIndexFromTxs: tx %s not found in block (searched %d transactions). "+
+		"First few calculated hashes: %v", txHash, len(txs),
+		func() []string {
+			if len(txs) > 0 {
+				hashes := make([]string, 0, min(3, len(txs)))
+				for i := 0; i < min(3, len(txs)); i++ {
+					hashes = append(hashes, hex.EncodeToString(tmhash.Sum(txs[i])))
+				}
+				return hashes
+			}
+			return nil
+		}())
+	return -1, 0, false
+}
+
+
 // ConvertGetTxResponseToTxDetailData converts *tx.GetTxResponse to *injective_explorer_rpcpb.TxDetailData.
 // Extracts data from GetTxResponse.Tx and GetTxResponse.TxResponse fields.
 // The codec parameter is optional; if provided, it will be used to derive addresses from public keys.
-func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, codec codec.Codec) *injective_explorer_rpcpb.TxDetailData {
+//
+// The blockResp parameter is optional; if provided, it will be used to calculate the authoritative
+// tx_index and tx_number based on the transaction's position in the block.
+// Implementation: tx_number = tx_index + 1 (per-block, 1-based)
+// If blockResp is nil, falls back to the legacy hash-based calculation for backward compatibility.
+func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, codec codec.Codec, blockResp *coretypes.ResultBlock) *injective_explorer_rpcpb.TxDetailData {
 	if getTxResp == nil {
 		return nil
 	}
@@ -1129,12 +1238,70 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, cod
 		}
 	}
 
+	// Calculate tx_number based on block execution order (authoritative method)
+	// Implementation:
+	// - tx_index: 0-based index in block.Block.Data.Txs (authoritative execution order)
+	// - tx_number: tx_index + 1 (per-block, 1-based, human-readable)
+	blockHeight := uint64(txResp.Height)
+	// Normalize txHash: ensure it's lowercase and has 0x prefix
+	txHashRaw := strings.TrimPrefix(txResp.TxHash, "0x")
+	txHashRaw = strings.TrimPrefix(txHashRaw, "0X")
+	txHash := fmt.Sprintf("0x%s", strings.ToLower(txHashRaw))
+	
+	var txNumber uint64
+	
+	// Try to calculate from block data (authoritative method)
+	if blockResp != nil {
+		txCount := 0
+		if blockResp.Block != nil {
+			txCount = len(blockResp.Block.Data.Txs)
+		}
+		global.Logger.Infof("attempting authoritative tx_number calculation for tx %s in block %d (block has %d transactions)",
+			txHash, blockHeight, txCount)
+		txIndex, calculatedTxNumber, found := CalculateTxIndexFromBlock(blockResp, txHash)
+		if found {
+			// Use authoritative tx_number from block execution order
+			// tx_number = tx_index + 1 (per-block, 1-based)
+			txNumber = calculatedTxNumber
+			global.Logger.Infof("✓ SUCCESS: calculated tx_number=%d (tx_index=%d) from block %d for tx %s using NEW METHOD",
+				txNumber, txIndex, blockHeight, txHash)
+		} else {
+			// Transaction not found in block, fall back to legacy calculation
+			global.Logger.Warnf("✗ FAILED: tx %s not found in block %d (block has %d txs), falling back to legacy hash-based calculation. "+
+				"This may indicate a hash mismatch issue.", txHash, blockHeight, txCount)
+			// Fall through to legacy calculation below
+		}
+	} else {
+		global.Logger.Warnf("⚠ blockResp is nil for tx %s in block %d, will use legacy calculation", txHash, blockHeight)
+	}
+	
+	// Legacy fallback: hash-based calculation (for backward compatibility)
+	// This is used when block data is not available or transaction not found in block
+	if txNumber == 0 {
+		// Formula: tx_number = block_height * 1000000 + (hash_based_offset % 1000000)
+		// This ensures:
+		// 1. Transactions in the same block have different tx_number (based on hash)
+		// 2. Transactions in different blocks have different tx_number ranges
+		// 3. tx_number is globally unique and roughly chronological
+		var hashOffset uint64
+		hashHex := txHash[2:] // Remove "0x" prefix
+		// Use a simple hash function: sum of character codes modulo 1000000
+		// This distributes transactions evenly across the 0-999999 range
+		for _, char := range hashHex {
+			hashOffset = (hashOffset*31 + uint64(char)) % 1000000
+		}
+		txNumber = blockHeight*1000000 + hashOffset
+		global.Logger.Warnf("⚠ calculated tx_number=%d using legacy hash-based method for tx %s in block %d (hashOffset=%d). "+
+			"This indicates the authoritative method failed or block data was unavailable.",
+			txNumber, txHash, blockHeight, hashOffset)
+	}
+
 	// Build TxDetailData
 	return &injective_explorer_rpcpb.TxDetailData{
 		Id:                 "",
-		BlockNumber:        uint64(txResp.Height),
+		BlockNumber:        blockHeight,
 		BlockTimestamp:     blockTimestamp,
-		Hash:               fmt.Sprintf("0x%s", strings.ToLower(txResp.TxHash)),
+		Hash:               txHash,
 		Code:               txResp.Code,
 		Data:               dataBytes,
 		Info:               txResp.Info,
@@ -1147,7 +1314,7 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, cod
 		Messages:           messagesBytes,
 		Signatures:         signatures,
 		Memo:               getTxResp.Tx.Body.Memo,
-		TxNumber:           0,
+		TxNumber:           txNumber,
 		BlockUnixTimestamp: blockUnixTimestamp,
 		ErrorLog:           txResp.RawLog,
 		Logs:               logsBytes,

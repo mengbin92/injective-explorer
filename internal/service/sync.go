@@ -76,6 +76,12 @@ func (v *validatorQueryClientImpl) GetValidatorByConsensusAddress(ctx context.Co
 	return nil, fmt.Errorf("direct query by consensus address not supported, fallback to GetValidators")
 }
 
+// blockCacheEntry stores block data with expiration time for cache management
+type blockCacheEntry struct {
+	blockResp *coretypes.ResultBlock
+	expiresAt time.Time
+}
+
 // SyncService handles blockchain synchronization tasks using WebSocket streaming.
 // It receives new blocks in real-time via gRPC streaming, stores block data,
 // processes transactions, and updates account information.
@@ -98,6 +104,10 @@ type SyncService struct {
 
 	// Block signer service for processing block signers
 	blockSignerService *models.BlockSignerService
+
+	// Block cache for tx_number calculation (tx_number = tx_index + 1, per-block)
+	// Maps block height -> blockResp for authoritative tx_index calculation
+	blockCache sync.Map // map[uint64]*blockCacheEntry
 
 	// Current processed block height
 	currentHeight uint64
@@ -822,7 +832,60 @@ func (s *SyncService) processBlock(height uint64) error {
 	// Cache block to Redis
 	cacheBlock(ctx, blockModel)
 
+	// Cache blockResp for tx_number calculation (tx_number = tx_index + 1, per-block)
+	// Cache expires after 1 hour to prevent memory bloat
+	s.cacheBlockResp(height, blockResp)
+
 	return nil
+}
+
+// cacheBlockResp caches blockResp for tx_number calculation (tx_number = tx_index + 1, per-block).
+// The cache expires after 1 hour to prevent memory bloat.
+func (s *SyncService) cacheBlockResp(height uint64, blockResp *coretypes.ResultBlock) {
+	if blockResp == nil {
+		return
+	}
+	entry := &blockCacheEntry{
+		blockResp: blockResp,
+		expiresAt: time.Now().Add(1 * time.Hour),
+	}
+	s.blockCache.Store(height, entry)
+}
+
+// getCachedBlockResp retrieves cached blockResp for tx_number calculation (tx_number = tx_index + 1, per-block).
+// Returns nil if not found or expired.
+func (s *SyncService) getCachedBlockResp(height uint64) *coretypes.ResultBlock {
+	value, ok := s.blockCache.Load(height)
+	if !ok {
+		return nil
+	}
+	entry, ok := value.(*blockCacheEntry)
+	if !ok {
+		return nil
+	}
+	// Check if expired
+	if time.Now().After(entry.expiresAt) {
+		s.blockCache.Delete(height)
+		return nil
+	}
+	return entry.blockResp
+}
+
+// cleanupExpiredBlockCache removes expired entries from block cache.
+// Should be called periodically to prevent memory bloat.
+func (s *SyncService) cleanupExpiredBlockCache() {
+	now := time.Now()
+	s.blockCache.Range(func(key, value interface{}) bool {
+		entry, ok := value.(*blockCacheEntry)
+		if !ok {
+			s.blockCache.Delete(key)
+			return true
+		}
+		if now.After(entry.expiresAt) {
+			s.blockCache.Delete(key)
+		}
+		return true
+	})
 }
 
 // processBlockOptimized is an optimized version of processBlock for backward sync.
@@ -1418,7 +1481,31 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		}
 
 		poolTx := GetTransactionFromPool()
-		txModel := models.TransactionFromGetTxResponse(result.txResp, storageThreshold, s.chainClient.ClientContext().Codec)
+		
+		// Try to get blockResp from cache for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+		var blockResp *coretypes.ResultBlock
+		if result.txResp != nil && result.txResp.TxResponse != nil {
+			blockHeight := uint64(result.txResp.TxResponse.Height)
+			blockResp = s.getCachedBlockResp(blockHeight)
+			if blockResp == nil {
+				// Try to fetch from chain if not in cache
+				blockCtx, blockCancel := context.WithTimeout(ctx, 10*time.Second)
+				var err error
+				blockResp, err = s.tmProcessBlock(blockCtx, int64(blockHeight))
+				blockCancel()
+				if err != nil {
+					global.Logger.Warnf("block %d not found in cache and failed to fetch from chain for tx %s: %v, will use legacy tx_number calculation", blockHeight, result.hash, err)
+				} else if blockResp != nil {
+					global.Logger.Infof("✓ fetched block %d from chain for authoritative tx_number calculation for tx %s (block has %d txs)",
+						blockHeight, result.hash, len(blockResp.Block.Data.Txs))
+				}
+			} else {
+				global.Logger.Infof("✓ using cached block %d for authoritative tx_number calculation for tx %s (block has %d txs)",
+					blockHeight, result.hash, len(blockResp.Block.Data.Txs))
+			}
+		}
+		
+		txModel := models.TransactionFromGetTxResponse(result.txResp, storageThreshold, s.chainClient.ClientContext().Codec, blockResp)
 		if txModel == nil {
 			PutTransactionToPool(poolTx)
 			global.Logger.Errorf("failed to convert transaction %s to model", result.hash)
@@ -1428,8 +1515,9 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 		// Check if this is an EVM transaction and extract EVM hash (only if EVM sync is enabled)
 		// Convert GetTxResponse to TxDetailData for EVM check
+		// Pass blockResp for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
 		if s.bc != nil && s.bc.Chain != nil && s.bc.Chain.Evm != nil && s.bc.Chain.Evm.Enabled {
-			txDetailData := models.ConvertGetTxResponseToTxDetailData(result.txResp, s.chainClient.ClientContext().Codec)
+			txDetailData := models.ConvertGetTxResponseToTxDetailData(result.txResp, s.chainClient.ClientContext().Codec, blockResp)
 			if txDetailData != nil {
 				if IsEVMTransaction(txDetailData) {
 					evmHash := ExtractEVMHash(txDetailData)
@@ -1584,8 +1672,26 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	txDataMap := make(map[string]*injective_explorer_rpcpb.TxDetailData, len(txModels))
 
 	for _, tm := range txModels {
+		// Try to get blockResp from cache for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+		var blockResp *coretypes.ResultBlock
+		if tm.txData != nil && tm.txData.TxResponse != nil {
+			blockHeight := uint64(tm.txData.TxResponse.Height)
+			blockResp = s.getCachedBlockResp(blockHeight)
+			if blockResp == nil {
+				// Try to fetch from chain if not in cache
+				blockCtx, blockCancel := context.WithTimeout(ctx, 10*time.Second)
+				var err error
+				blockResp, err = s.tmProcessBlock(blockCtx, int64(blockHeight))
+				blockCancel()
+				if err != nil {
+					global.Logger.Debugf("block %d not found in cache and failed to fetch from chain for tx %s: %v, will use legacy tx_number calculation", blockHeight, tm.hash, err)
+				}
+			}
+		}
+		
 		// Convert GetTxResponse to TxDetailData for txDataMap
-		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec)
+		// Pass blockResp for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec, blockResp)
 		if txDetailData != nil {
 			txDataMap[tm.txModel.Hash] = txDetailData
 		}
@@ -1760,11 +1866,29 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 	go func() {
 		accountCtx, accountCancel := context.WithTimeout(context.Background(), AccountQueryTimeout)
 		defer accountCancel()
-		for _, tm := range txModels {
-			// Convert GetTxResponse to TxDetailData for account extraction
-			txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec)
-			if txDetailData != nil {
-				if err := s.updateAccountsFromTransaction(accountCtx, txDetailData); err != nil {
+			for _, tm := range txModels {
+				// Try to get blockResp from cache for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+				var blockResp *coretypes.ResultBlock
+				if tm.txData != nil && tm.txData.TxResponse != nil {
+					blockHeight := uint64(tm.txData.TxResponse.Height)
+					blockResp = s.getCachedBlockResp(blockHeight)
+					if blockResp == nil {
+						// Try to fetch from chain if not in cache
+						blockCtx, blockCancel := context.WithTimeout(accountCtx, 10*time.Second)
+						var err error
+						blockResp, err = s.tmProcessBlock(blockCtx, int64(blockHeight))
+						blockCancel()
+						if err != nil {
+							global.Logger.Debugf("block %d not found in cache and failed to fetch from chain for tx %s: %v, will use legacy tx_number calculation", blockHeight, tm.hash, err)
+						}
+					}
+				}
+				
+				// Convert GetTxResponse to TxDetailData for account extraction
+				// Pass blockResp for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+				txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec, blockResp)
+				if txDetailData != nil {
+					if err := s.updateAccountsFromTransaction(accountCtx, txDetailData); err != nil {
 					global.Logger.Warnf("failed to update accounts from transaction %s: %v", tm.hash, err)
 				}
 			}
@@ -1797,7 +1921,25 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 
 		// Publish account events
 		// Convert GetTxResponse to TxDetailData for address extraction
-		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec)
+		// Try to get blockResp from cache for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+		var blockResp *coretypes.ResultBlock
+		if tm.txData != nil && tm.txData.TxResponse != nil {
+			blockHeight := uint64(tm.txData.TxResponse.Height)
+			blockResp = s.getCachedBlockResp(blockHeight)
+			if blockResp == nil {
+				// Try to fetch from chain if not in cache (use background context since this is async)
+				blockCtx, blockCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				var err error
+				blockResp, err = s.tmProcessBlock(blockCtx, int64(blockHeight))
+				blockCancel()
+				if err != nil {
+					global.Logger.Debugf("block %d not found in cache and failed to fetch from chain for tx %s: %v, will use legacy tx_number calculation", blockHeight, tm.hash, err)
+				}
+			}
+		}
+		
+		// Pass blockResp for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec, blockResp)
 		if txDetailData != nil {
 			addresses := s.extractAddressesFromTransaction(txDetailData)
 			for address := range addresses {
@@ -1901,13 +2043,33 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 		return nil
 	}
 
+	// Fetch block data for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+	var blockResp *coretypes.ResultBlock
+	if txResp.TxResponse.Height > 0 {
+		blockResp = s.getCachedBlockResp(uint64(txResp.TxResponse.Height))
+		if blockResp == nil {
+			// Try to fetch from chain if not in cache
+			blockCtx, blockCancel := context.WithTimeout(ctx, 10*time.Second)
+			var err error
+			blockResp, err = s.tmProcessBlock(blockCtx, int64(txResp.TxResponse.Height))
+			blockCancel()
+			if err != nil {
+				global.Logger.Warnf("failed to fetch block %d for tx_number calculation: %v, will use legacy method", txResp.TxResponse.Height, err)
+				// Continue without block data - will fall back to legacy calculation
+			} else if blockResp != nil {
+				global.Logger.Infof("✓ fetched block %d from chain for authoritative tx_number calculation (block has %d txs)",
+					txResp.TxResponse.Height, len(blockResp.Block.Data.Txs))
+			}
+		}
+	}
+
 	// Save transaction to database using transaction for atomicity
 	// Get storage threshold from config
 	storageThreshold := getStorageThresholdForSync()
 
 	// Use object pool to reduce allocations
 	poolTx := GetTransactionFromPool()
-	txModel := models.TransactionFromGetTxResponse(txResp, storageThreshold, s.chainClient.ClientContext().Codec)
+	txModel := models.TransactionFromGetTxResponse(txResp, storageThreshold, s.chainClient.ClientContext().Codec, blockResp)
 	if txModel == nil {
 		// If conversion fails, return transaction to pool and put the transaction hash back to the queue
 		PutTransactionToPool(poolTx)
@@ -2003,8 +2165,11 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 		// Extract and update account information from transaction
 		// Note: Account updates are done within the same transaction
+		// blockResp is already fetched above, reuse it here
+		
 		// Convert GetTxResponse to TxDetailData for account extraction
-		txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, s.chainClient.ClientContext().Codec)
+		// Pass blockResp for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
+		txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, s.chainClient.ClientContext().Codec, blockResp)
 		if txDetailData != nil {
 			if err := s.updateAccountsFromTransactionWithTx(ctx, tx, txDetailData); err != nil {
 				global.Logger.Warnf("failed to update accounts from transaction %s: %v", txHash, err)
@@ -2070,8 +2235,11 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	})
 
 	// Publish account events for addresses involved in the transaction
+	// blockResp is already fetched above, reuse it here
+	
 	// Convert GetTxResponse to TxDetailData for address extraction
-	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, s.chainClient.ClientContext().Codec)
+	// Pass blockResp for authoritative tx_number calculation (per tx_number.md spec)
+	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, s.chainClient.ClientContext().Codec, blockResp)
 	if txDetailData != nil {
 		addresses := s.extractAddressesFromTransaction(txDetailData)
 		for address := range addresses {
@@ -3184,12 +3352,18 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 		return
 	}
 
-	// Use Sorted Set with tx_number as score for automatic deduplication and ordering
+	// Use Sorted Set with composite score for automatic deduplication and ordering
 	// Member is the JSON string itself (automatically deduplicated by content)
-	// Score is tx_number for chronological ordering
+	// Score = block_number * 1000000 + tx_number for chronological ordering
+	// This ensures:
+	// - Different blocks have different score ranges
+	// - Transactions within the same block are ordered by tx_number (tx_index + 1, per-block)
+	// - Overall ordering: newest blocks first, then by tx_number within each block
+	// Formula: block_number * 1000000 + tx_number (1000000 allows up to 1M txs per block)
+	compositeScore := float64(tx.BlockNumber)*1000000 + float64(tx.TxNumber)
 	pipe := redisClient.Pipeline()
 	pipe.ZAdd(ctx, CacheKeyTransactionZSet, redis.Z{
-		Score:  float64(tx.BlockUnixTimestamp),
+		Score:  compositeScore,
 		Member: string(txJSON),
 	})
 	// Maintain only the latest CacheMaxSize entries (remove old ones with lowest scores)

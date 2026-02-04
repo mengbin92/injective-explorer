@@ -20,6 +20,7 @@ import (
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
@@ -626,8 +627,22 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 
 					txResp, err := chainClient.GetTx(txCtx, evmTx.TransactionHash)
 					if err == nil && txResp != nil {
+						// Fetch block data for authoritative tx_number calculation (per tx_number.md spec)
+						var blockResp *coretypes.ResultBlock
+						if txResp.TxResponse != nil && txResp.TxResponse.Height > 0 {
+							tmClient := GetSharedTmClient()
+							if tmClient != nil {
+								blockCtx, blockCancel := context.WithTimeout(txCtx, 5*time.Second)
+								blockResp, err = tmClient.GetBlock(blockCtx, int64(txResp.TxResponse.Height))
+								blockCancel()
+								if err != nil {
+									global.Logger.Debugf("failed to fetch block %d for tx_number calculation: %v, will use legacy method", txResp.TxResponse.Height, err)
+									// Continue without block data - will fall back to legacy calculation
+								}
+							}
+						}
 						// Convert GetTxResponse to TxDetailData to extract signatures
-						txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec)
+						txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec, blockResp)
 						if txDetailData != nil && len(txDetailData.Signatures) > 0 {
 							// Use the signatures from the original Cosmos transaction
 							sigMessages := make([]proto.Message, 0, len(txDetailData.Signatures))

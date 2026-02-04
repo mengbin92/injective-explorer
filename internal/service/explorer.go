@@ -22,6 +22,7 @@ import (
 	"github.com/InjectiveLabs/sdk-go/chain/types"
 	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
 	"github.com/bytedance/sonic"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -513,6 +514,21 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 		global.Logger.Debugf("fetching %d missing transactions from chain for block %d", len(missingHashes), blockHeight)
 		chainClient, err := GetSharedChainClient()
 		if err == nil {
+			// Fetch block data once for all transactions in this block
+			// This allows us to calculate authoritative tx_index and tx_number (tx_number = tx_index + 1, per-block)
+			var blockResp *coretypes.ResultBlock
+			tmClient := GetSharedTmClient()
+			if tmClient != nil {
+				blockCtx, blockCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				// Use GetBlock which returns *coretypes.ResultBlock
+				blockResp, err = tmClient.GetBlock(blockCtx, int64(blockHeight))
+				blockCancel()
+				if err != nil {
+					global.Logger.Warnf("failed to fetch block %d for tx_number calculation: %v, will use legacy method", blockHeight, err)
+					// Continue without block data - will fall back to legacy calculation
+				}
+			}
+
 			// Use shorter timeout for individual transaction fetches (5 seconds instead of 60)
 			// This prevents one slow transaction from blocking the entire block response
 			callCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -549,7 +565,20 @@ func (s *ExplorerService) enhanceBlockDTOWithTransactions(ctx context.Context, b
 					}
 
 					// Convert GetTxResponse to TxDetailData
-					txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec)
+					// Pass blockResp to enable authoritative tx_number calculation (per tx_number.md spec)
+					if blockResp != nil {
+						global.Logger.Infof("✓ using block data for authoritative tx_number calculation for tx %s in block %d (block has %d txs)",
+							txHash, blockHeight, func() int {
+								if blockResp.Block != nil {
+									return len(blockResp.Block.Data.Txs)
+								}
+								return 0
+							}())
+					} else {
+						global.Logger.Warnf("⚠ block data not available for tx %s in block %d, will use legacy calculation",
+							txHash, blockHeight)
+					}
+					txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec, blockResp)
 					if txDetailData == nil {
 						global.Logger.Warnf("failed to convert transaction %s response to detail data", txHash)
 						return
@@ -1206,8 +1235,23 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 		return ErrorReply(http.StatusInternalServerError, "transaction response is nil", errors.New("transaction response is nil")), errors.New("transaction response is nil")
 	}
 
+	// Fetch block data for authoritative tx_number calculation (per tx_number.md spec)
+	var blockResp *coretypes.ResultBlock
+	if txResp.TxResponse.Height > 0 {
+		tmClient := GetSharedTmClient()
+		if tmClient != nil {
+			blockCtx, blockCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			blockResp, err = tmClient.GetBlock(blockCtx, int64(txResp.TxResponse.Height))
+			blockCancel()
+			if err != nil {
+				global.Logger.Debugf("failed to fetch block %d for tx_number calculation: %v, will use legacy method", txResp.TxResponse.Height, err)
+				// Continue without block data - will fall back to legacy calculation
+			}
+		}
+	}
+
 	// Convert GetTxResponse to TxDetailData
-	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec)
+	txDetailData := models.ConvertGetTxResponseToTxDetailData(txResp, chainClient.ClientContext().Codec, blockResp)
 	if txDetailData == nil {
 		global.Logger.Errorf("failed to convert transaction response to detail data for hash %s", hash)
 		return ErrorReply(http.StatusInternalServerError, "failed to convert transaction", errors.New("failed to convert transaction")), errors.New("failed to convert transaction")
@@ -3016,7 +3060,7 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 		return nil, errors.New("redis client is nil")
 	}
 	// Use Sorted Set ZREVRANGE: returns elements in reverse order of score (highest first)
-	// With tx_number as score, this gives us newest transactions first (highest tx_number)
+	// With composite score (block_number * 1000000 + tx_number), this gives us newest transactions first
 	// Indices 0 to limit-1 gets the 'limit' most recent transactions
 	data, err := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, 0, int64(limit-1)).Result()
 	if err != nil {
@@ -3046,8 +3090,8 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
 	}
 
-	// No need to sort - ZREVRANGE already returns in correct order (highest tx_number first)
-	// Sorted Set guarantees order by score (tx_number)
+	// No need to sort - ZREVRANGE already returns in correct order (highest score first)
+	// Sorted Set guarantees order by score (block_number * 1000000 + tx_number)
 
 	return txs, nil
 }
@@ -3062,7 +3106,7 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 	}
 
 	// Use Sorted Set ZREVRANGE: returns elements in reverse order of score (highest first)
-	// With tx_number as score, this gives us newest transactions first
+	// With composite score (block_number * 1000000 + tx_number), this gives us newest transactions first
 	// To get page at offset with newest first, we need items from offset to offset+limit-1
 	startIdx := int64(offset)
 	endIdx := int64(offset + limit - 1)
@@ -3091,8 +3135,8 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 		return []models.Transaction{}, false, nil
 	}
 
-	// No need to sort - ZREVRANGE already returns in correct order (highest tx_number first)
-	// Sorted Set guarantees order by score (tx_number)
+	// No need to sort - ZREVRANGE already returns in correct order (highest score first)
+	// Sorted Set guarantees order by score (block_number * 1000000 + tx_number)
 
 	// Check if there might be more data in cache (for cursor calculation)
 	// Try to get one more item to determine hasMore
