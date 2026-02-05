@@ -8,6 +8,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
@@ -16,16 +17,15 @@ import (
 
 // GetPlan gets a plan by ID
 func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	var plan models.APIPlan
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
-	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &pb.Reply{
@@ -55,12 +55,11 @@ func (s *AdminService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb
 
 // ListPlans lists all plans
 func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	pagination := req.Pagination
+	pagination := req.GetPagination()
 	if pagination == nil {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -68,23 +67,25 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 		}
 	}
 
-	if pagination.Page < 1 {
-		pagination.Page = 1
+	page := pagination.GetPage()
+	pageSize := pagination.GetPageSize()
+	if page < 1 {
+		page = 1
 	}
-	if pagination.PageSize < 1 || pagination.PageSize > 100 {
-		pagination.PageSize = 20
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.APIPlan{})
 
-	if req.PlanType != "" {
-		query = query.Where("plan_type = ?", req.PlanType)
+	if req.GetPlanType() != "" {
+		query = query.Where("plan_type = ?", req.GetPlanType())
 	}
-	if req.Status != "" {
-		query = query.Where("status = ?", req.Status)
+	if req.GetStatus() != "" {
+		query = query.Where("status = ?", req.GetStatus())
 	}
 
 	var total int64
@@ -95,8 +96,8 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 	}
 
 	var plans []models.APIPlan
-	offset := int((pagination.Page - 1) * pagination.PageSize)
-	err = query.Offset(offset).Limit(int(pagination.PageSize)).Order("created_at DESC").Find(&plans).Error
+	offset := int((page - 1) * pageSize)
+	err = query.Offset(offset).Limit(int(pageSize)).Order("created_at DESC").Find(&plans).Error
 	if err != nil {
 		global.Logger.Errorf("failed to list plans: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query plans", err), err
@@ -109,51 +110,48 @@ func (s *AdminService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) 
 	planInfos := models.ToPlanDTOs(plans, getStatsFunc)
 
 	// Build paginated response using buildPaginatedResponse
-	response := buildPaginatedResponse(planInfos, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(plans))
+	response := buildPaginatedResponse(planInfos, page, pageSize, total, true, false, 0, "", len(plans))
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // CreatePlan creates a new plan
 func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate required fields
-	if req.Name == "" {
-		err := errors.New("missing name")
-		return ErrorReply(http.StatusBadRequest, "name is required", err), err
+	if err := utils.ValidateRequiredFields("name", req.GetName()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-	if req.PlanType == "" {
-		err := errors.New("missing plan_type")
-		return ErrorReply(http.StatusBadRequest, "plan_type is required", err), err
+	if err := utils.ValidateRequiredFields("plan_type", req.GetPlanType()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-	if req.PlanType != "free" && req.PlanType != "paid" {
+	if req.GetPlanType() != "free" && req.GetPlanType() != "paid" {
 		err := errors.New("invalid plan_type")
 		return ErrorReply(http.StatusBadRequest, "plan_type must be 'free' or 'paid'", err), err
 	}
-	if req.MonthlyLimit == 0 {
+	if req.GetMonthlyLimit() == 0 {
 		err := errors.New("invalid monthly_limit")
 		return ErrorReply(http.StatusBadRequest, "monthly_limit must be greater than 0", err), err
 	}
-	if req.RateLimitPerSecond <= 0 {
+	if req.GetRateLimitPerSecond() <= 0 {
 		err := errors.New("invalid rate_limit_per_second")
 		return ErrorReply(http.StatusBadRequest, "rate_limit_per_second must be greater than 0", err), err
 	}
-	if req.MaxTokens <= 0 {
+	if req.GetMaxTokens() <= 0 {
 		err := errors.New("invalid max_tokens")
 		return ErrorReply(http.StatusBadRequest, "max_tokens must be greater than 0", err), err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Check if plan name already exists
 	var existing models.APIPlan
 	err := db.Get().WithContext(queryCtx).
-		Where("name = ?", req.Name).
+		Where("name = ?", req.GetName()).
 		First(&existing).Error
 	if err == nil {
 		err := errors.New("plan name already exists")
@@ -165,7 +163,7 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 	}
 
 	// Set default values
-	planStatus := req.Status
+	planStatus := req.GetStatus()
 	if planStatus == "" {
 		planStatus = "active"
 	}
@@ -173,20 +171,20 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 		planStatus = "active"
 	}
 
-	price := req.Price
+	price := req.GetPrice()
 	if price < 0 {
 		price = 0.00
 	}
 
 	// Create plan
 	plan := &models.APIPlan{
-		Name:               req.Name,
-		PlanType:           req.PlanType,
-		Description:        req.Description,
-		MonthlyLimit:       req.MonthlyLimit,
-		RateLimitPerSecond: int(req.RateLimitPerSecond),
-		MaxTokens:          int(req.MaxTokens),
-		EnableWebhook:      req.EnableWebhook,
+		Name:               req.GetName(),
+		PlanType:           req.GetPlanType(),
+		Description:        req.GetDescription(),
+		MonthlyLimit:       req.GetMonthlyLimit(),
+		RateLimitPerSecond: int(req.GetRateLimitPerSecond()),
+		MaxTokens:          int(req.GetMaxTokens()),
+		EnableWebhook:      req.GetEnableWebhook(),
 		Price:              price,
 		Status:             planStatus,
 	}
@@ -208,16 +206,15 @@ func (s *AdminService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest
 
 // UpdatePlan updates a plan configuration
 func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var plan models.APIPlan
-	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &pb.Reply{
@@ -232,32 +229,32 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 
 	// Update fields
 	updates := make(map[string]interface{})
-	if req.Description != "" {
-		updates["description"] = req.Description
+	if req.GetDescription() != "" {
+		updates["description"] = req.GetDescription()
 	}
-	if req.MonthlyLimit > 0 {
-		updates["monthly_limit"] = req.MonthlyLimit
+	if req.GetMonthlyLimit() > 0 {
+		updates["monthly_limit"] = req.GetMonthlyLimit()
 	}
-	if req.RateLimitPerSecond > 0 {
-		updates["rate_limit_per_second"] = req.RateLimitPerSecond
+	if req.GetRateLimitPerSecond() > 0 {
+		updates["rate_limit_per_second"] = req.GetRateLimitPerSecond()
 	}
-	if req.MaxTokens > 0 {
-		updates["max_tokens"] = req.MaxTokens
+	if req.GetMaxTokens() > 0 {
+		updates["max_tokens"] = req.GetMaxTokens()
 	}
 	// Support updating price field (can be 0 for free plans)
-	if req.Price >= 0 {
-		updates["price"] = req.Price
+	if req.GetPrice() >= 0 {
+		updates["price"] = req.GetPrice()
 	}
 	// Support updating status field
-	if req.Status != "" {
-		if req.Status != "active" && req.Status != "inactive" {
+	if req.GetStatus() != "" {
+		if req.GetStatus() != "active" && req.GetStatus() != "inactive" {
 			err := errors.New("invalid status")
 			return ErrorReply(http.StatusBadRequest, "status must be 'active' or 'inactive'", err), err
 		}
-		updates["status"] = req.Status
+		updates["status"] = req.GetStatus()
 	}
 	// Support updating enable_webhook field
-	updates["enable_webhook"] = req.EnableWebhook
+	updates["enable_webhook"] = req.GetEnableWebhook()
 
 	if len(updates) == 0 {
 		err := errors.New("no fields to update")
@@ -271,7 +268,7 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 	}
 
 	// Reload plan
-	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	err = db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&plan).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to reload plan", err), err
@@ -288,15 +285,14 @@ func (s *AdminService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest
 
 // GetPlanStats gets plan usage statistics
 func (s *AdminService) GetPlanStats(ctx context.Context, req *pb.GetPlanStatsRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
-	tokenCount, userCount, err := s.getPlanStats(queryCtx, uint(req.Id))
+	tokenCount, userCount, err := s.getPlanStats(queryCtx, uint(req.GetId()))
 	if err != nil {
 		global.Logger.Errorf("failed to get plan stats: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to get plan stats", err), err
@@ -344,27 +340,25 @@ func (s *AdminService) getPlanStats(ctx context.Context, planID uint) (int64, in
 
 // SwitchPlan switches a user's plan to a different plan
 func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate required fields
-	if req.UserId == "" {
-		err := errors.New("missing user_id")
-		return ErrorReply(http.StatusBadRequest, "user_id is required", err), err
+	if err := utils.ValidateRequiredFields("user_id", req.GetUserId()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-	if req.PlanId == 0 {
+	if req.GetPlanId() == 0 {
 		err := errors.New("missing plan_id")
 		return ErrorReply(http.StatusBadRequest, "plan_id is required", err), err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Check if target plan exists
 	var targetPlan models.APIPlan
-	err := db.Get().WithContext(queryCtx).Where("id = ?", req.PlanId).First(&targetPlan).Error
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.GetPlanId()).First(&targetPlan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &pb.Reply{
@@ -386,7 +380,7 @@ func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest
 	// Get user's tokens
 	var tokens []models.APIToken
 	err = db.Get().WithContext(queryCtx).
-		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
+		Where("user_id = ? AND deleted_at IS NULL", req.GetUserId()).
 		Find(&tokens).Error
 	if err != nil {
 		global.Logger.Errorf("failed to query user tokens: %v", err)
@@ -404,30 +398,30 @@ func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest
 	// Update all tokens to new plan type
 	err = db.Get().WithContext(queryCtx).
 		Model(&models.APIToken{}).
-		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
+		Where("user_id = ? AND deleted_at IS NULL", req.GetUserId()).
 		Update("plan_type", targetPlan.Name).Error
 	if err != nil {
-		global.Logger.Errorf("failed to switch plan for user %s: %v", req.UserId, err)
+		global.Logger.Errorf("failed to switch plan for user %s: %v", req.GetUserId(), err)
 		return ErrorReply(http.StatusInternalServerError, "failed to switch plan", err), err
 	}
 
 	global.Logger.Infof("Successfully switched user %s to plan %s (ID: %d), updated %d tokens",
-		req.UserId, targetPlan.Name, req.PlanId, len(tokens))
+		req.GetUserId(), targetPlan.Name, req.GetPlanId(), len(tokens))
 
 	// Return success response with updated plan info
 	response := &pb.PlanDTO{
-		Id:               uint64(targetPlan.ID),
-		Name:             targetPlan.Name,
-		PlanType:         targetPlan.PlanType,
-		Description:      targetPlan.Description,
-		MonthlyLimit:     targetPlan.MonthlyLimit,
+		Id:                 uint64(targetPlan.ID),
+		Name:               targetPlan.Name,
+		PlanType:           targetPlan.PlanType,
+		Description:        targetPlan.Description,
+		MonthlyLimit:       targetPlan.MonthlyLimit,
 		RateLimitPerSecond: int32(targetPlan.RateLimitPerSecond),
-		MaxTokens:        int32(targetPlan.MaxTokens),
-		Price:            targetPlan.Price,
-		Status:           targetPlan.Status,
-		IsEnabled:        targetPlan.Status == "active",
-		TokenCount:       int64(len(tokens)),
-		UserCount:        1, // Switched for one user
+		MaxTokens:          int32(targetPlan.MaxTokens),
+		Price:              targetPlan.Price,
+		Status:             targetPlan.Status,
+		IsEnabled:          targetPlan.Status == "active",
+		TokenCount:         int64(len(tokens)),
+		UserCount:          1, // Switched for one user
 	}
 
 	return MarshalAndReply(response, "failed to marshal response")
@@ -435,16 +429,15 @@ func (s *AdminService) SwitchPlan(ctx context.Context, req *pb.SwitchPlanRequest
 
 // PublishPlan publishes a plan (set status to active)
 func (s *AdminService) PublishPlan(ctx context.Context, req *pb.PublishPlanRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var plan models.APIPlan
-	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &pb.Reply{
@@ -471,7 +464,7 @@ func (s *AdminService) PublishPlan(ctx context.Context, req *pb.PublishPlanReque
 	}
 
 	// Reload plan
-	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	err = db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&plan).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to reload plan", err), err
@@ -488,16 +481,15 @@ func (s *AdminService) PublishPlan(ctx context.Context, req *pb.PublishPlanReque
 
 // UnpublishPlan unpublishes a plan (set status to inactive)
 func (s *AdminService) UnpublishPlan(ctx context.Context, req *pb.UnpublishPlanRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var plan models.APIPlan
-	err := db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	err := db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &pb.Reply{
@@ -524,7 +516,7 @@ func (s *AdminService) UnpublishPlan(ctx context.Context, req *pb.UnpublishPlanR
 	}
 
 	// Reload plan
-	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&plan).Error
+	err = db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&plan).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload plan: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to reload plan", err), err

@@ -13,6 +13,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
@@ -47,17 +48,20 @@ func NewTokenDetailService(explorerService *ExplorerService) *TokenDetailService
 
 // GetTokenDetail returns detailed information for a specific token
 func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetTokenDetailRequest) (*pb.Reply, error) {
-	if req == nil || req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("missing contract_address")), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
 	// Try to get from cache
-	cacheKey := fmt.Sprintf(CacheKeyTokenDetail, chainID, req.ContractAddress)
+	cacheKey := fmt.Sprintf(CacheKeyTokenDetail, chainID, req.GetContractAddress())
 	redisClient := cache.GetRedisClient()
 	if redisClient != nil {
 		cachedData, err := redisClient.Get(ctx, cacheKey).Result()
@@ -73,7 +77,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 	var contract models.ContractInfo
 	err := db.Get().WithContext(ctx).
 		Preload("Tags").
-		Where("contract_address = ? AND chain_id = ?", req.ContractAddress, chainID).
+		Where("contract_address = ? AND chain_id = ?", req.GetContractAddress(), chainID).
 		First(&contract).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -100,7 +104,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 	var totalTransfers int64
 	db.Get().WithContext(ctx).
 		Model(&models.TokenTransfer{}).
-		Where("contract_address = ?", strings.ToLower(req.ContractAddress)).
+		Where("contract_address = ?", strings.ToLower(req.GetContractAddress())).
 		Where("deleted_at IS NULL").
 		Count(&totalTransfers)
 
@@ -171,19 +175,22 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 
 // GetTokenTransfers returns transfer transactions for a token
 func (s *TokenDetailService) GetTokenTransfers(ctx context.Context, req *pb.GetTokenTransfersRequest) (*pb.Reply, error) {
-	if req == nil || req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("missing contract_address")), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
 	// Normalize pagination
 	var pagination *pb.PaginationRequest
-	if req.Pagination != nil {
-		pagination = req.Pagination
+	if req.GetPagination() != nil {
+		pagination = req.GetPagination()
 	} else {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -192,16 +199,16 @@ func (s *TokenDetailService) GetTokenTransfers(ctx context.Context, req *pb.GetT
 	}
 
 	page, pageSize, offset, _, _ := normalizePagination(
-		pagination.Page,
-		pagination.PageSize,
-		pagination.Cursor,
+		pagination.GetPage(),
+		pagination.GetPageSize(),
+		pagination.GetCursor(),
 		MaxPageSize,
 	)
 
 	// Query token transfers from database
-	contractAddress := strings.ToLower(req.ContractAddress)
+	contractAddress := strings.ToLower(req.GetContractAddress())
 
-	queryCtx, queryCancel := context.WithTimeout(ctx, DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeoutContext(ctx)
 	defer queryCancel()
 
 	// Build query
@@ -211,14 +218,14 @@ func (s *TokenDetailService) GetTokenTransfers(ctx context.Context, req *pb.GetT
 		Where("deleted_at IS NULL")
 
 	// Apply address filter (from or to)
-	if req.Address != "" {
-		addr := strings.ToLower(req.Address)
+	if req.GetAddress() != "" {
+		addr := strings.ToLower(req.GetAddress())
 		query = query.Where("(from_address = ? OR to_address = ?)", addr, addr)
 	}
 
 	// Apply method filter
-	if req.Method != "" {
-		query = query.Where("method = ?", req.Method)
+	if req.GetMethod() != "" {
+		query = query.Where("method = ?", req.GetMethod())
 	}
 
 	// Get total count
@@ -231,7 +238,7 @@ func (s *TokenDetailService) GetTokenTransfers(ctx context.Context, req *pb.GetT
 	// Get contract info for token symbol and decimals
 	var contract models.ContractInfo
 	err := db.Get().WithContext(ctx).
-		Where("contract_address = ? AND chain_id = ?", req.ContractAddress, chainID).
+		Where("contract_address = ? AND chain_id = ?", req.GetContractAddress(), chainID).
 		First(&contract).Error
 
 	tokenSymbol := ""
@@ -290,19 +297,22 @@ func (s *TokenDetailService) GetTokenTransfers(ctx context.Context, req *pb.GetT
 
 // GetTokenHolders returns holder rankings for a token
 func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTokenHoldersRequest) (*pb.Reply, error) {
-	if req == nil || req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("missing contract_address")), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
 	// Normalize pagination
 	var pagination *pb.PaginationRequest
-	if req.Pagination != nil {
-		pagination = req.Pagination
+	if req.GetPagination() != nil {
+		pagination = req.GetPagination()
 	} else {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -311,18 +321,18 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 	}
 
 	page, pageSize, offset, _, _ := normalizePagination(
-		pagination.Page,
-		pagination.PageSize,
-		pagination.Cursor,
+		pagination.GetPage(),
+		pagination.GetPageSize(),
+		pagination.GetCursor(),
 		MaxPageSize,
 	)
 
-	sortBy := req.SortBy
+	sortBy := req.GetSortBy()
 	if sortBy == "" {
 		sortBy = "balance" // Default sort by balance
 	}
 
-	sortOrder := req.SortOrder
+	sortOrder := req.GetSortOrder()
 	if sortOrder != "" && sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
 	}
@@ -330,7 +340,7 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 	// Get contract info to find token denom
 	var contract models.ContractInfo
 	err := db.Get().WithContext(ctx).
-		Where("contract_address = ? AND chain_id = ?", req.ContractAddress, chainID).
+		Where("contract_address = ? AND chain_id = ?", req.GetContractAddress(), chainID).
 		First(&contract).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -347,7 +357,7 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 	// Use token symbol as denom (or contract address if no symbol)
 	denom := contract.TokenSymbol
 	if denom == "" {
-		denom = req.ContractAddress
+		denom = req.GetContractAddress()
 	}
 
 	// Query account balances for this denom
@@ -438,11 +448,14 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 
 // GetTokenHoldersStats returns holder statistics
 func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.GetTokenHoldersStatsRequest) (*pb.Reply, error) {
-	if req == nil || req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("missing contract_address")), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
@@ -450,7 +463,7 @@ func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.G
 	// Get contract info to find token denom
 	var contract models.ContractInfo
 	err := db.Get().WithContext(ctx).
-		Where("contract_address = ? AND chain_id = ?", req.ContractAddress, chainID).
+		Where("contract_address = ? AND chain_id = ?", req.GetContractAddress(), chainID).
 		First(&contract).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -467,7 +480,7 @@ func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.G
 	// Use token symbol as denom (or contract address if no symbol)
 	denom := contract.TokenSymbol
 	if denom == "" {
-		denom = req.ContractAddress
+		denom = req.GetContractAddress()
 	}
 
 	// Get total holder count
@@ -562,11 +575,14 @@ func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.G
 
 // GetTokenContractCode returns contract bytecode and source code
 func (s *TokenDetailService) GetTokenContractCode(ctx context.Context, req *pb.GetTokenContractCodeRequest) (*pb.Reply, error) {
-	if req == nil || req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("missing contract_address")), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
@@ -574,7 +590,7 @@ func (s *TokenDetailService) GetTokenContractCode(ctx context.Context, req *pb.G
 	// Query contract source files
 	var sourceFiles []models.ContractSourceFile
 	err := db.Get().WithContext(ctx).
-		Where("contract_address = ? AND chain_id = ?", req.ContractAddress, chainID).
+		Where("contract_address = ? AND chain_id = ?", req.GetContractAddress(), chainID).
 		Order("created_at DESC").
 		Find(&sourceFiles).Error
 

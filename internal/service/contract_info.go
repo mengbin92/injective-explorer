@@ -12,6 +12,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 	"injective-explorer/provider/storage"
@@ -69,40 +70,40 @@ const (
 //   - error: Error if the operation fails
 func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.CreateContractInfoRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// At least one of name, token_name, or token_symbol should be provided
-	if req.Name == "" && req.TokenName == "" && req.TokenSymbol == "" {
-		return ErrorReply(http.StatusBadRequest, "at least one of name, token_name, or token_symbol is required", errors.New("name, token_name, or token_symbol is required")), errors.New("name, token_name, or token_symbol is required")
+	if req.GetName() == "" && req.GetTokenName() == "" && req.GetTokenSymbol() == "" {
+		err := errors.New("name, token_name, or token_symbol is required")
+		return ErrorReply(http.StatusBadRequest, "at least one of name, token_name, or token_symbol is required", err), err
 	}
 
 	// Set default values
-	contractType := req.ContractType
+	contractType := req.GetContractType()
 	if contractType == "" {
 		contractType = DefaultContractType
 	}
 
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
-	verificationStatus := req.VerificationStatus
+	verificationStatus := req.GetVerificationStatus()
 	if verificationStatus == "" {
 		verificationStatus = DefaultVerificationStatus
 	}
 
 	// Convert address to Ethereum format for storage (consistent with existing code)
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
 	// Check if contract already exists
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var existingContract models.ContractInfo
@@ -121,16 +122,16 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 
 	// Set decimals (default 18 if not provided or invalid)
 	decimals := 18
-	if req.Decimals >= 0 {
-		decimals = int(req.Decimals)
+	if req.GetDecimals() >= 0 {
+		decimals = int(req.GetDecimals())
 	}
 
 	// Create contract info
 	contractInfo := &models.ContractInfo{
 		ContractAddress:    contractAddress,
-		Name:               req.Name,
-		TokenName:          req.TokenName,
-		TokenSymbol:        req.TokenSymbol,
+		Name:               req.GetName(),
+		TokenName:          req.GetTokenName(),
+		TokenSymbol:        req.GetTokenSymbol(),
 		ContractType:       contractType,
 		ChainID:            chainID,
 		VerificationStatus: verificationStatus,
@@ -139,9 +140,9 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 	}
 
 	// Convert metadata from map[string]string to map[string]interface{}
-	if len(req.Metadata) > 0 {
+	if len(req.GetMetadata()) > 0 {
 		metadata := make(map[string]interface{})
-		for k, v := range req.Metadata {
+		for k, v := range req.GetMetadata() {
 			metadata[k] = v
 		}
 		contractInfo.Metadata = metadata
@@ -155,8 +156,8 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 	}
 
 	// Create tags if provided
-	if len(req.Tags) > 0 {
-		for _, tagType := range req.Tags {
+	if len(req.GetTags()) > 0 {
+		for _, tagType := range req.GetTags() {
 			tag := &models.ContractTag{
 				ContractAddress: contractAddress,
 				ChainID:         chainID,
@@ -200,25 +201,24 @@ func (s *ContractInfoService) CreateContractInfo(ctx context.Context, req *pb.Cr
 //   - error: Error if the operation fails
 func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req *pb.GetContractInfoByAddressRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Set default chain ID
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
 	// Convert address to Ethereum format for storage
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
 	// Try to get from cache
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	cachedContract, err := s.getContractFromCache(queryCtx, chainID, contractAddress)
@@ -267,18 +267,17 @@ func (s *ContractInfoService) GetContractInfoByAddress(ctx context.Context, req 
 //   - error: Error if the operation fails
 func (s *ContractInfoService) GetContractsBySymbol(ctx context.Context, req *pb.GetContractsBySymbolRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.Symbol == "" {
-		return ErrorReply(http.StatusBadRequest, "symbol is required", errors.New("symbol is required")), errors.New("symbol is required")
+	if err := utils.ValidateRequiredFields("symbol", req.GetSymbol()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination parameters
 	var pagination *pb.PaginationRequest
-	if req.Pagination != nil {
-		pagination = req.Pagination
+	if req.GetPagination() != nil {
+		pagination = req.GetPagination()
 	} else {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -287,27 +286,27 @@ func (s *ContractInfoService) GetContractsBySymbol(ctx context.Context, req *pb.
 	}
 
 	page, pageSize, offset, useCursor, _ := normalizePagination(
-		pagination.Page,
-		pagination.PageSize,
-		pagination.Cursor,
+		pagination.GetPage(),
+		pagination.GetPageSize(),
+		pagination.GetCursor(),
 		MaxPageSize,
 	)
 
 	// Build query
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).
 		Model(&models.ContractInfo{}).
-		Where("token_symbol = ?", req.Symbol)
+		Where("token_symbol = ?", req.GetSymbol())
 
 	// Apply filters
-	if req.ChainId != "" {
-		query = query.Where("chain_id = ?", req.ChainId)
+	if req.GetChainId() != "" {
+		query = query.Where("chain_id = ?", req.GetChainId())
 	}
 
-	if req.ContractType != "" {
-		query = query.Where("contract_type = ?", req.ContractType)
+	if req.GetContractType() != "" {
+		query = query.Where("contract_type = ?", req.GetContractType())
 	}
 
 	// Get total count
@@ -356,14 +355,14 @@ func (s *ContractInfoService) GetContractsBySymbol(ctx context.Context, req *pb.
 //   - error: Error if the operation fails
 func (s *ContractInfoService) ListContractInfos(ctx context.Context, req *pb.ListContractInfosRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination parameters
 	var pagination *pb.PaginationRequest
-	if req.Pagination != nil {
-		pagination = req.Pagination
+	if req.GetPagination() != nil {
+		pagination = req.GetPagination()
 	} else {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -372,39 +371,39 @@ func (s *ContractInfoService) ListContractInfos(ctx context.Context, req *pb.Lis
 	}
 
 	page, pageSize, offset, useCursor, _ := normalizePagination(
-		pagination.Page,
-		pagination.PageSize,
-		pagination.Cursor,
+		pagination.GetPage(),
+		pagination.GetPageSize(),
+		pagination.GetCursor(),
 		MaxPageSize,
 	)
 
 	// Build query
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.ContractInfo{})
 
 	// Apply filters
-	if req.ChainId != "" {
-		query = query.Where("chain_id = ?", req.ChainId)
+	if req.GetChainId() != "" {
+		query = query.Where("chain_id = ?", req.GetChainId())
 	}
 
-	if req.ContractType != "" {
-		query = query.Where("contract_type = ?", req.ContractType)
+	if req.GetContractType() != "" {
+		query = query.Where("contract_type = ?", req.GetContractType())
 	}
 
-	if req.VerificationStatus != "" {
-		query = query.Where("verification_status = ?", req.VerificationStatus)
+	if req.GetVerificationStatus() != "" {
+		query = query.Where("verification_status = ?", req.GetVerificationStatus())
 	}
 
-	if req.Name != "" {
+	if req.GetName() != "" {
 		// Fuzzy match on name or token_name
-		query = query.Where("name LIKE ? OR token_name LIKE ?", "%"+req.Name+"%", "%"+req.Name+"%")
+		query = query.Where("name LIKE ? OR token_name LIKE ?", "%"+req.GetName()+"%", "%"+req.GetName()+"%")
 	}
 
-	if req.Symbol != "" {
+	if req.GetSymbol() != "" {
 		// Fuzzy match on token symbol
-		query = query.Where("token_symbol LIKE ?", "%"+req.Symbol+"%")
+		query = query.Where("token_symbol LIKE ?", "%"+req.GetSymbol()+"%")
 	}
 
 	// Get total count
@@ -453,28 +452,23 @@ func (s *ContractInfoService) ListContractInfos(ctx context.Context, req *pb.Lis
 //   - error: Error if the operation fails
 func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.UpdateContractInfoRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress(), "chain_id", req.GetChainId()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
 	// Query existing contract
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var contractInfo models.ContractInfo
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND contract_address = ?", req.ChainId, contractAddress).
+		Where("chain_id = ? AND contract_address = ?", req.GetChainId(), contractAddress).
 		First(&contractInfo).Error
 
 	if err != nil {
@@ -491,29 +485,29 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 
 	// Update fields (only update provided fields)
 	updates := make(map[string]interface{})
-	if req.Name != "" {
-		updates["name"] = req.Name
+	if req.GetName() != "" {
+		updates["name"] = req.GetName()
 	}
-	if req.TokenName != "" {
-		updates["token_name"] = req.TokenName
+	if req.GetTokenName() != "" {
+		updates["token_name"] = req.GetTokenName()
 	}
-	if req.TokenSymbol != "" {
-		updates["token_symbol"] = req.TokenSymbol
+	if req.GetTokenSymbol() != "" {
+		updates["token_symbol"] = req.GetTokenSymbol()
 	}
-	if req.ContractType != "" {
-		updates["contract_type"] = req.ContractType
+	if req.GetContractType() != "" {
+		updates["contract_type"] = req.GetContractType()
 	}
-	if req.VerificationStatus != "" {
-		updates["verification_status"] = req.VerificationStatus
+	if req.GetVerificationStatus() != "" {
+		updates["verification_status"] = req.GetVerificationStatus()
 		// Update is_verified based on verification_status
-		updates["is_verified"] = (req.VerificationStatus == "verified")
+		updates["is_verified"] = (req.GetVerificationStatus() == "verified")
 	}
-	if req.Decimals > 0 {
-		updates["decimals"] = req.Decimals
+	if req.GetDecimals() > 0 {
+		updates["decimals"] = req.GetDecimals()
 	}
-	if len(req.Metadata) > 0 {
+	if len(req.GetMetadata()) > 0 {
 		metadata := make(map[string]interface{})
-		for k, v := range req.Metadata {
+		for k, v := range req.GetMetadata() {
 			metadata[k] = v
 		}
 		updates["metadata"] = metadata
@@ -533,14 +527,14 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 	// Reload contract with tags
 	err = db.Get().WithContext(queryCtx).
 		Preload("Tags").
-		Where("chain_id = ? AND contract_address = ?", req.ChainId, contractAddress).
+		Where("chain_id = ? AND contract_address = ?", req.GetChainId(), contractAddress).
 		First(&contractInfo).Error
 	if err != nil {
 		global.Logger.Warnf("failed to reload contract info: %v", err)
 	}
 
 	// Clear cache
-	s.clearContractCache(ctx, req.ChainId, contractAddress)
+	s.clearContractCache(ctx, req.GetChainId(), contractAddress)
 
 	// Convert to response
 	info := models.ToContractInfoDTO(&contractInfo)
@@ -558,27 +552,22 @@ func (s *ContractInfoService) UpdateContractInfo(ctx context.Context, req *pb.Up
 //   - error: Error if the operation fails
 func (s *ContractInfoService) DeleteContractInfo(ctx context.Context, req *pb.DeleteContractInfoRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress(), "chain_id", req.GetChainId()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
 	// Soft delete
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND contract_address = ?", req.ChainId, contractAddress).
+		Where("chain_id = ? AND contract_address = ?", req.GetChainId(), contractAddress).
 		Delete(&models.ContractInfo{}).Error
 
 	if err != nil {
@@ -587,7 +576,7 @@ func (s *ContractInfoService) DeleteContractInfo(ctx context.Context, req *pb.De
 	}
 
 	// Clear cache
-	s.clearContractCache(ctx, req.ChainId, contractAddress)
+	s.clearContractCache(ctx, req.GetChainId(), contractAddress)
 
 	// Return success response
 	return &pb.Reply{
@@ -607,39 +596,34 @@ func (s *ContractInfoService) DeleteContractInfo(ctx context.Context, req *pb.De
 //   - error: Error if the operation fails
 func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddContractTagRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress(), "chain_id", req.GetChainId()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validation: tag_type is optional if tag_definition_id is provided
-	if req.TagType == "" && req.TagDefinitionId == 0 {
-		return ErrorReply(http.StatusBadRequest, "either tag_type or tag_definition_id is required",
-			errors.New("either tag_type or tag_definition_id is required")), errors.New("either tag_type or tag_definition_id is required")
+	if req.GetTagType() == "" && req.GetTagDefinitionId() == 0 {
+		err := errors.New("either tag_type or tag_definition_id is required")
+		return ErrorReply(http.StatusBadRequest, "either tag_type or tag_definition_id is required", err), err
 	}
 
 	// Convert address to Ethereum format for storage
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
 	// Create or update tag
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var tag *models.ContractTag
 
 	// If tag_definition_id is provided, use preset tag definition
-	if req.TagDefinitionId > 0 {
+	if req.GetTagDefinitionId() > 0 {
 		// Query tag definition
 		var tagDef models.TagDefinition
 		err := db.Get().WithContext(queryCtx).
-			Where("id = ? AND tag_type = ?", req.TagDefinitionId, "contract").
+			Where("id = ? AND tag_type = ?", req.GetTagDefinitionId(), "contract").
 			First(&tagDef).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -655,30 +639,30 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 
 		// Create tag from preset definition
 		tag = &models.ContractTag{
-			ContractAddress:  contractAddress,
-			ChainID:          req.ChainId,
-			TagType:          tagDef.TagCategory, // Use tag_category from definition
-			TagValue:         tagDef.TagName,     // Use tag_name from definition
-			TagColor:         tagDef.TagColor,    // Use tag_color from definition
-			Description:      tagDef.Description, // Use description from definition
-			TagDefinitionID:  &req.TagDefinitionId,
-			IsPreset:         true,               // Mark as preset
-			Visible:          req.Visible,        // Use visible from request
-			CreatedBy:        req.CreatedBy,
+			ContractAddress: contractAddress,
+			ChainID:         req.GetChainId(),
+			TagType:         tagDef.TagCategory, // Use tag_category from definition
+			TagValue:        tagDef.TagName,     // Use tag_name from definition
+			TagColor:        tagDef.TagColor,    // Use tag_color from definition
+			Description:     tagDef.Description, // Use description from definition
+			TagDefinitionID: func() *uint64 { id := req.GetTagDefinitionId(); return &id }(),
+			IsPreset:        true,               // Mark as preset
+			Visible:         req.GetVisible(),   // Use visible from request
+			CreatedBy:       req.GetCreatedBy(),
 		}
 	} else {
 		// Custom tag
 		tag = &models.ContractTag{
 			ContractAddress: contractAddress,
-			ChainID:         req.ChainId,
-			TagType:         req.TagType,
-			TagValue:        req.TagValue,
-			TagColor:        req.TagColor,
-			Description:     req.Description,
-			TagDefinitionID:  nil,
+			ChainID:         req.GetChainId(),
+			TagType:         req.GetTagType(),
+			TagValue:        req.GetTagValue(),
+			TagColor:        req.GetTagColor(),
+			Description:     req.GetDescription(),
+			TagDefinitionID: nil,
 			IsPreset:        false,
-			Visible:         req.Visible,
-			CreatedBy:       req.CreatedBy,
+			Visible:         req.GetVisible(),
+			CreatedBy:       req.GetCreatedBy(),
 		}
 	}
 
@@ -686,7 +670,7 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 	// Note: Unique constraint is (chain_id, contract_address, tag_type, tag_value)
 	err := db.Get().WithContext(queryCtx).
 		Where("chain_id = ? AND contract_address = ? AND tag_type = ? AND tag_value = ?",
-			req.ChainId, contractAddress, tag.TagType, tag.TagValue).
+			req.GetChainId(), contractAddress, tag.TagType, tag.TagValue).
 		FirstOrCreate(tag).Error
 
 	if err != nil {
@@ -695,14 +679,15 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 	}
 
 	// If this is a newly created preset tag, update usage_count
-	if req.TagDefinitionId > 0 {
+	if req.GetTagDefinitionId() > 0 {
 		// Check if this is a newly created record by comparing CreatedAt and UpdatedAt
 		// If they are equal or very close (within 1 second), it's a new record
 		if tag.CreatedAt.Equal(tag.UpdatedAt) || tag.UpdatedAt.Sub(tag.CreatedAt) < time.Second {
 			// This is a newly created tag, update usage_count
+			tagDefID := req.GetTagDefinitionId()
 			err = db.Get().WithContext(queryCtx).
 				Model(&models.TagDefinition{}).
-				Where("id = ?", req.TagDefinitionId).
+				Where("id = ?", tagDefID).
 				Update("usage_count", gorm.Expr("usage_count + ?", 1)).Error
 			if err != nil {
 				global.Logger.Warnf("failed to update usage count: %v", err)
@@ -711,7 +696,7 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 	}
 
 	// Clear cache
-	s.clearContractCache(ctx, req.ChainId, contractAddress)
+	s.clearContractCache(ctx, req.GetChainId(), contractAddress)
 
 	// Convert to response
 	tagInfo := models.ToContractTagInfoDTO(tag)
@@ -729,32 +714,23 @@ func (s *ContractInfoService) AddContractTag(ctx context.Context, req *pb.AddCon
 //   - error: Error if the operation fails
 func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.RemoveContractTagRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
-	}
-
-	if req.TagType == "" {
-		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress(), "chain_id", req.GetChainId(), "tag_type", req.GetTagType()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Before deletion, query the tag to check if it's a preset tag
 	var tag models.ContractTag
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND contract_address = ? AND tag_type = ?", req.ChainId, contractAddress, req.TagType).
+		Where("chain_id = ? AND contract_address = ? AND tag_type = ?", req.GetChainId(), contractAddress, req.GetTagType()).
 		First(&tag).Error
 
 	if err == nil && tag.TagDefinitionID != nil {
@@ -771,7 +747,7 @@ func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.Rem
 
 	// Delete tag
 	err = db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND contract_address = ? AND tag_type = ?", req.ChainId, contractAddress, req.TagType).
+		Where("chain_id = ? AND contract_address = ? AND tag_type = ?", req.GetChainId(), contractAddress, req.GetTagType()).
 		Delete(&models.ContractTag{}).Error
 
 	if err != nil {
@@ -780,7 +756,7 @@ func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.Rem
 	}
 
 	// Clear cache
-	s.clearContractCache(ctx, req.ChainId, contractAddress)
+	s.clearContractCache(ctx, req.GetChainId(), contractAddress)
 
 	// Return success response
 	return &pb.Reply{
@@ -800,26 +776,21 @@ func (s *ContractInfoService) RemoveContractTag(ctx context.Context, req *pb.Rem
 //   - error: Error if the operation fails
 func (s *ContractInfoService) GetContractTags(ctx context.Context, req *pb.GetContractTagsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress(), "chain_id", req.GetChainId()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
 	// Try to get from cache
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
-	cachedTags, err := s.getTagsFromCache(queryCtx, req.ChainId, contractAddress)
+	cachedTags, err := s.getTagsFromCache(queryCtx, req.GetChainId(), contractAddress)
 	if err == nil && cachedTags != nil {
 		global.Logger.Debugf("contract tags found in cache: address=%s", contractAddress)
 		tagInfos := models.ToContractTagInfoDTOs(cachedTags)
@@ -829,7 +800,7 @@ func (s *ContractInfoService) GetContractTags(ctx context.Context, req *pb.GetCo
 	// Query from database
 	var tags []models.ContractTag
 	err = db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND contract_address = ?", req.ChainId, contractAddress).
+		Where("chain_id = ? AND contract_address = ?", req.GetChainId(), contractAddress).
 		Find(&tags).Error
 
 	if err != nil {
@@ -838,7 +809,7 @@ func (s *ContractInfoService) GetContractTags(ctx context.Context, req *pb.GetCo
 	}
 
 	// Cache the tags
-	go s.cacheTags(context.Background(), req.ChainId, contractAddress, tags)
+	go s.cacheTags(context.Background(), req.GetChainId(), contractAddress, tags)
 
 	// Convert to response
 	tagInfos := models.ToContractTagInfoDTOs(tags)
@@ -978,29 +949,29 @@ func (s *ContractInfoService) clearContractCache(ctx context.Context, chainID, c
 //   - error: Error if the operation fails
 func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.UploadContractFilesRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.ContractAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "contract_address is required", errors.New("contract_address is required")), errors.New("contract_address is required")
+	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// At least one file must be provided
-	if len(req.SourceCode) == 0 && len(req.Abi) == 0 {
-		return ErrorReply(http.StatusBadRequest, "at least one file (source_code or abi) is required", errors.New("no file provided")), errors.New("no file provided")
+	if len(req.GetSourceCode()) == 0 && len(req.GetAbi()) == 0 {
+		err := errors.New("no file provided")
+		return ErrorReply(http.StatusBadRequest, "at least one file (source_code or abi) is required", err), err
 	}
 
 	// Set default chain ID
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
 	// Convert address to Ethereum format for storage
-	contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+	contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 
-	queryCtx, queryCancel := context.WithTimeout(ctx, DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeoutContext(ctx)
 	defer queryCancel()
 
 	// Check if contract exists
@@ -1030,17 +1001,17 @@ func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.U
 	var uploadErr error
 
 	// Upload source code file if provided
-	if len(req.SourceCode) > 0 {
+	if len(req.GetSourceCode()) > 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fileData, err := validateFile(req.SourceCode, "source", ".sol", req.SourceCodeFileName, maxFileSize)
+			fileData, err := validateFile(req.GetSourceCode(), "source", ".sol", req.GetSourceCodeFileName(), maxFileSize)
 			if err != nil {
 				uploadErr = err
 				return
 			}
 
-			sourceFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "source", fileData, req.SourceCodeFileName, req.Description, req.UploadedBy, storageThreshold)
+			sourceFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "source", fileData, req.GetSourceCodeFileName(), req.GetDescription(), req.GetUploadedBy(), storageThreshold)
 			if err != nil {
 				global.Logger.Errorf("failed to save source code file: %v", err)
 				uploadErr = err
@@ -1060,17 +1031,17 @@ func (s *ContractInfoService) UploadContractFiles(ctx context.Context, req *pb.U
 	}
 
 	// Upload ABI file if provided
-	if len(req.Abi) > 0 {
+	if len(req.GetAbi()) > 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fileData, err := validateFile(req.Abi, "abi", ".json", req.AbiFileName, maxFileSize)
+			fileData, err := validateFile(req.GetAbi(), "abi", ".json", req.GetAbiFileName(), maxFileSize)
 			if err != nil {
 				uploadErr = err
 				return
 			}
 
-			abiFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "abi", fileData, req.AbiFileName, req.Description, req.UploadedBy, storageThreshold)
+			abiFile, err := s.saveContractFile(queryCtx, contractAddress, chainID, "abi", fileData, req.GetAbiFileName(), req.GetDescription(), req.GetUploadedBy(), storageThreshold)
 			if err != nil {
 				global.Logger.Errorf("failed to save ABI file: %v", err)
 				uploadErr = err

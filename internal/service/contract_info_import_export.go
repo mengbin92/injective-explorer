@@ -14,6 +14,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 	"injective-explorer/provider/storage"
 
@@ -109,55 +110,55 @@ const (
 //   - error: Error if the operation fails
 func (s *ContractInfoService) ExportContractInfos(ctx context.Context, req *pb.ExportContractInfosRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.Format == "" {
-		return ErrorReply(http.StatusBadRequest, "format is required", errors.New("format is required")), errors.New("format is required")
+	if err := utils.ValidateRequiredString(req.GetFormat(), "format"); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	format := strings.ToLower(req.Format)
+	format := strings.ToLower(req.GetFormat())
 	if format != "csv" && format != "json" {
 		return ErrorReply(http.StatusBadRequest, "format must be csv or json", errors.New("invalid format")), errors.New("invalid format")
 	}
 
 	// Set default values
-	includeTags := req.IncludeTags
-	includeMetadata := req.IncludeMetadata
+	includeTags := req.GetIncludeTags()
+	includeMetadata := req.GetIncludeMetadata()
 
 	// Build query (reuse ListContractInfos logic)
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.ContractInfo{})
 
 	// Apply filters
-	if req.ChainId != "" {
-		query = query.Where("chain_id = ?", req.ChainId)
+	if req.GetChainId() != "" {
+		query = query.Where("chain_id = ?", req.GetChainId())
 	}
 
-	if req.ContractType != "" {
-		query = query.Where("contract_type = ?", req.ContractType)
+	if req.GetContractType() != "" {
+		query = query.Where("contract_type = ?", req.GetContractType())
 	}
 
-	if req.VerificationStatus != "" {
-		query = query.Where("verification_status = ?", req.VerificationStatus)
+	if req.GetVerificationStatus() != "" {
+		query = query.Where("verification_status = ?", req.GetVerificationStatus())
 	}
 
-	if req.Name != "" {
-		query = query.Where("name LIKE ? OR token_name LIKE ?", "%"+req.Name+"%", "%"+req.Name+"%")
+	if req.GetName() != "" {
+		query = query.Where("name LIKE ? OR token_name LIKE ?", "%"+req.GetName()+"%", "%"+req.GetName()+"%")
 	}
 
-	if req.Symbol != "" {
-		query = query.Where("token_symbol LIKE ?", "%"+req.Symbol+"%")
+	if req.GetSymbol() != "" {
+		query = query.Where("token_symbol LIKE ?", "%"+req.GetSymbol()+"%")
 	}
 
 	// If specific contract addresses are provided, add filter
-	if len(req.ContractAddresses) > 0 {
+	if len(req.GetContractAddresses()) > 0 {
 		// Convert address format
-		addresses := make([]string, 0, len(req.ContractAddresses))
-		for _, addr := range req.ContractAddresses {
+		addresses := make([]string, 0, len(req.GetContractAddresses()))
+		for _, addr := range req.GetContractAddresses() {
 			addresses = append(addresses, models.ConvertAddressToEthForStorage(addr))
 		}
 		query = query.Where("contract_address IN ?", addresses)
@@ -241,25 +242,25 @@ func (s *ContractInfoService) ExportContractInfos(ctx context.Context, req *pb.E
 //   - error: Error if the operation fails
 func (s *ContractInfoService) ImportContractInfos(ctx context.Context, req *pb.ImportContractInfosRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.Format == "" {
-		return ErrorReply(http.StatusBadRequest, "format is required", errors.New("format is required")), errors.New("format is required")
+	if err := utils.ValidateRequiredString(req.GetFormat(), "format"); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.FileContentBase64 == "" {
-		return ErrorReply(http.StatusBadRequest, "file_content_base64 is required", errors.New("file_content_base64 is required")), errors.New("file_content_base64 is required")
+	if err := utils.ValidateRequiredString(req.GetFileContentBase64(), "file_content_base64"); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	format := strings.ToLower(req.Format)
+	format := strings.ToLower(req.GetFormat())
 	if format != "csv" && format != "json" {
 		return ErrorReply(http.StatusBadRequest, "format must be csv or json", errors.New("invalid format")), errors.New("invalid format")
 	}
 
 	// Decode base64
-	fileContent, err := base64.StdEncoding.DecodeString(req.FileContentBase64)
+	fileContent, err := base64.StdEncoding.DecodeString(req.GetFileContentBase64())
 	if err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid base64 encoding", err), err
 	}
@@ -270,7 +271,7 @@ func (s *ContractInfoService) ImportContractInfos(ctx context.Context, req *pb.I
 	}
 
 	// Set default values
-	importMode := req.ImportMode
+	importMode := req.GetImportMode()
 	if importMode == "" {
 		importMode = "upsert"
 	}
@@ -278,12 +279,12 @@ func (s *ContractInfoService) ImportContractInfos(ctx context.Context, req *pb.I
 		return ErrorReply(http.StatusBadRequest, "import_mode must be create, update, or upsert", errors.New("invalid import_mode")), errors.New("invalid import_mode")
 	}
 
-	skipErrors := req.SkipErrors
-	defaultChainID := req.DefaultChainId
+	skipErrors := req.GetSkipErrors()
+	defaultChainID := req.GetDefaultChainId()
 	if defaultChainID == "" {
 		defaultChainID = DefaultChainID
 	}
-	defaultContractType := req.DefaultContractType
+	defaultContractType := req.GetDefaultContractType()
 	if defaultContractType == "" {
 		defaultContractType = DefaultContractType
 	}
@@ -850,7 +851,7 @@ func (s *ContractInfoService) batchImportContracts(ctx context.Context, contract
 		Errors:     make([]*ImportErrorInfo, 0),
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Process in batches

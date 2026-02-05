@@ -13,11 +13,11 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
 	"github.com/bytedance/sonic"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -42,30 +42,30 @@ func NewTokenListService(explorerService *ExplorerService) *TokenListService {
 // ListTokens returns a paginated list of tokens with market data
 func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequest) (*pb.Reply, error) {
 	// 1. Parameter validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), nil
 	}
 
 	// 2. Set default values
-	chainID := req.ChainId
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
-	sortField := req.SortBy
+	sortField := req.GetSortBy()
 	if sortField == "" {
 		sortField = "market_cap" // Default sort by market cap
 	}
 
-	sortOrder := req.SortOrder
+	sortOrder := req.GetSortOrder()
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc" // Default descending order
 	}
 
 	// 3. Normalize pagination parameters
 	var pagination *pb.PaginationRequest
-	if req.Pagination != nil {
-		pagination = req.Pagination
+	if req.GetPagination() != nil {
+		pagination = req.GetPagination()
 	} else {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -74,9 +74,9 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 	}
 
 	page, pageSize, offset, _, _ := normalizePagination(
-		pagination.Page,
-		pagination.PageSize,
-		pagination.Cursor,
+		pagination.GetPage(),
+		pagination.GetPageSize(),
+		pagination.GetCursor(),
 		MaxPageSize,
 	)
 
@@ -95,7 +95,7 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 	}
 
 	// 5. Build query
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).
@@ -105,20 +105,20 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		Group("contract_infos.id, contract_infos.contract_address, contract_infos.chain_id")
 
 	// Apply filter conditions
-	if req.ChainId != "" {
-		query = query.Where("chain_id = ?", req.ChainId)
+	if req.GetChainId() != "" {
+		query = query.Where("chain_id = ?", req.GetChainId())
 	}
 
-	if req.ContractType != "" {
-		query = query.Where("contract_type = ?", req.ContractType)
+	if req.GetContractType() != "" {
+		query = query.Where("contract_type = ?", req.GetContractType())
 	}
 
-	if req.VerificationStatus != "" {
-		query = query.Where("verification_status = ?", req.VerificationStatus)
+	if req.GetVerificationStatus() != "" {
+		query = query.Where("verification_status = ?", req.GetVerificationStatus())
 	}
 
-	if req.Search != "" {
-		search := strings.TrimSpace(req.Search)
+	if req.GetSearch() != "" {
+		search := strings.TrimSpace(req.GetSearch())
 
 		// If search starts with 0x, treat it as an address
 		if strings.HasPrefix(search, "0x") {
@@ -139,10 +139,10 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		}
 	}
 
-	if req.TagType != "" {
+	if req.GetTagType() != "" {
 		query = query.Joins(
 			"INNER JOIN contract_tags ON contract_tags.contract_address = contract_infos.contract_address AND contract_tags.chain_id = contract_infos.chain_id",
-		).Where("contract_tags.tag_type = ? AND contract_tags.visible = ?", req.TagType, true)
+		).Where("contract_tags.tag_type = ? AND contract_tags.visible = ?", req.GetTagType(), true)
 	}
 
 	// 6. Get total count

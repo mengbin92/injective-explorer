@@ -10,6 +10,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
@@ -37,12 +38,11 @@ func NewAdminService() *AdminService {
 // Supported time ranges: today, 7days, 30days
 // Default pagination: page=1, page_size=20, max page_size=100
 func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageErrorsRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	pagination := req.Pagination
+	pagination := req.GetPagination()
 	if pagination == nil {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -119,27 +119,20 @@ func (s *AdminService) GetUsageErrors(ctx context.Context, req *pb.GetUsageError
 // following RESTful API best practices. Default values are page=1 and page_size=20,
 // with a maximum page_size of 100.
 func (s *AdminService) ListUserTokens(ctx context.Context, req *pb.ListUserTokensRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
-	}
-
-	// Validate user_id
-	if req.UserId == "" {
-		err := errors.New("user_id is required")
-		return ErrorReply(http.StatusBadRequest, "user_id is required", err), err
+	if err := utils.ValidateRequiredFields("user_id", req.GetUserId()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Initialize pagination parameters with defaults
 	page := int32(1)
 	pageSize := int32(20)
 
-	if req.Pagination != nil {
-		if req.Pagination.Page > 0 {
-			page = req.Pagination.Page
+	if req.GetPagination() != nil {
+		if req.GetPagination().GetPage() > 0 {
+			page = req.GetPagination().GetPage()
 		}
-		if req.Pagination.PageSize > 0 {
-			pageSize = req.Pagination.PageSize
+		if req.GetPagination().GetPageSize() > 0 {
+			pageSize = req.GetPagination().GetPageSize()
 		}
 	}
 
@@ -194,18 +187,16 @@ func (s *AdminService) ListUserTokens(ctx context.Context, req *pb.ListUserToken
 // The function optimizes database queries by using a single aggregation query
 // for token statistics instead of multiple separate count queries.
 func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTokenStatsRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate user_id
-	if req.UserId == "" {
-		err := errors.New("user_id is required")
-		return ErrorReply(http.StatusBadRequest, "user_id is required", err), err
+	if err := utils.ValidateRequiredFields("user_id", req.GetUserId()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Get token counts by status using a single optimized aggregate query
@@ -218,17 +209,17 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 
 	err := db.Get().WithContext(queryCtx).Model(&models.APIToken{}).
 		Select("COUNT(id) as total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active, SUM(CASE WHEN status = 'disabled' THEN 1 ELSE 0 END) as disabled").
-		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
+		Where("user_id = ? AND deleted_at IS NULL", req.GetUserId()).
 		Row().Scan(&tokenStats.Total, &tokenStats.Active, &tokenStats.Disabled)
 	if err != nil {
-		global.Logger.Errorf("failed to count user tokens for user %s: %v", req.UserId, err)
+		global.Logger.Errorf("failed to count user tokens for user %s: %v", req.GetUserId(), err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query token statistics", err), err
 	}
 
 	// Get usage statistics from user_usage_stats
 	var userStats models.UserUsageStats
 	err = db.Get().WithContext(queryCtx).
-		Where("user_id = ?", req.UserId).
+		Where("user_id = ?", req.GetUserId()).
 		First(&userStats).Error
 
 	monthlyUsed := uint64(0)
@@ -240,7 +231,7 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 		monthlyLimit = userStats.MonthlyLimit
 		totalUsage = userStats.TotalUsage
 	} else if err != gorm.ErrRecordNotFound {
-		global.Logger.Errorf("failed to query user stats for user %s: %v", req.UserId, err)
+		global.Logger.Errorf("failed to query user stats for user %s: %v", req.GetUserId(), err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query user usage statistics", err), err
 	}
 
@@ -248,13 +239,13 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 	var planType string
 	err = db.Get().WithContext(queryCtx).
 		Model(&models.APIToken{}).
-		Where("user_id = ? AND deleted_at IS NULL", req.UserId).
+		Where("user_id = ? AND deleted_at IS NULL", req.GetUserId()).
 		Order("created_at DESC").
 		Limit(1).
 		Pluck("plan_type", &planType).Error
 
 	if err != nil && err != gorm.ErrRecordNotFound {
-		global.Logger.Errorf("failed to query plan type for user %s: %v", req.UserId, err)
+		global.Logger.Errorf("failed to query plan type for user %s: %v", req.GetUserId(), err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query plan type", err), err
 	}
 
@@ -273,12 +264,11 @@ func (s *AdminService) GetUserTokenStats(ctx context.Context, req *pb.GetUserTok
 
 // GetUsageStats retrieves usage statistics overview.
 func (s *AdminService) GetUsageStats(ctx context.Context, req *pb.GetUsageStatsRequest) (*pb.Reply, error) {
-	if req == nil {
-		err := errors.New("nil request")
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", err), err
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build base query
@@ -634,30 +624,33 @@ func (s *AdminService) GetUsageByErrorCode(ctx context.Context, req *pb.GetUsage
 //   - HTTP 404 if cache entry not found
 //   - HTTP 500 on database errors
 func (s *AdminService) GetTokenMarketCache(ctx context.Context, req *pb.GetTokenMarketCacheRequest) (*pb.Reply, error) {
-	if req == nil || req.TokenSymbol == "" {
-		err := errors.New("missing token_symbol")
-		return ErrorReply(http.StatusBadRequest, "token_symbol is required", err), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	if err := utils.ValidateRequiredFields("token_symbol", req.GetTokenSymbol()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query cache from database
 	var cache models.TokenMarketCache
 	err := db.Get().WithContext(queryCtx).
-		Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+		Where("token_symbol = ? AND chain_id = ?", req.GetTokenSymbol(), chainID).
 		First(&cache).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrorReply(http.StatusNotFound, "token market cache not found", err), nil
 		}
-		global.Logger.Errorf("failed to query token market cache for %s on chain %s: %v", req.TokenSymbol, chainID, err)
+		global.Logger.Errorf("failed to query token market cache for %s on chain %s: %v", req.GetTokenSymbol(), chainID, err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query cache", err), err
 	}
 
@@ -709,12 +702,15 @@ func (s *AdminService) GetTokenMarketCache(ctx context.Context, req *pb.GetToken
 //
 // Note: Sets data_source to "manual_test" to distinguish from auto-synced data
 func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.UpdateTokenMarketCacheRequest) (*pb.Reply, error) {
-	if req == nil || req.TokenSymbol == "" {
-		err := errors.New("missing token_symbol")
-		return ErrorReply(http.StatusBadRequest, "token_symbol is required", err), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	if err := utils.ValidateRequiredFields("token_symbol", req.GetTokenSymbol()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
@@ -770,14 +766,14 @@ func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.Updat
 	err := db.Get().Transaction(func(tx *gorm.DB) error {
 		// Try to find existing record
 		var existing models.TokenMarketCache
-		err := tx.Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+		err := tx.Where("token_symbol = ? AND chain_id = ?", req.GetTokenSymbol(), chainID).
 			First(&existing).Error
 
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// Create new record with minimal required fields
 				newCache := &models.TokenMarketCache{
-					TokenSymbol: req.TokenSymbol,
+					TokenSymbol: req.GetTokenSymbol(),
 					ChainID:     chainID,
 					DataSource:  "manual_test",
 					LastUpdated: time.Now().Unix(),
@@ -790,7 +786,7 @@ func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.Updat
 
 				// Now update with provided fields
 				return tx.Model(&models.TokenMarketCache{}).
-					Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+					Where("token_symbol = ? AND chain_id = ?", req.GetTokenSymbol(), chainID).
 					Updates(updates).Error
 			}
 			return err
@@ -798,7 +794,7 @@ func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.Updat
 
 		// Update existing record
 		return tx.Model(&models.TokenMarketCache{}).
-			Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+			Where("token_symbol = ? AND chain_id = ?", req.GetTokenSymbol(), chainID).
 			Updates(updates).Error
 	})
 
@@ -810,18 +806,18 @@ func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.Updat
 	// Retrieve updated data to return in response
 	var updated models.TokenMarketCache
 	err = db.Get().WithContext(ctx).
-		Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+		Where("token_symbol = ? AND chain_id = ?", req.GetTokenSymbol(), chainID).
 		First(&updated).Error
 
 	if err != nil {
-		global.Logger.Errorf("failed to retrieve updated token market cache for %s: %v", req.TokenSymbol, err)
+		global.Logger.Errorf("failed to retrieve updated token market cache for %s: %v", req.GetTokenSymbol(), err)
 		return ErrorReply(http.StatusInternalServerError, "failed to retrieve updated cache", err), err
 	}
 
 	// Build response
 	response := &pb.UpdateTokenMarketCacheResponse{
 		Success: true,
-		Message: fmt.Sprintf("Token market cache updated successfully for %s", req.TokenSymbol),
+		Message: fmt.Sprintf("Token market cache updated successfully for %s", req.GetTokenSymbol()),
 		Data: &pb.TokenMarketCacheDTO{
 			TokenSymbol:           updated.TokenSymbol,
 			ContractAddress:       updated.ContractAddress,
@@ -849,7 +845,7 @@ func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.Updat
 		response.Data.MaxSupply = *updated.MaxSupply
 	}
 
-	global.Logger.Infof("Admin: Updated token market cache for %s (data_source=manual_test)", req.TokenSymbol)
+	global.Logger.Infof("Admin: Updated token market cache for %s (data_source=manual_test)", req.GetTokenSymbol())
 
 	return MarshalAndReply(response, "marshal update response error")
 }
@@ -868,36 +864,39 @@ func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.Updat
 //   - HTTP 400 if token_symbol is missing
 //   - HTTP 500 on database errors
 func (s *AdminService) ResetTokenMarketCache(ctx context.Context, req *pb.ResetTokenMarketCacheRequest) (*pb.Reply, error) {
-	if req == nil || req.TokenSymbol == "" {
-		err := errors.New("missing token_symbol")
-		return ErrorReply(http.StatusBadRequest, "token_symbol is required", err), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	chainID := req.ChainId
+	if err := utils.ValidateRequiredFields("token_symbol", req.GetTokenSymbol()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+
+	chainID := req.GetChainId()
 	if chainID == "" {
 		chainID = DefaultChainID
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Update data_source back to 'coingecko' so next sync will update it
 	err := db.Get().WithContext(queryCtx).
 		Model(&models.TokenMarketCache{}).
-		Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+		Where("token_symbol = ? AND chain_id = ?", req.GetTokenSymbol(), chainID).
 		Update("data_source", "coingecko").Error
 
 	if err != nil {
-		global.Logger.Errorf("failed to reset token market cache for %s on chain %s: %v", req.TokenSymbol, chainID, err)
+		global.Logger.Errorf("failed to reset token market cache for %s on chain %s: %v", req.GetTokenSymbol(), chainID, err)
 		return ErrorReply(http.StatusInternalServerError, "failed to reset cache", err), err
 	}
 
 	response := &pb.ResetTokenMarketCacheResponse{
 		Success: true,
-		Message: fmt.Sprintf("Token market cache reset to auto-sync mode for %s", req.TokenSymbol),
+		Message: fmt.Sprintf("Token market cache reset to auto-sync mode for %s", req.GetTokenSymbol()),
 	}
 
-	global.Logger.Infof("Admin: Reset token market cache for %s (data_source=coingecko)", req.TokenSymbol)
+	global.Logger.Infof("Admin: Reset token market cache for %s (data_source=coingecko)", req.GetTokenSymbol())
 
 	return MarshalAndReply(response, "marshal reset response error")
 }

@@ -14,6 +14,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/chain"
 	"injective-explorer/provider/db"
@@ -110,18 +111,18 @@ func getStorageThresholdForSync() int {
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetLatestBlocks(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination parameters
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.GetPage(), req.GetPageSize(), req.GetCursor(), MaxPageSize)
 
 	// Use Debug level for request details to reduce log overhead in production
 	global.Logger.Debugf("get latest blocks: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// First, try to query from Redis cache for page-based pagination (avoids DB lag)
@@ -274,34 +275,34 @@ func (s *ExplorerService) loadArchivedBlockTxs(ctx context.Context, block *model
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlockByHeightRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate block height
-	if err := ValidateBlockHeight(req.Height); err != nil {
+	if err := ValidateBlockHeight(req.GetHeight()); err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid block height", err), err
 	}
 
-	global.Logger.Debugf("get block by height: height=%d", req.Height)
+	global.Logger.Debugf("get block by height: height=%d", req.GetHeight())
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// First, try to query from Redis cache
-	cachedBlock, err := getBlockFromCache(queryCtx, uint64(req.Height))
+	cachedBlock, err := getBlockFromCache(queryCtx, uint64(req.GetHeight()))
 	if err == nil && cachedBlock != nil {
-		global.Logger.Debugf("block found in cache: height=%d", req.Height)
+		global.Logger.Debugf("block found in cache: height=%d", req.GetHeight())
 		blockDTO := models.ToBlockDTO(cachedBlock, models.DTOModeWithDetail)
 
 		// For cached blocks, enhance transactions asynchronously if the block is recent
-		if uint64(req.Height) > getLatestBlockHeight()-RecentBlockThreshold {
+		if uint64(req.GetHeight()) > getLatestBlockHeight()-RecentBlockThreshold {
 			// Enhance in background without blocking the response
 			go func() {
 				enhanceCtx, cancel := context.WithTimeout(context.Background(), AsyncEnhancementTimeout)
 				defer cancel()
-				s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.Height))
+				s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.GetHeight()))
 			}()
 		}
 
@@ -311,12 +312,12 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	// Second, try to query from database
 	var dbBlock models.Block
 	startTime := time.Now()
-	err = db.Get().WithContext(queryCtx).Where("height = ?", req.Height).First(&dbBlock).Error
+	err = db.Get().WithContext(queryCtx).Where("height = ?", req.GetHeight()).First(&dbBlock).Error
 	queryDuration := time.Since(startTime)
 
 	if err == nil {
 		// Found in database, convert to DTO and return
-		global.Logger.Debugf("block found in database: height=%d, query_time=%v", req.Height, queryDuration)
+		global.Logger.Debugf("block found in database: height=%d, query_time=%v", req.GetHeight(), queryDuration)
 
 		// Load archived txs if block is archived
 		if dbBlock.Archived && len(dbBlock.Txs) == 0 {
@@ -330,34 +331,34 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 
 		// For database blocks, enhance transactions based on age and transaction count
 		// Skip enhancement for blocks with >100 transactions to avoid timeout
-		if uint64(req.Height) > getLatestBlockHeight()-RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
+		if uint64(req.GetHeight()) > getLatestBlockHeight()-RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
 			// Enhance synchronously for recent small blocks
-			enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
+			enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.GetHeight()))
 			return MarshalAndReply(enhancedBlockDTO, "marshal block error")
 		} else {
 			// Return block without enhancement or enhance asynchronously for large/recent blocks
 			if len(blockDTO.Txs) > 100 {
 				global.Logger.Debugf("skipping transaction enhancement for block %d with %d transactions (too many)",
-					req.Height, len(blockDTO.Txs))
+					req.GetHeight(), len(blockDTO.Txs))
 			} else {
 				// Enhance in background for older blocks
 				go func() {
 					enhanceCtx, cancel := context.WithTimeout(context.Background(), AsyncEnhancementTimeout)
 					defer cancel()
-					s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.Height))
+					s.enhanceBlockDTOWithTransactions(enhanceCtx, blockDTO, uint64(req.GetHeight()))
 				}()
 			}
 			return MarshalAndReply(blockDTO, "marshal block error")
 		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error (not just record not found), log and continue to query from chain
-		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v, query_time=%v", req.Height, err, queryDuration)
+		global.Logger.Warnf("database query error (not record not found), querying from chain: height=%d, error=%v, query_time=%v", req.GetHeight(), err, queryDuration)
 	} else {
-		global.Logger.Debugf("block not found in database: height=%d, query_time=%v", req.Height, queryDuration)
+		global.Logger.Debugf("block not found in database: height=%d, query_time=%v", req.GetHeight(), queryDuration)
 	}
 
 	// Not found in database, query from blockchain
-	global.Logger.Infof("block not found in database, querying from blockchain: height=%d", req.Height)
+	global.Logger.Infof("block not found in database, querying from blockchain: height=%d", req.GetHeight())
 
 	// Use independent context for RPC calls to avoid timeout issues
 	rpcCtx, rpcCancel := context.WithTimeout(context.Background(), AsyncEnhancementTimeout)
@@ -371,22 +372,22 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	}
 
 	// Fetch block from blockchain
-	height := int64(req.Height)
+	height := int64(req.GetHeight())
 	blockResp, err := rpcClient.Block(rpcCtx, &height)
 	if err != nil {
-		global.Logger.Errorf("failed to fetch block from blockchain: height=%d, error=%v", req.Height, err)
+		global.Logger.Errorf("failed to fetch block from blockchain: height=%d, error=%v", req.GetHeight(), err)
 		return ErrorReply(http.StatusInternalServerError, "failed to fetch block from blockchain", err), err
 	}
 
 	if blockResp == nil || blockResp.Block == nil {
-		global.Logger.Errorf("block response is nil for height %d", req.Height)
+		global.Logger.Errorf("block response is nil for height %d", req.GetHeight())
 		return ErrorReply(http.StatusInternalServerError, "block response is nil", errors.New("block response is nil")), errors.New("block response is nil")
 	}
 
 	// Convert to model
 	blockModel := models.BlockFromTM(blockResp)
 	if blockModel == nil {
-		global.Logger.Errorf("failed to convert block at height %d", req.Height)
+		global.Logger.Errorf("failed to convert block at height %d", req.GetHeight())
 		return ErrorReply(http.StatusInternalServerError, "failed to convert block", errors.New("failed to convert block")), errors.New("failed to convert block")
 	}
 
@@ -401,10 +402,10 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	}).Create(blockModel).Error
 
 	if err != nil {
-		global.Logger.Warnf("failed to save block to database (non-critical, returning fetched data): height=%d, error=%v", req.Height, err)
+		global.Logger.Warnf("failed to save block to database (non-critical, returning fetched data): height=%d, error=%v", req.GetHeight(), err)
 		// Continue even if database save fails
 	} else {
-		global.Logger.Infof("saved block to database: height=%d", req.Height)
+		global.Logger.Infof("saved block to database: height=%d", req.GetHeight())
 	}
 
 	// Cache the block for future queries
@@ -414,9 +415,9 @@ func (s *ExplorerService) GetBlockByHeight(ctx context.Context, req *pb.GetBlock
 	blockDTO := models.ToBlockDTO(blockModel, models.DTOModeWithDetail)
 
 	// Enhance transactions if the block is recent and has manageable transaction count
-	if uint64(req.Height) > getLatestBlockHeight()-RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
+	if uint64(req.GetHeight()) > getLatestBlockHeight()-RecentBlockThreshold && len(blockDTO.Txs) <= MaxTxEnhancementCount {
 		// Enhance synchronously for recent small blocks
-		enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.Height))
+		enhancedBlockDTO := s.enhanceBlockDTOWithTransactions(queryCtx, blockDTO, uint64(req.GetHeight()))
 		return MarshalAndReply(enhancedBlockDTO, "marshal block error")
 	}
 
@@ -863,17 +864,17 @@ func deduplicateTransactions(txs []models.Transaction) []models.Transaction {
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.PaginationRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination parameters
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.GetPage(), req.GetPageSize(), req.GetCursor(), MaxPageSize)
 
 	global.Logger.Debugf("get latest transactions: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// First, try to query from Redis cache for page-based pagination (avoids DB lag)
@@ -1005,17 +1006,17 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetBlockTransactions(ctx context.Context, req *pb.GetBlockTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate block height
-	if req.Height <= 0 {
+	if req.GetHeight() <= 0 {
 		return ErrorReply(http.StatusBadRequest, "invalid block height", errors.New("block height must be positive")), errors.New("invalid block height")
 	}
 
 	// Set default pagination if not provided
-	pagination := req.Pagination
+	pagination := req.GetPagination()
 	if pagination == nil {
 		pagination = &pb.PaginationRequest{
 			Page:     MinPage,
@@ -1024,23 +1025,23 @@ func (s *ExplorerService) GetBlockTransactions(ctx context.Context, req *pb.GetB
 	}
 
 	// Normalize pagination parameters
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(pagination.Page, pagination.PageSize, pagination.Cursor, MaxPageSize)
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(pagination.GetPage(), pagination.GetPageSize(), pagination.GetCursor(), MaxPageSize)
 
-	global.Logger.Debugf("get block transactions: height=%d, page=%d, page_size=%d, use_cursor=%v, cursor=%v", req.Height, page, pageSize, useCursor, cursorValue)
+	global.Logger.Debugf("get block transactions: height=%d, page=%d, page_size=%d, use_cursor=%v, cursor=%v", req.GetHeight(), page, pageSize, useCursor, cursorValue)
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query transactions from database with pagination
 	var dbTxs []models.Transaction
-	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).Where("block_number = ?", req.Height)
+	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).Where("block_number = ?", req.GetHeight())
 
 	// Get total count for this block
 	var total int64
-	countErr := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).Where("block_number = ?", req.Height).Count(&total).Error
+	countErr := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).Where("block_number = ?", req.GetHeight()).Count(&total).Error
 	if countErr != nil {
-		global.Logger.Warnf("failed to get transaction count for block %d: %v", req.Height, countErr)
+		global.Logger.Warnf("failed to get transaction count for block %d: %v", req.GetHeight(), countErr)
 	}
 
 	// Apply pagination
@@ -1069,9 +1070,9 @@ func (s *ExplorerService) GetBlockTransactions(ctx context.Context, req *pb.GetB
 
 	// Found in database or no results, convert to DTO and return
 	if len(dbTxs) > 0 {
-		global.Logger.Debugf("transactions found in database: height=%d, count=%d, query_time=%v", req.Height, len(dbTxs), queryDuration)
+		global.Logger.Debugf("transactions found in database: height=%d, count=%d, query_time=%v", req.GetHeight(), len(dbTxs), queryDuration)
 	} else {
-		global.Logger.Debugf("no transactions found for block height %d", req.Height)
+		global.Logger.Debugf("no transactions found for block height %d", req.GetHeight())
 	}
 
 	// Calculate next cursor
@@ -1099,12 +1100,12 @@ func (s *ExplorerService) GetBlockTransactions(ctx context.Context, req *pb.GetB
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetTransactionByHashRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Sanitize and validate transaction hash
-	hash := SanitizeHash(req.Hash)
+	hash := SanitizeHash(req.GetHash())
 	if err := ValidateTransactionHash(hash); err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid transaction hash", err), err
 	}
@@ -1112,7 +1113,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 	global.Logger.Debugf("get transaction by hash: hash=%s", hash)
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// First, try to query from Redis cache
@@ -1281,12 +1282,12 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccountInfoRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Sanitize and validate address
-	address := SanitizeAddress(req.Address)
+	address := SanitizeAddress(req.GetAddress())
 	if err := ValidateAddress(address); err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
@@ -1294,7 +1295,7 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	global.Logger.Debugf("get account info: address=%s", address)
 
 	// Create independent context for database query to avoid HTTP timeout issues
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	dbCtx, dbCancel := utils.WithDBTimeout()
 	defer dbCancel()
 
 	// Convert address to database format (Ethereum format 0x...)
@@ -1521,12 +1522,12 @@ func parseCommaSeparatedTxTypes(txTypes []string) []string {
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.GetAccountTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Sanitize and validate address
-	address := SanitizeAddress(req.Address)
+	address := SanitizeAddress(req.GetAddress())
 	if err := ValidateAddress(address); err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
@@ -1536,19 +1537,19 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	var offset int
 	var useCursor bool
 	var cursorValue uint64
-	if req.Pagination != nil {
-		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	if req.GetPagination() != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.GetPagination().GetPage(), req.GetPagination().GetPageSize(), req.GetPagination().GetCursor(), MaxPageSize)
 	}
 
 	// Parse comma-separated tx_types (e.g., "MsgSend,MsgTransfer" -> ["MsgSend", "MsgTransfer"])
-	req.TxTypes = parseCommaSeparatedTxTypes(req.TxTypes)
+	req.TxTypes = parseCommaSeparatedTxTypes(req.GetTxTypes())
 
 	// Check if transaction type filtering is requested
-	hasTxTypeFilter := len(req.TxTypes) > 0
-	global.Logger.Debugf("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v, tx_types=%v", address, page, pageSize, useCursor, req.TxTypes)
+	hasTxTypeFilter := len(req.GetTxTypes()) > 0
+	global.Logger.Debugf("get account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v, tx_types=%v", address, page, pageSize, useCursor, req.GetTxTypes())
 
 	// Create independent context for database query to avoid HTTP timeout issues
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	dbCtx, dbCancel := utils.WithDBTimeout()
 	defer dbCancel()
 
 	// Convert address to database format (Ethereum format 0x...)
@@ -1745,12 +1746,12 @@ func (s *ExplorerService) batchGetTokenTransfers(ctx context.Context, txs []mode
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAccountBalancesRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Sanitize and validate address
-	address := SanitizeAddress(req.Address)
+	address := SanitizeAddress(req.GetAddress())
 	if err := ValidateAddress(address); err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
@@ -1758,7 +1759,7 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 	global.Logger.Debugf("get account balances: address=%s", address)
 
 	// Create independent context for database query to avoid HTTP timeout issues
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	dbCtx, dbCancel := utils.WithDBTimeout()
 	defer dbCancel()
 
 	// Convert address to database format (Ethereum format 0x...)
@@ -3854,7 +3855,7 @@ func (s *ExplorerService) GetTransactionStats(ctx context.Context, req *emptypb.
 	})
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	stats := &pb.TransactionStatsResponse{}
@@ -4424,8 +4425,8 @@ func convertToFailedTransactionInfos(txs []models.Transaction) []*pb.FailedTrans
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetFailedTransactions24H(ctx context.Context, req *pb.GetFailedTransactions24HRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination parameters
@@ -4433,14 +4434,14 @@ func (s *ExplorerService) GetFailedTransactions24H(ctx context.Context, req *pb.
 	var offset int
 	var useCursor bool
 	var cursorValue uint64
-	if req.Pagination != nil {
-		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	if req.GetPagination() != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.GetPagination().GetPage(), req.GetPagination().GetPageSize(), req.GetPagination().GetCursor(), MaxPageSize)
 	}
 
 	global.Logger.Infof("get failed transactions 24h: page=%d, page_size=%d, use_cursor=%v", page, pageSize, useCursor)
 
 	// Create independent context for database queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Calculate 24 hours ago timestamp
@@ -5178,12 +5179,12 @@ func (s *ExplorerService) GetTokenPriceAndMarketCap(ctx context.Context, req *pb
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMTransactionRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Sanitize and validate transaction hash
-	hash := SanitizeHash(req.Hash)
+	hash := SanitizeHash(req.GetHash())
 	if err := ValidateTransactionHash(hash); err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid transaction hash", err), err
 	}
@@ -5191,7 +5192,7 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 	global.Logger.Debugf("get EVM transaction by hash: hash=%s", hash)
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query EVM transaction from evm_transactions table by EVM hash
@@ -5290,17 +5291,17 @@ func (s *ExplorerService) GetEVMTransaction(ctx context.Context, req *pb.GetEVMT
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVMTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination parameters
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.GetPage(), req.GetPageSize(), req.GetCursor(), MaxPageSize)
 
 	global.Logger.Debugf("get EVM transactions: page=%d, page_size=%d, use_cursor=%v, cursor=%v", page, pageSize, useCursor, cursorValue)
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query EVM transactions from evm_transactions table
@@ -5456,23 +5457,23 @@ func (s *ExplorerService) GetEVMTransactions(ctx context.Context, req *pb.GetEVM
 //   - error: Error if the operation fails or validation fails
 func (s *ExplorerService) GetEVMAccountTransactions(ctx context.Context, req *pb.GetEVMAccountTransactionsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Sanitize and validate address
-	address := SanitizeAddress(req.Address)
+	address := SanitizeAddress(req.GetAddress())
 	if err := ValidateAddress(address); err != nil {
 		return ErrorReply(http.StatusBadRequest, "invalid address", err), err
 	}
 
 	// Normalize pagination parameters
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Page, req.PageSize, req.Cursor, MaxPageSize)
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.GetPage(), req.GetPageSize(), req.GetCursor(), MaxPageSize)
 
 	global.Logger.Debugf("get EVM account transactions: address=%s, page=%d, page_size=%d, use_cursor=%v, cursor=%v", address, page, pageSize, useCursor, cursorValue)
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Convert address to database format (Ethereum format 0x...)
@@ -5966,11 +5967,11 @@ func getLatestBlockHeight() uint64 {
 //   - *pb.Reply: Response containing transactions and found map
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetTransactionsBatch(ctx context.Context, req *pb.GetTransactionsBatchRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if len(req.Hashes) == 0 {
+	if len(req.GetHashes()) == 0 {
 		response := map[string]interface{}{
 			"transactions": []*pb.TransactionDTO{},
 			"found":        make(map[string]bool),
@@ -5980,17 +5981,17 @@ func (s *ExplorerService) GetTransactionsBatch(ctx context.Context, req *pb.GetT
 
 	// Limit batch size to prevent abuse
 	maxBatchSize := BlockBatchSizeLimit
-	if len(req.Hashes) > maxBatchSize {
+	if len(req.GetHashes()) > maxBatchSize {
 		return ErrorReply(http.StatusBadRequest, fmt.Sprintf("batch size exceeds maximum of %d", maxBatchSize), errors.New("batch size too large")), errors.New("batch size too large")
 	}
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Normalize hashes (add 0x prefix if missing)
-	normalizedHashes := make([]string, len(req.Hashes))
-	for i, hash := range req.Hashes {
+	normalizedHashes := make([]string, len(req.GetHashes()))
+	for i, hash := range req.GetHashes() {
 		normalizedHash := SanitizeHash(hash)
 		normalizedHashes[i] = "0x" + normalizedHash
 	}
@@ -6045,11 +6046,11 @@ func (s *ExplorerService) GetTransactionsBatch(ctx context.Context, req *pb.GetT
 //   - *pb.Reply: Response containing blocks and found map
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetBlocksBatch(ctx context.Context, req *pb.GetBlocksBatchRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if len(req.Heights) == 0 {
+	if len(req.GetHeights()) == 0 {
 		response := map[string]interface{}{
 			"blocks": []*pb.BlockDTO{},
 			"found":  make(map[uint64]bool),
@@ -6059,18 +6060,18 @@ func (s *ExplorerService) GetBlocksBatch(ctx context.Context, req *pb.GetBlocksB
 
 	// Limit batch size to prevent abuse
 	maxBatchSize := BlockBatchSizeLimit
-	if len(req.Heights) > maxBatchSize {
+	if len(req.GetHeights()) > maxBatchSize {
 		return ErrorReply(http.StatusBadRequest, fmt.Sprintf("batch size exceeds maximum of %d", maxBatchSize), errors.New("batch size too large")), errors.New("batch size too large")
 	}
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query blocks from database in batch
 	var dbBlocks []models.Block
 	err := db.Get().WithContext(queryCtx).
-		Where("height IN ?", req.Heights).
+		Where("height IN ?", req.GetHeights()).
 		Find(&dbBlocks).Error
 
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -6085,10 +6086,10 @@ func (s *ExplorerService) GetBlocksBatch(ctx context.Context, req *pb.GetBlocksB
 	}
 
 	// Build response
-	blocks := make([]*pb.BlockDTO, 0, len(req.Heights))
+	blocks := make([]*pb.BlockDTO, 0, len(req.GetHeights()))
 	found := make(map[uint64]bool)
 
-	for _, height := range req.Heights {
+	for _, height := range req.GetHeights() {
 		if block, exists := blockMap[height]; exists {
 			blockDTO := models.ToBlockDTO(block, models.DTOModeWithDetail)
 			blocks = append(blocks, blockDTO)
@@ -6116,22 +6117,22 @@ func (s *ExplorerService) GetBlocksBatch(ctx context.Context, req *pb.GetBlocksB
 //   - *pb.Reply: Response containing validator block statistics
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetValidatorBlockStats(ctx context.Context, req *pb.GetValidatorBlockStatsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.ValidatorAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "validator address is required", errors.New("empty validator address")), errors.New("empty validator address")
+	if err := utils.ValidateRequiredFields("validator_address", req.GetValidatorAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Get validator information
 	var validator models.Validator
 	err := db.Get().WithContext(queryCtx).
-		Where("operator_address = ?", req.ValidatorAddress).
+		Where("operator_address = ?", req.GetValidatorAddress()).
 		First(&validator).Error
 
 	if err != nil {
@@ -6186,39 +6187,39 @@ func (s *ExplorerService) GetValidatorBlockStats(ctx context.Context, req *pb.Ge
 //   - *pb.Reply: Response containing list of contract tags
 //   - error: Error if the operation fails
 func (s *ExplorerService) GetAllContractTags(ctx context.Context, req *pb.GetAllContractTagsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Create independent context for queries
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build query with filters
 	query := db.Get().WithContext(queryCtx).Model(&models.ContractTag{})
 
 	// Apply filters
-	if req.ChainId != "" {
-		query = query.Where("chain_id = ?", req.ChainId)
+	if req.GetChainId() != "" {
+		query = query.Where("chain_id = ?", req.GetChainId())
 	}
-	if req.TagType != "" {
-		query = query.Where("tag_type = ?", req.TagType)
+	if req.GetTagType() != "" {
+		query = query.Where("tag_type = ?", req.GetTagType())
 	}
-	if req.ContractAddress != "" {
+	if req.GetContractAddress() != "" {
 		// Convert address to Ethereum format for storage
-		contractAddress := models.ConvertAddressToEthForStorage(req.ContractAddress)
+		contractAddress := models.ConvertAddressToEthForStorage(req.GetContractAddress())
 		query = query.Where("contract_address = ?", contractAddress)
 	}
 
 	// Apply pagination
 	page := int32(1)
 	pageSize := int32(20)
-	if req.Pagination != nil {
-		if req.Pagination.Page > 0 {
-			page = req.Pagination.Page
+	if req.GetPagination() != nil {
+		if req.GetPagination().GetPage() > 0 {
+			page = req.GetPagination().GetPage()
 		}
-		if req.Pagination.PageSize > 0 {
-			pageSize = req.Pagination.PageSize
+		if req.GetPagination().GetPageSize() > 0 {
+			pageSize = req.GetPagination().GetPageSize()
 			// Limit max page size
 			if pageSize > 100 {
 				pageSize = 100
@@ -6360,8 +6361,8 @@ func (s *ExplorerService) RemoveGlobalTag(ctx context.Context, req *pb.RemoveGlo
 
 // GetIBCTransferTxs retrieves IBC transfer transactions from the database.
 func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCTransferTxsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination
@@ -6370,40 +6371,40 @@ func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCT
 	var useCursor bool
 	var cursorValue uint64
 
-	if req.Pagination != nil {
-		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	if req.GetPagination() != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.GetPagination().GetPage(), req.GetPagination().GetPageSize(), req.GetPagination().GetCursor(), MaxPageSize)
 	} else {
 		page, pageSize, offset, useCursor, cursorValue = normalizePagination(1, 20, "", MaxPageSize)
 	}
 
 	global.Logger.Debugf("get IBC transfer txs: page=%d, page_size=%d, sender=%s, receiver=%s",
-		page, pageSize, req.Sender, req.Receiver)
+		page, pageSize, req.GetSender(), req.GetReceiver())
 
 	// Create independent context for database query
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query ibc_transfer_txs table
 	query := db.Get().WithContext(queryCtx).Model(&models.IBCTransferTx{})
 
 	// Apply filters
-	if req.Sender != "" {
-		query = query.Where("sender = ?", req.Sender)
+	if req.GetSender() != "" {
+		query = query.Where("sender = ?", req.GetSender())
 	}
-	if req.Receiver != "" {
-		query = query.Where("receiver = ?", req.Receiver)
+	if req.GetReceiver() != "" {
+		query = query.Where("receiver = ?", req.GetReceiver())
 	}
-	if req.SrcChannel != "" {
-		query = query.Where("source_channel = ?", req.SrcChannel)
+	if req.GetSrcChannel() != "" {
+		query = query.Where("source_channel = ?", req.GetSrcChannel())
 	}
-	if req.SrcPort != "" {
-		query = query.Where("source_port = ?", req.SrcPort)
+	if req.GetSrcPort() != "" {
+		query = query.Where("source_port = ?", req.GetSrcPort())
 	}
-	if req.DestChannel != "" {
-		query = query.Where("destination_channel = ?", req.DestChannel)
+	if req.GetDestChannel() != "" {
+		query = query.Where("destination_channel = ?", req.GetDestChannel())
 	}
-	if req.DestPort != "" {
-		query = query.Where("destination_port = ?", req.DestPort)
+	if req.GetDestPort() != "" {
+		query = query.Where("destination_port = ?", req.GetDestPort())
 	}
 
 	// Get total count
@@ -6464,8 +6465,8 @@ func convertIBCTransferTxToDTO(tx *models.IBCTransferTx) *pb.IBCTransferTxDTO {
 
 // GetPeggyDepositTxs retrieves Peggy deposit transactions from the database.
 func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeggyDepositTxsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination
@@ -6474,28 +6475,28 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 	var useCursor bool
 	var cursorValue uint64
 
-	if req.Pagination != nil {
-		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	if req.GetPagination() != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.GetPagination().GetPage(), req.GetPagination().GetPageSize(), req.GetPagination().GetCursor(), MaxPageSize)
 	} else {
 		page, pageSize, offset, useCursor, cursorValue = normalizePagination(1, 20, "", MaxPageSize)
 	}
 
 	global.Logger.Debugf("get Peggy deposit txs: page=%d, page_size=%d, sender=%s, receiver=%s",
-		page, pageSize, req.Sender, req.Receiver)
+		page, pageSize, req.GetSender(), req.GetReceiver())
 
 	// Create independent context for database query
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query peggy_deposit_txs table
 	query := db.Get().WithContext(queryCtx).Model(&models.PeggyDepositTx{})
 
 	// Apply filters
-	if req.Sender != "" {
-		query = query.Where("sender = ?", req.Sender)
+	if req.GetSender() != "" {
+		query = query.Where("sender = ?", req.GetSender())
 	}
-	if req.Receiver != "" {
-		query = query.Where("receiver = ?", req.Receiver)
+	if req.GetReceiver() != "" {
+		query = query.Where("receiver = ?", req.GetReceiver())
 	}
 
 	// Get total count
@@ -6554,8 +6555,8 @@ func convertPeggyDepositTxToDTO(tx *models.PeggyDepositTx) *pb.PeggyDepositTxDTO
 
 // GetPeggyWithdrawalTxs retrieves Peggy withdrawal transactions from the database.
 func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.GetPeggyWithdrawalTxsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination
@@ -6564,28 +6565,28 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 	var useCursor bool
 	var cursorValue uint64
 
-	if req.Pagination != nil {
-		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	if req.GetPagination() != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.GetPagination().GetPage(), req.GetPagination().GetPageSize(), req.GetPagination().GetCursor(), MaxPageSize)
 	} else {
 		page, pageSize, offset, useCursor, cursorValue = normalizePagination(1, 20, "", MaxPageSize)
 	}
 
 	global.Logger.Debugf("get Peggy withdrawal txs: page=%d, page_size=%d, sender=%s, receiver=%s",
-		page, pageSize, req.Sender, req.Receiver)
+		page, pageSize, req.GetSender(), req.GetReceiver())
 
 	// Create independent context for database query
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Query peggy_withdrawal_txs table
 	query := db.Get().WithContext(queryCtx).Model(&models.PeggyWithdrawalTx{})
 
 	// Apply filters
-	if req.Sender != "" {
-		query = query.Where("sender = ?", req.Sender)
+	if req.GetSender() != "" {
+		query = query.Where("sender = ?", req.GetSender())
 	}
-	if req.Receiver != "" {
-		query = query.Where("receiver = ?", req.Receiver)
+	if req.GetReceiver() != "" {
+		query = query.Where("receiver = ?", req.GetReceiver())
 	}
 
 	// Get total count

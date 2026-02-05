@@ -9,6 +9,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
@@ -28,8 +29,8 @@ func NewTagDefinitionService() *TagDefinitionService {
 // ListTagDefinitions lists tag definitions with filters.
 func (s *TagDefinitionService) ListTagDefinitions(ctx context.Context, req *pb.ListTagDefinitionsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize pagination parameters
@@ -37,27 +38,27 @@ func (s *TagDefinitionService) ListTagDefinitions(ctx context.Context, req *pb.L
 	var offset int
 	var useCursor bool
 	var cursorValue uint64
-	if req.Pagination != nil {
+	if req.GetPagination() != nil {
 		page, pageSize, offset, useCursor, cursorValue = normalizePagination(
-			req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+			req.GetPagination().GetPage(), req.GetPagination().GetPageSize(), req.GetPagination().GetCursor(), MaxPageSize)
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build query
 	query := db.Get().WithContext(queryCtx).Model(&models.TagDefinition{})
 
 	// Apply filters
-	if req.TagType != "" {
-		query = query.Where("tag_type = ?", req.TagType)
+	if req.GetTagType() != "" {
+		query = query.Where("tag_type = ?", req.GetTagType())
 	}
 
-	if req.TagCategory != "" {
-		query = query.Where("tag_category = ?", req.TagCategory)
+	if req.GetTagCategory() != "" {
+		query = query.Where("tag_category = ?", req.GetTagCategory())
 	}
 
-	if req.IsSystem {
+	if req.GetIsSystem() {
 		query = query.Where("is_system = ?", 1)
 	}
 
@@ -101,41 +102,33 @@ func (s *TagDefinitionService) ListTagDefinitions(ctx context.Context, req *pb.L
 // CreateTagDefinition creates a new tag definition.
 func (s *TagDefinitionService) CreateTagDefinition(ctx context.Context, req *pb.CreateTagDefinitionRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.TagType == "" {
-		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
-	}
-
-	if req.TagName == "" {
-		return ErrorReply(http.StatusBadRequest, "tag_name is required", errors.New("tag_name is required")), errors.New("tag_name is required")
-	}
-
-	if req.TagCategory == "" {
-		return ErrorReply(http.StatusBadRequest, "tag_category is required", errors.New("tag_category is required")), errors.New("tag_category is required")
+	if err := utils.ValidateRequiredFields(
+		"tag_type", req.GetTagType(),
+		"tag_name", req.GetTagName(),
+		"tag_category", req.GetTagCategory(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate tag_type
-	if req.TagType != "address" && req.TagType != "contract" {
+	if req.GetTagType() != "address" && req.GetTagType() != "contract" {
 		return ErrorReply(http.StatusBadRequest, "tag_type must be 'address' or 'contract'",
-			fmt.Errorf("invalid tag_type: %s", req.TagType)), fmt.Errorf("invalid tag_type: %s", req.TagType)
+			fmt.Errorf("invalid tag_type: %s", req.GetTagType())), fmt.Errorf("invalid tag_type: %s", req.GetTagType())
 	}
 
 	// Validate tag_category
-	if req.TagCategory != "normal" && req.TagCategory != "abnormal" {
+	if req.GetTagCategory() != "normal" && req.GetTagCategory() != "abnormal" {
 		return ErrorReply(http.StatusBadRequest, "tag_category must be 'normal' or 'abnormal'",
-			fmt.Errorf("invalid tag_category: %s", req.TagCategory)), fmt.Errorf("invalid tag_category: %s", req.TagCategory)
+			fmt.Errorf("invalid tag_category: %s", req.GetTagCategory())), fmt.Errorf("invalid tag_category: %s", req.GetTagCategory())
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Check if tag definition already exists
 	var existingDef models.TagDefinition
 	err := db.Get().WithContext(queryCtx).
-		Where("tag_type = ? AND tag_name = ?", req.TagType, req.TagName).
+		Where("tag_type = ? AND tag_name = ?", req.GetTagType(), req.GetTagName()).
 		First(&existingDef).Error
 
 	if err == nil {
@@ -149,14 +142,14 @@ func (s *TagDefinitionService) CreateTagDefinition(ctx context.Context, req *pb.
 
 	// Create tag definition
 	definition := &models.TagDefinition{
-		TagType:     req.TagType,
-		TagName:     req.TagName,
-		TagCategory: req.TagCategory,
-		TagColor:    req.TagColor,
-		Description: req.Description,
+		TagType:     req.GetTagType(),
+		TagName:     req.GetTagName(),
+		TagCategory: req.GetTagCategory(),
+		TagColor:    req.GetTagColor(),
+		Description: req.GetDescription(),
 		IsSystem:    false, // User-created tags are not system tags
-		SortOrder:   int(req.SortOrder),
-		CreatedBy:   req.CreatedBy,
+		SortOrder:   int(req.GetSortOrder()),
+		CreatedBy:   req.GetCreatedBy(),
 	}
 
 	err = db.Get().WithContext(queryCtx).Create(definition).Error
@@ -173,20 +166,20 @@ func (s *TagDefinitionService) CreateTagDefinition(ctx context.Context, req *pb.
 // UpdateTagDefinition updates an existing tag definition.
 func (s *TagDefinitionService) UpdateTagDefinition(ctx context.Context, req *pb.UpdateTagDefinitionRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.Id == 0 {
-		return ErrorReply(http.StatusBadRequest, "id is required", errors.New("id is required")), errors.New("id is required")
+	if err := utils.ValidatePositive(req.GetId(), "id"); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Find tag definition
 	var definition models.TagDefinition
-	err := db.Get().WithContext(queryCtx).First(&definition, req.Id).Error
+	err := db.Get().WithContext(queryCtx).First(&definition, req.GetId()).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &pb.Reply{
@@ -202,11 +195,11 @@ func (s *TagDefinitionService) UpdateTagDefinition(ctx context.Context, req *pb.
 	// Build updates map
 	updates := make(map[string]interface{})
 
-	if req.TagName != "" {
+	if req.GetTagName() != "" {
 		// Check if new name conflicts with existing definition
 		var existingDef models.TagDefinition
 		err := db.Get().WithContext(queryCtx).
-			Where("tag_type = ? AND tag_name = ? AND id != ?", definition.TagType, req.TagName, req.Id).
+			Where("tag_type = ? AND tag_name = ? AND id != ?", definition.TagType, req.GetTagName(), req.GetId()).
 			First(&existingDef).Error
 		if err == nil {
 			return ErrorReply(http.StatusConflict, "tag name already exists",
@@ -215,23 +208,23 @@ func (s *TagDefinitionService) UpdateTagDefinition(ctx context.Context, req *pb.
 			return ErrorReply(http.StatusInternalServerError, "failed to check existing tag definition", err), err
 		}
 
-		updates["tag_name"] = req.TagName
+		updates["tag_name"] = req.GetTagName()
 	}
 
-	if req.TagCategory != "" {
-		updates["tag_category"] = req.TagCategory
+	if req.GetTagCategory() != "" {
+		updates["tag_category"] = req.GetTagCategory()
 	}
 
-	if req.TagColor != "" {
-		updates["tag_color"] = req.TagColor
+	if req.GetTagColor() != "" {
+		updates["tag_color"] = req.GetTagColor()
 	}
 
-	if req.Description != "" {
-		updates["description"] = req.Description
+	if req.GetDescription() != "" {
+		updates["description"] = req.GetDescription()
 	}
 
-	if req.SortOrder > 0 {
-		updates["sort_order"] = req.SortOrder
+	if req.GetSortOrder() > 0 {
+		updates["sort_order"] = req.GetSortOrder()
 	}
 
 	if len(updates) == 0 {
@@ -247,7 +240,7 @@ func (s *TagDefinitionService) UpdateTagDefinition(ctx context.Context, req *pb.
 	}
 
 	// Reload to get updated data
-	err = db.Get().WithContext(queryCtx).First(&definition, req.Id).Error
+	err = db.Get().WithContext(queryCtx).First(&definition, req.GetId()).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload tag definition: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to reload tag definition", err), err
@@ -261,20 +254,20 @@ func (s *TagDefinitionService) UpdateTagDefinition(ctx context.Context, req *pb.
 // DeleteTagDefinition deletes a tag definition.
 func (s *TagDefinitionService) DeleteTagDefinition(ctx context.Context, req *pb.DeleteTagDefinitionRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.Id == 0 {
-		return ErrorReply(http.StatusBadRequest, "id is required", errors.New("id is required")), errors.New("id is required")
+	if err := utils.ValidatePositive(req.GetId(), "id"); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Check if tag definition exists and is not a system tag
 	var definition models.TagDefinition
-	err := db.Get().WithContext(queryCtx).First(&definition, req.Id).Error
+	err := db.Get().WithContext(queryCtx).First(&definition, req.GetId()).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &pb.Reply{
@@ -298,7 +291,7 @@ func (s *TagDefinitionService) DeleteTagDefinition(ctx context.Context, req *pb.
 	if definition.TagType == "contract" {
 		var count int64
 		db.Get().WithContext(queryCtx).Model(&models.ContractTag{}).
-			Where("tag_definition_id = ?", req.Id).
+			Where("tag_definition_id = ?", req.GetId()).
 			Count(&count)
 		usageCount = int(count)
 	}
@@ -327,17 +320,17 @@ func (s *TagDefinitionService) DeleteTagDefinition(ctx context.Context, req *pb.
 // GetTagUsageStats gets usage statistics for tags.
 func (s *TagDefinitionService) GetTagUsageStats(ctx context.Context, req *pb.GetTagUsageStatsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build query
 	var stats []*pb.TagUsageStatsDTO
 
-	if req.TagType == "" || req.TagType == "contract" {
+	if req.GetTagType() == "" || req.GetTagType() == "contract" {
 		// Get contract tag usage stats from tag_definitions
 		var contractStats []models.TagDefinition
 		err := db.Get().WithContext(queryCtx).
@@ -359,7 +352,7 @@ func (s *TagDefinitionService) GetTagUsageStats(ctx context.Context, req *pb.Get
 		}
 	}
 
-	if req.TagType == "" || req.TagType == "address" {
+	if req.GetTagType() == "" || req.GetTagType() == "address" {
 		// Get address tag usage stats
 		// Note: address_labels don't have tag_definition_id, so we count by label_value
 		type AddressTagStat struct {
@@ -395,23 +388,19 @@ func (s *TagDefinitionService) GetTagUsageStats(ctx context.Context, req *pb.Get
 // GetTagDefinitionsForSelection gets tag definitions for frontend selection.
 func (s *TagDefinitionService) GetTagDefinitionsForSelection(ctx context.Context, req *pb.GetTagDefinitionsForSelectionRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
+	if err := utils.ValidateRequiredFields("tag_type", req.GetTagType()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.TagType == "" {
-		return ErrorReply(http.StatusBadRequest, "tag_type is required", errors.New("tag_type is required")), errors.New("tag_type is required")
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build query
 	query := db.Get().WithContext(queryCtx).Model(&models.TagDefinition{}).
-		Where("tag_type = ?", req.TagType)
+		Where("tag_type = ?", req.GetTagType())
 
-	if req.TagCategory != "" {
-		query = query.Where("tag_category = ?", req.TagCategory)
+	if req.GetTagCategory() != "" {
+		query = query.Where("tag_category = ?", req.GetTagCategory())
 	}
 
 	// Order by sort_order and name

@@ -10,6 +10,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 
 	"github.com/pkg/errors"
@@ -24,11 +25,11 @@ var (
 
 // ListEmailBlacklist lists email blacklist domains
 func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmailBlacklistRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	pagination := req.Pagination
+	pagination := req.GetPagination()
 	if pagination == nil {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -36,24 +37,25 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 		}
 	}
 
-	if pagination.Page < 1 {
+	if pagination.GetPage() < 1 {
 		pagination.Page = 1
 	}
-	if pagination.PageSize < 1 || pagination.PageSize > 100 {
-		pagination.PageSize = 20
+	pageSize := pagination.GetPageSize()
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.EmailBlacklist{})
 
-	if req.Domain != "" {
-		query = query.Where("domain LIKE ?", "%"+req.Domain+"%")
+	if req.GetDomain() != "" {
+		query = query.Where("domain LIKE ?", "%"+req.GetDomain()+"%")
 	}
 
-	if req.Status != "" {
-		query = query.Where("status = ?", req.Status)
+	if req.GetStatus() != "" {
+		query = query.Where("status = ?", req.GetStatus())
 	}
 
 	var total int64
@@ -64,8 +66,8 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 	}
 
 	var blacklist []models.EmailBlacklist
-	offset := (pagination.Page - 1) * pagination.PageSize
-	err = query.Offset(int(offset)).Limit(int(pagination.PageSize)).Order("created_at DESC").Find(&blacklist).Error
+	offset := (pagination.GetPage() - 1) * pageSize
+	err = query.Offset(int(offset)).Limit(int(pageSize)).Order("created_at DESC").Find(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to list email blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to query email blacklist", err), err
@@ -75,23 +77,22 @@ func (s *AdminService) ListEmailBlacklist(ctx context.Context, req *pb.ListEmail
 	infos := models.ToEmailBlacklistDTOs(blacklist)
 
 	// Build paginated response using buildPaginatedResponse
-	response := buildPaginatedResponse(infos, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(blacklist))
+	response := buildPaginatedResponse(infos, pagination.GetPage(), pageSize, total, true, false, 0, "", len(blacklist))
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // AddEmailDomain adds an email domain to blacklist
 func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomainRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-
-	if req.Domain == "" {
-		return ErrorReply(http.StatusBadRequest, "domain is required", nil), nil
+	if err := utils.ValidateRequiredFields("domain", req.GetDomain()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Normalize domain (lowercase, trim)
-	domain := strings.ToLower(strings.TrimSpace(req.Domain))
+	domain := strings.ToLower(strings.TrimSpace(req.GetDomain()))
 	domain = strings.TrimPrefix(domain, "@")
 
 	// Validate domain format
@@ -99,7 +100,7 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 		return ErrorReply(http.StatusBadRequest, "invalid domain format", nil), nil
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Check if domain already exists
@@ -116,7 +117,7 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 	}
 
 	// Set default status
-	domainStatus := req.Status
+	domainStatus := req.GetStatus()
 	if domainStatus == "" {
 		domainStatus = "active"
 	}
@@ -129,7 +130,7 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 		Domain:     domain,
 		Status:     domainStatus,
 		BlockCount: 0,
-		Note:       req.Note,
+		Note:       req.GetNote(),
 	}
 
 	err = db.Get().WithContext(queryCtx).Create(blacklist).Error
@@ -146,20 +147,20 @@ func (s *AdminService) AddEmailDomain(ctx context.Context, req *pb.AddEmailDomai
 
 // UpdateEmailDomain updates an email domain
 func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmailDomainRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if req.GetId() == 0 {
+		err := errors.New("id is required")
+		return ErrorReply(http.StatusBadRequest, "id is required", err), err
 	}
 
-	if req.Id == 0 {
-		return ErrorReply(http.StatusBadRequest, "id is required", nil), nil
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var blacklist models.EmailBlacklist
 	err := db.Get().WithContext(queryCtx).
-		Where("id = ?", req.Id).
+		Where("id = ?", req.GetId()).
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -175,14 +176,14 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 
 	// Update fields
 	updates := make(map[string]interface{})
-	if req.Status != "" {
-		if req.Status != "active" && req.Status != "disabled" {
+	if req.GetStatus() != "" {
+		if req.GetStatus() != "active" && req.GetStatus() != "disabled" {
 			return ErrorReply(http.StatusBadRequest, "status must be 'active' or 'disabled'", nil), nil
 		}
-		updates["status"] = req.Status
+		updates["status"] = req.GetStatus()
 	}
-	if req.Note != "" {
-		updates["note"] = req.Note
+	if req.GetNote() != "" {
+		updates["note"] = req.GetNote()
 	}
 
 	if len(updates) == 0 {
@@ -196,7 +197,7 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 	}
 
 	// Reload
-	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&blacklist).Error
+	err = db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload email blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to reload email blacklist", err), err
@@ -210,20 +211,20 @@ func (s *AdminService) UpdateEmailDomain(ctx context.Context, req *pb.UpdateEmai
 
 // DeleteEmailDomain deletes an email domain from blacklist
 func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmailDomainRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if req.GetId() == 0 {
+		err := errors.New("id is required")
+		return ErrorReply(http.StatusBadRequest, "id is required", err), err
 	}
 
-	if req.Id == 0 {
-		return ErrorReply(http.StatusBadRequest, "id is required", nil), nil
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var blacklist models.EmailBlacklist
 	err := db.Get().WithContext(queryCtx).
-		Where("id = ?", req.Id).
+		Where("id = ?", req.GetId()).
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -254,15 +255,15 @@ func (s *AdminService) DeleteEmailDomain(ctx context.Context, req *pb.DeleteEmai
 
 // BatchImportEmailDomains batch imports email domains
 func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.BatchImportEmailDomainsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if len(req.GetDomains()) == 0 {
+		err := errors.New("domains is required")
+		return ErrorReply(http.StatusBadRequest, "domains is required", err), err
 	}
 
-	if len(req.Domains) == 0 {
-		return ErrorReply(http.StatusBadRequest, "domains is required", nil), nil
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Normalize and validate domains
@@ -270,7 +271,7 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 	invalidDomains := make([]string, 0)
 	domainSet := make(map[string]bool)
 
-	for _, domain := range req.Domains {
+	for _, domain := range req.GetDomains() {
 		// Normalize domain
 		domain = strings.ToLower(strings.TrimSpace(domain))
 		if domain == "" {
@@ -342,7 +343,7 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 	}
 
 	result := &pb.BatchImportEmailDomainsDTO{
-		Total:            int32(len(req.Domains)),
+		Total:            int32(len(req.GetDomains())),
 		Valid:            int32(len(validDomains)),
 		Invalid:          int32(len(invalidDomains)),
 		Duplicate:        int32(duplicate),
@@ -356,20 +357,20 @@ func (s *AdminService) BatchImportEmailDomains(ctx context.Context, req *pb.Batc
 
 // ToggleEmailDomainStatus toggles email domain status (active/disabled)
 func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.ToggleEmailDomainStatusRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if req.GetId() == 0 {
+		err := errors.New("id is required")
+		return ErrorReply(http.StatusBadRequest, "id is required", err), err
 	}
 
-	if req.Id == 0 {
-		return ErrorReply(http.StatusBadRequest, "id is required", nil), nil
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var blacklist models.EmailBlacklist
 	err := db.Get().WithContext(queryCtx).
-		Where("id = ?", req.Id).
+		Where("id = ?", req.GetId()).
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -396,7 +397,7 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 	}
 
 	// Reload
-	err = db.Get().WithContext(queryCtx).Where("id = ?", req.Id).First(&blacklist).Error
+	err = db.Get().WithContext(queryCtx).Where("id = ?", req.GetId()).First(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to reload email blacklist: %v", err)
 		return ErrorReply(http.StatusInternalServerError, "failed to reload email blacklist", err), err
@@ -410,7 +411,7 @@ func (s *AdminService) ToggleEmailDomainStatus(ctx context.Context, req *pb.Togg
 
 // GetEmailBlacklistStats gets email blacklist statistics
 func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Get total count
@@ -446,15 +447,15 @@ func (s *AdminService) GetEmailBlacklistStats(ctx context.Context, req *emptypb.
 
 // PreviewImportEmailDomains previews batch import email domains
 func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.PreviewImportEmailDomainsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if len(req.GetDomains()) == 0 {
+		err := errors.New("domains is required")
+		return ErrorReply(http.StatusBadRequest, "domains is required", err), err
 	}
 
-	if len(req.Domains) == 0 {
-		return ErrorReply(http.StatusBadRequest, "domains is required", nil), nil
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Normalize and validate domains
@@ -462,7 +463,7 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 	invalidDomains := make([]string, 0)
 	domainSet := make(map[string]bool)
 
-	for _, domain := range req.Domains {
+	for _, domain := range req.GetDomains() {
 		// Normalize domain
 		domain = strings.ToLower(strings.TrimSpace(domain))
 		if domain == "" {
@@ -513,7 +514,7 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 	}
 
 	result := &pb.BatchImportEmailDomainsDTO{
-		Total:            int32(len(req.Domains)),
+		Total:            int32(len(req.GetDomains())),
 		Valid:            int32(len(validDomains)),
 		Invalid:          int32(len(invalidDomains)),
 		Duplicate:        int32(len(duplicateDomains)),
@@ -527,20 +528,20 @@ func (s *AdminService) PreviewImportEmailDomains(ctx context.Context, req *pb.Pr
 
 // BatchDeleteEmailDomains batch deletes email domains
 func (s *AdminService) BatchDeleteEmailDomains(ctx context.Context, req *pb.BatchDeleteEmailDomainsRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if len(req.GetIds()) == 0 {
+		err := errors.New("ids is required")
+		return ErrorReply(http.StatusBadRequest, "ids is required", err), err
 	}
 
-	if len(req.Ids) == 0 {
-		return ErrorReply(http.StatusBadRequest, "ids is required", nil), nil
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Perform hard delete (physical deletion)
 	result := db.Get().WithContext(queryCtx).
-		Where("id IN ?", req.Ids).
+		Where("id IN ?", req.GetIds()).
 		Delete(&models.EmailBlacklist{})
 
 	if result.Error != nil {

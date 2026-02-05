@@ -2,6 +2,7 @@
 package utils
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -106,4 +107,26 @@ func Max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// Uint64ToString converts a uint64 to string.
+//
+// Parameters:
+//   - v: The uint64 value to convert
+//
+// Returns:
+//   - string: The string representation of the value
+func Uint64ToString(v uint64) string {
+	return fmt.Sprintf("%d", v)
+}
+
+// Int64ToString converts an int64 to string.
+//
+// Parameters:
+//   - v: The int64 value to convert
+//
+// Returns:
+//   - string: The string representation of the value
+func Int64ToString(v int64) string {
+	return fmt.Sprintf("%d", v)
 }

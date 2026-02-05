@@ -14,6 +14,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
@@ -232,11 +233,11 @@ func (s *AdminService) GetIPDetail(ctx context.Context, req *pb.GetIPDetailReque
 
 // ListIPBlacklist lists IP blacklist
 func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlacklistRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	pagination := req.Pagination
+	pagination := req.GetPagination()
 	if pagination == nil {
 		pagination = &pb.PaginationRequest{
 			Page:     1,
@@ -244,19 +245,19 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 		}
 	}
 
-	if pagination.Page < 1 {
+	if pagination.GetPage() < 1 {
 		pagination.Page = 1
 	}
-	if pagination.PageSize < 1 || pagination.PageSize > 100 {
+	if pagination.GetPageSize() < 1 || pagination.GetPageSize() > 100 {
 		pagination.PageSize = 20
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	query := db.Get().WithContext(queryCtx).Model(&models.IPBlacklist{})
 
-	if req.IpAddress != "" {
+	if req.GetIpAddress() != "" {
 		query = query.Where("ip_address LIKE ?", "%"+req.IpAddress+"%")
 	}
 
@@ -268,7 +269,7 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 	}
 
 	var blacklist []models.IPBlacklist
-	offset := (pagination.Page - 1) * pagination.PageSize
+	offset := (pagination.GetPage() - 1) * pagination.GetPageSize()
 	err = query.Offset(int(offset)).Limit(int(pagination.PageSize)).Order("created_at DESC").Find(&blacklist).Error
 	if err != nil {
 		global.Logger.Errorf("failed to list IP blacklist: %v", err)
@@ -279,38 +280,38 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 	infos := models.ToIPBlacklistDTOs(blacklist)
 
 	// Build paginated response using buildPaginatedResponse
-	response := buildPaginatedResponse(infos, pagination.Page, pagination.PageSize, total, true, false, 0, "", len(blacklist))
+	response := buildPaginatedResponse(infos, pagination.GetPage(), pagination.GetPageSize(), total, true, false, 0, "", len(blacklist))
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
 
 // AddIPToBlacklist adds an IP to blacklist
 func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlacklistRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	if req.IpAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "ip_address is required", nil), nil
+	if err := utils.ValidateRequiredFields("ip_address", req.GetIpAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate IP address format
-	ip := net.ParseIP(req.IpAddress)
+	ip := net.ParseIP(req.GetIpAddress())
 	if ip == nil {
 		return ErrorReply(http.StatusBadRequest, "invalid IP address format", nil), nil
 	}
 
-	if req.Reason == "" {
-		return ErrorReply(http.StatusBadRequest, "reason is required", nil), nil
+	if err := utils.ValidateRequiredFields("reason", req.GetReason()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Check if IP already in blacklist
 	var existing models.IPBlacklist
 	err := db.Get().WithContext(queryCtx).
-		Where("ip_address = ?", req.IpAddress).
+		Where("ip_address = ?", req.GetIpAddress()).
 		First(&existing).Error
 	if err == nil {
 		return ErrorReply(http.StatusConflict, "IP already in blacklist", nil), nil
@@ -324,21 +325,21 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 	ipLocation := ""
 	var record models.IPRegistrationRecord
 	if err := db.Get().WithContext(queryCtx).
-		Where("ip_address = ?", req.IpAddress).
+		Where("ip_address = ?", req.GetIpAddress()).
 		First(&record).Error; err == nil {
 		ipLocation = record.IPLocation
 	}
 
 	// Create blacklist entry
 	blacklist := &models.IPBlacklist{
-		IPAddress:    req.IpAddress,
+		IPAddress:    req.GetIpAddress(),
 		IPLocation:   ipLocation,
-		Reason:       req.Reason,
-		ReasonText:   req.ReasonText,
+		Reason:       req.GetReason(),
+		ReasonText:   req.GetReasonText(),
 		BlockCount:   0,
-		OperatorID:   req.OperatorId,
-		OperatorName: req.OperatorName,
-		BlockType:    req.BlockType,
+		OperatorID:   req.GetOperatorId(),
+		OperatorName: req.GetOperatorName(),
+		BlockType:    req.GetBlockType(),
 	}
 
 	if blacklist.BlockType == "" {
@@ -359,16 +360,20 @@ func (s *AdminService) AddIPToBlacklist(ctx context.Context, req *pb.AddIPToBlac
 
 // RemoveIPFromBlacklist removes an IP from blacklist
 func (s *AdminService) RemoveIPFromBlacklist(ctx context.Context, req *pb.RemoveIPFromBlacklistRequest) (*pb.Reply, error) {
-	if req == nil || req.IpAddress == "" {
-		return ErrorReply(http.StatusBadRequest, "ip_address is required", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	if err := utils.ValidateRequiredFields("ip_address", req.GetIpAddress()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	var blacklist models.IPBlacklist
 	err := db.Get().WithContext(queryCtx).
-		Where("ip_address = ?", req.IpAddress).
+		Where("ip_address = ?", req.GetIpAddress()).
 		First(&blacklist).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -710,8 +715,8 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 // This function persists the configuration to Redis for runtime hot-reload support.
 // The configuration is stored as JSON and will be immediately effective for all API instances.
 func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.UpdateIPRateLimitConfigRequest) (*pb.Reply, error) {
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", nil), nil
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Validate values
@@ -875,7 +880,7 @@ func (s *AdminService) GetIPRecordsStats(ctx context.Context, req *pb.GetIPRecor
 
 // GetIPBlacklistStats gets IP blacklist statistics
 func (s *AdminService) GetIPBlacklistStats(ctx context.Context, req *emptypb.Empty) (*pb.Reply, error) {
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Get total count

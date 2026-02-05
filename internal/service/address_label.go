@@ -13,6 +13,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
@@ -58,44 +59,36 @@ const (
 //   - error: Error if the operation fails
 func (s *AddressLabelService) CreateAddressLabel(ctx context.Context, req *pb.CreateAddressLabelRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.Address == "" {
-		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
-	}
-
-	if req.LabelType == "" {
-		return ErrorReply(http.StatusBadRequest, "label_type is required", errors.New("label_type is required")), errors.New("label_type is required")
+	if err := utils.ValidateRequiredFields(
+		"address", req.GetAddress(),
+		"chain_id", req.GetChainId(),
+		"label_type", req.GetLabelType(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	address := models.ConvertAddressToEthForStorage(req.Address)
+	address := models.ConvertAddressToEthForStorage(req.GetAddress())
 
 	// Create label
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	label := &models.AddressLabel{
 		Address:     address,
-		ChainID:     req.ChainId,
-		LabelType:   req.LabelType,
-		LabelValue:  req.LabelValue,
-		LabelColor:  req.LabelColor,
-		Description: req.Description,
-		Visible:     req.Visible, // New field: visibility control
-		CreatedBy:   req.CreatedBy,
+		ChainID:     req.GetChainId(),
+		LabelType:   req.GetLabelType(),
+		LabelValue:  req.GetLabelValue(),
+		LabelColor:  req.GetLabelColor(),
+		Description: req.GetDescription(),
+		Visible:     req.GetVisible(), // New field: visibility control
+		CreatedBy:   req.GetCreatedBy(),
 	}
 
 	// Use FirstOrCreate to avoid duplicates
 	// Note: Updated unique constraint to use (chain_id, address, label_value)
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ? AND label_value = ?", req.ChainId, address, req.LabelValue).
+		Where("chain_id = ? AND address = ? AND label_value = ?", req.GetChainId(), address, req.GetLabelValue()).
 		FirstOrCreate(label).Error
 
 	if err != nil {
@@ -104,7 +97,7 @@ func (s *AddressLabelService) CreateAddressLabel(ctx context.Context, req *pb.Cr
 	}
 
 	// Clear cache
-	s.clearAddressLabelCache(ctx, req.ChainId, address)
+	s.clearAddressLabelCache(ctx, req.GetChainId(), address)
 
 	// Convert to response
 	labelDTO := models.ToAddressLabelDTO(label)
@@ -124,41 +117,33 @@ func (s *AddressLabelService) CreateAddressLabel(ctx context.Context, req *pb.Cr
 //   - error: Error if the operation fails
 func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.UpdateAddressLabelRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.Address == "" {
-		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
-	}
-
-	if req.LabelValue == "" {
-		return ErrorReply(http.StatusBadRequest, "label_value is required", errors.New("label_value is required")), errors.New("label_value is required")
+	if err := utils.ValidateRequiredFields(
+		"address", req.GetAddress(),
+		"chain_id", req.GetChainId(),
+		"label_value", req.GetLabelValue(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	address := models.ConvertAddressToEthForStorage(req.Address)
+	address := models.ConvertAddressToEthForStorage(req.GetAddress())
 
 	// Update label
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	updates := make(map[string]interface{})
-	if req.LabelType != "" {
-		updates["label_type"] = req.LabelType
+	if req.GetLabelType() != "" {
+		updates["label_type"] = req.GetLabelType()
 	}
-	if req.LabelColor != "" {
-		updates["label_color"] = req.LabelColor
+	if req.GetLabelColor() != "" {
+		updates["label_color"] = req.GetLabelColor()
 	}
-	if req.Description != "" {
-		updates["description"] = req.Description
+	if req.GetDescription() != "" {
+		updates["description"] = req.GetDescription()
 	}
 	// New: support updating visible field
-	updates["visible"] = req.Visible
+	updates["visible"] = req.GetVisible()
 
 	if len(updates) == 0 {
 		return ErrorReply(http.StatusBadRequest, "at least one field must be provided for update", errors.New("no fields to update")), errors.New("no fields to update")
@@ -167,7 +152,7 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 	var label models.AddressLabel
 	// Updated query: use (chain_id, address, label_value) instead of (chain_id, address, label_type)
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ? AND label_value = ?", req.ChainId, address, req.LabelValue).
+		Where("chain_id = ? AND address = ? AND label_value = ?", req.GetChainId(), address, req.GetLabelValue()).
 		First(&label).Error
 
 	if err != nil {
@@ -184,7 +169,7 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 
 	err = db.Get().WithContext(queryCtx).
 		Model(&models.AddressLabel{}).
-		Where("chain_id = ? AND address = ? AND label_value = ?", req.ChainId, address, req.LabelValue).
+		Where("chain_id = ? AND address = ? AND label_value = ?", req.GetChainId(), address, req.GetLabelValue()).
 		Updates(updates).Error
 
 	if err != nil {
@@ -194,7 +179,7 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 
 	// Reload to get updated data
 	err = db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ? AND label_value = ?", req.ChainId, address, req.LabelValue).
+		Where("chain_id = ? AND address = ? AND label_value = ?", req.GetChainId(), address, req.GetLabelValue()).
 		First(&label).Error
 
 	if err != nil {
@@ -203,7 +188,7 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 	}
 
 	// Clear cache
-	s.clearAddressLabelCache(ctx, req.ChainId, address)
+	s.clearAddressLabelCache(ctx, req.GetChainId(), address)
 
 	// Convert to response
 	labelDTO := models.ToAddressLabelDTO(&label)
@@ -221,31 +206,23 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 //   - error: Error if the operation fails
 func (s *AddressLabelService) DeleteAddressLabel(ctx context.Context, req *pb.DeleteAddressLabelRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.Address == "" {
-		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
-	}
-
-	if req.LabelType == "" {
-		return ErrorReply(http.StatusBadRequest, "label_type is required", errors.New("label_type is required")), errors.New("label_type is required")
+	if err := utils.ValidateRequiredFields(
+		"address", req.GetAddress(),
+		"chain_id", req.GetChainId(),
+		"label_type", req.GetLabelType(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	address := models.ConvertAddressToEthForStorage(req.Address)
+	address := models.ConvertAddressToEthForStorage(req.GetAddress())
 
 	// Delete label (soft delete)
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ? AND label_type = ?", req.ChainId, address, req.LabelType).
+		Where("chain_id = ? AND address = ? AND label_type = ?", req.GetChainId(), address, req.GetLabelType()).
 		Delete(&models.AddressLabel{}).Error
 
 	if err != nil {
@@ -254,7 +231,7 @@ func (s *AddressLabelService) DeleteAddressLabel(ctx context.Context, req *pb.De
 	}
 
 	// Clear cache
-	s.clearAddressLabelCache(ctx, req.ChainId, address)
+	s.clearAddressLabelCache(ctx, req.GetChainId(), address)
 
 	// Return success response
 	return &pb.Reply{
@@ -274,26 +251,21 @@ func (s *AddressLabelService) DeleteAddressLabel(ctx context.Context, req *pb.De
 //   - error: Error if the operation fails
 func (s *AddressLabelService) GetAddressLabels(ctx context.Context, req *pb.GetAddressLabelsRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.Address == "" {
-		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	if err := utils.ValidateRequiredFields(
+		"address", req.GetAddress(),
+		"chain_id", req.GetChainId(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	address := models.ConvertAddressToEthForStorage(req.Address)
+	address := models.ConvertAddressToEthForStorage(req.GetAddress())
 
 	// Try to get from cache
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
-	cachedLabels, err := s.getLabelsFromCache(queryCtx, req.ChainId, address)
+	cachedLabels, err := s.getLabelsFromCache(queryCtx, req.GetChainId(), address)
 	if err == nil && cachedLabels != nil {
 		global.Logger.Debugf("address labels found in cache: address=%s", address)
 		labelDTOs := models.ToAddressLabelDTOs(cachedLabels)
@@ -304,7 +276,7 @@ func (s *AddressLabelService) GetAddressLabels(ctx context.Context, req *pb.GetA
 	// Query from database
 	var labels []models.AddressLabel
 	err = db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ?", req.ChainId, address).
+		Where("chain_id = ? AND address = ?", req.GetChainId(), address).
 		Find(&labels).Error
 
 	if err != nil {
@@ -313,7 +285,7 @@ func (s *AddressLabelService) GetAddressLabels(ctx context.Context, req *pb.GetA
 	}
 
 	// Cache the labels
-	go s.cacheLabels(context.Background(), req.ChainId, address, labels)
+	go s.cacheLabels(context.Background(), req.GetChainId(), address, labels)
 
 	// Convert to response
 	labelDTOs := models.ToAddressLabelDTOs(labels)
@@ -331,15 +303,15 @@ func (s *AddressLabelService) GetAddressLabels(ctx context.Context, req *pb.GetA
 //   - *pb.Reply: Response containing paginated list of labels
 //   - error: Error if the operation fails
 func (s *AddressLabelService) ListAddressLabels(ctx context.Context, req *pb.ListAddressLabelsRequest) (*pb.Reply, error) {
-	// Input validation
+	// Input validation - explicit nil check for proto request
 	if req == nil {
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
 	// Normalize pagination parameters
 	var paginationReq *pb.PaginationRequest
-	if req.Pagination != nil {
-		paginationReq = req.Pagination
+	if req.GetPagination() != nil {
+		paginationReq = req.GetPagination()
 	} else {
 		paginationReq = &pb.PaginationRequest{
 			Page:     MinPage,
@@ -347,30 +319,30 @@ func (s *AddressLabelService) ListAddressLabels(ctx context.Context, req *pb.Lis
 		}
 	}
 
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(paginationReq.Page, paginationReq.PageSize, paginationReq.Cursor, MaxPageSize)
+	page, pageSize, offset, useCursor, cursorValue := normalizePagination(paginationReq.GetPage(), paginationReq.GetPageSize(), paginationReq.GetCursor(), MaxPageSize)
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build query
 	query := db.Get().WithContext(queryCtx).Model(&models.AddressLabel{})
 
 	// Apply filters
-	if req.ChainId != "" {
-		query = query.Where("chain_id = ?", req.ChainId)
+	if req.GetChainId() != "" {
+		query = query.Where("chain_id = ?", req.GetChainId())
 	}
 
-	if req.LabelType != "" {
-		query = query.Where("label_type = ?", req.LabelType)
+	if req.GetLabelType() != "" {
+		query = query.Where("label_type = ?", req.GetLabelType())
 	}
 
-	if req.Address != "" {
-		address := models.ConvertAddressToEthForStorage(req.Address)
+	if req.GetAddress() != "" {
+		address := models.ConvertAddressToEthForStorage(req.GetAddress())
 		query = query.Where("address LIKE ?", "%"+address+"%")
 	}
 
-	if req.LabelValue != "" {
-		query = query.Where("label_value LIKE ?", "%"+req.LabelValue+"%")
+	if req.GetLabelValue() != "" {
+		query = query.Where("label_value LIKE ?", "%"+req.GetLabelValue()+"%")
 	}
 
 	// Get total count
@@ -477,7 +449,7 @@ func (s *AddressLabelService) GetAddressLabelStats(ctx context.Context, req *pb.
 		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build query
@@ -569,7 +541,7 @@ func (s *AddressLabelService) BatchImportAddressLabels(ctx context.Context, req 
 	}
 
 	// Import labels
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	successCount := 0
@@ -681,7 +653,7 @@ func (s *AddressLabelService) BatchExportAddressLabels(ctx context.Context, req 
 		return ErrorReply(http.StatusBadRequest, "format is required (csv or json)", errors.New("format is required")), errors.New("format is required")
 	}
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Build query

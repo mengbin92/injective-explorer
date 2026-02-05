@@ -10,6 +10,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
@@ -42,38 +43,30 @@ const (
 // SetAddressRemark sets or updates an address remark.
 func (s *AddressRemarkService) SetAddressRemark(ctx context.Context, req *pb.SetAddressRemarkRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.Address == "" {
-		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
-	}
-
-	if req.Remark == "" {
-		return ErrorReply(http.StatusBadRequest, "remark is required", errors.New("remark is required")), errors.New("remark is required")
+	if err := utils.ValidateRequiredFields(
+		"address", req.GetAddress(),
+		"chain_id", req.GetChainId(),
+		"remark", req.GetRemark(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	address := models.ConvertAddressToEthForStorage(req.Address)
+	address := models.ConvertAddressToEthForStorage(req.GetAddress())
 
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	// Use FirstOrCreate to avoid duplicates
 	remark := &models.AddressRemark{
-		Address:    address,
-		ChainID:    req.ChainId,
-		Remark:     req.Remark,
-		CreatedBy:  req.CreatedBy,
+		Address:   address,
+		ChainID:   req.GetChainId(),
+		Remark:    req.GetRemark(),
+		CreatedBy: req.GetCreatedBy(),
 	}
 
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ?", req.ChainId, address).
+		Where("chain_id = ? AND address = ?", req.GetChainId(), address).
 		Assign(remark).
 		FirstOrCreate(remark).Error
 
@@ -83,7 +76,7 @@ func (s *AddressRemarkService) SetAddressRemark(ctx context.Context, req *pb.Set
 	}
 
 	// Clear cache
-	s.clearAddressRemarkCache(ctx, req.ChainId, address)
+	s.clearAddressRemarkCache(ctx, req.GetChainId(), address)
 
 	// Convert to response
 	remarkDTO := remark.ToAddressRemarkDTO()
@@ -93,26 +86,21 @@ func (s *AddressRemarkService) SetAddressRemark(ctx context.Context, req *pb.Set
 // GetAddressRemark gets an address remark.
 func (s *AddressRemarkService) GetAddressRemark(ctx context.Context, req *pb.GetAddressRemarkRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.Address == "" {
-		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	if err := utils.ValidateRequiredFields(
+		"address", req.GetAddress(),
+		"chain_id", req.GetChainId(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	address := models.ConvertAddressToEthForStorage(req.Address)
+	address := models.ConvertAddressToEthForStorage(req.GetAddress())
 
 	// Try to get from cache
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
-	cachedRemark, err := s.getRemarkFromCache(ctx, req.ChainId, address)
+	cachedRemark, err := s.getRemarkFromCache(ctx, req.GetChainId(), address)
 	if err == nil && cachedRemark != nil {
 		global.Logger.Debugf("address remark found in cache: address=%s", address)
 		remarkDTO := cachedRemark.ToAddressRemarkDTO()
@@ -122,7 +110,7 @@ func (s *AddressRemarkService) GetAddressRemark(ctx context.Context, req *pb.Get
 	// Query from database
 	var remark models.AddressRemark
 	err = db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ?", req.ChainId, address).
+		Where("chain_id = ? AND address = ?", req.GetChainId(), address).
 		First(&remark).Error
 
 	if err != nil {
@@ -149,27 +137,22 @@ func (s *AddressRemarkService) GetAddressRemark(ctx context.Context, req *pb.Get
 // DeleteAddressRemark deletes an address remark.
 func (s *AddressRemarkService) DeleteAddressRemark(ctx context.Context, req *pb.DeleteAddressRemarkRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return ErrorReply(http.StatusBadRequest, "request cannot be nil", errors.New("nil request")), errors.New("nil request")
-	}
-
-	if req.Address == "" {
-		return ErrorReply(http.StatusBadRequest, "address is required", errors.New("address is required")), errors.New("address is required")
-	}
-
-	if req.ChainId == "" {
-		return ErrorReply(http.StatusBadRequest, "chain_id is required", errors.New("chain_id is required")), errors.New("chain_id is required")
+	if err := utils.ValidateRequiredFields(
+		"address", req.GetAddress(),
+		"chain_id", req.GetChainId(),
+	); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
 
 	// Convert address to Ethereum format for storage
-	address := models.ConvertAddressToEthForStorage(req.Address)
+	address := models.ConvertAddressToEthForStorage(req.GetAddress())
 
 	// Delete remark (soft delete)
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	queryCtx, queryCancel := utils.WithDBTimeout()
 	defer queryCancel()
 
 	err := db.Get().WithContext(queryCtx).
-		Where("chain_id = ? AND address = ?", req.ChainId, address).
+		Where("chain_id = ? AND address = ?", req.GetChainId(), address).
 		Delete(&models.AddressRemark{}).Error
 
 	if err != nil {
@@ -178,7 +161,7 @@ func (s *AddressRemarkService) DeleteAddressRemark(ctx context.Context, req *pb.
 	}
 
 	// Clear cache
-	s.clearAddressRemarkCache(ctx, req.ChainId, address)
+	s.clearAddressRemarkCache(ctx, req.GetChainId(), address)
 
 	return &pb.Reply{
 		Code:    int32(http.StatusOK),

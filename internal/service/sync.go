@@ -2197,12 +2197,20 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 
 	// Extract and save cross-chain transaction details
 	// This is done asynchronously to avoid blocking the main flow
+	// Try to save from txResp first (if available), then fallback to parsing from txModel.Messages
 	go func() {
 		crossChainCtx, crossChainCancel := context.WithTimeout(context.Background(), CrossChainContextTimeoutSeconds*time.Second)
 		defer crossChainCancel()
 
+		// First try to save from txResp (decoded SDK transaction)
 		if err := s.saveCrossChainTransaction(crossChainCtx, txResp, txModel); err != nil {
-			global.Logger.Warnf("failed to save cross-chain transaction %s: %v", txHash, err)
+			global.Logger.Debugf("failed to save cross-chain transaction from txResp for %s: %v, trying from txModel.Messages", txHash, err)
+		}
+
+		// Always try to save from txModel.Messages as fallback or supplement
+		// This ensures we can parse even if txResp is not available
+		if err := s.saveCrossChainTransactionFromModel(crossChainCtx, txModel); err != nil {
+			global.Logger.Warnf("failed to save cross-chain transaction from model for %s: %v", txHash, err)
 			// Don't fail the main flow, just log the error
 		}
 	}()
@@ -3678,4 +3686,378 @@ func stringifyAttrValue(v interface{}) string {
 	default:
 		return fmt.Sprintf("%v", val)
 	}
+}
+
+// saveCrossChainTransactionFromModel extracts and saves cross-chain transaction details
+// from the transaction's Messages field (JSON format).
+// This is a fallback/supplement to saveCrossChainTransaction which uses decoded SDK messages.
+func (s *SyncService) saveCrossChainTransactionFromModel(ctx context.Context, txModel *models.Transaction) error {
+	if txModel == nil {
+		return nil
+	}
+
+	// Check if Messages field is empty
+	if txModel.Messages == "" {
+		return nil
+	}
+
+	global.Logger.Debugf("parsing cross-chain transactions from txModel.Messages for tx %s", txModel.Hash)
+
+	// Parse messages from JSON string
+	// The actual format is: {"messages": [{"@type": "...", "field1": "...", ...}]}
+	// We need to handle both formats:
+	// 1. New format: {"messages": [{"@type": "...", ...}]}
+	// 2. Old format: {"messages": [{"type": "...", "message": {...}}]}
+	var messagesData map[string]interface{}
+	if err := sonic.UnmarshalString(txModel.Messages, &messagesData); err != nil {
+		global.Logger.Debugf("failed to unmarshal messages for tx %s: %v", txModel.Hash, err)
+		return nil // Not an error, just no cross-chain messages
+	}
+
+	messagesInterface, ok := messagesData["messages"]
+	if !ok {
+		global.Logger.Debugf("no messages field found in tx %s", txModel.Hash)
+		return nil
+	}
+
+	messagesArray, ok := messagesInterface.([]interface{})
+	if !ok {
+		global.Logger.Debugf("messages field is not an array in tx %s", txModel.Hash)
+		return nil
+	}
+
+	// Parse logs
+	var logs []models.LogRaw
+	if len(txModel.Logs) > 0 {
+		if err := sonic.Unmarshal([]byte(txModel.Logs), &logs); err != nil {
+			global.Logger.Debugf("failed to unmarshal logs for tx %s: %v", txModel.Hash, err)
+		}
+	}
+
+	// Common fields
+	txHash := txModel.Hash
+	blockHeight := txModel.BlockNumber
+	blockTimestamp := txModel.BlockUnixTimestamp
+	foundCrossChain := false
+
+	// Iterate through messages
+	for msgIndex, msgInterface := range messagesArray {
+		msgMap, ok := msgInterface.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Get message type - try both @type and type fields
+		msgType, ok := msgMap["@type"].(string)
+		if !ok {
+			msgType, ok = msgMap["type"].(string)
+			if !ok {
+				continue
+			}
+		}
+
+		// Get message content - either directly from msgMap (new format) or from msgMap["message"] (old format)
+		var msgContent []byte
+		if messageField, ok := msgMap["message"]; ok {
+			// Old format: message is nested
+			if msgBytes, err := sonic.Marshal(messageField); err == nil {
+				msgContent = msgBytes
+			}
+		} else {
+			// New format: message fields are directly in msgMap (excluding @type)
+			msgContentMap := make(map[string]interface{})
+			for k, v := range msgMap {
+				if k != "@type" && k != "type" {
+					msgContentMap[k] = v
+				}
+			}
+			if msgBytes, err := sonic.Marshal(msgContentMap); err == nil {
+				msgContent = msgBytes
+			}
+		}
+
+		if len(msgContent) == 0 {
+			continue
+		}
+
+		switch msgType {
+		case "/ibc.applications.transfer.v1.MsgTransfer":
+			// Parse IBC transfer from JSON
+			if err := s.saveIBCTransferFromJSON(ctx, msgContent, txHash, blockHeight, blockTimestamp, msgIndex, logs); err != nil {
+				global.Logger.Warnf("failed to save IBC transfer from JSON for tx %s: %v", txHash, err)
+			} else {
+				foundCrossChain = true
+			}
+
+		case "/injective.peggy.v1.MsgDepositClaim":
+			// Parse Peggy deposit claim from JSON
+			if err := s.savePeggyDepositFromJSON(ctx, msgContent, txHash, blockHeight, blockTimestamp, msgIndex, logs); err != nil {
+				global.Logger.Warnf("failed to save Peggy deposit from JSON for tx %s: %v", txHash, err)
+			} else {
+				foundCrossChain = true
+			}
+
+		case "/injective.peggy.v1.MsgWithdrawClaim":
+			// Parse Peggy withdrawal claim from JSON
+			if err := s.savePeggyWithdrawalClaimFromJSON(ctx, msgContent, txHash, blockHeight, blockTimestamp, msgIndex, logs); err != nil {
+				global.Logger.Warnf("failed to save Peggy withdrawal claim from JSON for tx %s: %v", txHash, err)
+			} else {
+				foundCrossChain = true
+			}
+
+		case "/injective.peggy.v1.MsgSendToEth":
+			// Parse Peggy send to Ethereum from JSON
+			if err := s.savePeggySendToEthFromJSON(ctx, msgContent, txHash, blockHeight, blockTimestamp, msgIndex, logs); err != nil {
+				global.Logger.Warnf("failed to save Peggy send to eth from JSON for tx %s: %v", txHash, err)
+			} else {
+				foundCrossChain = true
+			}
+		}
+	}
+
+	if foundCrossChain {
+		global.Logger.Infof("✓ saved cross-chain transaction data from model for tx %s", txHash)
+	}
+
+	return nil
+}
+
+// saveIBCTransferFromJSON saves an IBC transfer transaction from JSON message.
+// Uses Cosmos SDK codec for reliable parsing, similar to decodeAnyMessageDynamic.
+func (s *SyncService) saveIBCTransferFromJSON(ctx context.Context, msgJSON []byte, txHash string, blockHeight, blockTimestamp uint64, msgIndex int, logs []models.LogRaw) error {
+	// Use Cosmos SDK codec for parsing (handles gogoproto types correctly)
+	// Similar to decodeAnyMessageDynamic, but for JSON input
+	ibcMsg := &ibctransfertypes.MsgTransfer{}
+	// Get codec from chain client (same as used in decodeAnyMessage)
+	codec := s.chainClient.ClientContext().Codec
+	if err := codec.UnmarshalJSON(msgJSON, ibcMsg); err != nil {
+		return fmt.Errorf("failed to unmarshal IBC transfer message: %w", err)
+	}
+
+	// Extract additional info from logs
+	var packetSequence uint64
+	var destPort, destChannel string
+	var dataHex []byte
+	for _, log := range logs {
+		if log.MsgIndex == fmt.Sprintf("%d", msgIndex) {
+			for _, event := range log.Events {
+				if event.Type == "send_packet" || event.Type == "fungible_token_packet" {
+					for _, attr := range event.Attributes {
+						key := attr.Key
+						value := stringifyAttrValue(attr.Value)
+						switch key {
+						case "packet_sequence":
+							if seq, err := parseUint64(value); err == nil {
+								packetSequence = seq
+							}
+						case "packet_dst_port":
+							destPort = value
+						case "packet_dst_channel":
+							destChannel = value
+						case "packet_data_hex", "packet_data":
+							if decoded, err := hex.DecodeString(value); err == nil {
+								dataHex = decoded
+							} else if decoded, err := sonic.Marshal(value); err == nil {
+								dataHex = decoded
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Build timeout height string
+	timeoutHeight := ""
+	if ibcMsg.TimeoutHeight.RevisionHeight != 0 {
+		timeoutHeight = fmt.Sprintf("%d-%d", ibcMsg.TimeoutHeight.RevisionNumber, ibcMsg.TimeoutHeight.RevisionHeight)
+	}
+
+	// Create database record
+	ibcTransfer := &models.IBCTransferTx{
+		Sender:             ibcMsg.Sender,
+		Receiver:           ibcMsg.Receiver,
+		SourcePort:         ibcMsg.SourcePort,
+		SourceChannel:      ibcMsg.SourceChannel,
+		DestinationPort:    destPort,
+		DestinationChannel: destChannel,
+		Amount:             ibcMsg.Token.Amount.String(),
+		Denom:              ibcMsg.Token.Denom,
+		TimeoutHeight:      timeoutHeight,
+		TimeoutTimestamp:   ibcMsg.TimeoutTimestamp,
+		PacketSequence:     packetSequence,
+		DataHex:            dataHex,
+		State:              "completed",
+		TxHash:             txHash,
+		BlockHeight:        blockHeight,
+		BlockTimestamp:      blockTimestamp,
+	}
+
+	// Save to database (upsert to handle duplicates)
+	return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "tx_hash"}},
+		DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
+	}).Create(ibcTransfer).Error
+}
+
+// savePeggyDepositFromJSON saves a Peggy deposit claim transaction from JSON message.
+// Uses Cosmos SDK codec for reliable parsing, similar to decodeAnyMessageDynamic.
+func (s *SyncService) savePeggyDepositFromJSON(ctx context.Context, msgJSON []byte, txHash string, blockHeight, blockTimestamp uint64, msgIndex int, logs []models.LogRaw) error {
+	// Use Cosmos SDK codec for parsing (handles gogoproto types correctly)
+	// Similar to decodeAnyMessageDynamic, but for JSON input
+	depositMsg := &types.MsgDepositClaim{}
+	codec := s.chainClient.ClientContext().Codec
+	if err := codec.UnmarshalJSON(msgJSON, depositMsg); err != nil {
+		return fmt.Errorf("failed to unmarshal Peggy deposit message: %w", err)
+	}
+
+	// Try to extract Ethereum tx hash from events
+	var ethTxHash string
+	for _, log := range logs {
+		if log.MsgIndex == fmt.Sprintf("%d", msgIndex) {
+			for _, event := range log.Events {
+				for _, attr := range event.Attributes {
+					if attr.Key == "ethereum_tx_hash" || attr.Key == "eth_tx_hash" {
+						ethTxHash = stringifyAttrValue(attr.Value)
+					}
+				}
+			}
+		}
+	}
+
+	// Create database record
+	peggyDeposit := &models.PeggyDepositTx{
+		Sender:              depositMsg.EthereumSender,
+		Receiver:            depositMsg.CosmosReceiver,
+		Amount:              depositMsg.Amount.String(),
+		Denom:               depositMsg.TokenContract,
+		EventNonce:          depositMsg.EventNonce,
+		EventHeight:         depositMsg.BlockHeight,
+		OrchestratorAddress: depositMsg.Orchestrator,
+		State:               "completed",
+		ClaimType:           1, // DepositClaim
+		TxHash:              txHash,
+		EthTxHash:           ethTxHash,
+		BlockHeight:         blockHeight,
+		BlockTimestamp:      blockTimestamp,
+	}
+
+	// Save to database (upsert using event_nonce as unique key)
+	return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "event_nonce"}},
+		DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
+	}).Create(peggyDeposit).Error
+}
+
+// savePeggyWithdrawalClaimFromJSON saves a Peggy withdrawal claim transaction from JSON message.
+// Uses Cosmos SDK codec for reliable parsing, similar to decodeAnyMessageDynamic.
+func (s *SyncService) savePeggyWithdrawalClaimFromJSON(ctx context.Context, msgJSON []byte, txHash string, blockHeight, blockTimestamp uint64, msgIndex int, logs []models.LogRaw) error {
+	// Use Cosmos SDK codec for parsing (handles gogoproto types correctly)
+	// Similar to decodeAnyMessageDynamic, but for JSON input
+	withdrawMsg := &types.MsgWithdrawClaim{}
+	codec := s.chainClient.ClientContext().Codec
+	if err := codec.UnmarshalJSON(msgJSON, withdrawMsg); err != nil {
+		return fmt.Errorf("failed to unmarshal Peggy withdrawal claim message: %w", err)
+	}
+
+	// Extract additional info from events
+	var ethTxHash, amount string
+	for _, log := range logs {
+		if log.MsgIndex == fmt.Sprintf("%d", msgIndex) {
+			for _, event := range log.Events {
+				for _, attr := range event.Attributes {
+					key := attr.Key
+					value := stringifyAttrValue(attr.Value)
+					switch key {
+					case "ethereum_tx_hash", "eth_tx_hash":
+						ethTxHash = value
+					case "amount":
+						amount = value
+					}
+				}
+			}
+		}
+	}
+
+	// Create database record
+	peggyWithdrawal := &models.PeggyWithdrawalTx{
+		Sender:              "",
+		Receiver:            "",
+		Amount:              amount,
+		Denom:               withdrawMsg.TokenContract,
+		BridgeFee:           "",
+		OutgoingTxId:        0,
+		BatchTimeout:        0,
+		BatchNonce:          withdrawMsg.BatchNonce,
+		OrchestratorAddress: withdrawMsg.Orchestrator,
+		EventNonce:          withdrawMsg.EventNonce,
+		EventHeight:         withdrawMsg.BlockHeight,
+		State:               "completed",
+		ClaimType:           2, // WithdrawClaim
+		TxHash:              txHash,
+		EthTxHash:           ethTxHash,
+		BlockHeight:         blockHeight,
+		BlockTimestamp:      blockTimestamp,
+	}
+
+	// Save to database (upsert using event_nonce as unique key)
+	return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "event_nonce"}},
+		DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
+	}).Create(peggyWithdrawal).Error
+}
+
+// savePeggySendToEthFromJSON saves a Peggy send to Ethereum transaction from JSON message.
+// Uses Cosmos SDK codec for reliable parsing, similar to decodeAnyMessageDynamic.
+func (s *SyncService) savePeggySendToEthFromJSON(ctx context.Context, msgJSON []byte, txHash string, blockHeight, blockTimestamp uint64, msgIndex int, logs []models.LogRaw) error {
+	// Use Cosmos SDK codec for parsing (handles gogoproto types correctly)
+	// Similar to decodeAnyMessageDynamic, but for JSON input
+	sendToEthMsg := &types.MsgSendToEth{}
+	codec := s.chainClient.ClientContext().Codec
+	if err := codec.UnmarshalJSON(msgJSON, sendToEthMsg); err != nil {
+		return fmt.Errorf("failed to unmarshal Peggy send to eth message: %w", err)
+	}
+
+	// Extract outgoing_tx_id from events
+	var outgoingTxId uint64
+	for _, log := range logs {
+		if log.MsgIndex == fmt.Sprintf("%d", msgIndex) {
+			for _, event := range log.Events {
+				for _, attr := range event.Attributes {
+					if attr.Key == "outgoing_tx_id" {
+						if id, err := parseUint64(stringifyAttrValue(attr.Value)); err == nil {
+							outgoingTxId = id
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Create database record
+	peggyWithdrawal := &models.PeggyWithdrawalTx{
+		Sender:              sendToEthMsg.Sender,
+		Receiver:            sendToEthMsg.EthDest,
+		Amount:              sendToEthMsg.Amount.Amount.String(),
+		Denom:               sendToEthMsg.Amount.Denom,
+		BridgeFee:           sendToEthMsg.BridgeFee.Amount.String(),
+		OutgoingTxId:        outgoingTxId,
+		BatchTimeout:        0,
+		BatchNonce:          0,
+		OrchestratorAddress: "",
+		EventNonce:          0,
+		EventHeight:         0,
+		State:               "pending", // Send to eth is pending until batch is confirmed
+		ClaimType:           2,
+		TxHash:              txHash,
+		EthTxHash:           "",
+		BlockHeight:         blockHeight,
+		BlockTimestamp:      blockTimestamp,
+	}
+
+	// Save to database (upsert using outgoing_tx_id as unique key)
+	return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "outgoing_tx_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
+	}).Create(peggyWithdrawal).Error
 }

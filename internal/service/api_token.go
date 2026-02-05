@@ -15,6 +15,7 @@ import (
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/db"
 
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
@@ -62,12 +63,12 @@ func NewAPITokenService() *APITokenService {
 //   - error: Error if the operation fails
 func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRequest) (*pb.Reply, error) {
 	// Input validation
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	if err := utils.ValidateNil(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Message)
 	}
 
 	// Validate name
-	if len(req.Name) < apiTokenNameMinLength || len(req.Name) > apiTokenNameMaxLength {
+	if len(req.GetName()) < apiTokenNameMinLength || len(req.GetName()) > apiTokenNameMaxLength {
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("Token name must be %d-%d characters", apiTokenNameMinLength, apiTokenNameMaxLength))
 	}
 
@@ -109,7 +110,7 @@ func (s *APITokenService) CreateToken(ctx context.Context, req *pb.CreateTokenRe
 	// Create token record
 	apiToken := &models.APIToken{
 		UserID:       userID,
-		Name:         req.Name,
+		Name:         req.GetName(),
 		TokenHash:    tokenHash,
 		TokenPreview: tokenPreview,
 		PlanType:     "free", // Default to free plan
@@ -197,8 +198,8 @@ func (s *APITokenService) ListTokens(ctx context.Context, req *pb.ListTokensRequ
 //   - *pb.Reply: Response confirming deletion
 //   - error: Error if the operation fails (token not found, not owned by user, etc.)
 func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRequest) (*pb.Reply, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	if err := utils.ValidateNil(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Message)
 	}
 
 	// Get user ID from HTTP header
@@ -213,7 +214,7 @@ func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRe
 	// Verify ownership
 	var token models.APIToken
 	err := db.Get().WithContext(queryCtx).
-		Where("id = ? AND user_id = ?", req.TokenId, userID).
+		Where("id = ? AND user_id = ?", req.GetTokenId(), userID).
 		First(&token).Error
 	if err == gorm.ErrRecordNotFound {
 		return nil, status.Error(codes.NotFound, "Token not found")
@@ -247,8 +248,8 @@ func (s *APITokenService) DeleteToken(ctx context.Context, req *pb.DeleteTokenRe
 //   - *pb.Reply: Response containing usage statistics
 //   - error: Error if the operation fails (token not found, not owned by user, etc.)
 func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsageRequest) (*pb.Reply, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	if err := utils.ValidateNil(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Message)
 	}
 
 	// Get user ID from HTTP header
@@ -263,7 +264,7 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 	// Verify token ownership
 	var token models.APIToken
 	err := db.Get().WithContext(queryCtx).
-		Where("id = ? AND user_id = ?", req.TokenId, userID).
+		Where("id = ? AND user_id = ?", req.GetTokenId(), userID).
 		First(&token).Error
 	if err == gorm.ErrRecordNotFound {
 		return nil, status.Error(codes.NotFound, "Token not found")
@@ -276,7 +277,7 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 	// Query usage statistics
 	var totalCalls, successCalls, failedCalls int64
 	err = db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
-		Where("token_id = ?", req.TokenId).
+		Where("token_id = ?", req.GetTokenId()).
 		Count(&totalCalls).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count total calls: %v", err)
@@ -284,7 +285,7 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 	}
 
 	err = db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
-		Where("token_id = ? AND status_code >= 200 AND status_code < 300", req.TokenId).
+		Where("token_id = ? AND status_code >= 200 AND status_code < 300", req.GetTokenId()).
 		Count(&successCalls).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count success calls: %v", err)
@@ -292,7 +293,7 @@ func (s *APITokenService) GetTokenUsage(ctx context.Context, req *pb.GetTokenUsa
 	}
 
 	err = db.Get().WithContext(queryCtx).Model(&models.APIRequestLog{}).
-		Where("token_id = ? AND status_code >= 400", req.TokenId).
+		Where("token_id = ? AND status_code >= 400", req.GetTokenId()).
 		Count(&failedCalls).Error
 	if err != nil {
 		global.Logger.Errorf("failed to count failed calls: %v", err)
