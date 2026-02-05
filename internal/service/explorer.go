@@ -6365,7 +6365,16 @@ func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCT
 	}
 
 	// Normalize pagination
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	var page, pageSize int32
+	var offset int
+	var useCursor bool
+	var cursorValue uint64
+
+	if req.Pagination != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	} else {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(1, 20, "", MaxPageSize)
+	}
 
 	global.Logger.Debugf("get IBC transfer txs: page=%d, page_size=%d, sender=%s, receiver=%s",
 		page, pageSize, req.Sender, req.Receiver)
@@ -6374,67 +6383,85 @@ func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCT
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// Query transactions table for IBC transfers (temporary solution until resync is done)
-	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("messages LIKE ?", "%/ibc.applications.transfer.v1.MsgTransfer%")
+	// Query ibc_transfer_txs table
+	query := db.Get().WithContext(queryCtx).Model(&models.IBCTransferTx{})
+
+	// Apply filters
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
+	if req.SrcChannel != "" {
+		query = query.Where("source_channel = ?", req.SrcChannel)
+	}
+	if req.SrcPort != "" {
+		query = query.Where("source_port = ?", req.SrcPort)
+	}
+	if req.DestChannel != "" {
+		query = query.Where("destination_channel = ?", req.DestChannel)
+	}
+	if req.DestPort != "" {
+		query = query.Where("destination_port = ?", req.DestPort)
+	}
 
 	// Get total count
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		global.Logger.Errorf("failed to count IBC transfer txs: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "failed to count transactions", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to count IBC transfers", err), err
 	}
 
 	// Query with pagination
-	var txs []models.Transaction
-	err := query.Order("block_number DESC, id DESC").
+	var ibcTxs []models.IBCTransferTx
+	err := query.Order("block_height DESC, id DESC").
 		Offset(offset).
 		Limit(int(pageSize)).
-		Find(&txs).Error
+		Find(&ibcTxs).Error
 	if err != nil {
 		global.Logger.Errorf("failed to query IBC transfer txs: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "failed to query transactions", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to query IBC transfers", err), err
 	}
 
-	// Parse IBC transfers from transactions
+	// Convert to DTOs
 	var dtos []*pb.IBCTransferTxDTO
-	for _, tx := range txs {
-		parsed := parseIBCTransfersFromTx(&tx)
-		for _, ibc := range parsed {
-			// Apply filters
-			if req.Sender != "" && ibc.Sender != req.Sender {
-				continue
-			}
-			if req.Receiver != "" && ibc.Receiver != req.Receiver {
-				continue
-			}
-			if req.SrcChannel != "" && ibc.SourceChannel != req.SrcChannel {
-				continue
-			}
-			if req.SrcPort != "" && ibc.SourcePort != req.SrcPort {
-				continue
-			}
-			if req.DestChannel != "" && ibc.DestinationChannel != req.DestChannel {
-				continue
-			}
-			if req.DestPort != "" && ibc.DestinationPort != req.DestPort {
-				continue
-			}
-			dtos = append(dtos, ibc)
-		}
+	for i := range ibcTxs {
+		dto := convertIBCTransferTxToDTO(&ibcTxs[i])
+		dtos = append(dtos, dto)
 	}
 
 	// Build cursor for pagination
 	nextCursor := ""
-	if useCursor && len(txs) > 0 {
-		nextCursor = fmt.Sprintf("%d", txs[len(txs)-1].ID)
+	if useCursor && len(ibcTxs) > 0 {
+		nextCursor = fmt.Sprintf("%d", ibcTxs[len(ibcTxs)-1].ID)
 	}
 
 	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(dtos))
 	return MarshalAndReply(resp, "marshal IBC transfer txs error")
 }
 
-// GetPeggyDepositTxs retrieves Peggy deposit transactions from the chain.
+// convertIBCTransferTxToDTO converts IBCTransferTx model to DTO
+func convertIBCTransferTxToDTO(tx *models.IBCTransferTx) *pb.IBCTransferTxDTO {
+	return &pb.IBCTransferTxDTO{
+		Sender:             tx.Sender,
+		Receiver:           tx.Receiver,
+		SourcePort:         tx.SourcePort,
+		SourceChannel:      tx.SourceChannel,
+		DestinationPort:    tx.DestinationPort,
+		DestinationChannel: tx.DestinationChannel,
+		Amount:             tx.Amount,
+		Denom:              tx.Denom,
+		TimeoutHeight:      tx.TimeoutHeight,
+		TimeoutTimestamp:   tx.TimeoutTimestamp,
+		PacketSequence:     tx.PacketSequence,
+		State:              tx.State,
+		TxHashes:           []string{tx.TxHash},
+		CreatedAt:          tx.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:          tx.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
 // GetPeggyDepositTxs retrieves Peggy deposit transactions from the database.
 func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeggyDepositTxsRequest) (*pb.Reply, error) {
 	if req == nil {
@@ -6442,7 +6469,16 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 	}
 
 	// Normalize pagination
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	var page, pageSize int32
+	var offset int
+	var useCursor bool
+	var cursorValue uint64
+
+	if req.Pagination != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	} else {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(1, 20, "", MaxPageSize)
+	}
 
 	global.Logger.Debugf("get Peggy deposit txs: page=%d, page_size=%d, sender=%s, receiver=%s",
 		page, pageSize, req.Sender, req.Receiver)
@@ -6451,52 +6487,69 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// Query transactions table for Peggy deposits (temporary solution until resync is done)
-	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("messages LIKE ?", "%/injective.peggy.v1.MsgDepositClaim%")
+	// Query peggy_deposit_txs table
+	query := db.Get().WithContext(queryCtx).Model(&models.PeggyDepositTx{})
+
+	// Apply filters
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
 
 	// Get total count
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		global.Logger.Errorf("failed to count Peggy deposit txs: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "failed to count transactions", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to count Peggy deposits", err), err
 	}
 
 	// Query with pagination
-	var txs []models.Transaction
-	err := query.Order("block_number DESC, id DESC").
+	var deposits []models.PeggyDepositTx
+	err := query.Order("block_height DESC, id DESC").
 		Offset(offset).
 		Limit(int(pageSize)).
-		Find(&txs).Error
+		Find(&deposits).Error
 	if err != nil {
 		global.Logger.Errorf("failed to query Peggy deposit txs: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "failed to query transactions", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to query Peggy deposits", err), err
 	}
 
-	// Parse Peggy deposits from transactions
+	// Convert to DTOs
 	var dtos []*pb.PeggyDepositTxDTO
-	for _, tx := range txs {
-		parsed := parsePeggyDepositsFromTx(&tx)
-		for _, deposit := range parsed {
-			// Apply filters
-			if req.Sender != "" && deposit.Sender != req.Sender {
-				continue
-			}
-			if req.Receiver != "" && deposit.Receiver != req.Receiver {
-				continue
-			}
-			dtos = append(dtos, deposit)
-		}
+	for i := range deposits {
+		dto := convertPeggyDepositTxToDTO(&deposits[i])
+		dtos = append(dtos, dto)
 	}
 
 	// Build cursor for pagination
 	nextCursor := ""
-	if useCursor && len(txs) > 0 {
-		nextCursor = fmt.Sprintf("%d", txs[len(txs)-1].ID)
+	if useCursor && len(deposits) > 0 {
+		nextCursor = fmt.Sprintf("%d", deposits[len(deposits)-1].ID)
 	}
 
 	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(dtos))
 	return MarshalAndReply(resp, "marshal Peggy deposit txs error")
+}
+
+// convertPeggyDepositTxToDTO converts PeggyDepositTx model to DTO
+func convertPeggyDepositTxToDTO(tx *models.PeggyDepositTx) *pb.PeggyDepositTxDTO {
+	return &pb.PeggyDepositTxDTO{
+		Sender:              tx.Sender,
+		Receiver:            tx.Receiver,
+		Amount:              tx.Amount,
+		Denom:               tx.Denom,
+		EventNonce:          tx.EventNonce,
+		EventHeight:         tx.EventHeight,
+		OrchestratorAddress: tx.OrchestratorAddress,
+		State:               tx.State,
+		ClaimType:           int32(tx.ClaimType),
+		TxHashes:            []string{tx.TxHash},
+		EthTxHash:           tx.EthTxHash,
+		CreatedAt:           tx.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:           tx.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 // GetPeggyWithdrawalTxs retrieves Peggy withdrawal transactions from the database.
@@ -6506,7 +6559,16 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 	}
 
 	// Normalize pagination
-	page, pageSize, offset, useCursor, cursorValue := normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	var page, pageSize int32
+	var offset int
+	var useCursor bool
+	var cursorValue uint64
+
+	if req.Pagination != nil {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(req.Pagination.Page, req.Pagination.PageSize, req.Pagination.Cursor, MaxPageSize)
+	} else {
+		page, pageSize, offset, useCursor, cursorValue = normalizePagination(1, 20, "", MaxPageSize)
+	}
 
 	global.Logger.Debugf("get Peggy withdrawal txs: page=%d, page_size=%d, sender=%s, receiver=%s",
 		page, pageSize, req.Sender, req.Receiver)
@@ -6515,54 +6577,72 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
 	defer queryCancel()
 
-	// Query transactions table for Peggy withdrawals (temporary solution until resync is done)
-	query := db.Get().WithContext(queryCtx).Model(&models.Transaction{}).
-		Where("messages LIKE ? OR messages LIKE ?",
-			"%/injective.peggy.v1.MsgWithdrawClaim%",
-			"%/injective.peggy.v1.MsgSendToEth%")
+	// Query peggy_withdrawal_txs table
+	query := db.Get().WithContext(queryCtx).Model(&models.PeggyWithdrawalTx{})
+
+	// Apply filters
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
 
 	// Get total count
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		global.Logger.Errorf("failed to count Peggy withdrawal txs: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "failed to count transactions", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to count Peggy withdrawals", err), err
 	}
 
 	// Query with pagination
-	var txs []models.Transaction
-	err := query.Order("block_number DESC, id DESC").
+	var withdrawals []models.PeggyWithdrawalTx
+	err := query.Order("block_height DESC, id DESC").
 		Offset(offset).
 		Limit(int(pageSize)).
-		Find(&txs).Error
+		Find(&withdrawals).Error
 	if err != nil {
 		global.Logger.Errorf("failed to query Peggy withdrawal txs: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "failed to query transactions", err), err
+		return ErrorReply(http.StatusInternalServerError, "failed to query Peggy withdrawals", err), err
 	}
 
-	// Parse Peggy withdrawals from transactions
+	// Convert to DTOs
 	var dtos []*pb.PeggyWithdrawalTxDTO
-	for _, tx := range txs {
-		parsed := parsePeggyWithdrawalsFromTx(&tx)
-		for _, withdrawal := range parsed {
-			// Apply filters
-			if req.Sender != "" && withdrawal.Sender != req.Sender {
-				continue
-			}
-			if req.Receiver != "" && withdrawal.Receiver != req.Receiver {
-				continue
-			}
-			dtos = append(dtos, withdrawal)
-		}
+	for i := range withdrawals {
+		dto := convertPeggyWithdrawalTxToDTO(&withdrawals[i])
+		dtos = append(dtos, dto)
 	}
 
 	// Build cursor for pagination
 	nextCursor := ""
-	if useCursor && len(txs) > 0 {
-		nextCursor = fmt.Sprintf("%d", txs[len(txs)-1].ID)
+	if useCursor && len(withdrawals) > 0 {
+		nextCursor = fmt.Sprintf("%d", withdrawals[len(withdrawals)-1].ID)
 	}
 
 	resp := buildPaginatedResponse(dtos, page, pageSize, total, true, useCursor, cursorValue, nextCursor, len(dtos))
 	return MarshalAndReply(resp, "marshal Peggy withdrawal txs error")
+}
+
+// convertPeggyWithdrawalTxToDTO converts PeggyWithdrawalTx model to DTO
+func convertPeggyWithdrawalTxToDTO(tx *models.PeggyWithdrawalTx) *pb.PeggyWithdrawalTxDTO {
+	return &pb.PeggyWithdrawalTxDTO{
+		Sender:              tx.Sender,
+		Receiver:            tx.Receiver,
+		Amount:              tx.Amount,
+		Denom:               tx.Denom,
+		BridgeFee:           tx.BridgeFee,
+		OutgoingTxId:        tx.OutgoingTxId,
+		BatchNonce:          tx.BatchNonce,
+		OrchestratorAddress: tx.OrchestratorAddress,
+		EventNonce:          tx.EventNonce,
+		EventHeight:         tx.EventHeight,
+		State:               tx.State,
+		ClaimType:           int32(tx.ClaimType),
+		TxHashes:            []string{tx.TxHash},
+		EthTxHash:           tx.EthTxHash,
+		CreatedAt:           tx.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:           tx.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 // parseIBCTransfersFromTx parses IBC transfer messages from a transaction
@@ -6666,20 +6746,32 @@ func parsePeggyDepositsFromTx(tx *models.Transaction) []*pb.PeggyDepositTxDTO {
 	// Parse messages
 	var txData models.TxJSON
 	if err := sonic.UnmarshalString(tx.Messages, &txData); err != nil {
+		global.Logger.Warnf("Failed to unmarshal messages for tx %s: %v", tx.Hash, err)
+		global.Logger.Warnf("Messages content (first 500 chars): %s", tx.Messages[:min(500, len(tx.Messages))])
 		return result
 	}
+	global.Logger.Infof("Tx %s has %d messages", tx.Hash, len(txData.Messages))
 
 	// Parse logs
 	var logs []models.LogRaw
 	if len(tx.Logs) > 0 {
-		sonic.Unmarshal([]byte(tx.Logs), &logs)
+		if err := sonic.Unmarshal([]byte(tx.Logs), &logs); err != nil {
+			global.Logger.Warnf("Failed to unmarshal logs for tx %s: %v", tx.Hash, err)
+		} else {
+			global.Logger.Infof("Tx %s has %d logs", tx.Hash, len(logs))
+		}
 	}
 
 	// Extract Peggy deposits
 	for msgIndex, msg := range txData.Messages {
+		global.Logger.Infof("Tx %s msg[%d]: type='%s', raw_message_len=%d", tx.Hash, msgIndex, msg.Type, len(msg.Message))
+		if msg.Type == "" {
+			global.Logger.Warnf("Tx %s msg[%d]: type is empty! Raw message preview: %s", tx.Hash, msgIndex, string(msg.Message[:min(200, len(msg.Message))]))
+		}
 		if msg.Type != "/injective.peggy.v1.MsgDepositClaim" {
 			continue
 		}
+		global.Logger.Infof("Found deposit claim in tx %s msg[%d]", tx.Hash, msgIndex)
 
 		var depositMsg struct {
 			EventNonce     string `json:"event_nonce"`
@@ -6692,8 +6784,10 @@ func parsePeggyDepositsFromTx(tx *models.Transaction) []*pb.PeggyDepositTxDTO {
 		}
 
 		if err := sonic.Unmarshal(msg.Message, &depositMsg); err != nil {
+			global.Logger.Warnf("Failed to unmarshal deposit message in tx %s: %v", tx.Hash, err)
 			continue
 		}
+		global.Logger.Infof("Deposit claim parsed: sender=%s, receiver=%s, amount=%s", depositMsg.EthereumSender, depositMsg.CosmosReceiver, depositMsg.Amount)
 
 		eventNonce, _ := parseUint64(depositMsg.EventNonce)
 		eventHeight, _ := parseUint64(depositMsg.BlockHeight)

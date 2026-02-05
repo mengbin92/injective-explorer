@@ -28,7 +28,7 @@ var (
 
 // getInterfaceRegistry returns a configured interface registry with all message types registered.
 // This uses the standard Cosmos SDK registration pattern via std.RegisterInterfaces,
-// which automatically registers all standard Cosmos SDK modules (bank, staking, distribution, gov, etc.)
+// which automatically registers all standard Cosmos SDK modules (bank, staking, distribution, gov, etc..)
 // plus Injective-specific modules.
 func getInterfaceRegistry() codectypes.InterfaceRegistry {
 	registryOnce.Do(func() {
@@ -52,6 +52,11 @@ func getInterfaceRegistry() codectypes.InterfaceRegistry {
 		permissionstypes.RegisterInterfaces(interfaceRegistry)
 	})
 	return interfaceRegistry
+}
+
+// GetInterfaceRegistry returns the global interface registry (exported for use in other packages).
+func GetInterfaceRegistry() codectypes.InterfaceRegistry {
+	return getInterfaceRegistry()
 }
 
 // getProtoCodec returns a codec configured with the interface registry
