@@ -409,7 +409,7 @@ CREATE TABLE `transactions` (
   `events` longtext,
   `tx_type` longtext,
   `message_types` longtext,
-  `messages` longtext,
+  `messages` longtext COMMENT 'Transaction messages in formatted JSON structure. Messages are parsed and formatted at WRITE time (when saving to database) from protobuf to human-readable JSON according to the PDF specification. Format: {\"messages\":[{\"@type\":\"...\",\"field\":\"value\",...}],\"memo\":\"...\"} All Cosmos SDK and Injective module types are supported. Addresses are automatically converted to EVM format (0x...). For large transactions, content may be stored in object storage with key in messages_storage_key.',
   `signatures` longtext,
   `memo` longtext,
   `tx_number` bigint unsigned DEFAULT NULL,

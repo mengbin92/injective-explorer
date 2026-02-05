@@ -22,11 +22,38 @@ import (
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cometbft/cometbft/crypto/tmhash"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
+
+// safeLogDebugf logs at debug level only if logger is initialized
+func safeLogDebugf(format string, args ...interface{}) {
+	if global.Logger != nil {
+		global.Logger.Debugf(format, args...)
+	}
+}
+
+// safeLogInfof logs at info level only if logger is initialized
+func safeLogInfof(format string, args ...interface{}) {
+	if global.Logger != nil {
+		global.Logger.Infof(format, args...)
+	}
+}
+
+// safeLogWarnf logs at warn level only if logger is initialized
+func safeLogWarnf(format string, args ...interface{}) {
+	if global.Logger != nil {
+		global.Logger.Warnf(format, args...)
+	}
+}
+
+// safeLogErrorf logs at error level only if logger is initialized
+func safeLogErrorf(format string, args ...interface{}) {
+	if global.Logger != nil {
+		global.Logger.Errorf(format, args...)
+	}
+}
+
 
 // Transaction represents a blockchain transaction in the database.
 // The composite index idx_block_enhance on (block_number, hash, signer, "to", value) is created
@@ -162,7 +189,9 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	// Extract message types from Messages for efficient filtering (before converting to JSON)
 	messageTypes := extractMessageTypesFromBytes(detail.Messages)
 	if len(messageTypes) == 0 && len(detail.Messages) > 0 {
-		global.Logger.Warnf("WARN: failed to extract message types for transaction %s, messages length: %d", detail.Hash, len(detail.Messages))
+		if global.Logger != nil {
+			safeLogWarnf("WARN: failed to extract message types for transaction %s, messages length: %d", detail.Hash, len(detail.Messages))
+		}
 	}
 
 	// Compress and encode data for storage
@@ -176,9 +205,9 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 	// Log the format of messages string for debugging purposes.
 	if len(messagesStr) > 0 {
 		if messagesStr[0] == '{' || messagesStr[0] == '[' {
-			global.Logger.Debugf("Messages converted to JSON format, length: %d", len(messagesStr))
+			safeLogDebugf("Messages converted to JSON format, length: %d", len(messagesStr))
 		} else {
-			global.Logger.Warnf("Messages is not JSON format (starts with: %c), might be base64", messagesStr[0])
+			safeLogWarnf("Messages is not JSON format (starts with: %c), might be base64", messagesStr[0])
 		}
 	}
 
@@ -251,10 +280,10 @@ func TransactionFromProtoWithPool(detail *injective_explorer_rpcpb.TxDetailData,
 					tx.MessagesStorageKey = storageKey
 					tx.Messages = ""
 				} else {
-					global.Logger.Warnf("WARN: failed to upload messages field to object storage for transaction %s: %v. Falling back to database storage.", detail.Hash, err)
+					safeLogWarnf("WARN: failed to upload messages field to object storage for transaction %s: %v. Falling back to database storage.", detail.Hash, err)
 				}
 			} else {
-				global.Logger.Warnf("WARN: failed to compress messages field for transaction %s: %v. Data will remain in database.", detail.Hash, compressErr)
+				safeLogWarnf("WARN: failed to compress messages field for transaction %s: %v. Data will remain in database.", detail.Hash, compressErr)
 			}
 		}
 
@@ -303,14 +332,14 @@ func processLargeField(ctx context.Context, storageClient storage.Storage, field
 	dataToUpload, _, compressErr := CompressDataToBytes(originalData)
 	if compressErr != nil {
 		// Log compression error - this is critical as it means large data will remain in database
-		global.Logger.Warnf("WARN: failed to compress %s field for transaction %s: %v. Data will remain in database, which may cause database bloat.", fieldName, txHash, compressErr)
+		safeLogWarnf("WARN: failed to compress %s field for transaction %s: %v. Data will remain in database, which may cause database bloat.", fieldName, txHash, compressErr)
 		return ""
 	}
 
 	// Upload to object storage
 	if err := storageClient.PutObject(ctx, key, dataToUpload); err != nil {
 		// Log upload error - fallback to database storage
-		global.Logger.Warnf("WARN: failed to upload %s field to object storage for transaction %s: %v. Falling back to database storage.", fieldName, txHash, err)
+		safeLogWarnf("WARN: failed to upload %s field to object storage for transaction %s: %v. Falling back to database storage.", fieldName, txHash, err)
 		return ""
 	}
 
@@ -318,7 +347,11 @@ func processLargeField(ctx context.Context, storageClient storage.Storage, field
 	return key
 }
 
-// marshalMessagesToStructPB converts Messages bytes to structpb.Struct and then to JSON string.
+// marshalMessagesToJSON converts Messages bytes to formatted JSON string.
+// This function is called when writing transaction data to the database.
+// It performs the message parsing and formatting at WRITE time (not read time)
+// to optimize query performance.
+//
 // Supports multiple formats:
 //   - Protobuf-encoded TxRaw (contains BodyBytes which is TxBody)
 //   - Protobuf-encoded TxBody directly
@@ -328,113 +361,27 @@ func processLargeField(ctx context.Context, storageClient storage.Storage, field
 //   - messagesBytes: The Messages bytes to convert
 //
 // Returns:
-//   - string: JSON string representation of Messages (via structpb), or empty string if conversion fails
+//   - string: Formatted JSON string with decoded messages, matching PDF specification
+//
+// The formatted JSON includes:
+//   - Decoded message fields (e.g., from_address, to_address, amount)
+//   - EVM format addresses (0x...)
+//   - Human-readable structure
+//
+// This is done at WRITE time so that:
+//   - Query performance is optimal (no conversion needed)
+//   - Same transaction queried multiple times doesn't repeat conversion
+//   - API responses are faster
 func marshalMessagesToJSON(messagesBytes []byte) string {
 	if len(messagesBytes) == 0 {
 		return ""
 	}
 
-	// Check if already JSON format
-	if len(messagesBytes) > 0 && (messagesBytes[0] == '[' || messagesBytes[0] == '{') {
-		// Already JSON, return as-is
-		return string(messagesBytes)
-	}
-
-	// Try parsing as TxRaw first (most common format from explorer API)
-	var txRaw cosmostxpb.TxRaw
-	if err := txRaw.Unmarshal(messagesBytes); err == nil && len(txRaw.BodyBytes) > 0 {
-		// Successfully parsed as TxRaw, parse BodyBytes as TxBody
-		var txBody cosmostxpb.TxBody
-		if err := txBody.Unmarshal(txRaw.BodyBytes); err == nil {
-			return marshalTxBodyToStructPBJSON(&txBody)
-		} else {
-			global.Logger.Warnf("Failed to unmarshal TxBody from TxRaw.BodyBytes, error: %v", err)
-		}
-	} else {
-		global.Logger.Debugf("Failed to unmarshal Messages as TxRaw, error: %v", err)
-	}
-
-	// Try parsing as TxBody directly (fallback)
-	txBody := &cosmostxpb.TxBody{}
-	if err := txBody.Unmarshal(messagesBytes); err == nil {
-		return marshalTxBodyToStructPBJSON(txBody)
-	} else {
-		global.Logger.Debugf("Failed to unmarshal Messages as TxBody, error: %v", err)
-	}
-
-	// Both protobuf parsing failed, wrap the raw bytes in a structpb structure
-	global.Logger.Warnf("WARN: failed to parse Messages as TxRaw or TxBody, wrapping raw bytes in structpb")
-	jsonObj := map[string]interface{}{
-		"rawBytes": base64.StdEncoding.EncodeToString(messagesBytes),
-		"format":   "raw",
-	}
-	if structData, err := structpb.NewStruct(jsonObj); err == nil {
-		// Marshal structpb.Struct to JSON
-		marshaler := protojson.MarshalOptions{
-			EmitUnpopulated: true,
-		}
-		if jsonBytes, err := marshaler.Marshal(structData); err == nil {
-			return string(jsonBytes)
-		} else {
-			global.Logger.Warnf("WARN: failed to marshal structpb.Struct to JSON, error: %v", err)
-		}
-	} else {
-		global.Logger.Warnf("WARN: failed to create structpb.Struct from raw bytes, error: %v", err)
-	}
-
-	// If all methods fail, return empty string
-	global.Logger.Errorf("ERROR: failed to marshal Messages to structpb JSON, returning empty string")
-	return ""
+	// Use the new ParseMessagesToFormattedJSON function
+	// This handles all the parsing logic and returns formatted JSON
+	return ParseMessagesToFormattedJSON(messagesBytes)
 }
 
-// marshalTxBodyToStructPBJSON converts TxBody to structpb.Struct and then to JSON string.
-func marshalTxBodyToStructPBJSON(txBody *cosmostxpb.TxBody) string {
-	// Build a map structure from TxBody
-	jsonObj := make(map[string]interface{})
-
-	// Add memo
-	if txBody.Memo != "" {
-		jsonObj["memo"] = txBody.Memo
-	}
-
-	// Convert messages to array of structpb values
-	messages := make([]interface{}, 0, len(txBody.Messages))
-	for _, msgAny := range txBody.Messages {
-		if msgAny != nil {
-			msgObj := map[string]interface{}{
-				"@type": msgAny.TypeUrl,
-			}
-			// Encode value as base64 string
-			if len(msgAny.Value) > 0 {
-				msgObj["value"] = base64.StdEncoding.EncodeToString(msgAny.Value)
-			}
-			messages = append(messages, msgObj)
-		}
-	}
-	if len(messages) > 0 {
-		jsonObj["messages"] = messages
-	}
-
-	// Convert to structpb.Struct
-	structData, err := structpb.NewStruct(jsonObj)
-	if err != nil {
-		global.Logger.Warnf("WARN: failed to create structpb.Struct from TxBody, error: %v", err)
-		return ""
-	}
-
-	// Marshal structpb.Struct to JSON
-	marshaler := protojson.MarshalOptions{
-		EmitUnpopulated: true,
-		UseProtoNames:   true,
-	}
-	jsonBytes, err := marshaler.Marshal(structData)
-	if err != nil {
-		global.Logger.Warnf("WARN: failed to marshal structpb.Struct to JSON, error: %v", err)
-		return ""
-	}
-
-	return string(jsonBytes)
-}
 
 // unmarshalMessagesFromJSON converts JSON string back to Messages bytes.
 // Supports multiple formats:
@@ -510,7 +457,7 @@ func unmarshalMessagesFromJSON(jsonStr string) []byte {
 	}
 
 	// All parsing failed, return empty
-	global.Logger.Warnf("WARN: failed to unmarshal Messages from JSON or base64")
+	safeLogWarnf("WARN: failed to unmarshal Messages from JSON or base64")
 	return nil
 }
 
@@ -824,7 +771,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 
 			// Log warning if no message types extracted
 			if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
-				global.Logger.Warnf("WARN: extracted 0 message types from %d messages in TxRaw->TxBody, all messages have empty TypeUrl", len(txBody.Messages))
+				safeLogWarnf("WARN: extracted 0 message types from %d messages in TxRaw->TxBody, all messages have empty TypeUrl", len(txBody.Messages))
 			}
 
 			return messageTypes
@@ -848,7 +795,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 
 		// Log warning if no message types extracted
 		if len(messageTypes) == 0 && len(txBody.Messages) > 0 {
-			global.Logger.Warnf("WARN: extracted 0 message types from %d protobuf messages, all messages have empty TypeUrl", len(txBody.Messages))
+			safeLogWarnf("WARN: extracted 0 message types from %d protobuf messages, all messages have empty TypeUrl", len(txBody.Messages))
 		}
 
 		return messageTypes
@@ -881,7 +828,7 @@ func extractMessageTypesFromBytes(messagesBytes []byte) []string {
 
 	// Both protobuf and JSON parsing failed
 	if global.Logger != nil {
-		global.Logger.Warnf("WARN: failed to extract message types: protobuf unmarshal error, messages length: %d, first bytes: %v", len(messagesBytes), getFirstBytes(messagesBytes, 10))
+		safeLogWarnf("WARN: failed to extract message types: protobuf unmarshal error, messages length: %d, first bytes: %v", len(messagesBytes), getFirstBytes(messagesBytes, 10))
 	}
 	return nil
 }
@@ -1018,19 +965,19 @@ func extractSignerFromEvents(events []*injective_explorer_rpcpb.Event) string {
 //   - found: Whether the transaction was found in the block
 func CalculateTxIndexFromBlock(blockResp *coretypes.ResultBlock, txHash string) (txIndex int, txNumber uint64, found bool) {
 	if blockResp == nil {
-		global.Logger.Warnf("CalculateTxIndexFromBlock: blockResp is nil for tx %s", txHash)
+		safeLogWarnf("CalculateTxIndexFromBlock: blockResp is nil for tx %s", txHash)
 		return -1, 0, false
 	}
 	if blockResp.Block == nil {
-		global.Logger.Warnf("CalculateTxIndexFromBlock: blockResp.Block is nil for tx %s", txHash)
+		safeLogWarnf("CalculateTxIndexFromBlock: blockResp.Block is nil for tx %s", txHash)
 		return -1, 0, false
 	}
 	if len(blockResp.Block.Data.Txs) == 0 {
-		global.Logger.Warnf("CalculateTxIndexFromBlock: block has no transactions (len=%d) for tx %s", len(blockResp.Block.Data.Txs), txHash)
+		safeLogWarnf("CalculateTxIndexFromBlock: block has no transactions (len=%d) for tx %s", len(blockResp.Block.Data.Txs), txHash)
 		return -1, 0, false
 	}
 
-	global.Logger.Debugf("CalculateTxIndexFromBlock: searching for tx %s in block with %d transactions", txHash, len(blockResp.Block.Data.Txs))
+	safeLogDebugf("CalculateTxIndexFromBlock: searching for tx %s in block with %d transactions", txHash, len(blockResp.Block.Data.Txs))
 	return calculateTxIndexFromTxs(blockResp.Block.Data.Txs, txHash)
 }
 
@@ -1039,7 +986,7 @@ func CalculateTxIndexFromBlock(blockResp *coretypes.ResultBlock, txHash string) 
 // Returns tx_index (0-based) and tx_number (tx_index + 1, per-block, 1-based).
 func CalculateTxIndexFromTmBlock(tmBlock *tmtypes.Block, txHash string) (txIndex int, txNumber uint64, found bool) {
 	if tmBlock == nil || len(tmBlock.Data.Txs) == 0 {
-		global.Logger.Debugf("CalculateTxIndexFromTmBlock: tmBlock is nil or has no transactions")
+		safeLogDebugf("CalculateTxIndexFromTmBlock: tmBlock is nil or has no transactions")
 		return -1, 0, false
 	}
 
@@ -1057,7 +1004,7 @@ func calculateTxIndexFromTxs(txs tmtypes.Txs, txHash string) (txIndex int, txNum
 	// Normalize txHash: remove "0x" prefix if present, convert to lowercase
 	// Handle both "0x" and "0X" prefixes, and ensure lowercase
 	txHashNormalized := strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(txHash, "0x"), "0X"))
-	global.Logger.Debugf("calculateTxIndexFromTxs: searching for tx hash %s (normalized: %s) in block with %d transactions",
+	safeLogDebugf("calculateTxIndexFromTxs: searching for tx hash %s (normalized: %s) in block with %d transactions",
 		txHash, txHashNormalized, len(txs))
 
 	// Iterate through block transactions to find the matching hash
@@ -1071,19 +1018,19 @@ func calculateTxIndexFromTxs(txs tmtypes.Txs, txHash string) (txIndex int, txNum
 			// Found! tx_index is the array index (0-based)
 			txIndex = i
 			txNumber = uint64(i + 1) // tx_number = tx_index + 1 (per-block, 1-based)
-			global.Logger.Infof("✓ calculateTxIndexFromTxs: FOUND tx %s at index %d (tx_number=%d) in block",
+			safeLogInfof("✓ calculateTxIndexFromTxs: FOUND tx %s at index %d (tx_number=%d) in block",
 				txHash, txIndex, txNumber)
 			return txIndex, txNumber, true
 		}
 		
 		// Debug: log first few hashes for troubleshooting
 		if i < 3 {
-			global.Logger.Debugf("calculateTxIndexFromTxs: tx[%d] hash=%s (looking for %s)", i, calculatedHashLower, txHashNormalized)
+			safeLogDebugf("calculateTxIndexFromTxs: tx[%d] hash=%s (looking for %s)", i, calculatedHashLower, txHashNormalized)
 		}
 	}
 
 	// Transaction not found in block - log for debugging
-	global.Logger.Warnf("calculateTxIndexFromTxs: tx %s not found in block (searched %d transactions). "+
+	safeLogWarnf("calculateTxIndexFromTxs: tx %s not found in block (searched %d transactions). "+
 		"First few calculated hashes: %v", txHash, len(txs),
 		func() []string {
 			if len(txs) > 0 {
@@ -1256,23 +1203,23 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, cod
 		if blockResp.Block != nil {
 			txCount = len(blockResp.Block.Data.Txs)
 		}
-		global.Logger.Infof("attempting authoritative tx_number calculation for tx %s in block %d (block has %d transactions)",
+		safeLogInfof("attempting authoritative tx_number calculation for tx %s in block %d (block has %d transactions)",
 			txHash, blockHeight, txCount)
 		txIndex, calculatedTxNumber, found := CalculateTxIndexFromBlock(blockResp, txHash)
 		if found {
 			// Use authoritative tx_number from block execution order
 			// tx_number = tx_index + 1 (per-block, 1-based)
 			txNumber = calculatedTxNumber
-			global.Logger.Infof("✓ SUCCESS: calculated tx_number=%d (tx_index=%d) from block %d for tx %s using NEW METHOD",
+			safeLogInfof("✓ SUCCESS: calculated tx_number=%d (tx_index=%d) from block %d for tx %s using NEW METHOD",
 				txNumber, txIndex, blockHeight, txHash)
 		} else {
 			// Transaction not found in block, fall back to legacy calculation
-			global.Logger.Warnf("✗ FAILED: tx %s not found in block %d (block has %d txs), falling back to legacy hash-based calculation. "+
+			safeLogWarnf("✗ FAILED: tx %s not found in block %d (block has %d txs), falling back to legacy hash-based calculation. "+
 				"This may indicate a hash mismatch issue.", txHash, blockHeight, txCount)
 			// Fall through to legacy calculation below
 		}
 	} else {
-		global.Logger.Warnf("⚠ blockResp is nil for tx %s in block %d, will use legacy calculation", txHash, blockHeight)
+		safeLogWarnf("⚠ blockResp is nil for tx %s in block %d, will use legacy calculation", txHash, blockHeight)
 	}
 	
 	// Legacy fallback: hash-based calculation (for backward compatibility)
@@ -1291,7 +1238,7 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, cod
 			hashOffset = (hashOffset*31 + uint64(char)) % 1000000
 		}
 		txNumber = blockHeight*1000000 + hashOffset
-		global.Logger.Warnf("⚠ calculated tx_number=%d using legacy hash-based method for tx %s in block %d (hashOffset=%d). "+
+		safeLogWarnf("⚠ calculated tx_number=%d using legacy hash-based method for tx %s in block %d (hashOffset=%d). "+
 			"This indicates the authoritative method failed or block data was unavailable.",
 			txNumber, txHash, blockHeight, hashOffset)
 	}

@@ -17,6 +17,8 @@ import (
 	"injective-explorer/provider/storage"
 
 	"github.com/bytedance/sonic"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -91,6 +93,59 @@ func convertSignaturesToDTO(sigStrings []string) []*pb.TransactionSignature {
 		return nil
 	}
 	return signatures
+}
+
+// jsonStringToStruct converts a JSON string to google.protobuf.Struct.
+// Returns nil if the input is empty or parsing fails.
+func jsonStringToStruct(jsonStr string) *structpb.Struct {
+	if jsonStr == "" {
+		return nil
+	}
+
+	var structData structpb.Struct
+	if err := protojson.Unmarshal([]byte(jsonStr), &structData); err != nil {
+		return nil
+	}
+
+	return &structData
+}
+
+// jsonStringToListValue converts a JSON string to google.protobuf.ListValue.
+// Extracts the messages array from the wrapped format {"messages": [...], "memo": "..."}.
+// Returns nil if the input is empty or parsing fails.
+func jsonStringToListValue(jsonStr string) *structpb.ListValue {
+	if jsonStr == "" {
+		return nil
+	}
+
+	// First parse to detect structure
+	var tempData map[string]interface{}
+	if err := sonic.Unmarshal([]byte(jsonStr), &tempData); err != nil {
+		return nil
+	}
+
+	// Check if this is the wrapped format: {"messages": [...], "memo": "..."}
+	// Extract the "messages" array
+	var messagesArray []interface{}
+	if messages, ok := tempData["messages"]; ok {
+		if arr, isArray := messages.([]interface{}); isArray {
+			messagesArray = arr
+		} else {
+			// Not an array, can't convert
+			return nil
+		}
+	} else {
+		// No "messages" field, can't convert
+		return nil
+	}
+
+	// Convert the array to ListValue
+	listValue, err := structpb.NewList(messagesArray)
+	if err != nil {
+		return nil
+	}
+
+	return listValue
 }
 
 // DTO types are now defined in proto files:
@@ -248,6 +303,10 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 		dataStr := loadAndDecompressForDTO(tx.Data, tx.DataStorageKey)
 		messagesStr := loadAndDecompressForDTO(tx.Messages, tx.MessagesStorageKey)
 		logsStr := loadAndDecompressForDTO(tx.Logs, tx.LogsStorageKey)
+
+		// Note: Messages are already formatted at WRITE time (in marshalMessagesToJSON)
+		// No need to parse/format here - this optimizes read performance
+		// Convert messages JSON string to ListValue for proper array response
 		txDTO := &pb.TransactionDTO{
 			Id:                 tx.Id,
 			BlockNumber:        tx.BlockNumber,
@@ -262,7 +321,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			Codespace:          tx.Codespace,
 			Events:             tx.Events,
 			TxType:             tx.TxType,
-			Messages:           messagesStr,
+			Messages:           jsonStringToListValue(messagesStr),
 			Signatures:         convertSignaturesToDTO(tx.Signatures),
 			Memo:               tx.Memo,
 			TxNumber:           tx.TxNumber,
@@ -286,7 +345,7 @@ func ToTransactionDTO(tx *Transaction, isDetail bool) *pb.TransactionDTO {
 			BlockUnixTimestamp: tx.BlockUnixTimestamp,
 			Hash:               tx.Hash,
 			ErrorLog:           tx.ErrorLog,
-			Messages:           messagesStr,
+			Messages:           jsonStringToListValue(messagesStr),
 			GasUsed:            tx.GasUsed,
 			Signer:             tx.Signer,
 			To:                 tx.To,

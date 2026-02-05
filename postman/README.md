@@ -676,3 +676,52 @@ The Complete API Collection includes:
 - **Environment variable management** for easy configuration
 - **Comprehensive documentation** in request descriptions
 
+
+## Recent Updates
+
+### Messages Field Format Update (2026-02-05)
+
+**Transaction API 测试更新**
+
+"根据交易哈希获取交易详情" (Get Transaction By Hash) 接口测试已更新，添加了对 `messages` 字段的验证：
+
+**新增测试项：**
+
+1. **Messages 字段类型验证**
+   - 验证 `messages` 是数组而不是字符串
+   - 确保返回结构化的 JSON 对象数组
+
+2. **Messages 内容验证**
+   - 验证每个消息对象包含 `@type` 字段
+   - 验证消息已解码（不包含 base64 编码的 `value` 字段）
+   - 对于 `MsgSend` 类型，验证包含 `from_address`、`to_address`、`amount` 字段
+
+**API 响应格式变更：**
+
+Before:
+```json
+{
+  "messages": "{\"messages\":[{\"@type\":\"...\",\"field\":\"value\"}]}"
+}
+```
+
+After:
+```json
+{
+  "messages": [
+    {
+      "@type": "/cosmos.bank.v1beta1.MsgSend",
+      "from_address": "0x...",
+      "to_address": "0x...",
+      "amount": [{"denom": "inj", "amount": "1000000"}]
+    }
+  ]
+}
+```
+
+**优势：**
+- ✅ 更好的类型安全
+- ✅ 无需手动解析 JSON 字符串
+- ✅ 直接访问消息字段
+- ✅ 与 protobuf 定义一致
+
