@@ -21,6 +21,8 @@ type TokenMarketCache struct {
 	// Market data (from CoinGecko)
 	PriceUSD             float64 `json:"price_usd" gorm:"column:price_usd;type:decimal(30,18)"`   // Current price in USD
 	PriceChange24h       float64 `json:"price_change_24h" gorm:"column:price_change_24h;type:decimal(10,4)"` // 24h price change percentage
+	High24h              float64 `json:"high_24h" gorm:"column:high_24h;type:decimal(30,18)"`     // 24h highest price
+	Low24h               float64 `json:"low_24h" gorm:"column:low_24h;type:decimal(30,18)"`       // 24h lowest price
 	MarketCapUSD         float64 `json:"market_cap_usd" gorm:"column:market_cap_usd;type:decimal(40,2);index"` // Market cap in USD
 	FullyDilutedMarketCap float64 `json:"fully_diluted_market_cap" gorm:"column:fully_diluted_market_cap;type:decimal(40,2)"` // Fully diluted market cap
 	TotalVolume24h       float64 `json:"total_volume_24h" gorm:"column:total_volume_24h;type:decimal(40,2)"` // 24h trading volume in USD
@@ -69,6 +71,8 @@ type TokenMarketCacheQuery struct {
 type TokenMarketCacheUpdate struct {
 	PriceUSD              float64
 	PriceChange24h        float64
+	High24h               float64
+	Low24h                float64
 	MarketCapUSD          float64
 	FullyDilutedMarketCap float64
 	TotalVolume24h        float64
