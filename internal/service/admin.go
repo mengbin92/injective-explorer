@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -617,4 +618,286 @@ func (s *AdminService) GetUsageByErrorCode(ctx context.Context, req *pb.GetUsage
 	}
 
 	return MarshalAndReply(errorCodes, "marshal error code usage response error")
+}
+
+// GetTokenMarketCache retrieves token market cache data for administrative verification and monitoring.
+// It allows administrators to inspect cached market data for a specific token, including price,
+// volume, market cap, and supply information. Returns a *pb.TokenMarketCacheDTO packed in a *pb.Reply.
+//
+// Parameters:
+//   - token_symbol: Required token symbol (e.g., "INJ", "USDT")
+//   - chain_id: Optional chain identifier, defaults to "injective-1"
+//
+// Returns:
+//   - *pb.Reply containing TokenMarketCacheDTO with complete market data
+//   - HTTP 400 if token_symbol is missing
+//   - HTTP 404 if cache entry not found
+//   - HTTP 500 on database errors
+func (s *AdminService) GetTokenMarketCache(ctx context.Context, req *pb.GetTokenMarketCacheRequest) (*pb.Reply, error) {
+	if req == nil || req.TokenSymbol == "" {
+		err := errors.New("missing token_symbol")
+		return ErrorReply(http.StatusBadRequest, "token_symbol is required", err), nil
+	}
+
+	chainID := req.ChainId
+	if chainID == "" {
+		chainID = DefaultChainID
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Query cache from database
+	var cache models.TokenMarketCache
+	err := db.Get().WithContext(queryCtx).
+		Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+		First(&cache).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrorReply(http.StatusNotFound, "token market cache not found", err), nil
+		}
+		global.Logger.Errorf("failed to query token market cache for %s on chain %s: %v", req.TokenSymbol, chainID, err)
+		return ErrorReply(http.StatusInternalServerError, "failed to query cache", err), err
+	}
+
+	// Convert to DTO
+	response := &pb.TokenMarketCacheDTO{
+		TokenSymbol:           cache.TokenSymbol,
+		ContractAddress:       cache.ContractAddress,
+		ChainId:               cache.ChainID,
+		PriceUsd:              cache.PriceUSD,
+		PriceChange_24H:       cache.PriceChange24h,
+		High_24H:              cache.High24h,
+		Low_24H:               cache.Low24h,
+		MarketCapUsd:          cache.MarketCapUSD,
+		FullyDilutedMarketCap: cache.FullyDilutedMarketCap,
+		TotalVolume_24H:       cache.TotalVolume24h,
+		HoldersCount:          cache.HoldersCount,
+		LastUpdated:           cache.LastUpdated,
+		DataSource:            cache.DataSource,
+	}
+
+	// Add supply data if available
+	if cache.TotalSupply != nil {
+		response.TotalSupply = *cache.TotalSupply
+	}
+	if cache.CirculatingSupply != nil {
+		response.CirculatingSupply = *cache.CirculatingSupply
+	}
+	if cache.MaxSupply != nil {
+		response.MaxSupply = *cache.MaxSupply
+	}
+
+	return MarshalAndReply(response, "marshal token market cache error")
+}
+
+// UpdateTokenMarketCache updates or creates token market cache data for testing and manual adjustments.
+// This method allows administrators to override market data with custom values for testing purposes.
+// It performs an upsert operation, creating a new cache entry if one doesn't exist.
+// Returns a *pb.UpdateTokenMarketCacheResponse with the updated data packed in a *pb.Reply.
+//
+// Parameters:
+//   - token_symbol: Required token symbol (e.g., "INJ", "USDT")
+//   - chain_id: Optional chain identifier, defaults to "injective-1"
+//   - price_usd, market_cap_usd, volume_24h, etc.: Optional market data fields to update
+//
+// Returns:
+//   - *pb.Reply containing UpdateTokenMarketCacheResponse with success status and updated data
+//   - HTTP 400 if token_symbol is missing or no fields provided
+//   - HTTP 500 on database errors
+//
+// Note: Sets data_source to "manual_test" to distinguish from auto-synced data
+func (s *AdminService) UpdateTokenMarketCache(ctx context.Context, req *pb.UpdateTokenMarketCacheRequest) (*pb.Reply, error) {
+	if req == nil || req.TokenSymbol == "" {
+		err := errors.New("missing token_symbol")
+		return ErrorReply(http.StatusBadRequest, "token_symbol is required", err), nil
+	}
+
+	chainID := req.ChainId
+	if chainID == "" {
+		chainID = DefaultChainID
+	}
+
+	// Build update map with only provided fields
+	updates := make(map[string]interface{})
+
+	if req.PriceUsd != nil {
+		updates["price_usd"] = *req.PriceUsd
+	}
+	if req.PriceChange_24H != nil {
+		updates["price_change_24h"] = *req.PriceChange_24H
+	}
+	if req.High_24H != nil {
+		updates["high_24h"] = *req.High_24H
+	}
+	if req.Low_24H != nil {
+		updates["low_24h"] = *req.Low_24H
+	}
+	if req.MarketCapUsd != nil {
+		updates["market_cap_usd"] = *req.MarketCapUsd
+	}
+	if req.FullyDilutedMarketCap != nil {
+		updates["fully_diluted_market_cap"] = *req.FullyDilutedMarketCap
+	}
+	if req.TotalVolume_24H != nil {
+		updates["total_volume_24h"] = *req.TotalVolume_24H
+	}
+	if req.HoldersCount != nil {
+		updates["holders_count"] = *req.HoldersCount
+	}
+	if req.TotalSupply != nil {
+		updates["total_supply"] = *req.TotalSupply
+	}
+	if req.CirculatingSupply != nil {
+		updates["circulating_supply"] = *req.CirculatingSupply
+	}
+	if req.MaxSupply != nil {
+		updates["max_supply"] = *req.MaxSupply
+	}
+
+	// Always update data_source and last_updated
+	updates["data_source"] = "manual_test"
+	updates["last_updated"] = time.Now().Unix()
+
+	if len(updates) == 2 {
+		// Only data_source and last_updated, no actual market data fields
+		err := errors.New("no update fields provided")
+		return ErrorReply(http.StatusBadRequest, "no fields to update", err), nil
+	}
+
+	// Perform upsert
+	err := db.Get().Transaction(func(tx *gorm.DB) error {
+		// Try to find existing record
+		var existing models.TokenMarketCache
+		err := tx.Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+			First(&existing).Error
+
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Create new record with minimal required fields
+				newCache := &models.TokenMarketCache{
+					TokenSymbol: req.TokenSymbol,
+					ChainID:     chainID,
+					DataSource:  "manual_test",
+					LastUpdated: time.Now().Unix(),
+				}
+
+				// Apply updates to new record
+				if err := tx.Create(newCache).Error; err != nil {
+					return err
+				}
+
+				// Now update with provided fields
+				return tx.Model(&models.TokenMarketCache{}).
+					Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+					Updates(updates).Error
+			}
+			return err
+		}
+
+		// Update existing record
+		return tx.Model(&models.TokenMarketCache{}).
+			Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+			Updates(updates).Error
+	})
+
+	if err != nil {
+		global.Logger.Errorf("failed to update token market cache: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to update cache", err), err
+	}
+
+	// Retrieve updated data to return in response
+	var updated models.TokenMarketCache
+	err = db.Get().WithContext(ctx).
+		Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+		First(&updated).Error
+
+	if err != nil {
+		global.Logger.Errorf("failed to retrieve updated token market cache for %s: %v", req.TokenSymbol, err)
+		return ErrorReply(http.StatusInternalServerError, "failed to retrieve updated cache", err), err
+	}
+
+	// Build response
+	response := &pb.UpdateTokenMarketCacheResponse{
+		Success: true,
+		Message: fmt.Sprintf("Token market cache updated successfully for %s", req.TokenSymbol),
+		Data: &pb.TokenMarketCacheDTO{
+			TokenSymbol:           updated.TokenSymbol,
+			ContractAddress:       updated.ContractAddress,
+			ChainId:               updated.ChainID,
+			PriceUsd:              updated.PriceUSD,
+			PriceChange_24H:       updated.PriceChange24h,
+			High_24H:              updated.High24h,
+			Low_24H:               updated.Low24h,
+			MarketCapUsd:          updated.MarketCapUSD,
+			FullyDilutedMarketCap: updated.FullyDilutedMarketCap,
+			TotalVolume_24H:       updated.TotalVolume24h,
+			HoldersCount:          updated.HoldersCount,
+			LastUpdated:           updated.LastUpdated,
+			DataSource:            updated.DataSource,
+		},
+	}
+
+	if updated.TotalSupply != nil {
+		response.Data.TotalSupply = *updated.TotalSupply
+	}
+	if updated.CirculatingSupply != nil {
+		response.Data.CirculatingSupply = *updated.CirculatingSupply
+	}
+	if updated.MaxSupply != nil {
+		response.Data.MaxSupply = *updated.MaxSupply
+	}
+
+	global.Logger.Infof("Admin: Updated token market cache for %s (data_source=manual_test)", req.TokenSymbol)
+
+	return MarshalAndReply(response, "marshal update response error")
+}
+
+// ResetTokenMarketCache resets token market cache to automatic synchronization mode.
+// This method changes the data_source back to "coingecko" so that the next scheduled sync
+// will update the cache with fresh data from the external API. Use this to restore normal
+// operation after manual testing updates. Returns a *pb.ResetTokenMarketCacheResponse packed in a *pb.Reply.
+//
+// Parameters:
+//   - token_symbol: Required token symbol (e.g., "INJ", "USDT")
+//   - chain_id: Optional chain identifier, defaults to "injective-1"
+//
+// Returns:
+//   - *pb.Reply containing ResetTokenMarketCacheResponse with success status
+//   - HTTP 400 if token_symbol is missing
+//   - HTTP 500 on database errors
+func (s *AdminService) ResetTokenMarketCache(ctx context.Context, req *pb.ResetTokenMarketCacheRequest) (*pb.Reply, error) {
+	if req == nil || req.TokenSymbol == "" {
+		err := errors.New("missing token_symbol")
+		return ErrorReply(http.StatusBadRequest, "token_symbol is required", err), nil
+	}
+
+	chainID := req.ChainId
+	if chainID == "" {
+		chainID = DefaultChainID
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
+	defer queryCancel()
+
+	// Update data_source back to 'coingecko' so next sync will update it
+	err := db.Get().WithContext(queryCtx).
+		Model(&models.TokenMarketCache{}).
+		Where("token_symbol = ? AND chain_id = ?", req.TokenSymbol, chainID).
+		Update("data_source", "coingecko").Error
+
+	if err != nil {
+		global.Logger.Errorf("failed to reset token market cache for %s on chain %s: %v", req.TokenSymbol, chainID, err)
+		return ErrorReply(http.StatusInternalServerError, "failed to reset cache", err), err
+	}
+
+	response := &pb.ResetTokenMarketCacheResponse{
+		Success: true,
+		Message: fmt.Sprintf("Token market cache reset to auto-sync mode for %s", req.TokenSymbol),
+	}
+
+	global.Logger.Infof("Admin: Reset token market cache for %s (data_source=coingecko)", req.TokenSymbol)
+
+	return MarshalAndReply(response, "marshal reset response error")
 }

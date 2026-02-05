@@ -1119,6 +1119,67 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/token-market-cache:
+        get:
+            tags:
+                - AdminService
+            description: GetTokenMarketCache gets token market cache for verification
+            operationId: AdminService_GetTokenMarketCache
+            parameters:
+                - name: token_symbol
+                  in: query
+                  schema:
+                    type: string
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+        post:
+            tags:
+                - AdminService
+            description: |-
+                ========== Token Market Cache Management (Testing) ==========
+                 UpdateTokenMarketCache updates token market cache for testing
+            operationId: AdminService_UpdateTokenMarketCache
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.UpdateTokenMarketCacheRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/token-market-cache/reset:
+        post:
+            tags:
+                - AdminService
+            description: ResetTokenMarketCache resets token market cache to auto-sync mode
+            operationId: AdminService_ResetTokenMarketCache
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.ResetTokenMarketCacheRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/tokens/status:
         put:
             tags:
@@ -3632,6 +3693,14 @@ components:
                     type: object
                     description: Response data (using Struct type to directly return JSON objects, more intuitive)
             description: Generic response structure
+        api.explorer.v1.ResetTokenMarketCacheRequest:
+            type: object
+            properties:
+                token_symbol:
+                    type: string
+                chain_id:
+                    type: string
+            description: ResetTokenMarketCacheRequest resets to auto-sync mode
         api.explorer.v1.SetAddressRemarkRequest:
             type: object
             properties:
@@ -3892,6 +3961,44 @@ components:
                     type: integer
                     format: int32
             description: UpdateTagDefinitionRequest is the request message for updating a tag definition.
+        api.explorer.v1.UpdateTokenMarketCacheRequest:
+            type: object
+            properties:
+                token_symbol:
+                    type: string
+                chain_id:
+                    type: string
+                price_usd:
+                    type: number
+                    description: Market data fields (all optional, only provided fields will be updated)
+                    format: double
+                price_change_24h:
+                    type: number
+                    format: double
+                high_24h:
+                    type: number
+                    format: double
+                low_24h:
+                    type: number
+                    format: double
+                market_cap_usd:
+                    type: number
+                    format: double
+                fully_diluted_market_cap:
+                    type: number
+                    format: double
+                total_volume_24h:
+                    type: number
+                    format: double
+                holders_count:
+                    type: string
+                total_supply:
+                    type: string
+                circulating_supply:
+                    type: string
+                max_supply:
+                    type: string
+            description: UpdateTokenMarketCacheRequest updates token market data for testing
         api.explorer.v1.UpdateWebhookRequest:
             type: object
             properties:

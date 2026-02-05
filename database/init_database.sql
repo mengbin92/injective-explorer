@@ -483,6 +483,8 @@ CREATE TABLE `token_market_cache` (
   `chain_id` varchar(50) DEFAULT 'injective-1' COMMENT '链ID',
   `price_usd` decimal(30,18) DEFAULT NULL COMMENT 'USD价格',
   `price_change_24h` decimal(10,4) DEFAULT NULL COMMENT '24小时价格变化百分比',
+  `high_24h` decimal(30,18) DEFAULT 0 COMMENT '24小时最高价(USD)',
+  `low_24h` decimal(30,18) DEFAULT 0 COMMENT '24小时最低价(USD)',
   `market_cap_usd` decimal(40,2) DEFAULT NULL COMMENT '市值（USD）',
   `fully_diluted_market_cap` decimal(40,2) DEFAULT NULL COMMENT '完全稀释市值（USD）',
   `total_volume_24h` decimal(40,2) DEFAULT NULL COMMENT '24小时交易量（USD）',
@@ -497,7 +499,9 @@ CREATE TABLE `token_market_cache` (
   KEY `idx_token_market_cache_deleted_at` (`deleted_at`),
   KEY `idx_contract_address` (`contract_address`),
   KEY `idx_price_usd` (`price_usd`),
-  KEY `idx_market_cap_usd` (`market_cap_usd`)
+  KEY `idx_market_cap_usd` (`market_cap_usd`),
+  KEY `idx_token_market_cache_high_24h` (`high_24h`),
+  KEY `idx_token_market_cache_low_24h` (`low_24h`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='代币市场数据预计算表';
 
 -- ----------------------------

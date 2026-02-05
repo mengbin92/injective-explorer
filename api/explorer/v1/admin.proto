@@ -339,6 +339,30 @@ service AdminService {
       body : "*"
     };
   }
+
+  // ========== Token Market Cache Management (Testing) ==========
+  // UpdateTokenMarketCache updates token market cache for testing
+  rpc UpdateTokenMarketCache(UpdateTokenMarketCacheRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/token-market-cache"
+      body: "*"
+    };
+  }
+
+  // ResetTokenMarketCache resets token market cache to auto-sync mode
+  rpc ResetTokenMarketCache(ResetTokenMarketCacheRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/token-market-cache/reset"
+      body: "*"
+    };
+  }
+
+  // GetTokenMarketCache gets token market cache for verification
+  rpc GetTokenMarketCache(GetTokenMarketCacheRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/token-market-cache"
+    };
+  }
 }
 
 // ========== Plan Management Messages ==========
@@ -869,4 +893,70 @@ message ListAccountsResponse {
 message ToggleTokenStatusRequest {
   int64 token_id = 1 [ json_name = "token_id" ]; // Token ID (required)
   string action = 2; // Action: enable/disable (required)
+}
+
+// ========== Token Market Cache Messages ==========
+
+// UpdateTokenMarketCacheRequest updates token market data for testing
+message UpdateTokenMarketCacheRequest {
+  string token_symbol = 1 [json_name = "token_symbol"];
+  string chain_id = 2 [json_name = "chain_id"];
+
+  // Market data fields (all optional, only provided fields will be updated)
+  optional double price_usd = 3 [json_name = "price_usd"];
+  optional double price_change_24h = 4 [json_name = "price_change_24h"];
+  optional double high_24h = 5 [json_name = "high_24h"];
+  optional double low_24h = 6 [json_name = "low_24h"];
+  optional double market_cap_usd = 7 [json_name = "market_cap_usd"];
+  optional double fully_diluted_market_cap = 8 [json_name = "fully_diluted_market_cap"];
+  optional double total_volume_24h = 9 [json_name = "total_volume_24h"];
+  optional int64 holders_count = 10 [json_name = "holders_count"];
+  optional string total_supply = 11 [json_name = "total_supply"];
+  optional string circulating_supply = 12 [json_name = "circulating_supply"];
+  optional string max_supply = 13 [json_name = "max_supply"];
+}
+
+// UpdateTokenMarketCacheResponse response for update
+message UpdateTokenMarketCacheResponse {
+  bool success = 1;
+  string message = 2;
+  TokenMarketCacheDTO data = 3;
+}
+
+// ResetTokenMarketCacheRequest resets to auto-sync mode
+message ResetTokenMarketCacheRequest {
+  string token_symbol = 1 [json_name = "token_symbol"];
+  string chain_id = 2 [json_name = "chain_id"];
+}
+
+// ResetTokenMarketCacheResponse response for reset
+message ResetTokenMarketCacheResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// GetTokenMarketCacheRequest gets cache data
+message GetTokenMarketCacheRequest {
+  string token_symbol = 1 [json_name = "token_symbol"];
+  string chain_id = 2 [json_name = "chain_id"];
+}
+
+// TokenMarketCacheDTO complete cache data transfer object
+message TokenMarketCacheDTO {
+  string token_symbol = 1 [json_name = "token_symbol"];
+  string contract_address = 2 [json_name = "contract_address"];
+  string chain_id = 3 [json_name = "chain_id"];
+  double price_usd = 4 [json_name = "price_usd"];
+  double price_change_24h = 5 [json_name = "price_change_24h"];
+  double high_24h = 6 [json_name = "high_24h"];
+  double low_24h = 7 [json_name = "low_24h"];
+  double market_cap_usd = 8 [json_name = "market_cap_usd"];
+  double fully_diluted_market_cap = 9 [json_name = "fully_diluted_market_cap"];
+  double total_volume_24h = 10 [json_name = "total_volume_24h"];
+  int64 holders_count = 11 [json_name = "holders_count"];
+  string total_supply = 12 [json_name = "total_supply"];
+  string circulating_supply = 13 [json_name = "circulating_supply"];
+  string max_supply = 14 [json_name = "max_supply"];
+  int64 last_updated = 15 [json_name = "last_updated"];
+  string data_source = 16 [json_name = "data_source"];
 }

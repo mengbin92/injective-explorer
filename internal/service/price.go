@@ -109,6 +109,8 @@ type CoinGeckoDetailResponse map[string]struct {
 	TotalSupply       *float64 `json:"total_supply,omitempty"`
 	CirculatingSupply *float64 `json:"circulating_supply,omitempty"`
 	MaxSupply         *float64 `json:"max_supply,omitempty"`
+	USD24hHigh        float64  `json:"usd_24h_high"`
+	USD24hLow         float64  `json:"usd_24h_low"`
 }
 
 // CustomPriceResponse represents the response from custom price API.
@@ -123,12 +125,14 @@ type TokenMarketData struct {
 	PriceUSD              float64
 	PriceChange24h        float64
 	MarketCapUSD          float64
-	TotalVolume24h        float64 // 24h trading volume
-	HoldersCount          int64   // Number of holders (optional, not available for all tokens)
+	TotalVolume24h        float64  // 24h trading volume
+	HoldersCount          int64    // Number of holders (optional, not available for all tokens)
 	MaxSupply             *big.Int // Max supply (nil if unlimited)
 	CirculatingSupply     *big.Int // Circulating supply
 	TotalSupply           *big.Int // Total supply
 	FullyDilutedMarketCap float64  // Fully diluted market cap (price * max_supply)
+	High24h               float64  // 24h highest price
+	Low24h                float64  // 24h lowest price
 }
 
 // PriceAndSupplyData contains price and supply information.
@@ -1319,6 +1323,12 @@ func GetTokenFullMarketData(ctx context.Context, tokenConfig *TokenConfig) (*Tok
 			FullyDilutedValuation struct {
 				USD float64 `json:"usd"`
 			} `json:"fully_diluted_valuation"`
+			High24h struct {
+				USD float64 `json:"usd"`
+			} `json:"high_24h"`
+			Low24h struct {
+				USD float64 `json:"usd"`
+			} `json:"low_24h"`
 			Holders *int64 `json:"holders"`
 		} `json:"market_data"`
 	}
@@ -1338,6 +1348,8 @@ func GetTokenFullMarketData(ctx context.Context, tokenConfig *TokenConfig) (*Tok
 		MarketCapUSD:          coinResp.MarketData.MarketCap.USD,
 		TotalVolume24h:        coinResp.MarketData.TotalVolume.USD,
 		FullyDilutedMarketCap: coinResp.MarketData.FullyDilutedValuation.USD,
+		High24h:               coinResp.MarketData.High24h.USD,
+		Low24h:                coinResp.MarketData.Low24h.USD,
 	}
 
 	// Convert supply values

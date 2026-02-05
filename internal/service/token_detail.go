@@ -119,6 +119,8 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 			Volume_24H:     formatLargeNumber(0),
 			HoldersCount:   0,
 			TotalTransfers: totalTransfers,
+			High_24H:       "-",
+			Low_24H:        "-",
 		},
 		Additional: &pb.TokenAdditionalInfo{
 			TokenStandard: contract.ContractType,
@@ -134,6 +136,8 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 		response.Market.PriceChange_24H = marketData.PriceChange24h
 		response.Market.Volume_24H = formatLargeNumber(marketData.TotalVolume24h)
 		response.Market.HoldersCount = marketData.HoldersCount
+		response.Market.High_24H = formatPrice(marketData.High24h)
+		response.Market.Low_24H = formatPrice(marketData.Low24h)
 
 		response.Overview.MarketCap = formatLargeNumber(marketData.MarketCapUSD)
 	}

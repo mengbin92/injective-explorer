@@ -191,6 +191,8 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		if marketData, ok := marketDataMap[strings.ToUpper(contract.TokenSymbol)]; ok {
 			item.PriceUsd = marketData.PriceUSD
 			item.PriceChange_24H = marketData.PriceChange24h
+			item.High_24H = marketData.High24h
+			item.Low_24H = marketData.Low24h
 			item.TotalVolume_24H = marketData.TotalVolume24h
 			item.MarketCapUsd = marketData.MarketCapUSD
 			item.HoldersCount = marketData.HoldersCount
@@ -285,6 +287,8 @@ func (s *TokenListService) batchGetTokenMarketData(ctx context.Context, symbols 
 			result[strings.ToUpper(cache.TokenSymbol)] = &TokenMarketData{
 				PriceUSD:              cache.PriceUSD,
 				PriceChange24h:        cache.PriceChange24h,
+				High24h:               cache.High24h,
+				Low24h:                cache.Low24h,
 				MarketCapUSD:          cache.MarketCapUSD,
 				TotalVolume24h:        cache.TotalVolume24h,
 				HoldersCount:          cache.HoldersCount,
@@ -449,6 +453,8 @@ func (s *TokenListService) getTokensSortedFromCache(ctx context.Context, chainID
 			CreatedAt:            contract.CreatedAt.Format(time.RFC3339),
 			PriceUsd:             cache.PriceUSD,
 			PriceChange_24H:      cache.PriceChange24h,
+			High_24H:             cache.High24h,
+			Low_24H:              cache.Low24h,
 			TotalVolume_24H:      cache.TotalVolume24h,
 			MarketCapUsd:         cache.MarketCapUSD,
 			HoldersCount:         cache.HoldersCount,

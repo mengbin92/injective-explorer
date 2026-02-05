@@ -345,6 +345,23 @@ Admin management endpoints for plans, IP management, and email blacklist.
 - **User Token Management**: List user tokens, get token stats
   - Methods: `GET /api/v1/admin/user/tokens`, `GET /api/v1/admin/user/token-stats`
 
+#### Admin - Token Market Cache Management
+
+- **Get Token Market Cache**: Retrieve token market cache data for verification
+  - Method: `GET /api/v1/admin/token-market-cache`
+  - Query params: `token_symbol`, `chain_id`
+  - Description: Get current market cache data including data_source field
+
+- **Update Token Market Cache**: Manually set token market data for testing
+  - Method: `POST /api/v1/admin/token-market-cache`
+  - Body: JSON with token_symbol, chain_id, and market data fields
+  - Description: Set manual test data. All market fields are optional. Sets data_source to 'manual_test' to prevent auto-sync override.
+
+- **Reset Token Market Cache**: Reset to auto-sync mode
+  - Method: `POST /api/v1/admin/token-market-cache/reset`
+  - Body: JSON with token_symbol and chain_id
+  - Description: Reset data_source to 'coingecko' so next sync will update with real market data
+
 ### 20. Rate Limit & Auth Tests
 Test cases for rate limiting and authentication:
 
@@ -402,7 +419,9 @@ Rate limits apply:
    - Set `account_address` to a valid address (e.g., `inj1...` or `0x...`)
    - Set `contract_address` for contract-related tests
    - Set `chain_id` (default: `injective-1`)
-   - Set `token_symbol` (default: `inj`)
+   - Set `token_symbol`: Token symbol for testing (default: `inj`)
+     - Used in token detail, list, and market cache admin endpoints
+     - Examples: `inj`, `usdt`, `usdc`
    - Set `validator_address` for validator stats testing
    - Token and token_id are set automatically after token creation
    - Webhook_id is set automatically after creating a webhook

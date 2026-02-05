@@ -95,6 +95,8 @@ message TokenMarketInfo {
   string volume_24h = 3 [ json_name = "volume_24h" ];          // Formatted: "$53,200,000"
   int64 holders_count = 4 [ json_name = "holders_count" ];     // Integer count
   int64 total_transfers = 5 [ json_name = "total_transfers" ]; // Total transfer count
+  string high_24h = 6 [ json_name = "high_24h" ];              // 24h high price
+  string low_24h = 7 [ json_name = "low_24h" ];                // 24h low price
 }
 
 // TokenAdditionalInfo contains token technical details

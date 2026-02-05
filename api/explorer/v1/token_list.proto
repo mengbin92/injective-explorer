@@ -79,6 +79,10 @@ message TokenListItemDTO {
   // Token technical details
   string denom = 16 [ json_name = "denom" ]; // Token denom (e.g., "peggy0x87aB...", "factory/...")
   int32 decimals = 17 [ json_name = "decimals" ]; // Token decimals (default: 18)
+
+  // 24h price range
+  double high_24h = 18 [ json_name = "high_24h" ]; // 24h highest price
+  double low_24h = 19 [ json_name = "low_24h" ]; // 24h lowest price
 }
 
 // TokenListResponse represents the paginated response

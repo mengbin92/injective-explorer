@@ -4661,6 +4661,205 @@
       "response": []
     },
     {
+      "name": "Admin - Token Market Cache",
+      "item": [
+        {
+          "name": "Get Token Market Cache",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has market cache data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('symbol');",
+                  "        pm.expect(jsonData.data).to.have.property('chain_id');",
+                  "        pm.expect(jsonData.data).to.have.property('price_usd');",
+                  "        pm.expect(jsonData.data).to.have.property('high_24h');",
+                  "        pm.expect(jsonData.data).to.have.property('low_24h');",
+                  "        pm.expect(jsonData.data).to.have.property('market_cap');",
+                  "        pm.expect(jsonData.data).to.have.property('volume_24h');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Admin API token for authentication"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/token-market-cache?symbol={{token_symbol}}&chain_id={{chain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "token-market-cache"
+              ],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "{{token_symbol}}",
+                  "description": "Token symbol (e.g., USDT)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "{{chain_id}}",
+                  "description": "Chain ID (e.g., injective-1)"
+                }
+              ]
+            },
+            "description": "Get cached market data for a specific token (Admin only)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Token Market Cache",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test(\"Cache updated successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.equal(0);",
+                  "    pm.expect(jsonData.message).to.include('success');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Admin API token for authentication"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"USDT\",\n  \"chain_id\": \"injective-1\",\n  \"price_usd\": \"1.0001\",\n  \"high_24h\": \"1.0025\",\n  \"low_24h\": \"0.9975\",\n  \"market_cap\": \"95000000000\",\n  \"volume_24h\": \"50000000000\",\n  \"price_change_24h\": \"0.01\",\n  \"price_change_percentage_24h\": \"0.05\",\n  \"circulating_supply\": \"95000000000\",\n  \"total_supply\": \"95000000000\",\n  \"max_supply\": \"95000000000\",\n  \"all_time_high\": \"1.32\",\n  \"all_time_low\": \"0.57\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/token-market-cache",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "token-market-cache"
+              ]
+            },
+            "description": "Update or create cached market data for a token (Admin only). Includes high_24h and low_24h for 24-hour price range tracking."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Token Market Cache",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has standard format\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test(\"Cache reset successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.code).to.equal(0);",
+                  "    pm.expect(jsonData.message).to.include('success');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Admin API token for authentication"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"USDT\",\n  \"chain_id\": \"injective-1\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/token-market-cache/reset",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "token-market-cache",
+                "reset"
+              ]
+            },
+            "description": "Reset/delete cached market data for a specific token (Admin only)."
+          },
+          "response": []
+        }
+      ],
+      "description": "Admin endpoints for managing token market data cache, including high_24h and low_24h fields for 24-hour price range tracking."
+    },
+    {
       "name": "Webhook接口",
       "item": [
         {
@@ -6988,6 +7187,17 @@
                   "        pm.expect(jsonData.data).to.have.property('items');",
                   "        pm.expect(jsonData.data.items).to.be.an('array');",
                   "    }",
+                  "});",
+                  "",
+                  "pm.test(\"Token items have market data with high_24h and low_24h\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data && jsonData.data.items && jsonData.data.items.length > 0) {",
+                  "        var firstToken = jsonData.data.items[0];",
+                  "        if (firstToken.market_data) {",
+                  "            pm.expect(firstToken.market_data).to.have.property('high_24h');",
+                  "            pm.expect(firstToken.market_data).to.have.property('low_24h');",
+                  "        }",
+                  "    }",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -7095,6 +7305,14 @@
                   "        pm.expect(jsonData.data).to.have.property('basic');",
                   "        pm.expect(jsonData.data).to.have.property('overview');",
                   "        pm.expect(jsonData.data).to.have.property('market');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test(\"Market data includes high_24h and low_24h\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.code === 0 && jsonData.data && jsonData.data.market) {",
+                  "        pm.expect(jsonData.data.market).to.have.property('high_24h');",
+                  "        pm.expect(jsonData.data.market).to.have.property('low_24h');",
                   "    }",
                   "});"
                 ],

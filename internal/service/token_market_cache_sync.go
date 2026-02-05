@@ -16,7 +16,6 @@ import (
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // TokenMarketCacheSyncService handles synchronization of token market data to cache table.
@@ -260,6 +259,8 @@ func (s *TokenMarketCacheSyncService) updateTokenCache(symbol string, config *To
 		ChainID:               DefaultChainID,
 		PriceUSD:              data.PriceUSD,
 		PriceChange24h:        data.PriceChange24h,
+		High24h:               data.High24h,
+		Low24h:                data.Low24h,
 		MarketCapUSD:          data.MarketCapUSD,
 		FullyDilutedMarketCap: data.FullyDilutedMarketCap,
 		TotalVolume24h:        data.TotalVolume24h,
@@ -284,10 +285,31 @@ func (s *TokenMarketCacheSyncService) updateTokenCache(symbol string, config *To
 
 	// Upsert to database
 	return db.Get().Transaction(func(tx *gorm.DB) error {
-		return tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "token_symbol"}, {Name: "chain_id"}},
-			UpdateAll: true,
-		}).Create(cache).Error
+		// Check if record exists
+		var existing models.TokenMarketCache
+		err := tx.Where("token_symbol = ? AND chain_id = ?", symbol, DefaultChainID).
+			First(&existing).Error
+
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Record doesn't exist, create new one
+				return tx.Create(cache).Error
+			}
+			return err
+		}
+
+		// Record exists - only update if data_source is 'coingecko'
+		if existing.DataSource != "coingecko" {
+			global.Logger.Debugf("Skipping sync for %s: data_source is '%s' (manual override)",
+				symbol, existing.DataSource)
+			return nil
+		}
+
+		// Update existing coingecko record
+		return tx.Model(&models.TokenMarketCache{}).
+			Where("token_symbol = ? AND chain_id = ? AND data_source = ?",
+				symbol, DefaultChainID, "coingecko").
+			Updates(cache).Error
 	})
 }
 
