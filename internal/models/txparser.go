@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -758,7 +759,8 @@ func extractFromEventsJSON(tx *TxJSON, res *ExtractResult) bool {
 	return true
 }
 
-// stringifyAttrValue converts AttributeRaw.Value to string if possible
+// stringifyAttrValue converts AttributeRaw.Value to string if possible.
+// It handles strings and arrays, using sonic.Marshal for complex types.
 func stringifyAttrValue(v interface{}) string {
 	switch t := v.(type) {
 	case string:
@@ -1229,12 +1231,16 @@ func (e *injectiveWasmxMsgExecuteContractCompatExtractor) Extract(msg json.RawMe
 }
 
 
-// parseUint64 safely parses a uint64 from string.
+// parseUint64 safely parses a uint64 from string with proper error handling.
+// Returns 0 for empty strings without error.
+// Returns wrapped error for invalid numeric strings.
 func parseUint64(s string) (uint64, error) {
 	if s == "" {
 		return 0, nil
 	}
-	var result uint64
-	_, err := fmt.Sscanf(s, "%d", &result)
-	return result, err
+	result, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid uint64 value '%s': %w", s, err)
+	}
+	return result, nil
 }
