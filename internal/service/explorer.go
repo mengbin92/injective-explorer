@@ -1341,22 +1341,28 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 
 	// Check if account or account.Account is nil
 	if account == nil || account.Account == nil {
-		global.Logger.Errorf("account or account.Account is nil for address: %s", chainQueryAddress)
-		return &pb.Reply{
-			Code:    int32(http.StatusOK),
-			Message: fmt.Sprintf("account %s not found", address),
-			Data:    nil,
-		}, nil
+		global.Logger.Debugf("account not found on chain (account is nil), returning empty account: %s", address)
+		// Return empty account for new addresses instead of nil
+		emptyAccount := &models.Account{
+			Address:     dbQueryAddress,
+			BaseAccount: "{}",
+			CodeHash:    "",
+		}
+		accountDTO := models.ToAccountDTO(emptyAccount)
+		return MarshalAndReply(accountDTO, "marshal account error")
 	}
 
 	// Check if account value is empty
 	if len(account.Account.Value) == 0 {
-		global.Logger.Errorf("account value is empty for address: %s", chainQueryAddress)
-		return &pb.Reply{
-			Code:    int32(http.StatusOK),
-			Message: fmt.Sprintf("account %s not found", address),
-			Data:    nil,
-		}, nil
+		global.Logger.Debugf("account value is empty on chain, returning empty account: %s", address)
+		// Return empty account for new addresses instead of nil
+		emptyAccount := &models.Account{
+			Address:     dbQueryAddress,
+			BaseAccount: "{}",
+			CodeHash:    "",
+		}
+		accountDTO := models.ToAccountDTO(emptyAccount)
+		return MarshalAndReply(accountDTO, "marshal account error")
 	}
 
 	ethAccount := &types.EthAccount{}
@@ -1777,15 +1783,8 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 	if err == nil && len(dbBalances) > 0 {
 		// Found in database, convert to protobuf format and return
 		global.Logger.Debugf("account balances found in database: address=%s, count=%d", address, len(dbBalances))
-		// Convert from AccountBalance models to response format
-		balancesList := make([]map[string]interface{}, 0, len(dbBalances))
-		for _, dbBalance := range dbBalances {
-			balance := map[string]interface{}{
-				"denom":  dbBalance.Denom,
-				"amount": dbBalance.Amount,
-			}
-			balancesList = append(balancesList, balance)
-		}
+		// Convert from AccountBalance models to response format and sort
+		balancesList := sortBalancesByUSDTValue(ctx, dbBalances)
 		if len(balancesList) > 0 {
 			// Create response similar to GetBankBalances response
 			balancesResp := map[string]interface{}{
@@ -1815,25 +1814,27 @@ func (s *ExplorerService) GetAccountBalances(ctx context.Context, req *pb.GetAcc
 
 	balances, err := client.GetBankBalances(ctx, chainQueryAddress)
 	if err != nil {
-		global.Logger.Errorf("get account balances error: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "get account balances error", err), err
+		global.Logger.Warnf("get account balances error (returning empty balances): %v", err)
+		// Return empty balances for new addresses instead of error
+		balancesResp := map[string]interface{}{
+			"balances": []map[string]interface{}{},
+		}
+		return MarshalAndReply(balancesResp, "marshal balances error")
 	}
 
 	// Save to database for future queries
-	balancesList := make([]map[string]interface{}, 0, len(dbBalances))
+	chainBalances := make([]models.AccountBalance, 0, len(balances.Balances))
 	if balances != nil && balances.Balances != nil {
 		for _, balance := range balances.Balances {
 			// AccountBalanceFromProto will automatically convert address to Ethereum format
 			balanceModel := models.AccountBalanceFromProto(balance, chainQueryAddress)
 			saveToDB(balanceModel, "create account balance error")
-			balanceMap := map[string]interface{}{
-				"denom":  balance.Denom,
-				"amount": balance.Amount,
-			}
-			balancesList = append(balancesList, balanceMap)
+			chainBalances = append(chainBalances, *balanceModel)
 		}
 	}
 
+	// Sort balances by USDT value
+	balancesList := sortBalancesByUSDTValue(ctx, chainBalances)
 	balancesResp := map[string]interface{}{
 		"balances": balancesList,
 	}
@@ -4931,6 +4932,102 @@ func extractGasPriceFromFee(gasFeeJSON string, gasUsed int64) float64 {
 	}
 
 	return 0.0
+}
+
+// sortBalancesByUSDTValue sorts account balances by USDT valuation (high to low),
+// with native token (inj) always appearing first regardless of value.
+//
+// Parameters:
+//   - ctx: Context for price fetching operations
+//   - balances: List of account balances to sort
+//
+// Returns:
+//   - []map[string]interface{}: Sorted list of balance maps with denom and amount fields
+func sortBalancesByUSDTValue(ctx context.Context, balances []models.AccountBalance) []map[string]interface{} {
+	if len(balances) == 0 {
+		return []map[string]interface{}{}
+	}
+
+	// Structure to hold balance with its USDT value for sorting
+	type balanceWithValue struct {
+		denom      string
+		amount     string
+		usdtValue  float64
+		isNative   bool
+	}
+
+	balancesWithValues := make([]balanceWithValue, 0, len(balances))
+
+	// Get price provider (create a simple one if needed)
+	priceProvider, err := GetOrCreatePriceProvider()
+
+	for _, balance := range balances {
+		isNative := strings.Contains(strings.ToLower(balance.Denom), "inj")
+		usdtValue := 0.0
+
+		// Try to get USDT price for this denom
+		if err == nil && priceProvider != nil {
+			priceInfo, priceErr := priceProvider.GetPriceByDenom(ctx, balance.Denom)
+			if priceErr == nil && priceInfo != nil {
+				// Convert amount to float and multiply by price
+				amount := new(big.Float)
+				_, ok := amount.SetString(balance.Amount)
+				if ok {
+					amountFloat, _ := amount.Float64()
+					// Assuming amounts are in base units (need to divide by 10^18 for most tokens)
+					amountFloat = amountFloat / 1e18
+					usdtValue = amountFloat * priceInfo.PriceUSD
+				}
+			}
+		}
+
+		balancesWithValues = append(balancesWithValues, balanceWithValue{
+			denom:     balance.Denom,
+			amount:    balance.Amount,
+			usdtValue: usdtValue,
+			isNative:  isNative,
+		})
+	}
+
+	// Sort: native token first, then by USDT value descending
+	sort.Slice(balancesWithValues, func(i, j int) bool {
+		// Native token always comes first
+		if balancesWithValues[i].isNative && !balancesWithValues[j].isNative {
+			return true
+		}
+		if !balancesWithValues[i].isNative && balancesWithValues[j].isNative {
+			return false
+		}
+		// If both or neither are native, sort by USDT value (descending)
+		return balancesWithValues[i].usdtValue > balancesWithValues[j].usdtValue
+	})
+
+	// Convert to response format
+	result := make([]map[string]interface{}, 0, len(balancesWithValues))
+	for _, bv := range balancesWithValues {
+		result = append(result, map[string]interface{}{
+			"denom":  bv.denom,
+			"amount": bv.amount,
+		})
+	}
+
+	return result
+}
+
+// GetOrCreatePriceProvider returns a price provider instance for fetching token prices.
+// It creates a simple provider if one doesn't exist.
+//
+// Returns:
+//   - *OnChainPriceProvider: Price provider instance, or nil if creation fails
+//   - error: Error if price provider cannot be created
+func GetOrCreatePriceProvider() (*OnChainPriceProvider, error) {
+	// Use the helper that already handles shared client creation
+	provider, err := NewOnChainPriceProviderWithSharedClient(global.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create price provider: %w", err)
+	}
+
+	return provider, nil
 }
 
 // convertToQueryAddress converts an address to the format used for database/chain queries.
