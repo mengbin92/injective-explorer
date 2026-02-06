@@ -871,15 +871,18 @@ func (s *AddressLabelService) exportLabelsToJSON(labels []models.AddressLabel) (
 // shouldUpdateField checks if a field should be updated based on the update_mask.
 // If update_mask is empty, returns true for backward compatibility (all non-empty fields are updated).
 // If update_mask is not empty, returns true only if the field is in the mask.
+// Uses map lookup for O(1) complexity when update_mask is present.
 func shouldUpdateField(updateMask []string, fieldName string) bool {
 	if len(updateMask) == 0 {
 		// For backward compatibility: if no mask is provided, update all non-empty fields
 		return true
 	}
+
+	// Use map for O(1) lookup performance
+	maskSet := make(map[string]bool, len(updateMask))
 	for _, mask := range updateMask {
-		if mask == fieldName {
-			return true
-		}
+		maskSet[mask] = true
 	}
-	return false
+
+	return maskSet[fieldName]
 }

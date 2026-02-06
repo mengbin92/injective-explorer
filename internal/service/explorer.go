@@ -52,6 +52,22 @@ var (
 	statsUpdateOnceGlobal sync.Once // Global once for stats update goroutine
 )
 
+// balanceWithValue holds balance information with its USDT value for sorting.
+type balanceWithValue struct {
+	denom     string
+	amount    string
+	usdtValue float64
+	isNative  bool
+}
+
+// priceProviderPool is a sync.Pool for reusing OnChainPriceProvider instances.
+var priceProviderPool = sync.Pool{
+	New: func() interface{} {
+		provider, _ := NewOnChainPriceProviderWithSharedClient(global.Logger)
+		return provider
+	},
+}
+
 // createEVMClient creates an EVM client with custom configuration
 // It uses global.EVMConfig if available, then falls back to defaults
 func createEVMClient() (*chain.EVMClient, error) {
@@ -4937,38 +4953,34 @@ func sortBalancesByUSDTValue(ctx context.Context, balances []models.AccountBalan
 		return []map[string]interface{}{}
 	}
 
-	// Structure to hold balance with its USDT value for sorting
-	type balanceWithValue struct {
-		denom      string
-		amount     string
-		usdtValue  float64
-		isNative   bool
-	}
+	withValues := calculateUSDTValues(ctx, balances)
+	return sortAndConvertBalances(withValues)
+}
 
+// calculateUSDTValues calculates USDT value for each balance.
+// It uses a pooled price provider for better performance.
+func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) []balanceWithValue {
 	balancesWithValues := make([]balanceWithValue, 0, len(balances))
 
-	// Get price provider (create a simple one if needed)
+	// Get price provider from pool
 	priceProvider, err := GetOrCreatePriceProvider()
+	if err != nil {
+		// If price provider creation fails, return balances with zero values
+		for _, balance := range balances {
+			isNative := strings.Contains(strings.ToLower(balance.Denom), "inj")
+			balancesWithValues = append(balancesWithValues, balanceWithValue{
+				denom:     balance.Denom,
+				amount:    balance.Amount,
+				usdtValue: 0.0,
+				isNative:  isNative,
+			})
+		}
+		return balancesWithValues
+	}
 
 	for _, balance := range balances {
 		isNative := strings.Contains(strings.ToLower(balance.Denom), "inj")
-		usdtValue := 0.0
-
-		// Try to get USDT price for this denom
-		if err == nil && priceProvider != nil {
-			priceInfo, priceErr := priceProvider.GetPriceByDenom(ctx, balance.Denom)
-			if priceErr == nil && priceInfo != nil {
-				// Convert amount to float and multiply by price
-				amount := new(big.Float)
-				_, ok := amount.SetString(balance.Amount)
-				if ok {
-					amountFloat, _ := amount.Float64()
-					// Assuming amounts are in base units (need to divide by 10^18 for most tokens)
-					amountFloat = amountFloat / 1e18
-					usdtValue = amountFloat * priceInfo.PriceUSD
-				}
-			}
-		}
+		usdtValue := calculateBalanceUSDTValue(ctx, priceProvider, balance)
 
 		balancesWithValues = append(balancesWithValues, balanceWithValue{
 			denom:     balance.Denom,
@@ -4978,9 +4990,35 @@ func sortBalancesByUSDTValue(ctx context.Context, balances []models.AccountBalan
 		})
 	}
 
+	return balancesWithValues
+}
+
+// calculateBalanceUSDTValue calculates the USDT value for a single balance.
+func calculateBalanceUSDTValue(ctx context.Context, priceProvider *OnChainPriceProvider, balance models.AccountBalance) float64 {
+	priceInfo, priceErr := priceProvider.GetPriceByDenom(ctx, balance.Denom)
+	if priceErr != nil || priceInfo == nil {
+		return 0.0
+	}
+
+	// Convert amount to float and multiply by price
+	amount := new(big.Float)
+	_, ok := amount.SetString(balance.Amount)
+	if !ok {
+		return 0.0
+	}
+
+	amountFloat, _ := amount.Float64()
+	// Assuming amounts are in base units (need to divide by 10^18 for most tokens)
+	amountFloat = amountFloat / 1e18
+	return amountFloat * priceInfo.PriceUSD
+}
+
+// sortAndConvertBalances sorts balances by USDT value and converts to response format.
+// Native token always comes first, followed by other tokens sorted by USDT value descending.
+func sortAndConvertBalances(balancesWithValues []balanceWithValue) []map[string]interface{} {
 	// Sort: native token first, then by USDT value descending
 	sort.Slice(balancesWithValues, func(i, j int) bool {
-		// Native token always comes first
+		// Native token always comes first regardless of value
 		if balancesWithValues[i].isNative && !balancesWithValues[j].isNative {
 			return true
 		}
@@ -5003,20 +5041,45 @@ func sortBalancesByUSDTValue(ctx context.Context, balances []models.AccountBalan
 	return result
 }
 
-// GetOrCreatePriceProvider returns a price provider instance for fetching token prices.
-// It creates a simple provider if one doesn't exist.
+// GetOrCreatePriceProvider returns a price provider instance from the pool for fetching token prices.
+// It reuses pooled instances for better performance and resource management.
 //
 // Returns:
-//   - *OnChainPriceProvider: Price provider instance, or nil if creation fails
+//   - *OnChainPriceProvider: Price provider instance from pool, or nil if creation fails
 //   - error: Error if price provider cannot be created
 func GetOrCreatePriceProvider() (*OnChainPriceProvider, error) {
-	// Use the helper that already handles shared client creation
-	provider, err := NewOnChainPriceProviderWithSharedClient(global.Logger)
+	// Get provider from pool
+	provider := priceProviderPool.Get()
+	if provider == nil {
+		// If pool returns nil, create a new one
+		newProvider, err := NewOnChainPriceProviderWithSharedClient(global.Logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create price provider: %w", err)
+		}
+		return newProvider, nil
+	}
+
+	if p, ok := provider.(*OnChainPriceProvider); ok {
+		return p, nil
+	}
+
+	// Fallback: create new provider if type assertion fails
+	newProvider, err := NewOnChainPriceProviderWithSharedClient(global.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create price provider: %w", err)
 	}
+	return newProvider, nil
+}
 
-	return provider, nil
+// ReleasePriceProvider returns a price provider to the pool for reuse.
+// Call this after you're done using the provider to enable resource reuse.
+//
+// Parameters:
+//   - provider: The price provider to return to the pool
+func ReleasePriceProvider(provider *OnChainPriceProvider) {
+	if provider != nil {
+		priceProviderPool.Put(provider)
+	}
 }
 
 // convertToQueryAddress converts an address to the format used for database/chain queries.
