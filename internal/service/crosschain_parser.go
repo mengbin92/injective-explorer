@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
@@ -16,6 +17,7 @@ import (
 	peggytypes "github.com/InjectiveLabs/sdk-go/chain/peggy/types"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -225,21 +227,36 @@ func parseMsgSendToEth(
 
 // enrichPeggyWithdrawalFromEvents extracts outgoing_tx_id and batch_timeout from events.
 func enrichPeggyWithdrawalFromEvents(withdrawal *models.PeggyWithdrawalTx, events []*abci.Event) {
+	// Debug: log all event types to understand what events are actually present
+	eventTypes := make(map[string]int)
 	for _, event := range events {
+		eventTypes[event.Type]++
+		// Log send_to_eth events for debugging
 		if event.Type == "send_to_eth" {
+			global.Logger.Debugf("Found send_to_eth event with %d attributes", len(event.Attributes))
 			for _, attr := range event.Attributes {
+				global.Logger.Debugf("  - %s = %s", attr.Key, attr.Value)
 				switch attr.Key {
 				case "outgoing_tx_id":
 					if id, err := parseUint64(attr.Value); err == nil {
 						withdrawal.OutgoingTxId = id
+						global.Logger.Debugf("Extracted outgoing_tx_id: %d", id)
+					} else {
+						global.Logger.Warnf("Failed to parse outgoing_tx_id: %v", err)
 					}
 				case "batch_timeout":
 					if timeout, err := parseUint64(attr.Value); err == nil {
 						withdrawal.BatchTimeout = timeout
+						global.Logger.Debugf("Extracted batch_timeout: %d", timeout)
 					}
 				}
 			}
 		}
+	}
+
+	// If outgoing_tx_id is still 0, log event summary for debugging
+	if withdrawal.OutgoingTxId == 0 && len(events) > 0 {
+		global.Logger.Debugf("No outgoing_tx_id found for withdrawal. Event types present: %v", eventTypes)
 	}
 }
 
@@ -367,29 +384,110 @@ func saveCrossChainTransaction(ctx context.Context, data *CrossChainData) error 
 		}
 	}
 
-	// Save Peggy deposits (UPSERT on event_nonce)
+	// Save Peggy deposits (UPSERT on event_nonce if non-zero, otherwise use tx_hash)
 	for _, deposit := range data.PeggyDeposits {
-		if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "event_nonce"}},
-			DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
-		}).Create(deposit).Error; err != nil {
-			return errors.Wrap(err, "failed to save Peggy deposit")
+		if deposit.EventNonce > 0 {
+			// Normal case: use event_nonce as unique key
+			if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "event_nonce"}},
+				DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
+			}).Create(deposit).Error; err != nil {
+				return errors.Wrap(err, "failed to save Peggy deposit")
+			}
+		} else {
+			// Fallback: use tx_hash as unique key when event_nonce is 0
+			global.Logger.Warnf("MsgDepositClaim with event_nonce=0 in tx %s, using tx_hash as unique key", deposit.TxHash)
+			if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "tx_hash"}},
+				DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
+			}).Create(deposit).Error; err != nil {
+				return errors.Wrap(err, "failed to save Peggy deposit with zero event_nonce")
+			}
 		}
 	}
 
-	// Save Peggy withdrawals (UPSERT on outgoing_tx_id)
-	// Note: MsgWithdrawClaim updates existing MsgSendToEth records
+	// Save Peggy withdrawals
+	// Strategy:
+	// - MsgSendToEth: Create new record with outgoing_tx_id (UPSERT on outgoing_tx_id)
+	// - MsgWithdrawClaim: Update existing record via batch_nonce lookup
 	for _, withdrawal := range data.PeggyWithdrawals {
-		if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "outgoing_tx_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{
-				"state", "batch_nonce", "event_nonce", "event_height",
-				"orchestrator_address", "eth_tx_hash", "updated_at",
-			}),
-		}).Create(withdrawal).Error; err != nil {
+		if err := savePeggyWithdrawal(ctx, withdrawal); err != nil {
 			return errors.Wrap(err, "failed to save Peggy withdrawal")
 		}
 	}
 
 	return nil
+}
+
+// savePeggyWithdrawal saves a single Peggy withdrawal with proper logic for MsgSendToEth vs MsgWithdrawClaim.
+func savePeggyWithdrawal(ctx context.Context, withdrawal *models.PeggyWithdrawalTx) error {
+	// MsgWithdrawClaim: has batch_nonce but no outgoing_tx_id
+	// MsgSendToEth: has outgoing_tx_id but no batch_nonce (initially)
+
+	if withdrawal.BatchNonce > 0 && withdrawal.OutgoingTxId == 0 {
+		// This is a MsgWithdrawClaim - update existing record by batch_nonce
+		// Note: We need to find the record with matching batch_nonce and update it
+
+		// First, find the existing record by batch_nonce
+		var existing models.PeggyWithdrawalTx
+		if err := db.Get().WithContext(ctx).
+			Where("batch_nonce = ?", withdrawal.BatchNonce).
+			First(&existing).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// No existing record found - this might be a MsgWithdrawClaim arriving before MsgSendToEth
+				// Create a new record, but log a warning
+				global.Logger.Warnf("MsgWithdrawClaim with batch_nonce=%d has no corresponding MsgSendToEth, creating new record for tx %s",
+					withdrawal.BatchNonce, withdrawal.TxHash)
+				// Use batch_nonce as the unique key for this orphaned MsgWithdrawClaim
+				return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+					Columns: []clause.Column{{Name: "batch_nonce"}},
+					DoUpdates: clause.AssignmentColumns([]string{
+						"state", "event_nonce", "event_height",
+						"orchestrator_address", "eth_tx_hash", "updated_at",
+					}),
+				}).Create(withdrawal).Error
+			}
+			return errors.Wrap(err, "failed to query existing withdrawal by batch_nonce")
+		}
+
+		// Update the existing record
+		updates := map[string]interface{}{
+			"state":                "completed",
+			"batch_nonce":          withdrawal.BatchNonce,
+			"event_nonce":          withdrawal.EventNonce,
+			"event_height":         withdrawal.EventHeight,
+			"orchestrator_address": withdrawal.OrchestratorAddress,
+			"updated_at":           time.Now(),
+		}
+		if withdrawal.EthTxHash != "" {
+			updates["eth_tx_hash"] = withdrawal.EthTxHash
+		}
+
+		return db.Get().WithContext(ctx).
+			Model(&models.PeggyWithdrawalTx{}).
+			Where("id = ?", existing.ID).
+			Updates(updates).Error
+
+	} else if withdrawal.OutgoingTxId > 0 {
+		// This is a MsgSendToEth - create or update by outgoing_tx_id
+		return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "outgoing_tx_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"state", "batch_nonce", "event_nonce", "event_height",
+				"orchestrator_address", "eth_tx_hash", "updated_at",
+			}),
+		}).Create(withdrawal).Error
+
+	} else {
+		// Both outgoing_tx_id and batch_nonce are 0 - this shouldn't happen
+		// Fall back to using tx_hash as unique key
+		global.Logger.Warnf("Peggy withdrawal with both outgoing_tx_id=0 and batch_nonce=0 in tx %s, using tx_hash as unique key", withdrawal.TxHash)
+		return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "tx_hash"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"state", "batch_nonce", "event_nonce", "event_height",
+				"orchestrator_address", "eth_tx_hash", "updated_at",
+			}),
+		}).Create(withdrawal).Error
+	}
 }
