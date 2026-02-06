@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"injective-explorer/internal/conf"
+	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/utils"
@@ -2677,7 +2678,7 @@ func (s *SyncService) updateAccountBalances(ctx context.Context, address string)
 		// Address conversion is handled in AccountBalanceFromProto
 		// Create AccountBalance directly with converted address
 		// We need to convert the address to Ethereum format first
-		ethAddress, err := models.InjToEthAddress(address)
+		ethAddress, err := converter.InjectiveToEthAddress(address)
 		if err != nil {
 			// If conversion fails, use original address (for backward compatibility)
 			ethAddress = address

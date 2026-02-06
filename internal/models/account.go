@@ -249,7 +249,7 @@ func ConvertAddressToEthForStorage(address string) string {
 	}
 
 	// Try to convert from Injective format
-	ethAddr, err := InjToEthAddress(address)
+	ethAddr, err := converter.InjectiveToEthAddress(address)
 	if err != nil {
 		// If conversion fails, return original address (for backward compatibility)
 		// This handles edge cases where address might be in an unexpected format
@@ -265,71 +265,6 @@ var (
 	ErrInvalidAddress = fmt.Errorf("invalid address format")
 	ErrConversion     = fmt.Errorf("address conversion failed")
 )
-
-// IsValidInjectiveAddress validates a Injective address format.
-// Checks if the address conforms to the configured account prefix format and can be correctly decoded.
-//
-// Parameters:
-//   - addr: The address string to validate
-//
-// Returns:
-//   - bool: True if the address is valid, false otherwise
-// IsValidInjectiveAddress checks if the given address is a valid Injective address.
-//
-// Deprecated: Use converter.IsValidInjectiveAddress instead.
-// This function is maintained for backward compatibility.
-func IsValidInjectiveAddress(addr string) bool {
-	return converter.IsValidInjectiveAddress(addr)
-}
-
-// IsValidInjectiveAddress is an alias for IsValidInjectiveAddress for backward compatibility.
-// Deprecated: Use IsValidInjectiveAddress instead.
-func IsValidInjectiveAddress(addr string) bool {
-	return IsValidInjectiveAddress(addr)
-}
-
-// EthToInjectiveAddress converts an Ethereum address (0x...) to Injective address.
-//
-// Deprecated: Use converter.EthToInjectiveAddress instead.
-// This function is maintained for backward compatibility.
-//
-// Parameters:
-//   - ethAddr: The Ethereum address string (0x...)
-//
-// Returns:
-//   - string: The Injective address (with configured account prefix)
-//   - error: Error if conversion fails
-func EthToInjectiveAddress(ethAddr string) (string, error) {
-	return converter.EthToInjectiveAddress(ethAddr)
-}
-
-// EthToInjAddress is an alias for EthToInjectiveAddress for backward compatibility.
-// Deprecated: Use EthToInjectiveAddress instead.
-func EthToInjAddress(ethAddr string) (string, error) {
-	return EthToInjectiveAddress(ethAddr)
-}
-
-// InjectiveToEthAddress converts a Injective address to Ethereum address (0x...).
-// This is the reverse operation of EthToInjectiveAddress.
-//
-// Deprecated: Use converter.InjectiveToEthAddress instead.
-// This function is maintained for backward compatibility.
-//
-// Parameters:
-//   - injAddr: The Injective address string (with configured prefix) or Ethereum address (0x...)
-//
-// Returns:
-//   - string: The Ethereum address (0x...)
-//   - error: Error if conversion fails
-func InjectiveToEthAddress(injAddr string) (string, error) {
-	return converter.InjectiveToEthAddress(injAddr)
-}
-
-// InjToEthAddress is an alias for InjectiveToEthAddress for backward compatibility.
-// Deprecated: Use InjectiveToEthAddress instead.
-func InjToEthAddress(injAddr string) (string, error) {
-	return InjectiveToEthAddress(injAddr)
-}
 
 // HexToValconsAddress converts a hex string address to Cosmos validator consensus address.
 // This is used to convert Tendermint proposer addresses to the bech32 format.
@@ -464,5 +399,5 @@ func ValoperToEthAddress(valoperAddr string) (string, error) {
 	}
 
 	// Then convert to Ethereum address
-	return InjToEthAddress(accAddr)
+	return converter.InjectiveToEthAddress(accAddr)
 }

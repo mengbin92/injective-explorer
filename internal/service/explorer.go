@@ -13,6 +13,7 @@ import (
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/utils"
@@ -5109,7 +5110,7 @@ func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address str
 	if strings.HasPrefix(address, "0x") {
 		if forChainQuery {
 			// For chain queries, convert Ethereum to Injective format
-			injAddr, err := models.EthToInjAddress(address)
+			injAddr, err := converter.EthToInjectiveAddress(address)
 			if err != nil {
 				return "", errors.Wrapf(err, "failed to convert Ethereum address to Injective: %s", address)
 			}
@@ -5138,7 +5139,7 @@ func (s *ExplorerService) convertToQueryAddress(ctx context.Context, address str
 			return address, nil
 		}
 		// For database queries, convert to Ethereum format
-		ethAddr, err := models.InjToEthAddress(address)
+		ethAddr, err := converter.InjectiveToEthAddress(address)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to convert Injective address to Ethereum: %s", address)
 		}
