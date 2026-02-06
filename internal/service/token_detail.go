@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -691,11 +692,11 @@ func sortHolders(items []*pb.TokenHolderInfo, sortBy, sortOrder string) []*pb.To
 		switch sortBy {
 		case "balance":
 			// Parse balance string to float64 (simple version)
-			fmt.Sscanf(strings.Trim(items[i].Balance, " $MK"), "%f", &iValue)
-			fmt.Sscanf(strings.Trim(items[j].Balance, " $MK"), "%f", &jValue)
+			iValue, _ = strconv.ParseFloat(strings.Trim(items[i].Balance, " $MK"), 64)
+			jValue, _ = strconv.ParseFloat(strings.Trim(items[j].Balance, " $MK"), 64)
 		case "percentage":
-			fmt.Sscanf(items[i].Percentage, "%f", &iValue)
-			fmt.Sscanf(items[j].Percentage, "%f", &jValue)
+			iValue, _ = strconv.ParseFloat(items[i].Percentage, 64)
+			jValue, _ = strconv.ParseFloat(items[j].Percentage, 64)
 		default:
 			return false
 		}

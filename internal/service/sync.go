@@ -2821,7 +2821,8 @@ func (s *SyncService) historicalBlockSync() {
 
 		heightStr, err := redisClient.Get(ctx, CacheKeyHistoricalSyncHeight).Result()
 		if err == nil && heightStr != "" {
-			if _, err := fmt.Sscanf(heightStr, "%d", &persistedHeight); err == nil {
+			if val, parseErr := strconv.ParseUint(heightStr, 10, 64); parseErr == nil {
+				persistedHeight = val
 				global.Logger.Infof("historical block sync: recovered persisted sync height %d from Redis", persistedHeight)
 			}
 		}
@@ -3225,8 +3226,7 @@ func (s *SyncService) getHistoricalSyncHeight() uint64 {
 
 		heightStr, err := redisClient.Get(ctx, CacheKeyHistoricalSyncHeight).Result()
 		if err == nil && heightStr != "" {
-			var height uint64
-			if _, err := fmt.Sscanf(heightStr, "%d", &height); err == nil {
+			if height, parseErr := strconv.ParseUint(heightStr, 10, 64); parseErr == nil {
 				// Update in-memory value if Redis has a more recent value
 				if height > s.historicalSyncHeight {
 					s.historicalSyncHeight = height

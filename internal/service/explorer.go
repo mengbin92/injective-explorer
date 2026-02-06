@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1984,8 +1985,7 @@ func normalizePagination(page, pageSize int32, cursor string, maxPageSize int32)
 	// Check if using cursor-based pagination
 	if cursor != "" {
 		// Parse cursor (assuming it's a numeric value representing height or tx_number)
-		var cursorValue uint64
-		if _, err := fmt.Sscanf(cursor, "%d", &cursorValue); err == nil {
+		if cursorValue, err := strconv.ParseUint(cursor, 10, 64); err == nil {
 			return 0, normalizedPageSize, 0, true, cursorValue
 		}
 		// If cursor parsing fails, fall back to page-based
@@ -3275,8 +3275,8 @@ func getTotalFromCache(ctx context.Context, key string) (int64, bool) {
 		return 0, false
 	}
 
-	var total int64
-	if _, err := fmt.Sscanf(data, "%d", &total); err != nil {
+	total, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
 		global.Logger.Warnf("failed to parse total from cache (key=%s, value=%s): %v", key, data, err)
 		return 0, false
 	}
@@ -3623,8 +3623,8 @@ func GetBlockMaxGas(ctx context.Context) (int64, error) {
 	if redisClient != nil {
 		cached, err := redisClient.Get(ctx, CacheKeyBlockMaxGas).Result()
 		if err == nil {
-			var maxGas int64
-			if _, err := fmt.Sscanf(cached, "%d", &maxGas); err == nil && maxGas > 0 {
+			maxGas, err := strconv.ParseInt(cached, 10, 64)
+			if err == nil && maxGas > 0 {
 				return maxGas, nil
 			}
 		}
@@ -4170,8 +4170,8 @@ func getFailedTransactions24hCountFromCache(ctx context.Context) (int64, bool) {
 		return 0, false
 	}
 
-	var count int64
-	if _, err := fmt.Sscanf(data, "%d", &count); err != nil {
+	count, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
 		global.Logger.Warnf("failed to parse failed transactions 24h count from cache (value=%s): %v", data, err)
 		return 0, false
 	}
@@ -4760,16 +4760,12 @@ func getTransactionStatsFromCache(ctx context.Context) *pb.TransactionStatsRespo
 
 // parseInt64 parses a string to int64.
 func parseInt64(s string) (int64, error) {
-	var result int64
-	_, err := fmt.Sscanf(s, "%d", &result)
-	return result, err
+	return strconv.ParseInt(s, 10, 64)
 }
 
 // parseFloat64 parses a string to float64.
 func parseFloat64(s string) (float64, error) {
-	var result float64
-	_, err := fmt.Sscanf(s, "%f", &result)
-	return result, err
+	return strconv.ParseFloat(s, 64)
 }
 
 // cacheTransactionStats stores transaction statistics in Redis cache with TTL.
@@ -4911,8 +4907,8 @@ func extractGasPriceFromFee(gasFeeJSON string, gasUsed int64) float64 {
 		for _, amt := range amounts {
 			if amtMap, ok := amt.(map[string]interface{}); ok {
 				if amountStr, ok := amtMap["amount"].(string); ok {
-					var amount float64
-					if _, err := fmt.Sscanf(amountStr, "%f", &amount); err == nil {
+					amount, err := strconv.ParseFloat(amountStr, 64)
+					if err == nil {
 						totalAmount += amount
 					}
 				}
@@ -4920,9 +4916,11 @@ func extractGasPriceFromFee(gasFeeJSON string, gasUsed int64) float64 {
 		}
 	} else if amountStr, ok := gasFeeData["amount"].(string); ok {
 		// Direct amount string
-		if _, err := fmt.Sscanf(amountStr, "%f", &totalAmount); err != nil {
+		val, err := strconv.ParseFloat(amountStr, 64)
+		if err != nil {
 			return 0.0
 		}
+		totalAmount = val
 	} else {
 		// If amount extraction fails, return 0
 		return 0.0
@@ -6700,7 +6698,8 @@ func parseIBCTransfersFromTx(tx *models.Transaction) []*pb.IBCTransferTxDTO {
 							value := stringifyAttrValue(attr.Value)
 							switch key {
 							case "packet_sequence":
-								fmt.Sscanf(value, "%d", &packetSequence)
+								seq, _ := strconv.ParseUint(value, 10, 64)
+								packetSequence = seq
 							case "packet_dst_port":
 								destPort = value
 							case "packet_dst_channel":

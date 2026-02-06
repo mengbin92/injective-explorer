@@ -1,8 +1,11 @@
-// Package utils provides utility functions used across the application.
+// Package utils provides shared utility functions used across the application.
+// It includes helpers for string manipulation, validation, pagination, caching,
+// database operations, and context management.
 package utils
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
@@ -51,8 +54,8 @@ func NormalizePagination(page, pageSize int32, cursor string, maxPageSize int32)
 	// Check if using cursor-based pagination
 	if cursor != "" {
 		// Parse cursor (assuming it's a numeric value representing height or tx_number)
-		var cursorValue uint64
-		if _, err := fmt.Sscanf(cursor, "%d", &cursorValue); err == nil {
+		cursorValue, err := strconv.ParseUint(cursor, 10, 64)
+		if err == nil {
 			result.UseCursor = true
 			result.CursorValue = cursorValue
 			result.Page = 0

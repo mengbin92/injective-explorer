@@ -414,19 +414,16 @@ func TestAddressLabelService_ErrorMessages(t *testing.T) {
 			},
 			expectedMsg: "label_type is required",
 		},
-		// Note: This test is skipped because the current implementation always
-		// includes the "visible" field in updates, making it impossible to have
-		// an empty updates map. This is a pre-existing issue in the original code.
-		// {
-		// 	name:   "UpdateAddressLabel - no fields to update",
-		// 	method: "UpdateAddressLabel",
-		// 	req: &pb.UpdateAddressLabelRequest{
-		// 		Address:    "inj1test1234567890123456789012345678901234567890",
-		// 		ChainId:    "injective-1",
-		// 		LabelValue: "test-label",
-		// 	},
-		// 	expectedMsg: "at least one field must be provided",
-		// },
+		{
+			name:   "UpdateAddressLabel - no fields to update",
+			method: "UpdateAddressLabel",
+			req: &pb.UpdateAddressLabelRequest{
+				Address:    "inj1test1234567890123456789012345678901234567890",
+				ChainId:    "injective-1",
+				LabelValue: "test-label",
+			},
+			expectedMsg: "at least one field must be provided",
+		},
 	}
 
 	for _, tt := range tests {

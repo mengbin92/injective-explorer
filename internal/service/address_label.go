@@ -133,17 +133,23 @@ func (s *AddressLabelService) UpdateAddressLabel(ctx context.Context, req *pb.Up
 	defer queryCancel()
 
 	updates := make(map[string]interface{})
-	if req.GetLabelType() != "" {
+	updateMask := req.GetUpdateMask()
+
+	// For backward compatibility: if no update_mask provided, update all non-empty fields
+	// If update_mask is provided, only update fields specified in the mask
+	if shouldUpdateField(updateMask, "label_type") && req.GetLabelType() != "" {
 		updates["label_type"] = req.GetLabelType()
 	}
-	if req.GetLabelColor() != "" {
+	if shouldUpdateField(updateMask, "label_color") && req.GetLabelColor() != "" {
 		updates["label_color"] = req.GetLabelColor()
 	}
-	if req.GetDescription() != "" {
+	if shouldUpdateField(updateMask, "description") && req.GetDescription() != "" {
 		updates["description"] = req.GetDescription()
 	}
-	// New: support updating visible field
-	updates["visible"] = req.GetVisible()
+	// visible field requires explicit update_mask to distinguish between "not set" and "set to false"
+	if shouldUpdateField(updateMask, "visible") {
+		updates["visible"] = req.GetVisible()
+	}
 
 	if len(updates) == 0 {
 		return ErrorReply(http.StatusBadRequest, "at least one field must be provided for update", errors.New("no fields to update")), errors.New("no fields to update")
@@ -860,4 +866,20 @@ func (s *AddressLabelService) exportLabelsToJSON(labels []models.AddressLabel) (
 
 	fileName := fmt.Sprintf("address_labels_%s.json", time.Now().Format("20060102_150405"))
 	return string(jsonBytes), fileName
+}
+
+// shouldUpdateField checks if a field should be updated based on the update_mask.
+// If update_mask is empty, returns true for backward compatibility (all non-empty fields are updated).
+// If update_mask is not empty, returns true only if the field is in the mask.
+func shouldUpdateField(updateMask []string, fieldName string) bool {
+	if len(updateMask) == 0 {
+		// For backward compatibility: if no mask is provided, update all non-empty fields
+		return true
+	}
+	for _, mask := range updateMask {
+		if mask == fieldName {
+			return true
+		}
+	}
+	return false
 }

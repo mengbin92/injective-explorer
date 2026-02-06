@@ -97,6 +97,7 @@ message UpdateAddressLabelRequest {
   string label_color = 5 [json_name = "label_color"];   // Label color (optional)
   string description = 6;   // Description (optional)
   bool visible = 7 [json_name = "visible"];            // Whether to display in frontend
+  repeated string update_mask = 8 [json_name = "update_mask"];  // Fields to update (e.g., ["label_type", "visible"]). If empty, all non-empty fields will be updated.
 }
 
 // DeleteAddressLabelRequest is the request message for deleting an address label.

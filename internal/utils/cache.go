@@ -1,4 +1,6 @@
-// Package utils provides cache utility functions used across the application.
+// Package utils provides shared utility functions used across the application.
+// It includes helpers for string manipulation, validation, pagination, caching,
+// database operations, and context management.
 package utils
 
 import (
@@ -14,9 +16,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// CacheManager provides a unified interface for Redis cache operations.
+// CacheManager provides a unified interface for Redis cache operations
+// with support for key prefixing, default TTL, and typed operations.
 type CacheManager struct {
-	prefix string
+	prefix     string
 	defaultTTL time.Duration
 }
 
@@ -111,7 +114,28 @@ func (c *CacheManager) Exists(ctx context.Context, key string) (bool, error) {
 	return n > 0, err
 }
 
-// GetOrSet implements cache-aside pattern: try to get from cache, if miss, compute and set.
+// GetOrSet implements the cache-aside pattern: try to get from cache, if miss, compute and set.
+//
+// Type Parameters:
+//   - T: The type of the cached value
+//
+// Parameters:
+//   - ctx: The context for cache operations
+//   - key: The cache key
+//   - dest: Pointer to store the retrieved/computed value
+//   - ttl: Time-to-live for the cached value
+//   - compute: Function to compute the value if not found in cache
+//
+// Returns:
+//   - bool: True if value was found in cache (cache hit), false if computed (cache miss)
+//   - error: Any error that occurred during the operation
+//
+// Example:
+//
+//	var user User
+//	hit, err := GetOrSet(ctx, "user:123", &user, 5*time.Minute, func() (User, error) {
+//	    return fetchUserFromDB(123)
+//	})
 func GetOrSet[T any](
 	ctx context.Context,
 	key string,

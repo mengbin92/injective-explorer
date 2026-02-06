@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -359,8 +360,7 @@ func loadLatestBlockHeight(client *http.Client) error {
 	if data, ok := result["data"].(map[string]interface{}); ok {
 		// Height is returned as a string (e.g., "39242")
 		if hStr, ok := data["height"].(string); ok {
-			var height int64
-			if _, err := fmt.Sscanf(hStr, "%d", &height); err == nil {
+			if height, err := strconv.ParseInt(hStr, 10, 64); err == nil {
 				latestBlockHeight = height
 				validBlockRange = BlockRange{Min: 1, Max: latestBlockHeight}
 			}

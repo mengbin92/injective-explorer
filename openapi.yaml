@@ -3875,6 +3875,10 @@ components:
                     type: string
                 visible:
                     type: boolean
+                update_mask:
+                    type: array
+                    items:
+                        type: string
             description: |-
                 UpdateAddressLabelRequest is the request message for updating an address label.
                  Note: label_value (not label_type) is used to locate the record based on unique constraint (chain_id, address, label_value)

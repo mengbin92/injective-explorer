@@ -1,4 +1,6 @@
-// Package utils provides database utility functions used across the application.
+// Package utils provides shared utility functions used across the application.
+// It includes helpers for string manipulation, validation, pagination, caching,
+// database operations, and context management.
 package utils
 
 import (
@@ -18,12 +20,24 @@ func NewDBExecutor(db *gorm.DB) *DBExecutor {
 	return &DBExecutor{db: db}
 }
 
-// WithTimeout executes a database operation with a timeout context.
+// WithTimeout executes a database operation with a specified timeout context.
 // This eliminates the repetitive pattern of creating context and deferring cancel.
+//
+// Type Parameters:
+//   - T: The return type of the operation
+//
+// Parameters:
+//   - db: The GORM database connection
+//   - timeout: The timeout duration for the operation
+//   - operation: The database operation to execute
+//
+// Returns:
+//   - T: The result of the operation
+//   - error: Any error that occurred during the operation
 //
 // Example:
 //
-//	result, err := utils.WithTimeout(db, func(ctx context.Context, db *gorm.DB) (interface{}, error) {
+//	result, err := utils.WithTimeout(db, 5*time.Second, func(ctx context.Context, db *gorm.DB) (interface{}, error) {
 //	    var model MyModel
 //	    err := db.WithContext(ctx).First(&model, id).Error
 //	    return &model, err
@@ -125,6 +139,28 @@ func ExecuteFirst[T any](
 }
 
 // Transaction executes a function within a database transaction.
+// Automatically handles transaction commit and rollback based on the function's return error.
+//
+// Type Parameters:
+//   - T: The return type of the function
+//
+// Parameters:
+//   - db: The GORM database connection
+//   - fn: The function to execute within the transaction
+//
+// Returns:
+//   - T: The result of the function
+//   - error: Any error that occurred during the transaction
+//
+// Example:
+//
+//	result, err := utils.Transaction(db, func(tx *gorm.DB) (*MyModel, error) {
+//	    model := &MyModel{Name: "test"}
+//	    if err := tx.Create(model).Error; err != nil {
+//	        return nil, err
+//	    }
+//	    return model, nil
+//	})
 func Transaction[T any](db *gorm.DB, fn func(tx *gorm.DB) (T, error)) (T, error) {
 	var result T
 	err := db.Transaction(func(tx *gorm.DB) error {

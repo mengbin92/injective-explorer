@@ -1,4 +1,6 @@
-// Package utils provides utility functions used across the application.
+// Package utils provides shared utility functions used across the application.
+// It includes helpers for string manipulation, validation, pagination, caching,
+// database operations, and context management.
 package utils
 
 import (
