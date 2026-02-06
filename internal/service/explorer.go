@@ -6443,3 +6443,190 @@ func (s *ExplorerService) RemoveGlobalTag(ctx context.Context, req *pb.RemoveGlo
 	}, nil
 }
 
+// GetIBCTransferTxs retrieves IBC transfer transactions with optional filters.
+func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCTransferTxsRequest) (*pb.Reply, error) {
+	// Build query with filters
+	query := db.Get().Model(&models.IBCTransferTx{}).Where("deleted_at IS NULL")
+
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
+	if req.SrcChannel != "" {
+		query = query.Where("source_channel = ?", req.SrcChannel)
+	}
+	if req.SrcPort != "" {
+		query = query.Where("source_port = ?", req.SrcPort)
+	}
+	if req.DestChannel != "" {
+		query = query.Where("destination_channel = ?", req.DestChannel)
+	}
+	if req.DestPort != "" {
+		query = query.Where("destination_port = ?", req.DestPort)
+	}
+
+	// Get total count
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to count IBC transfers")
+	}
+
+	// Apply pagination
+	page := int32(1)
+	pageSize := int32(20)
+	if req.Pagination != nil {
+		if req.Pagination.Page > 0 {
+			page = req.Pagination.Page
+		}
+		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= 100 {
+			pageSize = req.Pagination.PageSize
+		}
+	}
+	offset := (page - 1) * pageSize
+
+	// Execute query
+	var ibcTxs []*models.IBCTransferTx
+	if err := query.Order("block_timestamp DESC").
+		Limit(int(pageSize)).
+		Offset(int(offset)).
+		Find(&ibcTxs).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to query IBC transfers")
+	}
+
+	// Convert to proto DTOs
+	dtos := make([]*pb.IBCTransferTxDTO, len(ibcTxs))
+	for i, tx := range ibcTxs {
+		dtos[i] = tx.ToProto()
+	}
+
+	// Build response
+	return buildListReply(dtos, total, page, pageSize), nil
+}
+
+// buildListReply builds a paginated list response.
+func buildListReply(items interface{}, total int64, page, pageSize int32) *pb.Reply {
+	data := map[string]interface{}{
+		"items": items,
+		"pagination": map[string]interface{}{
+			"page":       page,
+			"page_size":  pageSize,
+			"total":      total,
+			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
+		},
+	}
+
+	structData, err := ToStruct(data)
+	if err != nil {
+		global.Logger.Errorf("failed to convert to struct: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to build response", err)
+	}
+
+	return &pb.Reply{
+		Code:    0,
+		Message: "success",
+		Data:    structData,
+	}
+}
+
+// GetPeggyDepositTxs retrieves Peggy deposit transactions with optional filters.
+func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeggyDepositTxsRequest) (*pb.Reply, error) {
+	// Build query with filters
+	query := db.Get().Model(&models.PeggyDepositTx{}).Where("deleted_at IS NULL")
+
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
+
+	// Get total count
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to count Peggy deposits")
+	}
+
+	// Apply pagination
+	page := int32(1)
+	pageSize := int32(20)
+	if req.Pagination != nil {
+		if req.Pagination.Page > 0 {
+			page = req.Pagination.Page
+		}
+		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= 100 {
+			pageSize = req.Pagination.PageSize
+		}
+	}
+	offset := (page - 1) * pageSize
+
+	// Execute query
+	var deposits []*models.PeggyDepositTx
+	if err := query.Order("block_timestamp DESC").
+		Limit(int(pageSize)).
+		Offset(int(offset)).
+		Find(&deposits).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to query Peggy deposits")
+	}
+
+	// Convert to proto DTOs
+	dtos := make([]*pb.PeggyDepositTxDTO, len(deposits))
+	for i, tx := range deposits {
+		dtos[i] = tx.ToProto()
+	}
+
+	// Build response
+	return buildListReply(dtos, total, page, pageSize), nil
+}
+
+// GetPeggyWithdrawalTxs retrieves Peggy withdrawal transactions with optional filters.
+func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.GetPeggyWithdrawalTxsRequest) (*pb.Reply, error) {
+	// Build query with filters
+	query := db.Get().Model(&models.PeggyWithdrawalTx{}).Where("deleted_at IS NULL")
+
+	if req.Sender != "" {
+		query = query.Where("sender = ?", req.Sender)
+	}
+	if req.Receiver != "" {
+		query = query.Where("receiver = ?", req.Receiver)
+	}
+
+	// Get total count
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to count Peggy withdrawals")
+	}
+
+	// Apply pagination
+	page := int32(1)
+	pageSize := int32(20)
+	if req.Pagination != nil {
+		if req.Pagination.Page > 0 {
+			page = req.Pagination.Page
+		}
+		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= 100 {
+			pageSize = req.Pagination.PageSize
+		}
+	}
+	offset := (page - 1) * pageSize
+
+	// Execute query
+	var withdrawals []*models.PeggyWithdrawalTx
+	if err := query.Order("block_timestamp DESC").
+		Limit(int(pageSize)).
+		Offset(int(offset)).
+		Find(&withdrawals).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to query Peggy withdrawals")
+	}
+
+	// Convert to proto DTOs
+	dtos := make([]*pb.PeggyWithdrawalTxDTO, len(withdrawals))
+	for i, tx := range withdrawals {
+		dtos[i] = tx.ToProto()
+	}
+
+	// Build response
+	return buildListReply(dtos, total, page, pageSize), nil
+}
+

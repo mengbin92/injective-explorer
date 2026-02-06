@@ -1893,6 +1893,24 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 		// Cache transaction to Redis
 		cacheTransaction(ctx, tm.txModel)
 
+		// Parse and save cross-chain transaction details (non-blocking)
+		if crossChainData, err := ParseCrossChainTransaction(ctx, tm.txData, tm.txModel.BlockNumber, tm.txModel.BlockUnixTimestamp); err != nil {
+			global.Logger.Warnf("failed to parse cross-chain tx %s: %v", tm.hash, err)
+			// Continue - don't block regular sync
+		} else if crossChainData != nil && !crossChainData.IsEmpty() {
+			if err := saveCrossChainTransaction(ctx, crossChainData); err != nil {
+				global.Logger.Warnf("failed to save cross-chain tx %s: %v", tm.hash, err)
+				// Continue - don't block regular sync
+			} else {
+				// Log successful cross-chain parse
+				global.Logger.Debugf("saved cross-chain data for tx %s: %d IBC, %d deposits, %d withdrawals",
+					tm.hash,
+					len(crossChainData.IBCTransfers),
+					len(crossChainData.PeggyDeposits),
+					len(crossChainData.PeggyWithdrawals))
+			}
+		}
+
 		// Update transaction statistics incrementally (async to avoid blocking)
 		isUpdate := existingTxMap[tm.txModel.Hash] != 0
 		go func(tx *models.Transaction, isNew bool) {
