@@ -1334,28 +1334,17 @@ func (s *ExplorerService) GetAccountInfo(ctx context.Context, req *pb.GetAccount
 	global.Logger.Debugf("account not found in database, querying from chain: chainQueryAddress=%s", chainQueryAddress)
 
 	account, err := client.GetAccount(ctx, chainQueryAddress)
-	if err != nil {
-		global.Logger.Errorf("get account error: %v", err)
-		return ErrorReply(http.StatusInternalServerError, "get account error", err), err
-	}
-
-	// Check if account or account.Account is nil
-	if account == nil || account.Account == nil {
-		global.Logger.Debugf("account not found on chain (account is nil), returning empty account: %s", address)
-		// Return empty account for new addresses instead of nil
-		emptyAccount := &models.Account{
-			Address:     dbQueryAddress,
-			BaseAccount: "{}",
-			CodeHash:    "",
+	// Handle all cases where account doesn't exist - return empty account instead of error
+	if err != nil || account == nil || account.Account == nil || len(account.Account.Value) == 0 {
+		if err != nil {
+			global.Logger.Debugf("get account error (returning empty account): address=%s, error=%v", address, err)
+		} else if account == nil || account.Account == nil {
+			global.Logger.Debugf("account not found on chain (account is nil), returning empty account: %s", address)
+		} else {
+			global.Logger.Debugf("account value is empty on chain, returning empty account: %s", address)
 		}
-		accountDTO := models.ToAccountDTO(emptyAccount)
-		return MarshalAndReply(accountDTO, "marshal account error")
-	}
 
-	// Check if account value is empty
-	if len(account.Account.Value) == 0 {
-		global.Logger.Debugf("account value is empty on chain, returning empty account: %s", address)
-		// Return empty account for new addresses instead of nil
+		// Return empty account for new/non-existent addresses
 		emptyAccount := &models.Account{
 			Address:     dbQueryAddress,
 			BaseAccount: "{}",
