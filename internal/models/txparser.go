@@ -42,44 +42,6 @@ type ExtractResult struct {
 	// ShouldShowValue indicates whether this transaction should display to/value
 	// Only true for actual asset transfers (A → B), not for instructions/state changes
 	ShouldShowValue bool `json:"should_show_value,omitempty"`
-	// Cross-chain transaction details
-	IBCTransfer     *IBCTransferDetail     `json:"ibc_transfer,omitempty"`
-	PeggyDeposit    *PeggyDepositDetail    `json:"peggy_deposit,omitempty"`
-	PeggyWithdrawal *PeggyWithdrawalDetail `json:"peggy_withdrawal,omitempty"`
-}
-
-// IBCTransferDetail contains IBC transfer transaction details.
-type IBCTransferDetail struct {
-	SourcePort         string
-	SourceChannel      string
-	DestinationPort    string
-	DestinationChannel string
-	PacketSequence     uint64
-	TimeoutHeight      string
-	TimeoutTimestamp   uint64
-	DataHex            []byte
-}
-
-// PeggyDepositDetail contains Peggy deposit transaction details.
-type PeggyDepositDetail struct {
-	EventNonce          uint64
-	EventHeight         uint64
-	OrchestratorAddress string
-	ClaimType           int32
-	EthTxHash           string
-}
-
-// PeggyWithdrawalDetail contains Peggy withdrawal transaction details.
-type PeggyWithdrawalDetail struct {
-	BridgeFee           string
-	OutgoingTxId        uint64
-	BatchTimeout        uint64
-	BatchNonce          uint64
-	OrchestratorAddress string
-	EventNonce          uint64
-	EventHeight         uint64
-	ClaimType           int32
-	EthTxHash           string
 }
 
 // Minimal structs matching the JSON layout. We only include the fields we need.

@@ -208,7 +208,6 @@ const (
 	CleanupContextTimeoutSeconds     = 5  // Cleanup context timeout in seconds
 	RedisContextTimeoutSeconds       = 2  // Redis context timeout in seconds
 	RedisLongContextTimeoutSeconds   = 10 // Redis long context timeout in seconds
-	CrossChainContextTimeoutSeconds  = 5  // Cross-chain transaction save timeout in seconds
 
 	// Retry and backoff constants
 	BalanceQueryMaxRetries        = 2 // Maximum retry attempts for balance queries
