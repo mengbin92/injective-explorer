@@ -4,6 +4,8 @@ import (
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/internal/converter"
+	"injective-explorer/internal/global"
 
 	"gorm.io/gorm"
 )
@@ -43,33 +45,39 @@ func (PeggyDepositTx) TableName() string {
 func (t *PeggyDepositTx) ToProto() *pb.PeggyDepositTxDTO {
 	// Convert receiver address from Bech32 to EVM format
 	receiverEVM := t.Receiver
-	if converted, err := InjectiveToEthAddress(t.Receiver); err == nil {
+	if converted, err := converter.InjectiveToEthAddress(t.Receiver); err == nil {
 		receiverEVM = converted
+	} else {
+		// Log conversion failure for debugging, but continue with original address
+		global.Logger.Debugf("Failed to convert receiver address %s to EVM format: %v", t.Receiver, err)
 	}
 
 	// Convert orchestrator address from Bech32 to EVM format
 	orchestratorEVM := t.OrchestratorAddress
 	if t.OrchestratorAddress != "" {
-		if converted, err := InjectiveToEthAddress(t.OrchestratorAddress); err == nil {
+		if converted, err := converter.InjectiveToEthAddress(t.OrchestratorAddress); err == nil {
 			orchestratorEVM = converted
+		} else {
+			// Log conversion failure for debugging, but continue with original address
+			global.Logger.Debugf("Failed to convert orchestrator address %s to EVM format: %v", t.OrchestratorAddress, err)
 		}
 	}
 
 	// Normalize all addresses and hashes to lowercase with 0x prefix (EVM convention)
 	return &pb.PeggyDepositTxDTO{
-		Sender:              normalizeHash(t.Sender),
-		Receiver:            normalizeHash(receiverEVM),
+		Sender:              converter.NormalizeHash(t.Sender),
+		Receiver:            converter.NormalizeHash(receiverEVM),
 		EventNonce:          t.EventNonce,
 		EventHeight:         t.EventHeight,
 		Amount:              t.Amount,
 		Denom:               t.Denom,
-		OrchestratorAddress: normalizeHash(orchestratorEVM),
+		OrchestratorAddress: converter.NormalizeHash(orchestratorEVM),
 		State:               t.State,
 		ClaimType:           t.ClaimType,
-		TxHashes:            []string{normalizeHash(t.TxHash)},
+		TxHashes:            []string{converter.NormalizeHash(t.TxHash)},
 		CreatedAt:           t.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:           t.UpdatedAt.Format(time.RFC3339),
-		EthTxHash:           normalizeHash(t.EthTxHash),
+		EthTxHash:           converter.NormalizeHash(t.EthTxHash),
 	}
 }
 

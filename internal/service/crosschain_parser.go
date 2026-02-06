@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"injective-explorer/internal/global"
@@ -17,7 +18,6 @@ import (
 	peggytypes "github.com/InjectiveLabs/sdk-go/chain/peggy/types"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/pkg/errors"
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -26,6 +26,29 @@ type CrossChainData struct {
 	IBCTransfers     []*models.IBCTransferTx
 	PeggyDeposits    []*models.PeggyDepositTx
 	PeggyWithdrawals []*models.PeggyWithdrawalTx
+}
+
+// Global codec singleton for cross-chain message parsing.
+// This avoids the expensive operation of creating a new codec for each transaction.
+var (
+	globalCodec     codec.Codec
+	codecInitOnce   sync.Once
+)
+
+// initGlobalCodec initializes the global codec with interface registry.
+// This is called once via sync.Once to ensure thread-safety.
+func initGlobalCodec() {
+	interfaceRegistry := types.NewInterfaceRegistry()
+	// Register cross-chain message types
+	ibctypes.RegisterInterfaces(interfaceRegistry)
+	peggytypes.RegisterInterfaces(interfaceRegistry)
+	globalCodec = codec.NewProtoCodec(interfaceRegistry)
+}
+
+// getCodec returns the singleton codec instance, initializing it if necessary.
+func getCodec() codec.Codec {
+	codecInitOnce.Do(initGlobalCodec)
+	return globalCodec
 }
 
 // IsEmpty returns true if no cross-chain data was parsed.
@@ -57,92 +80,24 @@ func ParseCrossChainTransaction(
 		return nil, nil
 	}
 
-	// Step 2: Create interface registry for unpacking
-	interfaceRegistry := types.NewInterfaceRegistry()
-	// Register cross-chain message types
-	ibctypes.RegisterInterfaces(interfaceRegistry)
-	peggytypes.RegisterInterfaces(interfaceRegistry)
-	cdc := codec.NewProtoCodec(interfaceRegistry)
+	// Step 2: Get the singleton codec for unpacking
+	cdc := getCodec()
 
 	// Step 3: Extract events for enrichment
-	var events []*abci.Event
-	if txResp.TxResponse != nil && len(txResp.TxResponse.Events) > 0 {
-		events = make([]*abci.Event, len(txResp.TxResponse.Events))
-		for i := range txResp.TxResponse.Events {
-			events[i] = &txResp.TxResponse.Events[i]
-		}
-	}
+	events := extractEvents(txResp)
 
+	// Step 4: Process messages and collect cross-chain data
 	txHash := txResp.TxResponse.TxHash
 	data := &CrossChainData{}
 
-	// Step 4: Iterate through Any messages and unpack cross-chain types
 	for _, anyMsg := range anyMsgs {
 		if anyMsg == nil {
 			continue
 		}
 
-		// Check message type by TypeUrl first (faster than unpacking)
-		switch anyMsg.TypeUrl {
-		case "/ibc.applications.transfer.v1.MsgTransfer":
-			var msg ibctypes.MsgTransfer
-			if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
-				global.Logger.Warnf("failed to unmarshal MsgTransfer in tx %s: %v", txHash, err)
-				continue
-			}
-			ibc, err := parseMsgTransfer(&msg, events, txHash, blockHeight, blockTimestamp)
-			if err != nil {
-				global.Logger.Warnf("failed to parse MsgTransfer in tx %s: %v", txHash, err)
-				continue
-			}
-			if ibc != nil {
-				data.IBCTransfers = append(data.IBCTransfers, ibc)
-			}
-
-		case "/injective.peggy.v1.MsgDepositClaim":
-			var msg peggytypes.MsgDepositClaim
-			if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
-				global.Logger.Warnf("failed to unmarshal MsgDepositClaim in tx %s: %v", txHash, err)
-				continue
-			}
-			deposit, err := parseMsgDepositClaim(&msg, events, txHash, blockHeight, blockTimestamp)
-			if err != nil {
-				global.Logger.Warnf("failed to parse MsgDepositClaim in tx %s: %v", txHash, err)
-				continue
-			}
-			if deposit != nil {
-				data.PeggyDeposits = append(data.PeggyDeposits, deposit)
-			}
-
-		case "/injective.peggy.v1.MsgSendToEth":
-			var msg peggytypes.MsgSendToEth
-			if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
-				global.Logger.Warnf("failed to unmarshal MsgSendToEth in tx %s: %v", txHash, err)
-				continue
-			}
-			withdrawal, err := parseMsgSendToEth(&msg, events, txHash, blockHeight, blockTimestamp)
-			if err != nil {
-				global.Logger.Warnf("failed to parse MsgSendToEth in tx %s: %v", txHash, err)
-				continue
-			}
-			if withdrawal != nil {
-				data.PeggyWithdrawals = append(data.PeggyWithdrawals, withdrawal)
-			}
-
-		case "/injective.peggy.v1.MsgWithdrawClaim":
-			var msg peggytypes.MsgWithdrawClaim
-			if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
-				global.Logger.Warnf("failed to unmarshal MsgWithdrawClaim in tx %s: %v", txHash, err)
-				continue
-			}
-			withdrawal, err := parseMsgWithdrawClaim(&msg, events, txHash, blockHeight, blockTimestamp)
-			if err != nil {
-				global.Logger.Warnf("failed to parse MsgWithdrawClaim in tx %s: %v", txHash, err)
-				continue
-			}
-			if withdrawal != nil {
-				data.PeggyWithdrawals = append(data.PeggyWithdrawals, withdrawal)
-			}
+		// Dispatch to appropriate handler based on message type
+		if err := processCrossChainMessage(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data); err != nil {
+			global.Logger.Warnf("Failed to process cross-chain message in tx %s: %v", txHash, err)
 		}
 	}
 
@@ -151,6 +106,143 @@ func ParseCrossChainTransaction(
 	}
 
 	return data, nil
+}
+
+// extractEvents extracts events from transaction response for enrichment.
+func extractEvents(txResp *tx.GetTxResponse) []*abci.Event {
+	if txResp.TxResponse == nil || len(txResp.TxResponse.Events) == 0 {
+		return nil
+	}
+
+	events := make([]*abci.Event, len(txResp.TxResponse.Events))
+	for i := range txResp.TxResponse.Events {
+		events[i] = &txResp.TxResponse.Events[i]
+	}
+	return events
+}
+
+// processCrossChainMessage dispatches message processing based on TypeUrl.
+func processCrossChainMessage(
+	anyMsg *types.Any,
+	cdc codec.Codec,
+	events []*abci.Event,
+	txHash string,
+	blockHeight, blockTimestamp uint64,
+	data *CrossChainData,
+) error {
+	switch anyMsg.TypeUrl {
+	case "/ibc.applications.transfer.v1.MsgTransfer":
+		return handleMsgTransfer(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+	case "/injective.peggy.v1.MsgDepositClaim":
+		return handleMsgDepositClaim(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+	case "/injective.peggy.v1.MsgSendToEth":
+		return handleMsgSendToEth(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+	case "/injective.peggy.v1.MsgWithdrawClaim":
+		return handleMsgWithdrawClaim(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+	default:
+		// Not a cross-chain message, skip silently
+		return nil
+	}
+}
+
+// handleMsgTransfer processes IBC MsgTransfer messages.
+func handleMsgTransfer(
+	anyMsg *types.Any,
+	cdc codec.Codec,
+	events []*abci.Event,
+	txHash string,
+	blockHeight, blockTimestamp uint64,
+	data *CrossChainData,
+) error {
+	var msg ibctypes.MsgTransfer
+	if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal MsgTransfer")
+	}
+
+	ibc, err := parseMsgTransfer(&msg, events, txHash, blockHeight, blockTimestamp)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse MsgTransfer")
+	}
+
+	if ibc != nil {
+		data.IBCTransfers = append(data.IBCTransfers, ibc)
+	}
+	return nil
+}
+
+// handleMsgDepositClaim processes Peggy MsgDepositClaim messages.
+func handleMsgDepositClaim(
+	anyMsg *types.Any,
+	cdc codec.Codec,
+	events []*abci.Event,
+	txHash string,
+	blockHeight, blockTimestamp uint64,
+	data *CrossChainData,
+) error {
+	var msg peggytypes.MsgDepositClaim
+	if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal MsgDepositClaim")
+	}
+
+	deposit, err := parseMsgDepositClaim(&msg, events, txHash, blockHeight, blockTimestamp)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse MsgDepositClaim")
+	}
+
+	if deposit != nil {
+		data.PeggyDeposits = append(data.PeggyDeposits, deposit)
+	}
+	return nil
+}
+
+// handleMsgSendToEth processes Peggy MsgSendToEth messages.
+func handleMsgSendToEth(
+	anyMsg *types.Any,
+	cdc codec.Codec,
+	events []*abci.Event,
+	txHash string,
+	blockHeight, blockTimestamp uint64,
+	data *CrossChainData,
+) error {
+	var msg peggytypes.MsgSendToEth
+	if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal MsgSendToEth")
+	}
+
+	withdrawal, err := parseMsgSendToEth(&msg, events, txHash, blockHeight, blockTimestamp)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse MsgSendToEth")
+	}
+
+	if withdrawal != nil {
+		data.PeggyWithdrawals = append(data.PeggyWithdrawals, withdrawal)
+	}
+	return nil
+}
+
+// handleMsgWithdrawClaim processes Peggy MsgWithdrawClaim messages.
+func handleMsgWithdrawClaim(
+	anyMsg *types.Any,
+	cdc codec.Codec,
+	events []*abci.Event,
+	txHash string,
+	blockHeight, blockTimestamp uint64,
+	data *CrossChainData,
+) error {
+	var msg peggytypes.MsgWithdrawClaim
+	if err := cdc.Unmarshal(anyMsg.Value, &msg); err != nil {
+		return errors.Wrap(err, "failed to unmarshal MsgWithdrawClaim")
+	}
+
+	withdrawal, err := parseMsgWithdrawClaim(&msg, events, txHash, blockHeight, blockTimestamp)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse MsgWithdrawClaim")
+	}
+
+	if withdrawal != nil {
+		data.PeggyWithdrawals = append(data.PeggyWithdrawals, withdrawal)
+	}
+	return nil
 }
 
 // parseMsgDepositClaim parses a Peggy MsgDepositClaim (Ethereum → Injective).
@@ -230,6 +322,9 @@ func enrichPeggyWithdrawalFromEvents(withdrawal *models.PeggyWithdrawalTx, event
 	// Debug: log all event types to understand what events are actually present
 	eventTypes := make(map[string]int)
 	for _, event := range events {
+		if event == nil {
+			continue // Defensive: skip nil events
+		}
 		eventTypes[event.Type]++
 		// Log send_to_eth events for debugging
 		if event.Type == "send_to_eth" {
@@ -248,6 +343,8 @@ func enrichPeggyWithdrawalFromEvents(withdrawal *models.PeggyWithdrawalTx, event
 					if timeout, err := parseUint64(attr.Value); err == nil {
 						withdrawal.BatchTimeout = timeout
 						global.Logger.Debugf("Extracted batch_timeout: %d", timeout)
+					} else {
+						global.Logger.Warnf("Failed to parse batch_timeout: %v", err)
 					}
 				}
 			}
@@ -264,7 +361,7 @@ func enrichPeggyWithdrawalFromEvents(withdrawal *models.PeggyWithdrawalTx, event
 // This updates an existing PeggyWithdrawalTx record.
 func parseMsgWithdrawClaim(
 	msg *peggytypes.MsgWithdrawClaim,
-	events []*abci.Event,
+	_ []*abci.Event,
 	txHash string,
 	blockHeight, blockTimestamp uint64,
 ) (*models.PeggyWithdrawalTx, error) {
@@ -335,12 +432,17 @@ func parseMsgTransfer(
 // enrichIBCTransferFromEvents extracts packet_sequence and destination info from events.
 func enrichIBCTransferFromEvents(transfer *models.IBCTransferTx, events []*abci.Event) {
 	for _, event := range events {
+		if event == nil {
+			continue // Defensive: skip nil events
+		}
 		if event.Type == "send_packet" {
 			for _, attr := range event.Attributes {
 				switch attr.Key {
 				case "packet_sequence":
 					if seq, err := parseUint64(attr.Value); err == nil {
 						transfer.PacketSequence = seq
+					} else {
+						global.Logger.Warnf("Failed to parse packet_sequence: %v", err)
 					}
 				case "packet_dst_port":
 					transfer.DestinationPort = attr.Value
@@ -426,31 +528,8 @@ func savePeggyWithdrawal(ctx context.Context, withdrawal *models.PeggyWithdrawal
 
 	if withdrawal.BatchNonce > 0 && withdrawal.OutgoingTxId == 0 {
 		// This is a MsgWithdrawClaim - update existing record by batch_nonce
-		// Note: We need to find the record with matching batch_nonce and update it
+		// Use a direct UPDATE query to avoid SELECT roundtrip
 
-		// First, find the existing record by batch_nonce
-		var existing models.PeggyWithdrawalTx
-		if err := db.Get().WithContext(ctx).
-			Where("batch_nonce = ?", withdrawal.BatchNonce).
-			First(&existing).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				// No existing record found - this might be a MsgWithdrawClaim arriving before MsgSendToEth
-				// Create a new record, but log a warning
-				global.Logger.Warnf("MsgWithdrawClaim with batch_nonce=%d has no corresponding MsgSendToEth, creating new record for tx %s",
-					withdrawal.BatchNonce, withdrawal.TxHash)
-				// Use batch_nonce as the unique key for this orphaned MsgWithdrawClaim
-				return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
-					Columns: []clause.Column{{Name: "batch_nonce"}},
-					DoUpdates: clause.AssignmentColumns([]string{
-						"state", "event_nonce", "event_height",
-						"orchestrator_address", "eth_tx_hash", "updated_at",
-					}),
-				}).Create(withdrawal).Error
-			}
-			return errors.Wrap(err, "failed to query existing withdrawal by batch_nonce")
-		}
-
-		// Update the existing record
 		updates := map[string]interface{}{
 			"state":                "completed",
 			"batch_nonce":          withdrawal.BatchNonce,
@@ -463,10 +542,32 @@ func savePeggyWithdrawal(ctx context.Context, withdrawal *models.PeggyWithdrawal
 			updates["eth_tx_hash"] = withdrawal.EthTxHash
 		}
 
-		return db.Get().WithContext(ctx).
+		// Execute UPDATE and check RowsAffected to determine if record exists
+		result := db.Get().WithContext(ctx).
 			Model(&models.PeggyWithdrawalTx{}).
-			Where("id = ?", existing.ID).
-			Updates(updates).Error
+			Where("batch_nonce = ?", withdrawal.BatchNonce).
+			Updates(updates)
+
+		if result.Error != nil {
+			return errors.Wrap(result.Error, "failed to update withdrawal by batch_nonce")
+		}
+
+		// If no rows were affected, the record doesn't exist yet
+		// This might be a MsgWithdrawClaim arriving before MsgSendToEth
+		if result.RowsAffected == 0 {
+			global.Logger.Warnf("MsgWithdrawClaim with batch_nonce=%d has no corresponding MsgSendToEth, creating new record for tx %s",
+				withdrawal.BatchNonce, withdrawal.TxHash)
+			// Use UPSERT with batch_nonce as the unique key
+			return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "batch_nonce"}},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"state", "event_nonce", "event_height",
+					"orchestrator_address", "eth_tx_hash", "updated_at",
+				}),
+			}).Create(withdrawal).Error
+		}
+
+		return nil
 
 	} else if withdrawal.OutgoingTxId > 0 {
 		// This is a MsgSendToEth - create or update by outgoing_tx_id

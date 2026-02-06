@@ -4,6 +4,8 @@ import (
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/internal/converter"
+	"injective-explorer/internal/global"
 
 	"gorm.io/gorm"
 )
@@ -46,21 +48,27 @@ func (IBCTransferTx) TableName() string {
 func (t *IBCTransferTx) ToProto() *pb.IBCTransferTxDTO {
 	// Convert sender address from Bech32 to EVM format if it's a Injective address
 	senderEVM := t.Sender
-	if converted, err := InjectiveToEthAddress(t.Sender); err == nil {
+	if converted, err := converter.InjectiveToEthAddress(t.Sender); err == nil {
 		senderEVM = converted
+	} else {
+		// Log conversion failure for debugging, but continue with original address
+		global.Logger.Debugf("Failed to convert sender address %s to EVM format: %v", t.Sender, err)
 	}
 
 	// Convert receiver address from Bech32 to EVM format if it's a Injective address
 	// Note: For IBC transfers to other chains, receiver might be in a different format
 	receiverEVM := t.Receiver
-	if converted, err := InjectiveToEthAddress(t.Receiver); err == nil {
+	if converted, err := converter.InjectiveToEthAddress(t.Receiver); err == nil {
 		receiverEVM = converted
+	} else {
+		// Log conversion failure for debugging, but continue with original address
+		global.Logger.Debugf("Failed to convert receiver address %s to EVM format: %v", t.Receiver, err)
 	}
 
 	// Normalize all addresses and hashes to lowercase with 0x prefix (EVM convention)
 	return &pb.IBCTransferTxDTO{
-		Sender:             normalizeHash(senderEVM),
-		Receiver:           normalizeHash(receiverEVM),
+		Sender:             converter.NormalizeHash(senderEVM),
+		Receiver:           converter.NormalizeHash(receiverEVM),
 		SourcePort:         t.SourcePort,
 		SourceChannel:      t.SourceChannel,
 		DestinationPort:    t.DestinationPort,
@@ -72,7 +80,7 @@ func (t *IBCTransferTx) ToProto() *pb.IBCTransferTxDTO {
 		PacketSequence:     t.PacketSequence,
 		DataHex:            t.DataHex,
 		State:              t.State,
-		TxHashes:           []string{normalizeHash(t.TxHash)},
+		TxHashes:           []string{converter.NormalizeHash(t.TxHash)},
 		CreatedAt:          t.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:          t.UpdatedAt.Format(time.RFC3339),
 	}

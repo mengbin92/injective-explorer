@@ -4,6 +4,8 @@ import (
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/internal/converter"
+	"injective-explorer/internal/global"
 
 	"gorm.io/gorm"
 )
@@ -47,37 +49,43 @@ func (PeggyWithdrawalTx) TableName() string {
 func (t *PeggyWithdrawalTx) ToProto() *pb.PeggyWithdrawalTxDTO {
 	// Convert sender address from Bech32 to EVM format (Injective → Ethereum withdrawal)
 	senderEVM := t.Sender
-	if converted, err := InjectiveToEthAddress(t.Sender); err == nil {
+	if converted, err := converter.InjectiveToEthAddress(t.Sender); err == nil {
 		senderEVM = converted
+	} else {
+		// Log conversion failure for debugging, but continue with original address
+		global.Logger.Debugf("Failed to convert sender address %s to EVM format: %v", t.Sender, err)
 	}
 
 	// Convert orchestrator address from Bech32 to EVM format
 	orchestratorEVM := t.OrchestratorAddress
 	if t.OrchestratorAddress != "" {
-		if converted, err := InjectiveToEthAddress(t.OrchestratorAddress); err == nil {
+		if converted, err := converter.InjectiveToEthAddress(t.OrchestratorAddress); err == nil {
 			orchestratorEVM = converted
+		} else {
+			// Log conversion failure for debugging, but continue with original address
+			global.Logger.Debugf("Failed to convert orchestrator address %s to EVM format: %v", t.OrchestratorAddress, err)
 		}
 	}
 
 	// Normalize all addresses and hashes to lowercase with 0x prefix (EVM convention)
 	return &pb.PeggyWithdrawalTxDTO{
-		Sender:              normalizeHash(senderEVM),
-		Receiver:            normalizeHash(t.Receiver), // Already in EVM format
+		Sender:              converter.NormalizeHash(senderEVM),
+		Receiver:            converter.NormalizeHash(t.Receiver), // Already in EVM format
 		Amount:              t.Amount,
 		Denom:               t.Denom,
 		BridgeFee:           t.BridgeFee,
 		OutgoingTxId:        t.OutgoingTxId,
 		BatchTimeout:        t.BatchTimeout,
 		BatchNonce:          t.BatchNonce,
-		OrchestratorAddress: normalizeHash(orchestratorEVM),
+		OrchestratorAddress: converter.NormalizeHash(orchestratorEVM),
 		EventNonce:          t.EventNonce,
 		EventHeight:         t.EventHeight,
 		State:               t.State,
 		ClaimType:           t.ClaimType,
-		TxHashes:            []string{normalizeHash(t.TxHash)},
+		TxHashes:            []string{converter.NormalizeHash(t.TxHash)},
 		CreatedAt:           t.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:           t.UpdatedAt.Format(time.RFC3339),
-		EthTxHash:           normalizeHash(t.EthTxHash),
+		EthTxHash:           converter.NormalizeHash(t.EthTxHash),
 	}
 }
 

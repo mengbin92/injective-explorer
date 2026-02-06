@@ -1,13 +1,21 @@
 package service
 
 import (
+	"context"
 	"testing"
 
+	"injective-explorer/internal/models"
+
 	peggytypes "github.com/InjectiveLabs/sdk-go/chain/peggy/types"
+	abci "github.com/cometbft/cometbft/abci/types"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	tx "github.com/cosmos/cosmos-sdk/types/tx"
+	ibctypes "github.com/cosmos/ibc-go/v8/modules/apps/transfer/types"
+	clienttypes "github.com/cosmos/ibc-go/v8/modules/core/02-client/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"cosmossdk.io/math"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 func TestParseMsgDepositClaim(t *testing.T) {
@@ -112,4 +120,388 @@ func TestParseMsgWithdrawClaim_Nil(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
+}
+
+// TestParseMsgTransfer tests IBC transfer message parsing
+func TestParseMsgTransfer(t *testing.T) {
+	msg := &ibctypes.MsgTransfer{
+		SourcePort:    "transfer",
+		SourceChannel: "channel-0",
+		Token: sdk.Coin{
+			Denom:  "uatom",
+			Amount: math.NewInt(1000000),
+		},
+		Sender:   "cosmos1sender",
+		Receiver: "inj1receiver",
+		TimeoutHeight: clienttypes.Height{
+			RevisionNumber: 1,
+			RevisionHeight: 1000,
+		},
+		TimeoutTimestamp: 1234567890000000000,
+	}
+
+	result, err := parseMsgTransfer(msg, nil, "txhash123", 50000, 1234567890)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Equal(t, "cosmos1sender", result.Sender)
+	assert.Equal(t, "inj1receiver", result.Receiver)
+	assert.Equal(t, "transfer", result.SourcePort)
+	assert.Equal(t, "channel-0", result.SourceChannel)
+	assert.Equal(t, "1000000", result.Amount)
+	assert.Equal(t, "uatom", result.Denom)
+	assert.Equal(t, "1-1000", result.TimeoutHeight)
+	assert.Equal(t, uint64(1234567890000000000), result.TimeoutTimestamp)
+	assert.Equal(t, "completed", result.State)
+}
+
+// TestEnrichIBCTransferFromEvents tests IBC event enrichment
+func TestEnrichIBCTransferFromEvents(t *testing.T) {
+	transfer := &models.IBCTransferTx{}
+
+	events := []*abci.Event{
+		{
+			Type: "send_packet",
+			Attributes: []abci.EventAttribute{
+				{Key: "packet_sequence", Value: "42"},
+				{Key: "packet_dst_port", Value: "transfer"},
+				{Key: "packet_dst_channel", Value: "channel-1"},
+				{Key: "packet_data", Value: "test_data"},
+			},
+		},
+	}
+
+	enrichIBCTransferFromEvents(transfer, events)
+
+	assert.Equal(t, uint64(42), transfer.PacketSequence)
+	assert.Equal(t, "transfer", transfer.DestinationPort)
+	assert.Equal(t, "channel-1", transfer.DestinationChannel)
+	assert.Equal(t, []byte("test_data"), transfer.DataHex)
+}
+
+// TestEnrichPeggyWithdrawalFromEvents tests Peggy event enrichment
+func TestEnrichPeggyWithdrawalFromEvents(t *testing.T) {
+	withdrawal := &models.PeggyWithdrawalTx{}
+
+	events := []*abci.Event{
+		{
+			Type: "send_to_eth",
+			Attributes: []abci.EventAttribute{
+				{Key: "outgoing_tx_id", Value: "123"},
+				{Key: "batch_timeout", Value: "999999"},
+			},
+		},
+	}
+
+	enrichPeggyWithdrawalFromEvents(withdrawal, events)
+
+	assert.Equal(t, uint64(123), withdrawal.OutgoingTxId)
+	assert.Equal(t, uint64(999999), withdrawal.BatchTimeout)
+}
+
+// TestEnrichPeggyWithdrawalFromEvents_InvalidData tests error handling
+func TestEnrichPeggyWithdrawalFromEvents_InvalidData(t *testing.T) {
+	withdrawal := &models.PeggyWithdrawalTx{}
+
+	events := []*abci.Event{
+		{
+			Type: "send_to_eth",
+			Attributes: []abci.EventAttribute{
+				{Key: "outgoing_tx_id", Value: "invalid"},
+				{Key: "batch_timeout", Value: "also_invalid"},
+			},
+		},
+	}
+
+	enrichPeggyWithdrawalFromEvents(withdrawal, events)
+
+	// Should remain 0 when parsing fails
+	assert.Equal(t, uint64(0), withdrawal.OutgoingTxId)
+	assert.Equal(t, uint64(0), withdrawal.BatchTimeout)
+}
+
+// TestParseUint64 tests the parseUint64 helper function
+func TestParseUint64(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    uint64
+		wantErr bool
+	}{
+		{"valid number", "123", 123, false},
+		{"zero", "0", 0, false},
+		{"large number", "18446744073709551615", 18446744073709551615, false},
+		{"empty string", "", 0, true},
+		{"invalid string", "abc", 0, true},
+		{"negative number", "-1", 0, true},
+		{"float", "123.45", 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseUint64(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+// TestParseCrossChainTransaction_Empty tests nil/empty inputs
+func TestParseCrossChainTransaction_Empty(t *testing.T) {
+	tests := []struct {
+		name    string
+		txResp  *tx.GetTxResponse
+		wantNil bool
+	}{
+		{
+			name:    "nil response",
+			txResp:  nil,
+			wantNil: true,
+		},
+		{
+			name: "nil tx",
+			txResp: &tx.GetTxResponse{
+				Tx: nil,
+			},
+			wantNil: true,
+		},
+		{
+			name: "nil body",
+			txResp: &tx.GetTxResponse{
+				Tx: &tx.Tx{Body: nil},
+			},
+			wantNil: true,
+		},
+		{
+			name: "empty messages",
+			txResp: &tx.GetTxResponse{
+				Tx: &tx.Tx{
+					Body: &tx.TxBody{Messages: []*codectypes.Any{}},
+				},
+			},
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseCrossChainTransaction(context.Background(), tt.txResp, 100, 200)
+			assert.NoError(t, err)
+			if tt.wantNil {
+				assert.Nil(t, result)
+			}
+		})
+	}
+}
+
+// TestParseCrossChainTransaction_MsgDepositClaim tests full integration
+func TestParseCrossChainTransaction_MsgDepositClaim(t *testing.T) {
+	// Create a MsgDepositClaim
+	msg := &peggytypes.MsgDepositClaim{
+		EventNonce:     42,
+		BlockHeight:    100000,
+		TokenContract:  "0xabc123",
+		Amount:         math.NewInt(1000000),
+		EthereumSender: "0xdef456",
+		CosmosReceiver: "inj1receiver",
+		Orchestrator:   "inj1validator",
+	}
+
+	// Marshal the message
+	cdc := getCodec()
+	msgBytes, err := cdc.Marshal(msg)
+	require.NoError(t, err)
+
+	// Create Any wrapper
+	anyMsg := &codectypes.Any{
+		TypeUrl: "/injective.peggy.v1.MsgDepositClaim",
+		Value:   msgBytes,
+	}
+
+	// Create transaction response with proper type
+	txResp := &tx.GetTxResponse{
+		Tx: &tx.Tx{
+			Body: &tx.TxBody{
+				Messages: []*codectypes.Any{anyMsg},
+			},
+		},
+		TxResponse: &sdk.TxResponse{
+			TxHash: "test_tx_hash",
+			Events: []abci.Event{},
+		},
+	}
+
+	// Parse
+	result, err := ParseCrossChainTransaction(context.Background(), txResp, 50000, 1234567890)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.IsEmpty())
+	assert.Len(t, result.PeggyDeposits, 1)
+
+	deposit := result.PeggyDeposits[0]
+	assert.Equal(t, uint64(42), deposit.EventNonce)
+	assert.Equal(t, "0xdef456", deposit.Sender)
+	assert.Equal(t, "inj1receiver", deposit.Receiver)
+	assert.Equal(t, "completed", deposit.State)
+}
+
+// TestParseCrossChainTransaction_MultipleMsgs tests multiple messages in one tx
+func TestParseCrossChainTransaction_MultipleMsgs(t *testing.T) {
+	cdc := getCodec()
+
+	// Create MsgDepositClaim
+	depositMsg := &peggytypes.MsgDepositClaim{
+		EventNonce:     1,
+		BlockHeight:    100000,
+		TokenContract:  "0xabc",
+		Amount:         math.NewInt(1000),
+		EthereumSender: "0xsender",
+		CosmosReceiver: "inj1receiver",
+	}
+	depositBytes, _ := cdc.Marshal(depositMsg)
+
+	// Create MsgSendToEth
+	sendToEthMsg := &peggytypes.MsgSendToEth{
+		Sender:  "inj1sender",
+		EthDest: "0xdest",
+		Amount: sdk.Coin{
+			Denom:  "peggy0xtoken",
+			Amount: math.NewInt(5000),
+		},
+		BridgeFee: sdk.Coin{
+			Denom:  "peggy0xtoken",
+			Amount: math.NewInt(100),
+		},
+	}
+	sendToEthBytes, _ := cdc.Marshal(sendToEthMsg)
+
+	txResp := &tx.GetTxResponse{
+		Tx: &tx.Tx{
+			Body: &tx.TxBody{
+				Messages: []*codectypes.Any{
+					{TypeUrl: "/injective.peggy.v1.MsgDepositClaim", Value: depositBytes},
+					{TypeUrl: "/injective.peggy.v1.MsgSendToEth", Value: sendToEthBytes},
+				},
+			},
+		},
+		TxResponse: &sdk.TxResponse{
+			TxHash: "multi_msg_tx",
+			Events: []abci.Event{},
+		},
+	}
+
+	result, err := ParseCrossChainTransaction(context.Background(), txResp, 50000, 1234567890)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result.PeggyDeposits, 1)
+	assert.Len(t, result.PeggyWithdrawals, 1)
+	assert.Len(t, result.IBCTransfers, 0)
+}
+
+// TestCrossChainData_IsEmpty tests the IsEmpty method
+func TestCrossChainData_IsEmpty(t *testing.T) {
+	tests := []struct {
+		name string
+		data *CrossChainData
+		want bool
+	}{
+		{
+			name: "completely empty",
+			data: &CrossChainData{},
+			want: true,
+		},
+		{
+			name: "has IBC transfer",
+			data: &CrossChainData{
+				IBCTransfers: []*models.IBCTransferTx{{}},
+			},
+			want: false,
+		},
+		{
+			name: "has peggy deposit",
+			data: &CrossChainData{
+				PeggyDeposits: []*models.PeggyDepositTx{{}},
+			},
+			want: false,
+		},
+		{
+			name: "has peggy withdrawal",
+			data: &CrossChainData{
+				PeggyWithdrawals: []*models.PeggyWithdrawalTx{{}},
+			},
+			want: false,
+		},
+		{
+			name: "has all types",
+			data: &CrossChainData{
+				IBCTransfers:     []*models.IBCTransferTx{{}},
+				PeggyDeposits:    []*models.PeggyDepositTx{{}},
+				PeggyWithdrawals: []*models.PeggyWithdrawalTx{{}},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.data.IsEmpty())
+		})
+	}
+}
+
+// TestGetCodec_Singleton tests that codec is reused
+func TestGetCodec_Singleton(t *testing.T) {
+	codec1 := getCodec()
+	codec2 := getCodec()
+
+	// Should return the same instance
+	assert.Same(t, codec1, codec2, "getCodec should return singleton instance")
+}
+
+// TestExtractEvents tests event extraction
+func TestExtractEvents(t *testing.T) {
+	tests := []struct {
+		name string
+		resp *tx.GetTxResponse
+		want int
+	}{
+		{
+			name: "nil response",
+			resp: &tx.GetTxResponse{},
+			want: 0,
+		},
+		{
+			name: "no events",
+			resp: &tx.GetTxResponse{
+				TxResponse: &sdk.TxResponse{Events: []abci.Event{}},
+			},
+			want: 0,
+		},
+		{
+			name: "with events",
+			resp: &tx.GetTxResponse{
+				TxResponse: &sdk.TxResponse{
+					Events: []abci.Event{
+						{Type: "event1"},
+						{Type: "event2"},
+					},
+				},
+			},
+			want: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events := extractEvents(tt.resp)
+			assert.Len(t, events, tt.want)
+		})
+	}
 }
