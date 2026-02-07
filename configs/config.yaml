@@ -199,6 +199,24 @@ token_price:
   price_cache_ttl: 300s
   supply_cache_ttl: 3600s
 
+  # Denom to symbol mapping for CoinGecko price lookup
+  # Allows configuring token mappings without code changes or restarts
+  # Key: token denom (e.g., "peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5")
+  # Value: token symbol (e.g., "usdt")
+  # Config-provided mappings take precedence over built-in defaults
+  denom_symbol_map:
+    # Native token
+    "inj": "inj"
+    "inj": "inj"
+    # Stablecoins
+    "peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5": "usdt"
+    "peggy0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "usdc"
+    "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7": "usdt"
+    # Major tokens
+    "peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599": "wbtc"
+    "peggy0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": "weth"
+    # Add more mappings as needed without code changes
+
   # On-chain price service configuration
   on_chain:
     # Enable on-chain price fetching (default: true)

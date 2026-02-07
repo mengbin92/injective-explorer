@@ -221,6 +221,11 @@ message TokenPrice {
   google.protobuf.Duration supply_cache_ttl = 4;
   // On-chain price configuration
   OnChainPrice on_chain = 5;
+  // Denom to symbol mapping for CoinGecko price lookup
+  // Key: token denom (e.g., "peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5")
+  // Value: token symbol (e.g., "usdt")
+  // Allows configuring token mappings without code changes
+  map<string, string> denom_symbol_map = 6;
 }
 
 // On-chain price service configuration

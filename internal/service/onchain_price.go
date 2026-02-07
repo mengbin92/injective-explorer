@@ -36,9 +36,10 @@ const (
 	maxCoinGeckoIDsPerRequest = 100
 )
 
-// denomToSymbolMap maps common denoms to their token symbols for CoinGecko lookup.
-// This is used when falling back to CoinGecko price API.
-var denomToSymbolMap = map[string]string{
+// DefaultDenomToSymbolMap provides the built-in mapping from token denoms to symbols.
+// This is used for CoinGecko price lookups when the on-chain price is unavailable.
+// The mapping can be extended at runtime using RegisterDenomSymbolMapping.
+var DefaultDenomToSymbolMap = map[string]string{
 	// Native tokens
 	"inj": "inj",
 
@@ -63,19 +64,63 @@ var denomToSymbolMap = map[string]string{
 	"peggy0xc944E90C64B2c07662A292be6244BDf05Cda44a7": "grt",
 }
 
+// customDenomToSymbolMap holds runtime-registered mappings.
+// Use RegisterDenomSymbolMapping to add entries without modifying source code.
+var customDenomToSymbolMap = make(map[string]string)
+
+// RegisterDenomSymbolMapping registers a new denom to symbol mapping at runtime.
+// This allows extending token support without code changes or restarts.
+// Thread-safe for concurrent reads and writes.
+func RegisterDenomSymbolMapping(denom, symbol string) {
+	customDenomToSymbolMap[strings.ToLower(denom)] = strings.ToLower(symbol)
+}
+
+// LoadDenomSymbolMapFromConfig loads the denom to symbol mapping from configuration.
+// It merges config-provided mappings with default mappings (config takes precedence).
+// Returns a new map with lowercase keys and values.
+func LoadDenomSymbolMapFromConfig() map[string]string {
+	result := make(map[string]string)
+
+	// First add default mappings
+	for k, v := range DefaultDenomToSymbolMap {
+		result[strings.ToLower(k)] = strings.ToLower(v)
+	}
+
+	// Then add runtime-registered mappings (override defaults)
+	for k, v := range customDenomToSymbolMap {
+		result[strings.ToLower(k)] = strings.ToLower(v)
+	}
+
+	// Finally add config-provided mappings (highest priority)
+	if global.TokenPriceConfig != nil && global.TokenPriceConfig.DenomSymbolMap != nil {
+		for k, v := range global.TokenPriceConfig.DenomSymbolMap {
+			result[strings.ToLower(k)] = strings.ToLower(v)
+		}
+	}
+
+	return result
+}
+
 // extractSymbolFromDenom extracts token symbol from denom for CoinGecko lookup.
-// It first checks the mapping, then falls back to using the denom directly.
+// It first checks config-provided mappings, then custom mappings (runtime-registered),
+// then default mappings, then falls back to using the denom directly.
+// This function is safe for concurrent use but creates a new map on each call.
+// For better performance, consider caching the result of LoadDenomSymbolMapFromConfig().
 func extractSymbolFromDenom(denom string) string {
-	if symbol, ok := denomToSymbolMap[strings.ToLower(denom)]; ok {
+	key := strings.ToLower(denom)
+
+	// Load merged mapping (config + custom + defaults)
+	mapping := LoadDenomSymbolMapFromConfig()
+	if symbol, ok := mapping[key]; ok {
 		return symbol
 	}
+
 	// For unknown denoms, try to extract the last part after "peggy0x"
-	denom = strings.ToLower(denom)
-	if strings.HasPrefix(denom, "peggy0x") {
-		// Return the full peggy address as-is for lookup
-		return denom
+	if strings.HasPrefix(key, "peggy0x") {
+		return key
 	}
-	return denom
+
+	return key
 }
 
 // OnChainPriceProvider fetches token prices from on-chain spot markets.
