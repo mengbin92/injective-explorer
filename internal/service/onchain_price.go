@@ -4,6 +4,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -281,6 +283,166 @@ func (p *OnChainPriceProvider) GetPriceByDenom(
 
 	// 2. Fetch the price from the market
 	return p.GetPriceFromSpotMarket(ctx, marketID)
+}
+
+// GetPriceWithFallback gets the token price by its denom with CoinGecko fallback.
+// It first tries to get price from on-chain spot market, if that fails,
+// it falls back to CoinGecko API.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - denom: Token denom (e.g., "inj", "peggy0x...")
+//
+// Returns:
+//   - *models.PriceInfo: Price information (source indicates "spot_market" or "coingecko")
+//   - error: Error if both on-chain and CoinGecko fail
+func (p *OnChainPriceProvider) GetPriceWithFallback(
+	ctx context.Context,
+	denom string,
+) (*models.PriceInfo, error) {
+	// Try on-chain price first
+	priceInfo, err := p.GetPriceByDenom(ctx, denom)
+	if err == nil && priceInfo != nil && priceInfo.PriceUSD > 0 {
+		p.logger.Debugw("using on-chain price",
+			"denom", denom,
+			"price", priceInfo.PriceUSD,
+		)
+		return priceInfo, nil
+	}
+
+	// Log on-chain failure
+	p.logger.Debugw("on-chain price unavailable, trying CoinGecko fallback",
+		"denom", denom,
+		"error", err,
+	)
+
+	// Fall back to CoinGecko
+	return p.getPriceFromCoinGecko(ctx, denom)
+}
+
+// getPriceFromCoinGecko fetches price from CoinGecko API.
+// It uses Redis cache and follows the same pattern as GetTokenPriceFromCoinGecko.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - denom: Token denom
+//
+// Returns:
+//   - *models.PriceInfo: Price information with source="coingecko"
+//   - error: Error if price cannot be fetched
+func (p *OnChainPriceProvider) getPriceFromCoinGecko(
+	ctx context.Context,
+	denom string,
+) (*models.PriceInfo, error) {
+	symbol := extractSymbolFromDenom(denom)
+	if symbol == "" {
+		return nil, errors.Errorf("cannot extract symbol from denom: %s", denom)
+	}
+
+	// Get CoinGecko ID from symbol
+	coinGeckoID := GetCoinGeckoIDFromSymbol(symbol)
+	if coinGeckoID == "" {
+		return nil, errors.Errorf("no CoinGecko ID found for symbol: %s", symbol)
+	}
+
+	cacheKey := p.getCacheKey("coingecko", denom)
+
+	// Check cache first
+	if cached := p.getFromCache(ctx, cacheKey); cached != nil {
+		p.logger.Debugw("returning cached CoinGecko price",
+			"denom", denom,
+			"symbol", symbol,
+			"price", cached.PriceUSD,
+		)
+		return cached, nil
+	}
+
+	// Fetch from CoinGecko API
+	queryCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	price, _, err := p.fetchCoinGeckoPrice(queryCtx, coinGeckoID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch CoinGecko price")
+	}
+
+	priceInfo := &models.PriceInfo{
+		Symbol:     strings.ToUpper(symbol),
+		Denom:      denom,
+		PriceUSD:   price,
+		PriceRaw:   "",
+		Source:     "coingecko",
+		MarketID:   "",
+		Timestamp:  time.Now().Unix(),
+		Confidence: 0.85, // Slightly lower confidence for CoinGecko
+	}
+
+	// Cache the result
+	p.saveToCache(ctx, cacheKey, priceInfo)
+
+	p.logger.Debugw("fetched CoinGecko price",
+		"denom", denom,
+		"symbol", symbol,
+		"price", price,
+	)
+
+	return priceInfo, nil
+}
+
+// fetchCoinGeckoPrice fetches price from CoinGecko API.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - coinGeckoID: CoinGecko coin ID (e.g., "injective-protocol")
+//
+// Returns:
+//   - float64: Price in USD
+//   - float64: 24h price change percentage
+//   - error: Error if API call fails
+func (p *OnChainPriceProvider) fetchCoinGeckoPrice(
+	ctx context.Context,
+	coinGeckoID string,
+) (float64, float64, error) {
+	apiURL := fmt.Sprintf(
+		"https://api.coingecko.com/api/v3/simple/price?ids=%s&vs_currencies=usd&include_24hr_change=true",
+		coinGeckoID,
+	)
+
+	client := &http.Client{
+		Timeout: p.timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "failed to create request")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "failed to fetch from CoinGecko")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, 0, errors.Errorf("CoinGecko API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result map[string]struct {
+		USD          float64 `json:"usd"`
+		USD24hChange float64 `json:"usd_24h_change"`
+	}
+
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, 0, errors.Wrap(err, "failed to decode CoinGecko response")
+	}
+
+	data, ok := result[coinGeckoID]
+	if !ok {
+		return 0, 0, errors.Errorf("price data not found for CoinGecko ID: %s", coinGeckoID)
+	}
+
+	return data.USD, data.USD24hChange, nil
 }
 
 // GetNativeTokenPrice gets the native token price (e.g., INJ, INJ).
