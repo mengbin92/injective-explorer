@@ -4995,9 +4995,14 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 }
 
 // calculateBalanceUSDTValue calculates the USDT value for a single balance.
+// It uses GetPriceWithFallback to try on-chain price first, then CoinGecko.
 func calculateBalanceUSDTValue(ctx context.Context, priceProvider *OnChainPriceProvider, balance models.AccountBalance) float64 {
-	priceInfo, priceErr := priceProvider.GetPriceByDenom(ctx, balance.Denom)
+	priceInfo, priceErr := priceProvider.GetPriceWithFallback(ctx, balance.Denom)
 	if priceErr != nil || priceInfo == nil {
+		global.Logger.Debugw("price unavailable for balance calculation",
+			"denom", balance.Denom,
+			"error", priceErr,
+		)
 		return 0.0
 	}
 
