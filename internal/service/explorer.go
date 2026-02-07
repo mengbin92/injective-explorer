@@ -4959,7 +4959,7 @@ func sortBalancesByUSDTValue(ctx context.Context, balances []models.AccountBalan
 }
 
 // calculateUSDTValues calculates USDT value for each balance.
-// It uses a pooled price provider for better performance.
+// It uses a pooled price provider and batch price fetching for better performance.
 func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) []balanceWithValue {
 	balancesWithValues := make([]balanceWithValue, 0, len(balances))
 
@@ -4979,9 +4979,76 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 		return balancesWithValues
 	}
 
+	// Collect unique denoms that need price lookup
+	// First try on-chain prices, collect failures for batch CoinGecko fetch
+	onChainFailedDenoms := make(map[string]bool)
+	prices := make(map[string]float64) // denom -> priceUSD
+
+	for _, balance := range balances {
+		if _, ok := prices[balance.Denom]; ok {
+			continue // Already have price for this denom
+		}
+
+		// Try on-chain price first
+		priceInfo, err := priceProvider.GetPriceByDenom(ctx, balance.Denom)
+		if err == nil && priceInfo != nil && priceInfo.PriceUSD > 0 {
+			prices[balance.Denom] = priceInfo.PriceUSD
+			global.Logger.Debugw("using on-chain price",
+				"denom", balance.Denom,
+				"price", priceInfo.PriceUSD,
+			)
+		} else {
+			onChainFailedDenoms[balance.Denom] = true
+		}
+	}
+
+	// Batch fetch CoinGecko prices for failed denoms
+	if len(onChainFailedDenoms) > 0 {
+		// Build denom -> coinGeckoID map
+		denomCoinGeckoIDMap := make(map[string]string)
+		for denom := range onChainFailedDenoms {
+			symbol := extractSymbolFromDenom(denom)
+			if symbol == "" {
+				continue
+			}
+			coinGeckoID := GetCoinGeckoIDFromSymbol(symbol)
+			if coinGeckoID == "" {
+				global.Logger.Debugw("no CoinGecko ID for denom",
+					"denom", denom,
+					"symbol", symbol,
+				)
+				continue
+			}
+			denomCoinGeckoIDMap[denom] = coinGeckoID
+		}
+
+		// Batch fetch from CoinGecko
+		if len(denomCoinGeckoIDMap) > 0 {
+			global.Logger.Debugw("batch fetching CoinGecko prices",
+				"count", len(denomCoinGeckoIDMap),
+			)
+			cgPrices, cgErr := priceProvider.BatchGetPricesFromCoinGecko(ctx, denomCoinGeckoIDMap)
+			if cgErr != nil {
+				global.Logger.Warnw("failed to batch fetch CoinGecko prices",
+					"error", cgErr,
+				)
+			}
+			for denom, priceInfo := range cgPrices {
+				if priceInfo != nil && priceInfo.PriceUSD > 0 {
+					prices[denom] = priceInfo.PriceUSD
+				}
+			}
+		}
+	}
+
+	// Calculate USDT values
 	for _, balance := range balances {
 		isNative := strings.EqualFold(balance.Denom, "inj")
-		usdtValue := calculateBalanceUSDTValue(ctx, priceProvider, balance)
+		usdtValue := 0.0
+
+		if priceUSD, ok := prices[balance.Denom]; ok && priceUSD > 0 {
+			usdtValue = calculateUSDTValue(balance.Amount, priceUSD)
+		}
 
 		balancesWithValues = append(balancesWithValues, balanceWithValue{
 			denom:     balance.Denom,
@@ -4994,21 +5061,10 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 	return balancesWithValues
 }
 
-// calculateBalanceUSDTValue calculates the USDT value for a single balance.
-// It uses GetPriceWithFallback to try on-chain price first, then CoinGecko.
-func calculateBalanceUSDTValue(ctx context.Context, priceProvider *OnChainPriceProvider, balance models.AccountBalance) float64 {
-	priceInfo, priceErr := priceProvider.GetPriceWithFallback(ctx, balance.Denom)
-	if priceErr != nil || priceInfo == nil {
-		global.Logger.Debugw("price unavailable for balance calculation",
-			"denom", balance.Denom,
-			"error", priceErr,
-		)
-		return 0.0
-	}
-
-	// Convert amount to float and multiply by price
+// calculateUSDTValue calculates USDT value from amount string and price.
+func calculateUSDTValue(amountStr string, priceUSD float64) float64 {
 	amount := new(big.Float)
-	_, ok := amount.SetString(balance.Amount)
+	_, ok := amount.SetString(amountStr)
 	if !ok {
 		return 0.0
 	}
@@ -5016,7 +5072,7 @@ func calculateBalanceUSDTValue(ctx context.Context, priceProvider *OnChainPriceP
 	amountFloat, _ := amount.Float64()
 	// Assuming amounts are in base units (need to divide by 10^18 for most tokens)
 	amountFloat = amountFloat / 1e18
-	return amountFloat * priceInfo.PriceUSD
+	return amountFloat * priceUSD
 }
 
 // sortAndConvertBalances sorts balances by USDT value and converts to response format.

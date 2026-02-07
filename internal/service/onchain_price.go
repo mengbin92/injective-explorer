@@ -22,14 +22,18 @@ import (
 )
 
 const (
-	// defaultCacheTTL is the default cache time-to-live.
+	// defaultCacheTTL is the default cache time-to-live for on-chain prices.
 	defaultCacheTTL = 30 * time.Second
+	// coingeckoCacheTTL is the cache time-to-live for CoinGecko prices (longer to avoid rate limits).
+	coingeckoCacheTTL = 5 * time.Minute
 	// defaultRetryAttempts is the default number of retry attempts.
 	defaultRetryAttempts = 3
 	// defaultTimeout is the default query timeout.
 	defaultTimeout = 10 * time.Second
 	// priceCacheKeyPrefix is the cache key prefix for price data.
 	priceCacheKeyPrefix = "onchain:price"
+	// maxCoinGeckoIDsPerRequest is the maximum number of CoinGecko IDs per batch request.
+	maxCoinGeckoIDsPerRequest = 100
 )
 
 // denomToSymbolMap maps common denoms to their token symbols for CoinGecko lookup.
@@ -445,6 +449,166 @@ func (p *OnChainPriceProvider) fetchCoinGeckoPrice(
 	return data.USD, data.USD24hChange, nil
 }
 
+// BatchGetPricesFromCoinGecko fetches prices for multiple denoms from CoinGecko in batch.
+// This reduces API calls and helps stay within free tier rate limits.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - denomCoinGeckoIDMap: Map of denom to CoinGecko ID (e.g., {"inj": "injective-protocol"})
+//
+// Returns:
+//   - map[string]*models.PriceInfo: Map of denom to price info
+//   - error: Error if batch request fails
+func (p *OnChainPriceProvider) BatchGetPricesFromCoinGecko(
+	ctx context.Context,
+	denomCoinGeckoIDMap map[string]string,
+) (map[string]*models.PriceInfo, error) {
+	result := make(map[string]*models.PriceInfo)
+
+	if len(denomCoinGeckoIDMap) == 0 {
+		return result, nil
+	}
+
+	// Check cache first for each denom
+	uncachedDenoms := make(map[string]string) // denom -> coinGeckoID
+	for denom, coinGeckoID := range denomCoinGeckoIDMap {
+		cacheKey := p.getCacheKey("coingecko", denom)
+		if cached := p.getFromCache(ctx, cacheKey); cached != nil {
+			result[denom] = cached
+			p.logger.Debugw("using cached CoinGecko price",
+				"denom", denom,
+				"price", cached.PriceUSD,
+			)
+		} else {
+			uncachedDenoms[denom] = coinGeckoID
+		}
+	}
+
+	if len(uncachedDenoms) == 0 {
+		return result, nil
+	}
+
+	// Build list of unique CoinGecko IDs
+	uniqueIDs := make(map[string]bool)
+	for _, coinGeckoID := range uncachedDenoms {
+		uniqueIDs[coinGeckoID] = true
+	}
+
+	ids := make([]string, 0, len(uniqueIDs))
+	for id := range uniqueIDs {
+		ids = append(ids, id)
+	}
+
+	// Batch fetch prices (max 100 per request)
+	p.logger.Debugw("batch fetching CoinGecko prices",
+		"total_ids", len(ids),
+		"total_denoms", len(uncachedDenoms),
+	)
+
+	for i := 0; i < len(ids); i += maxCoinGeckoIDsPerRequest {
+		end := i + maxCoinGeckoIDsPerRequest
+		if end > len(ids) {
+			end = len(ids)
+		}
+
+		batchIDs := ids[i:end]
+		batchPrices, err := p.fetchBatchCoinGeckoPrices(ctx, batchIDs)
+		if err != nil {
+			p.logger.Warnw("failed to fetch batch CoinGecko prices",
+				"batch", i/maxCoinGeckoIDsPerRequest,
+				"error", err,
+			)
+			// Continue with partial results
+			continue
+		}
+
+		// Map prices back to denoms and cache
+		for denom, coinGeckoID := range uncachedDenoms {
+			if priceData, ok := batchPrices[coinGeckoID]; ok {
+				symbol := extractSymbolFromDenom(denom)
+				priceInfo := &models.PriceInfo{
+					Symbol:     strings.ToUpper(symbol),
+					Denom:      denom,
+					PriceUSD:   priceData.USD,
+					PriceRaw:   "",
+					Source:     "coingecko",
+					MarketID:   "",
+					Timestamp:  time.Now().Unix(),
+					Confidence: 0.85,
+				}
+
+				// Cache with longer TTL
+				cacheKey := p.getCacheKey("coingecko", denom)
+				p.saveToCacheWithTTL(ctx, cacheKey, priceInfo, coingeckoCacheTTL)
+
+				result[denom] = priceInfo
+				p.logger.Debugw("fetched CoinGecko price",
+					"denom", denom,
+					"symbol", symbol,
+					"price", priceData.USD,
+				)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// fetchBatchCoinGeckoPrices fetches prices for multiple CoinGecko IDs in a single request.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - coinGeckoIDs: List of CoinGecko coin IDs
+//
+// Returns:
+//   - map[string]struct{ USD float64 }: Map of coinGeckoID to price data
+//   - error: Error if API call fails
+func (p *OnChainPriceProvider) fetchBatchCoinGeckoPrices(
+	ctx context.Context,
+	coinGeckoIDs []string,
+) (map[string]struct{ USD float64 }, error) {
+	if len(coinGeckoIDs) == 0 {
+		return make(map[string]struct{ USD float64 }), nil
+	}
+
+	idsParam := strings.Join(coinGeckoIDs, ",")
+	apiURL := fmt.Sprintf(
+		"https://api.coingecko.com/api/v3/simple/price?ids=%s&vs_currencies=usd",
+		idsParam,
+	)
+
+	client := &http.Client{
+		Timeout: p.timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create request")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch from CoinGecko")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, errors.New("CoinGecko API rate limit exceeded (429)")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("CoinGecko API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result map[string]struct{ USD float64 }
+	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, errors.Wrap(err, "failed to decode CoinGecko response")
+	}
+
+	return result, nil
+}
+
 // GetNativeTokenPrice gets the native token price (e.g., INJ, INJ).
 func (p *OnChainPriceProvider) GetNativeTokenPrice(
 	ctx context.Context,
@@ -619,6 +783,11 @@ func (p *OnChainPriceProvider) getFromCache(ctx context.Context, key string) *mo
 
 // saveToCache saves price to cache.
 func (p *OnChainPriceProvider) saveToCache(ctx context.Context, key string, price *models.PriceInfo) {
+	p.saveToCacheWithTTL(ctx, key, price, p.cacheTTL)
+}
+
+// saveToCacheWithTTL saves price to cache with a specific TTL.
+func (p *OnChainPriceProvider) saveToCacheWithTTL(ctx context.Context, key string, price *models.PriceInfo, ttl time.Duration) {
 	redisClient := cache.GetRedisClient()
 	if redisClient == nil {
 		return
@@ -642,7 +811,7 @@ func (p *OnChainPriceProvider) saveToCache(ctx context.Context, key string, pric
 		return
 	}
 
-	if err := redisClient.Set(ctx, key, string(data), p.cacheTTL).Err(); err != nil {
+	if err := redisClient.Set(ctx, key, string(data), ttl).Err(); err != nil {
 		p.logger.Warnw("failed to save to cache", "error", err)
 	}
 }
