@@ -4968,7 +4968,7 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 	if err != nil {
 		// If price provider creation fails, return balances with zero values
 		for _, balance := range balances {
-			isNative := strings.Contains(strings.ToLower(balance.Denom), "inj")
+			isNative := strings.EqualFold(balance.Denom, "inj")
 			balancesWithValues = append(balancesWithValues, balanceWithValue{
 				denom:     balance.Denom,
 				amount:    balance.Amount,
@@ -4980,7 +4980,7 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 	}
 
 	for _, balance := range balances {
-		isNative := strings.Contains(strings.ToLower(balance.Denom), "inj")
+		isNative := strings.EqualFold(balance.Denom, "inj")
 		usdtValue := calculateBalanceUSDTValue(ctx, priceProvider, balance)
 
 		balancesWithValues = append(balancesWithValues, balanceWithValue{
