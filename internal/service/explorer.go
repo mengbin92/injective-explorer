@@ -39,6 +39,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	// NativeTokenDenom is the denom of the native token (INJ).
+	// Use this constant instead of hardcoding "inj" for better maintainability.
+	NativeTokenDenom = "inj"
+)
+
 // ExplorerService implements the explorer API
 // It provides methods to query blockchain data including blocks, transactions, and account information.
 //
@@ -4968,7 +4974,7 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 	if err != nil {
 		// If price provider creation fails, return balances with zero values
 		for _, balance := range balances {
-			isNative := strings.EqualFold(balance.Denom, "inj")
+			isNative := strings.EqualFold(balance.Denom, NativeTokenDenom)
 			balancesWithValues = append(balancesWithValues, balanceWithValue{
 				denom:     balance.Denom,
 				amount:    balance.Amount,
@@ -5043,7 +5049,7 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 
 	// Calculate USDT values
 	for _, balance := range balances {
-		isNative := strings.EqualFold(balance.Denom, "inj")
+		isNative := strings.EqualFold(balance.Denom, NativeTokenDenom)
 		usdtValue := 0.0
 
 		if priceUSD, ok := prices[balance.Denom]; ok && priceUSD > 0 {
