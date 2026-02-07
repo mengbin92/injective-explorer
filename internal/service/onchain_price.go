@@ -30,6 +30,48 @@ const (
 	priceCacheKeyPrefix = "onchain:price"
 )
 
+// denomToSymbolMap maps common denoms to their token symbols for CoinGecko lookup.
+// This is used when falling back to CoinGecko price API.
+var denomToSymbolMap = map[string]string{
+	// Native tokens
+	"inj": "inj",
+
+	// Stablecoins
+	"peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5": "usdt",
+	"peggy0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "usdc",
+	"peggy0xdAC17F958D2ee523a2206206994597C13D831ec7": "usdt",
+
+	// Major tokens
+	"peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599": "wbtc",
+	"peggy0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": "weth",
+	"peggy0x6B3595068778DD592e39A122f4f5a5cF09C90fE2": "sushi",
+	"peggy0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984": "uni",
+	"peggy0x514910771AF9Ca656af840dff83E8264EcF986CA": "link",
+	"peggy0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9": "aave",
+	"peggy0xc00e94Cb662C3520282E6f5717214004A7f26888": "comp",
+	"peggy0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2": "mkr",
+	"peggy0xc011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F": "snx",
+	"peggy0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e": "yfi",
+	"peggy0xD533a949740bb3306d119CC777fa900bA034cd52": "crv",
+	"peggy0x111111111117dC0aa78b770fA6A738034120C302": "1inch",
+	"peggy0xc944E90C64B2c07662A292be6244BDf05Cda44a7": "grt",
+}
+
+// extractSymbolFromDenom extracts token symbol from denom for CoinGecko lookup.
+// It first checks the mapping, then falls back to using the denom directly.
+func extractSymbolFromDenom(denom string) string {
+	if symbol, ok := denomToSymbolMap[strings.ToLower(denom)]; ok {
+		return symbol
+	}
+	// For unknown denoms, try to extract the last part after "peggy0x"
+	denom = strings.ToLower(denom)
+	if strings.HasPrefix(denom, "peggy0x") {
+		// Return the full peggy address as-is for lookup
+		return denom
+	}
+	return denom
+}
+
 // OnChainPriceProvider fetches token prices from on-chain spot markets.
 type OnChainPriceProvider struct {
 	chainClient chainclient.ChainClientV2
