@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"injective-explorer/internal/global"
@@ -66,18 +67,25 @@ var DefaultDenomToSymbolMap = map[string]string{
 
 // customDenomToSymbolMap holds runtime-registered mappings.
 // Use RegisterDenomSymbolMapping to add entries without modifying source code.
-var customDenomToSymbolMap = make(map[string]string)
+// Protected by customMapMu for thread-safe access.
+var (
+	customDenomToSymbolMap = make(map[string]string)
+	customMapMu            sync.RWMutex
+)
 
 // RegisterDenomSymbolMapping registers a new denom to symbol mapping at runtime.
 // This allows extending token support without code changes or restarts.
 // Thread-safe for concurrent reads and writes.
 func RegisterDenomSymbolMapping(denom, symbol string) {
+	customMapMu.Lock()
+	defer customMapMu.Unlock()
 	customDenomToSymbolMap[strings.ToLower(denom)] = strings.ToLower(symbol)
 }
 
 // LoadDenomSymbolMapFromConfig loads the denom to symbol mapping from configuration.
 // It merges config-provided mappings with default mappings (config takes precedence).
 // Returns a new map with lowercase keys and values.
+// This function is thread-safe.
 func LoadDenomSymbolMapFromConfig() map[string]string {
 	result := make(map[string]string)
 
@@ -87,13 +95,17 @@ func LoadDenomSymbolMapFromConfig() map[string]string {
 	}
 
 	// Then add runtime-registered mappings (override defaults)
+	// Use RLock for concurrent-safe read access
+	customMapMu.RLock()
 	for k, v := range customDenomToSymbolMap {
 		result[strings.ToLower(k)] = strings.ToLower(v)
 	}
+	customMapMu.RUnlock()
 
 	// Finally add config-provided mappings (highest priority)
-	if global.TokenPriceConfig != nil && global.TokenPriceConfig.DenomSymbolMap != nil {
-		for k, v := range global.TokenPriceConfig.DenomSymbolMap {
+	if global.TokenPriceConfig != nil {
+		configMap := global.TokenPriceConfig.GetDenomSymbolMap()
+		for k, v := range configMap {
 			result[strings.ToLower(k)] = strings.ToLower(v)
 		}
 	}
@@ -102,18 +114,24 @@ func LoadDenomSymbolMapFromConfig() map[string]string {
 }
 
 // extractSymbolFromDenom extracts token symbol from denom for CoinGecko lookup.
-// It first checks config-provided mappings, then custom mappings (runtime-registered),
-// then default mappings, then falls back to using the denom directly.
-// This function is safe for concurrent use but creates a new map on each call.
-// For better performance, consider caching the result of LoadDenomSymbolMapFromConfig().
-func extractSymbolFromDenom(denom string) string {
+// It uses the cached denomSymbolMap for high-performance lookups.
+// Falls back to checking runtime-registered mappings and config if not found in cache.
+// For unknown denoms with "peggy0x" prefix, returns the denom itself.
+func (p *OnChainPriceProvider) extractSymbolFromDenom(denom string) string {
 	key := strings.ToLower(denom)
 
-	// Load merged mapping (config + custom + defaults)
-	mapping := LoadDenomSymbolMapFromConfig()
-	if symbol, ok := mapping[key]; ok {
+	// Check cached mapping first (fast path)
+	if symbol, ok := p.denomSymbolMap[key]; ok {
 		return symbol
 	}
+
+	// Check runtime-registered mappings (may have been added after initialization)
+	customMapMu.RLock()
+	if symbol, ok := customDenomToSymbolMap[key]; ok {
+		customMapMu.RUnlock()
+		return symbol
+	}
+	customMapMu.RUnlock()
 
 	// For unknown denoms, try to extract the last part after "peggy0x"
 	if strings.HasPrefix(key, "peggy0x") {
@@ -129,12 +147,14 @@ type OnChainPriceProvider struct {
 	logger      *log.Helper
 	httpClient  *http.Client // Reusable HTTP client for API calls
 
-	cacheTTL      time.Duration
-	retryAttempts int
-	timeout       time.Duration
+	cacheTTL         time.Duration
+	retryAttempts    int
+	timeout          time.Duration
+	denomSymbolMap   map[string]string // Cached denom to symbol mapping for performance
 }
 
 // NewOnChainPriceProvider creates a new price provider with the given chain client and logger.
+// It initializes the denomSymbolMap by loading and merging all configured mappings.
 func NewOnChainPriceProvider(
 	chainClient chainclient.ChainClientV2,
 	logger *log.Helper,
@@ -143,13 +163,18 @@ func NewOnChainPriceProvider(
 		logger = global.Logger
 	}
 
+	// Load and cache the merged denom to symbol mapping
+	// This avoids rebuilding the map on every price lookup
+	denomSymbolMap := LoadDenomSymbolMapFromConfig()
+
 	return &OnChainPriceProvider{
-		chainClient:   chainClient,
-		logger:        logger,
-		httpClient:    &http.Client{Timeout: defaultTimeout},
-		cacheTTL:      defaultCacheTTL,
-		retryAttempts: defaultRetryAttempts,
-		timeout:       defaultTimeout,
+		chainClient:    chainClient,
+		logger:         logger,
+		httpClient:     &http.Client{Timeout: defaultTimeout},
+		cacheTTL:       defaultCacheTTL,
+		retryAttempts:  defaultRetryAttempts,
+		timeout:        defaultTimeout,
+		denomSymbolMap: denomSymbolMap,
 	}
 }
 
@@ -385,7 +410,7 @@ func (p *OnChainPriceProvider) getPriceFromCoinGecko(
 	ctx context.Context,
 	denom string,
 ) (*models.PriceInfo, error) {
-	symbol := extractSymbolFromDenom(denom)
+	symbol := p.extractSymbolFromDenom(denom)
 	if symbol == "" {
 		return nil, errors.Errorf("cannot extract symbol from denom: %s", denom)
 	}
@@ -568,7 +593,7 @@ func (p *OnChainPriceProvider) BatchGetPricesFromCoinGecko(
 		// Map prices back to denoms and cache
 		for denom, coinGeckoID := range uncachedDenoms {
 			if priceData, ok := batchPrices[coinGeckoID]; ok {
-				symbol := extractSymbolFromDenom(denom)
+				symbol := p.extractSymbolFromDenom(denom)
 				priceInfo := &models.PriceInfo{
 					Symbol:     strings.ToUpper(symbol),
 					Denom:      denom,

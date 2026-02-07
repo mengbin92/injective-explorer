@@ -5013,7 +5013,7 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 		// Build denom -> coinGeckoID map
 		denomCoinGeckoIDMap := make(map[string]string)
 		for denom := range onChainFailedDenoms {
-			symbol := extractSymbolFromDenom(denom)
+			symbol := priceProvider.extractSymbolFromDenom(denom)
 			if symbol == "" {
 				continue
 			}
