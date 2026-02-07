@@ -82,6 +82,7 @@ func extractSymbolFromDenom(denom string) string {
 type OnChainPriceProvider struct {
 	chainClient chainclient.ChainClientV2
 	logger      *log.Helper
+	httpClient  *http.Client // Reusable HTTP client for API calls
 
 	cacheTTL      time.Duration
 	retryAttempts int
@@ -100,6 +101,7 @@ func NewOnChainPriceProvider(
 	return &OnChainPriceProvider{
 		chainClient:   chainClient,
 		logger:        logger,
+		httpClient:    &http.Client{Timeout: defaultTimeout},
 		cacheTTL:      defaultCacheTTL,
 		retryAttempts: defaultRetryAttempts,
 		timeout:       defaultTimeout,
@@ -412,16 +414,12 @@ func (p *OnChainPriceProvider) fetchCoinGeckoPrice(
 		coinGeckoID,
 	)
 
-	client := &http.Client{
-		Timeout: p.timeout,
-	}
-
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
 		return 0, 0, errors.Wrap(err, "failed to create request")
 	}
 
-	resp, err := client.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return 0, 0, errors.Wrap(err, "failed to fetch from CoinGecko")
 	}
@@ -577,16 +575,12 @@ func (p *OnChainPriceProvider) fetchBatchCoinGeckoPrices(
 		idsParam,
 	)
 
-	client := &http.Client{
-		Timeout: p.timeout,
-	}
-
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create request")
 	}
 
-	resp, err := client.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch from CoinGecko")
 	}
