@@ -29,6 +29,9 @@ go.work.sum
 .env.local
 .env.*.local
 
+# Generated protobuf files
+*.pb.go
+
 # Configuration files with sensitive information
 # DO NOT commit config.yaml with real credentials
 # Use config.yaml.example as a template
