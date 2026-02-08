@@ -207,8 +207,9 @@ token_price:
   denom_symbol_map:
     # Native token
     "inj": "inj"
-    "inj": "inj"
-    # Stablecoins
+    # Stablecoins - CORRECTED: peggy0x3de4... is the actual USDT address based on chain market data
+    "peggy0x3de4027B5b0Bf278Db2D187768AC441e9B356360": "usdt"
+    "peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238": "usdc"  # Changed from usdt to usdc
     "peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5": "usdt"
     "peggy0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "usdc"
     "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7": "usdt"
@@ -221,14 +222,14 @@ token_price:
   on_chain:
     # Enable on-chain price fetching (default: true)
     enabled: true
-    # USDT token contract address
-    usdt_address: ${USDT_ADDRESS:peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238}
+    # USDT token contract address - CORRECTED based on chain market data
+    usdt_address: ${USDT_ADDRESS:peggy0x3de4027B5b0Bf278Db2D187768AC441e9B356360}
     # USDC token contract address
     usdc_address: ${USDC_ADDRESS:peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238}
-    # Quote token priority (default: usdt, usdc)
+    # Quote token priority (default: usdt, usdc) - CORRECTED
     quote_priority:
-      - peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
-      - peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+      - peggy0x3de4027B5b0Bf278Db2D187768AC441e9B356360  # USDT
+      - peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238  # USDC
     # Native tokens to sync (e.g., "inj")
     native_tokens:
       - inj
