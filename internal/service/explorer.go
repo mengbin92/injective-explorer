@@ -5054,18 +5054,6 @@ func calculateUSDTValues(ctx context.Context, balances []models.AccountBalance) 
 
 		if priceUSD, ok := prices[balance.Denom]; ok && priceUSD > 0 {
 			usdtValue = calculateUSDTValue(balance.Amount, priceUSD)
-			global.Logger.Debugw("calculated USDT value for balance",
-				"denom", balance.Denom,
-				"amount", balance.Amount,
-				"priceUSD", priceUSD,
-				"usdtValue", usdtValue,
-			)
-		} else {
-			global.Logger.Warnw("no price found for balance",
-				"denom", balance.Denom,
-				"amount", balance.Amount,
-				"hasPrice", ok,
-			)
 		}
 
 		balancesWithValues = append(balancesWithValues, balanceWithValue{
@@ -5096,19 +5084,6 @@ func calculateUSDTValue(amountStr string, priceUSD float64) float64 {
 // sortAndConvertBalances sorts balances by USDT value and converts to response format.
 // Native token always comes first, followed by other tokens sorted by USDT value descending.
 func sortAndConvertBalances(balancesWithValues []balanceWithValue) []map[string]interface{} {
-	// Log balances with their USDT values before sorting
-	if global.Logger != nil {
-		for i, bv := range balancesWithValues {
-			global.Logger.Debugw("balance before sorting",
-				"index", i,
-				"denom", bv.denom,
-				"amount", bv.amount,
-				"usdtValue", bv.usdtValue,
-				"isNative", bv.isNative,
-			)
-		}
-	}
-
 	// Sort: native token first, then by USDT value descending
 	sort.Slice(balancesWithValues, func(i, j int) bool {
 		// Native token always comes first regardless of value
@@ -5121,19 +5096,6 @@ func sortAndConvertBalances(balancesWithValues []balanceWithValue) []map[string]
 		// If both or neither are native, sort by USDT value (descending)
 		return balancesWithValues[i].usdtValue > balancesWithValues[j].usdtValue
 	})
-
-	// Log balances after sorting
-	if global.Logger != nil {
-		for i, bv := range balancesWithValues {
-			global.Logger.Debugw("balance after sorting",
-				"index", i,
-				"denom", bv.denom,
-				"amount", bv.amount,
-				"usdtValue", bv.usdtValue,
-				"isNative", bv.isNative,
-			)
-		}
-	}
 
 	// Convert to response format
 	result := make([]map[string]interface{}, 0, len(balancesWithValues))
