@@ -7,19 +7,77 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	pb "injective-explorer/api/explorer/v1"
+	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
 
-	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/bytedance/sonic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/gorm"
 )
+
+// WasmCodeQuerier defines the interface for querying wasm code from chain.
+// This interface allows for dependency injection and easier testing.
+type WasmCodeQuerier interface {
+	// FetchCode queries wasm code information from the blockchain by code ID.
+	FetchCode(ctx context.Context, codeID uint64) (*wasmtypes.QueryCodeResponse, error)
+}
+
+// wasmCodeCacheWorker handles asynchronous database caching operations.
+type wasmCodeCacheWorker struct {
+	cacheChan chan *models.WasmCode
+}
+
+var (
+	// Global cache worker instance
+	cacheWorker     *wasmCodeCacheWorker
+	cacheWorkerOnce sync.Once
+)
+
+// initCacheWorker initializes the global cache worker (singleton pattern).
+func initCacheWorker() *wasmCodeCacheWorker {
+	cacheWorkerOnce.Do(func() {
+		cacheWorker = &wasmCodeCacheWorker{
+			cacheChan: make(chan *models.WasmCode, 100), // Buffered channel
+		}
+		go cacheWorker.start()
+	})
+	return cacheWorker
+}
+
+// start runs the cache worker loop to process cache requests.
+func (w *wasmCodeCacheWorker) start() {
+	for code := range w.cacheChan {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := w.cacheCode(ctx, code); err != nil {
+			global.Logger.Errorf("Failed to cache wasm code %d: %v", code.CodeID, err)
+		}
+		cancel()
+	}
+}
+
+// cacheCode writes a wasm code to the database.
+func (w *wasmCodeCacheWorker) cacheCode(ctx context.Context, code *models.WasmCode) error {
+	return db.Get().WithContext(ctx).Create(code).Error
+}
+
+// submitCache submits a cache request to the worker.
+func (w *wasmCodeCacheWorker) submitCache(code *models.WasmCode) {
+	select {
+	case w.cacheChan <- code:
+		// Successfully queued
+	default:
+		// Channel full, log warning
+		global.Logger.Warnf("Cache channel full, dropping cache request for code %d", code.CodeID)
+	}
+}
 
 // convertWasmCodeToDTO converts WasmCode model to DTO
 func convertWasmCodeToDTO(code *models.WasmCode) map[string]interface{} {
@@ -174,32 +232,30 @@ func (s *ExplorerService) GetWasmCodes(ctx context.Context, req *pb.GetWasmCodes
 
 // GetWasmCodeByID retrieves detailed information for a specific Wasm code.
 // Falls back to chain query if not found in database (when chain client is available).
+// The chain-queried data is cached asynchronously to the database for future requests.
 func (s *ExplorerService) GetWasmCodeByID(ctx context.Context, req *pb.GetWasmCodeByIDRequest) (*pb.Reply, error) {
-	var code models.WasmCode
+	// Validate input
+	if req.CodeId <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "code_id must be positive")
+	}
 
+	var code models.WasmCode
 	err := db.Get().Where("code_id = ?", req.CodeId).First(&code).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Try chain fallback if available
-			chainClient, chainErr := GetSharedChainClient()
-			if chainErr == nil {
-				chainCode, queryErr := s.queryWasmCodeFromChain(ctx, chainClient, uint64(req.CodeId))
-				if queryErr == nil {
-					// Cache to database asynchronously
-					go func() {
-						_ = db.Get().Create(chainCode).Error
-					}()
-					code = *chainCode
-					err = nil // Clear the error
+			chainCode, chainErr := s.fetchWasmCodeWithFallback(ctx, uint64(req.CodeId))
+			if chainErr != nil {
+				// Return more specific error message
+				if errors.Is(chainErr, ErrChainClientUnavailable) {
+					return nil, status.Error(codes.NotFound, "wasm code not found in database and chain client unavailable")
 				}
+				return nil, status.Errorf(codes.Internal, "failed to query wasm code from chain: %v", chainErr)
 			}
-
-			if err != nil {
-				return nil, status.Error(codes.NotFound, "wasm code not found")
-			}
+			code = *chainCode
 		} else {
-			return nil, status.Error(codes.Internal, "failed to fetch wasm code")
+			return nil, status.Error(codes.Internal, "failed to fetch wasm code from database")
 		}
 	}
 
@@ -217,15 +273,54 @@ func (s *ExplorerService) GetWasmCodeByID(ctx context.Context, req *pb.GetWasmCo
 	}, nil
 }
 
-// queryWasmCodeFromChain queries wasm code from chain
-func (s *ExplorerService) queryWasmCodeFromChain(ctx context.Context, chainClient chainclient.ChainClientV2, codeID uint64) (*models.WasmCode, error) {
+var (
+	// ErrChainClientUnavailable indicates that the chain client is not available
+	ErrChainClientUnavailable = errors.New("chain client unavailable")
+)
+
+// fetchWasmCodeWithFallback attempts to fetch wasm code from chain and cache it.
+// This method encapsulates the fallback logic to keep GetWasmCodeByID clean.
+func (s *ExplorerService) fetchWasmCodeWithFallback(ctx context.Context, codeID uint64) (*models.WasmCode, error) {
+	chainClient, err := GetSharedChainClient()
+	if err != nil {
+		return nil, ErrChainClientUnavailable
+	}
+
+	// Query from chain using the interface
+	chainCode, err := s.queryWasmCodeFromChain(ctx, chainClient, codeID)
+	if err != nil {
+		return nil, fmt.Errorf("chain query failed: %w", err)
+	}
+
+	// Submit to cache worker asynchronously
+	worker := initCacheWorker()
+	worker.submitCache(chainCode)
+
+	return chainCode, nil
+}
+
+// queryWasmCodeFromChain queries wasm code information from the blockchain.
+//
+// Parameters:
+//   - ctx: Context for the query operation
+//   - chainClient: Chain client interface implementation for querying wasm code
+//   - codeID: The wasm code ID to query
+//
+// Returns:
+//   - *models.WasmCode: The wasm code information with BlockHeight set to 0.
+//     The BlockHeight will be filled by the sync service later.
+//   - error: Any error that occurred during the query
+//
+// Note: This function sets BlockHeight to 0 intentionally. The actual block height
+// will be populated by the sync service when it processes historical data.
+func (s *ExplorerService) queryWasmCodeFromChain(ctx context.Context, chainClient WasmCodeQuerier, codeID uint64) (*models.WasmCode, error) {
 	resp, err := chainClient.FetchCode(ctx, codeID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch code from chain: %w", err)
 	}
 
 	if resp.CodeInfoResponse == nil {
-		return nil, fmt.Errorf("code info response is nil")
+		return nil, fmt.Errorf("code info response is nil for code ID %d", codeID)
 	}
 
 	code := &models.WasmCode{
@@ -235,7 +330,7 @@ func (s *ExplorerService) queryWasmCodeFromChain(ctx context.Context, chainClien
 		BlockHeight: 0, // Will be filled by sync service later
 	}
 
-	// Parse InstantiatePermission
+	// Parse InstantiatePermission to JSON string
 	if permJSON, err := sonic.MarshalString(resp.CodeInfoResponse.InstantiatePermission); err == nil {
 		code.InstantiatePermission = permJSON
 	}
