@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// convertBankTransferToDTO converts BankTransfer model to DTO
+// convertBankTransferToDTO converts BankTransfer model to DTO.
 func convertBankTransferToDTO(transfer *models.BankTransfer) map[string]interface{} {
 	dto := map[string]interface{}{
 		"tx_hash":        transfer.TxHash,
@@ -47,7 +47,7 @@ func convertBankTransferToDTO(transfer *models.BankTransfer) map[string]interfac
 	return dto
 }
 
-// GetBankTransfers retrieves bank transfer records with filtering.
+// GetBankTransfers retrieves bank transfer records with filtering and pagination.
 func (s *ExplorerService) GetBankTransfers(ctx context.Context, req *pb.GetBankTransfersRequest) (*pb.Reply, error) {
 	var transfers []models.BankTransfer
 

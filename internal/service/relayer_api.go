@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// convertRelayerToDTO converts Relayer model to DTO
+// convertRelayerToDTO converts Relayer model to DTO.
 func convertRelayerToDTO(relayer *models.Relayer) map[string]interface{} {
 	dto := map[string]interface{}{
 		"market_id":             relayer.MarketID,
@@ -64,7 +64,7 @@ func convertRelayerToDTO(relayer *models.Relayer) map[string]interface{} {
 	return dto
 }
 
-// GetRelayers retrieves relayer records with filtering.
+// GetRelayers retrieves relayer records with filtering and pagination.
 func (s *ExplorerService) GetRelayers(ctx context.Context, req *pb.GetRelayersRequest) (*pb.Reply, error) {
 	var relayers []models.Relayer
 
