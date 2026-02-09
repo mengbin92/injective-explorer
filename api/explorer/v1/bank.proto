@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// Bank transfer query messages
+
+// GetBankTransfersRequest requests bank transfer records
+message GetBankTransfersRequest {
+  // Pagination parameters
+  PaginationRequest pagination = 1;
+
+  // Filter by sender addresses (optional, multiple)
+  repeated string senders = 2;
+
+  // Filter by recipient addresses (optional, multiple)
+  repeated string recipients = 3;
+
+  // Filter by address (sender or recipient, optional, multiple)
+  repeated string addresses = 4;
+
+  // Time range filter (Unix milliseconds)
+  int64 start_time = 5 [json_name = "start_time"];
+  int64 end_time = 6 [json_name = "end_time"];
+
+  // Filter by denom (optional)
+  string denom = 7;
+
+  // Only show community pool related transfers
+  bool is_community_pool_related = 8 [json_name = "is_community_pool_related"];
+}

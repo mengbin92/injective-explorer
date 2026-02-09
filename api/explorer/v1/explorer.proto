@@ -5,6 +5,7 @@ package api.explorer.v1;
 import "explorer/v1/common.proto";
 import "explorer/v1/wasm.proto";
 import "explorer/v1/validator.proto";
+import "explorer/v1/bank.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
@@ -287,6 +288,15 @@ service Explorer {
   rpc GetValidatorUptime(GetValidatorUptimeRequest) returns (Reply) {
     option (google.api.http) = {
       get: "/api/v1/validator/uptime"
+    };
+  }
+
+  // Bank Transfer APIs
+
+  // Get bank transfer records
+  rpc GetBankTransfers(GetBankTransfersRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/bank/transfers"
     };
   }
 }

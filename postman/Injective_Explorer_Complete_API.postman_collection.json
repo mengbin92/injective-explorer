@@ -9346,6 +9346,118 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "银行转账接口",
+      "item": [
+        {
+          "name": "获取银行转账记录",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has transfers and pagination\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('transfers');",
+                  "    pm.expect(jsonData).to.have.property('pagination');",
+                  "});",
+                  "",
+                  "pm.test(\"Transfer has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.transfers && jsonData.transfers.length > 0) {",
+                  "        var transfer = jsonData.transfers[0];",
+                  "        pm.expect(transfer).to.have.property('tx_hash');",
+                  "        pm.expect(transfer).to.have.property('sender');",
+                  "        pm.expect(transfer).to.have.property('recipient');",
+                  "        pm.expect(transfer).to.have.property('amounts');",
+                  "        pm.expect(transfer).to.have.property('block_height');",
+                  "        pm.expect(transfer).to.have.property('unix_timestamp');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/bank/transfers?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bank",
+                "transfers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "senders",
+                  "value": "",
+                  "description": "Filter by sender addresses (comma-separated)",
+                  "disabled": true
+                },
+                {
+                  "key": "recipients",
+                  "value": "",
+                  "description": "Filter by recipient addresses (comma-separated)",
+                  "disabled": true
+                },
+                {
+                  "key": "addresses",
+                  "value": "",
+                  "description": "Filter by address (sender or recipient)",
+                  "disabled": true
+                },
+                {
+                  "key": "start_time",
+                  "value": "",
+                  "description": "Start timestamp (Unix milliseconds)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_time",
+                  "value": "",
+                  "description": "End timestamp (Unix milliseconds)",
+                  "disabled": true
+                },
+                {
+                  "key": "denom",
+                  "value": "",
+                  "description": "Filter by token denom (e.g., uinj, usdt)",
+                  "disabled": true
+                },
+                {
+                  "key": "is_community_pool_related",
+                  "value": "",
+                  "description": "Filter community pool related transfers (true/false)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取银行转账记录,支持多维度过滤:发送者、接收者、时间范围、代币类型等"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "event": [

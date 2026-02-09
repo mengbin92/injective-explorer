@@ -1381,6 +1381,80 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/bank/transfers:
+        get:
+            tags:
+                - Explorer
+            description: Get bank transfer records
+            operationId: Explorer_GetBankTransfers
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+                - name: senders
+                  in: query
+                  description: Filter by sender addresses (optional, multiple)
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: recipients
+                  in: query
+                  description: Filter by recipient addresses (optional, multiple)
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: addresses
+                  in: query
+                  description: Filter by address (sender or recipient, optional, multiple)
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: start_time
+                  in: query
+                  description: Time range filter (Unix milliseconds)
+                  schema:
+                    type: string
+                - name: end_time
+                  in: query
+                  schema:
+                    type: string
+                - name: denom
+                  in: query
+                  description: Filter by denom (optional)
+                  schema:
+                    type: string
+                - name: is_community_pool_related
+                  in: query
+                  description: Only show community pool related transfers
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/block/by-height:
         get:
             tags:
