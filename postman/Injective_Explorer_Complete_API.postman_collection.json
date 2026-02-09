@@ -8764,6 +8764,195 @@
         }
       ],
       "description": "账户管理接口，用于管理员管理API账户"
+    },
+    {
+      "name": "Wasm 合约接口",
+      "item": [
+        {
+          "name": "获取 Wasm 合约列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has contracts and pagination\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('contracts');",
+                  "    pm.expect(jsonData).to.have.property('pagination');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/wasm/contracts?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wasm",
+                "contracts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Number of items per page"
+                },
+                {
+                  "key": "code_id",
+                  "value": "",
+                  "description": "Filter by code ID",
+                  "disabled": true
+                },
+                {
+                  "key": "creator",
+                  "value": "",
+                  "description": "Filter by creator address",
+                  "disabled": true
+                },
+                {
+                  "key": "label",
+                  "value": "",
+                  "description": "Filter by contract label",
+                  "disabled": true
+                },
+                {
+                  "key": "cw20_only",
+                  "value": "false",
+                  "description": "Show only CW20 contracts",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取 Wasm 合约列表，支持分页和多种过滤条件"
+          },
+          "response": []
+        },
+        {
+          "name": "获取 Wasm 合约详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has contract_address\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('contract_address');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/wasm/contract/info?contract_address=inj1...",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wasm",
+                "contract",
+                "info"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "inj1...",
+                  "description": "Contract address (required)"
+                }
+              ]
+            },
+            "description": "获取指定 Wasm 合约的详细信息"
+          },
+          "response": []
+        },
+        {
+          "name": "获取 CW20 代币余额",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has balances and total\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('balances');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/wasm/cw20/balance?address=inj1...",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wasm",
+                "cw20",
+                "balance"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "inj1...",
+                  "description": "Account address (required)"
+                },
+                {
+                  "key": "contract_address",
+                  "value": "",
+                  "description": "Filter by specific contract address",
+                  "disabled": true
+                },
+                {
+                  "key": "non_zero_only",
+                  "value": "true",
+                  "description": "Show only non-zero balances",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "查询账户的 CW20 代币余额"
+          },
+          "response": []
+        }
+      ],
+      "description": "Wasm 智能合约相关接口，包括合约列表、详情和 CW20 代币余额查询"
     }
   ],
   "event": [

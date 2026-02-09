@@ -3122,6 +3122,234 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/wasm/code/info:
+        get:
+            tags:
+                - Explorer
+            description: Get Wasm code details by ID
+            operationId: Explorer_GetWasmCodeByID
+            parameters:
+                - name: code_id
+                  in: query
+                  description: Code ID (required)
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/wasm/codes:
+        get:
+            tags:
+                - Explorer
+            description: Get list of uploaded Wasm codes
+            operationId: Explorer_GetWasmCodes
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+                - name: creator
+                  in: query
+                  description: Filter by creator address (optional)
+                  schema:
+                    type: string
+                - name: contract_type
+                  in: query
+                  description: Filter by contract type (optional)
+                  schema:
+                    type: string
+                - name: verified
+                  in: query
+                  description: Filter by verification status (optional)
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/wasm/contract/info:
+        get:
+            tags:
+                - Explorer
+            description: Get Wasm contract details by address
+            operationId: Explorer_GetWasmContractByAddress
+            parameters:
+                - name: contract_address
+                  in: query
+                  description: Contract address (required)
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/wasm/contract/transactions:
+        get:
+            tags:
+                - Explorer
+            description: Get contract execution transactions
+            operationId: Explorer_GetContractTxs
+            parameters:
+                - name: contract_address
+                  in: query
+                  description: Contract address (required)
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+                - name: sender
+                  in: query
+                  description: Filter by sender address (optional)
+                  schema:
+                    type: string
+                - name: start_time
+                  in: query
+                  description: Time range filter (UNIX milliseconds, optional)
+                  schema:
+                    type: string
+                - name: end_time
+                  in: query
+                  schema:
+                    type: string
+                - name: success
+                  in: query
+                  description: Filter by success status (optional)
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/wasm/contracts:
+        get:
+            tags:
+                - Explorer
+            description: Get list of Wasm contracts with filtering and pagination
+            operationId: Explorer_GetWasmContracts
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+                - name: code_id
+                  in: query
+                  description: Filter by code ID (optional)
+                  schema:
+                    type: string
+                - name: creator
+                  in: query
+                  description: Filter by creator address (optional)
+                  schema:
+                    type: string
+                - name: label
+                  in: query
+                  description: Filter by contract label (partial match, optional)
+                  schema:
+                    type: string
+                - name: cw20_only
+                  in: query
+                  description: Return only CW20 token contracts (optional)
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/wasm/cw20/balance:
+        get:
+            tags:
+                - Explorer
+            description: Get CW20 token balances for an address
+            operationId: Explorer_GetCW20Balance
+            parameters:
+                - name: address
+                  in: query
+                  description: Owner address to query balances for (required)
+                  schema:
+                    type: string
+                - name: contract_address
+                  in: query
+                  description: 'Optional: filter by specific contract address'
+                  schema:
+                    type: string
+                - name: non_zero_only
+                  in: query
+                  description: 'Optional: only return non-zero balances'
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/webhooks:
         get:
             tags:

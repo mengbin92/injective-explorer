@@ -3,6 +3,7 @@ syntax = "proto3";
 package api.explorer.v1;
 
 import "explorer/v1/common.proto";
+import "explorer/v1/wasm.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
@@ -218,6 +219,50 @@ service Explorer {
   rpc GetPeggyWithdrawalTxs(GetPeggyWithdrawalTxsRequest) returns (Reply) {
     option (google.api.http) = {
       get : "/api/v1/peggy/withdrawals"
+    };
+  }
+
+  // Wasm Contract APIs
+
+  // Get list of Wasm contracts with filtering and pagination
+  rpc GetWasmContracts(GetWasmContractsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/wasm/contracts"
+    };
+  }
+
+  // Get Wasm contract details by address
+  rpc GetWasmContractByAddress(GetWasmContractByAddressRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/wasm/contract/info"
+    };
+  }
+
+  // Get CW20 token balances for an address
+  rpc GetCW20Balance(GetCW20BalanceRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/wasm/cw20/balance"
+    };
+  }
+
+  // Get contract execution transactions
+  rpc GetContractTxs(GetContractTxsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/wasm/contract/transactions"
+    };
+  }
+
+  // Get list of uploaded Wasm codes
+  rpc GetWasmCodes(GetWasmCodesRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/wasm/codes"
+    };
+  }
+
+  // Get Wasm code details by ID
+  rpc GetWasmCodeByID(GetWasmCodeByIDRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/wasm/code/info"
     };
   }
 }

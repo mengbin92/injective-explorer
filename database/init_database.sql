@@ -218,6 +218,16 @@ CREATE TABLE `contract_infos` (
   `creator` varchar(128) DEFAULT NULL COMMENT '合约创建者/部署者地址',
   `decimals` int DEFAULT 18 COMMENT 'ERC20代币精度（默认18位，USDC/USDT为6位）',
   `metadata` json DEFAULT NULL,
+  `code_id` bigint DEFAULT NULL COMMENT 'Wasm code ID',
+  `label` varchar(255) DEFAULT NULL COMMENT 'Contract label',
+  `init_msg` text DEFAULT NULL COMMENT 'Initialization message (JSON)',
+  `admin` varchar(128) DEFAULT NULL COMMENT 'Admin address',
+  `execute_count` bigint DEFAULT 0 COMMENT 'Total execution count',
+  `last_executed_at` datetime(3) DEFAULT NULL COMMENT 'Last execution timestamp',
+  `instantiated_at` datetime(3) DEFAULT NULL COMMENT 'Instantiation timestamp',
+  `block_height` bigint DEFAULT NULL COMMENT 'Creation block height',
+  `tx_hash` varchar(128) DEFAULT NULL COMMENT 'Creation transaction hash',
+  `total_supply` varchar(255) DEFAULT NULL COMMENT 'CW20 total supply',
   PRIMARY KEY (`id`),
   KEY `idx_contract_infos_deleted_at` (`deleted_at`),
   KEY `idx_token_symbol` (`token_symbol`),
@@ -225,7 +235,11 @@ CREATE TABLE `contract_infos` (
   KEY `idx_contract_infos_chain_id` (`chain_id`),
   KEY `idx_contract_infos_verification_status` (`verification_status`),
   KEY `idx_contract_infos_creator` (`creator`),
-  KEY `idx_contract_infos_decimals` (`decimals`)
+  KEY `idx_contract_infos_decimals` (`decimals`),
+  KEY `idx_contract_infos_code_id` (`code_id`),
+  KEY `idx_contract_infos_block_height` (`block_height`),
+  KEY `idx_contract_infos_label` (`label`),
+  KEY `idx_contract_infos_admin` (`admin`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
@@ -1051,6 +1065,100 @@ CREATE TABLE `peggy_withdrawal_txs` (
   KEY `idx_peggy_withdrawal_txs_block_height` (`block_height`),
   KEY `idx_peggy_withdrawal_txs_block_timestamp` (`block_timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链提款交易表';
+
+-- ----------------------------
+-- Table structure for wasm_codes
+-- ----------------------------
+DROP TABLE IF EXISTS `wasm_codes`;
+CREATE TABLE `wasm_codes` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `code_id` bigint NOT NULL COMMENT 'Wasm code ID',
+  `creator` varchar(128) NOT NULL COMMENT 'Creator address',
+  `data_hash` varchar(128) NOT NULL COMMENT 'Code hash (SHA256)',
+  `instantiate_permission` text COMMENT 'Instantiation permission (JSON)',
+  `tx_hash` varchar(128) DEFAULT NULL COMMENT 'Upload transaction hash',
+  `block_height` bigint NOT NULL COMMENT 'Upload block height',
+  `contract_type` varchar(100) DEFAULT NULL COMMENT 'Contract type (cw20, cw721, etc)',
+  `version` varchar(50) DEFAULT NULL COMMENT 'Contract version',
+  `source_url` text COMMENT 'Source code URL',
+  `verified` tinyint(1) DEFAULT '0' COMMENT 'Whether code is verified',
+  `instantiate_count` bigint unsigned DEFAULT 0 COMMENT 'Number of instantiations',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_wasm_codes_code_id` (`code_id`),
+  KEY `idx_wasm_codes_deleted_at` (`deleted_at`),
+  KEY `idx_wasm_codes_creator` (`creator`),
+  KEY `idx_wasm_codes_block_height` (`block_height`),
+  KEY `idx_wasm_codes_contract_type` (`contract_type`),
+  KEY `idx_wasm_codes_verified` (`verified`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Wasm code registry';
+
+-- ----------------------------
+-- Table structure for contract_executions
+-- ----------------------------
+DROP TABLE IF EXISTS `contract_executions`;
+CREATE TABLE `contract_executions` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `contract_address` varchar(128) NOT NULL COMMENT 'Contract address',
+  `tx_hash` varchar(128) NOT NULL COMMENT 'Transaction hash',
+  `sender` varchar(128) NOT NULL COMMENT 'Sender address',
+  `msg` text NOT NULL COMMENT 'Execution message (JSON)',
+  `funds` text COMMENT 'Attached funds (JSON)',
+  `block_height` bigint NOT NULL COMMENT 'Block height',
+  `unix_timestamp` bigint NOT NULL COMMENT 'Unix timestamp in milliseconds',
+  `success` tinyint(1) NOT NULL COMMENT 'Execution success status',
+  PRIMARY KEY (`id`),
+  KEY `idx_contract_executions_contract_address` (`contract_address`),
+  KEY `idx_contract_executions_tx_hash` (`tx_hash`),
+  KEY `idx_contract_executions_sender` (`sender`),
+  KEY `idx_contract_executions_block_height` (`block_height`),
+  KEY `idx_contract_executions_timestamp` (`unix_timestamp`),
+  KEY `idx_contract_executions_success` (`success`),
+  KEY `idx_contract_executions_address_time` (`contract_address`,`unix_timestamp` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Contract execution records';
+
+-- ----------------------------
+-- Table structure for cw20_balances
+-- ----------------------------
+DROP TABLE IF EXISTS `cw20_balances`;
+CREATE TABLE `cw20_balances` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `contract_address` varchar(128) NOT NULL COMMENT 'CW20 contract address',
+  `owner_address` varchar(128) NOT NULL COMMENT 'Token holder address',
+  `balance` varchar(255) NOT NULL COMMENT 'Token balance (string for large numbers)',
+  `updated_at` datetime(3) DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT 'Last balance update timestamp',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_cw20_contract_owner` (`contract_address`,`owner_address`),
+  KEY `idx_cw20_balances_contract_address` (`contract_address`),
+  KEY `idx_cw20_balances_owner_address` (`owner_address`),
+  KEY `idx_cw20_balances_updated_at` (`updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='CW20 token balances';
+
+-- ----------------------------
+-- Table structure for cw20_transfers
+-- ----------------------------
+DROP TABLE IF EXISTS `cw20_transfers`;
+CREATE TABLE `cw20_transfers` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `contract_address` varchar(128) NOT NULL COMMENT 'CW20 contract address',
+  `from_address` varchar(128) NOT NULL COMMENT 'Sender address',
+  `to_address` varchar(128) NOT NULL COMMENT 'Receiver address',
+  `amount` varchar(255) NOT NULL COMMENT 'Transfer amount',
+  `tx_hash` varchar(128) NOT NULL COMMENT 'Transaction hash',
+  `block_height` bigint NOT NULL COMMENT 'Block height',
+  `unix_timestamp` bigint NOT NULL COMMENT 'Unix timestamp in milliseconds',
+  PRIMARY KEY (`id`),
+  KEY `idx_cw20_transfers_contract_address` (`contract_address`),
+  KEY `idx_cw20_transfers_from_address` (`from_address`),
+  KEY `idx_cw20_transfers_to_address` (`to_address`),
+  KEY `idx_cw20_transfers_tx_hash` (`tx_hash`),
+  KEY `idx_cw20_transfers_block_height` (`block_height`),
+  KEY `idx_cw20_transfers_timestamp` (`unix_timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='CW20 transfer history';
 
 SET FOREIGN_KEY_CHECKS = 1;
 

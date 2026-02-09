@@ -43,6 +43,18 @@ type ContractInfo struct {
 	// Extended fields (JSON format for storing additional information)
 	Metadata map[string]interface{} `json:"metadata" gorm:"column:metadata;serializer:json"`
 
+	// Wasm-specific fields (for CosmWasm contracts)
+	CodeID          *int64      `json:"code_id" gorm:"column:code_id"`
+	Label           string      `json:"label" gorm:"column:label;size:255"`
+	InitMsg         string      `json:"init_msg" gorm:"column:init_msg;type:text"`
+	Admin           string      `json:"admin" gorm:"column:admin;size:128"`
+	ExecuteCount    int64       `json:"execute_count" gorm:"column:execute_count;default:0"`
+	LastExecutedAt  *time.Time  `json:"last_executed_at" gorm:"column:last_executed_at"`
+	InstantiatedAt  *time.Time  `json:"instantiated_at" gorm:"column:instantiated_at"`
+	BlockHeight     *int64      `json:"block_height" gorm:"column:block_height"`
+	TxHash          string      `json:"tx_hash" gorm:"column:tx_hash;size:128"`
+	TotalSupply     string      `json:"total_supply" gorm:"column:total_supply;size:255"`
+
 	// Relationships
 	Tags []ContractTag `json:"tags" gorm:"foreignKey:ContractAddress,ChainID;references:ContractAddress,ChainID"`
 }

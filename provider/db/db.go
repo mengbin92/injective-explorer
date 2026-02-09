@@ -151,3 +151,10 @@ func Get() *gorm.DB {
 
 	return gdb
 }
+
+// SetForTesting sets the global database instance for testing purposes.
+// This function should only be used in tests to inject a test database.
+// WARNING: This bypasses the sync.Once initialization and should NOT be used in production code.
+func SetForTesting(db *gorm.DB) {
+	gdb = db
+}

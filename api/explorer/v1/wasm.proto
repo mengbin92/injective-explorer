@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// Wasm contract query messages
+
+// GetWasmContractsRequest requests a list of Wasm contracts
+message GetWasmContractsRequest {
+  // Pagination parameters
+  PaginationRequest pagination = 1;
+
+  // Filter by code ID (optional)
+  int64 code_id = 2 [json_name = "code_id"];
+
+  // Filter by creator address (optional)
+  string creator = 3;
+
+  // Filter by contract label (partial match, optional)
+  string label = 4;
+
+  // Return only CW20 token contracts (optional)
+  bool cw20_only = 5 [json_name = "cw20_only"];
+}
+
+// GetWasmContractByAddressRequest requests contract details by address
+message GetWasmContractByAddressRequest {
+  // Contract address (required)
+  string contract_address = 1 [json_name = "contract_address"];
+}
+
+// GetCW20BalanceRequest requests CW20 token balances for an address
+message GetCW20BalanceRequest {
+  // Owner address to query balances for (required)
+  string address = 1;
+
+  // Optional: filter by specific contract address
+  string contract_address = 2 [json_name = "contract_address"];
+
+  // Optional: only return non-zero balances
+  bool non_zero_only = 3 [json_name = "non_zero_only"];
+}
+
+// GetContractTxsRequest requests contract execution transactions
+message GetContractTxsRequest {
+  // Contract address (required)
+  string contract_address = 1 [json_name = "contract_address"];
+
+  // Pagination parameters
+  PaginationRequest pagination = 2;
+
+  // Filter by sender address (optional)
+  string sender = 3;
+
+  // Time range filter (UNIX milliseconds, optional)
+  int64 start_time = 4 [json_name = "start_time"];
+  int64 end_time = 5 [json_name = "end_time"];
+
+  // Filter by success status (optional)
+  optional bool success = 6;
+}
+
+// GetWasmCodesRequest requests a list of uploaded Wasm codes
+message GetWasmCodesRequest {
+  // Pagination parameters
+  PaginationRequest pagination = 1;
+
+  // Filter by creator address (optional)
+  string creator = 2;
+
+  // Filter by contract type (optional)
+  string contract_type = 3 [json_name = "contract_type"];
+
+  // Filter by verification status (optional)
+  optional bool verified = 4;
+}
+
+// GetWasmCodeByIDRequest requests code details by ID
+message GetWasmCodeByIDRequest {
+  // Code ID (required)
+  int64 code_id = 1 [json_name = "code_id"];
+}
