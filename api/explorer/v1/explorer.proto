@@ -4,6 +4,7 @@ package api.explorer.v1;
 
 import "explorer/v1/common.proto";
 import "explorer/v1/wasm.proto";
+import "explorer/v1/validator.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
@@ -263,6 +264,29 @@ service Explorer {
   rpc GetWasmCodeByID(GetWasmCodeByIDRequest) returns (Reply) {
     option (google.api.http) = {
       get: "/api/v1/wasm/code/info"
+    };
+  }
+
+  // Validator APIs
+
+  // Get list of validators with filtering and sorting
+  rpc GetValidators(GetValidatorsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/validators"
+    };
+  }
+
+  // Get detailed validator information
+  rpc GetValidator(GetValidatorRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/validator/info"
+    };
+  }
+
+  // Get validator uptime statistics
+  rpc GetValidatorUptime(GetValidatorUptimeRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/validator/uptime"
     };
   }
 }

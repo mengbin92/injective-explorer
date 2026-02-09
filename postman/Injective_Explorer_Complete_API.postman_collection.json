@@ -8953,6 +8953,205 @@
         }
       ],
       "description": "Wasm 智能合约相关接口，包括合约列表、详情和 CW20 代币余额查询"
+    },
+    {
+      "name": "验证者接口",
+      "item": [
+        {
+          "name": "获取验证者列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has validators and pagination\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('validators');",
+                  "    pm.expect(jsonData).to.have.property('pagination');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/validators?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "validators"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter by status (bonded, unbonding, unbonded)",
+                  "disabled": true
+                },
+                {
+                  "key": "jailed",
+                  "value": "",
+                  "description": "Filter by jailed status (true/false)",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by moniker or address",
+                  "disabled": true
+                },
+                {
+                  "key": "min_commission",
+                  "value": "",
+                  "description": "Minimum commission rate",
+                  "disabled": true
+                },
+                {
+                  "key": "max_commission",
+                  "value": "",
+                  "description": "Maximum commission rate",
+                  "disabled": true
+                },
+                {
+                  "key": "order_by",
+                  "value": "",
+                  "description": "Sort order (tokens, commission_rate, uptime_percentage)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取验证者列表，支持分页、过滤和排序"
+          },
+          "response": []
+        },
+        {
+          "name": "获取验证者详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has validator details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('operator_address');",
+                  "    pm.expect(jsonData).to.have.property('moniker');",
+                  "    pm.expect(jsonData).to.have.property('commission');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/validator/info?address=injvaloper1...",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "validator",
+                "info"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "injvaloper1...",
+                  "description": "Validator operator or consensus address"
+                }
+              ]
+            },
+            "description": "获取验证者详细信息，包括描述、slashing事件、uptime趋势等"
+          },
+          "response": []
+        },
+        {
+          "name": "获取验证者 Uptime 统计",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has uptime statistics\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('overall');",
+                  "    pm.expect(jsonData).to.have.property('time_series');",
+                  "    pm.expect(jsonData.overall).to.have.property('uptime_percentage');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/validator/uptime?address=injvaloper1...&period=7d",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "validator",
+                "uptime"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "injvaloper1...",
+                  "description": "Validator operator address"
+                },
+                {
+                  "key": "period",
+                  "value": "7d",
+                  "description": "Time period (24h, 7d, 30d, 90d)"
+                },
+                {
+                  "key": "blocks",
+                  "value": "",
+                  "description": "Query by block count",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取验证者 uptime 统计信息，支持时间段和区块数量查询"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "event": [

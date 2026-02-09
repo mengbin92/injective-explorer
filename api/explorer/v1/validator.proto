@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.explorer.v1";
+
+// GetValidatorsRequest requests a list of validators
+message GetValidatorsRequest {
+  // Pagination parameters
+  PaginationRequest pagination = 1;
+
+  // Filter by status (optional)
+  string status = 2;  // "bonded", "unbonding", "unbonded"
+
+  // Filter by jailed status (optional)
+  optional bool jailed = 3 [json_name = "jailed"];
+
+  // Search by moniker or address (optional)
+  string search = 4;
+
+  // Commission rate range filter (optional)
+  string min_commission = 5 [json_name = "min_commission"];
+  string max_commission = 6 [json_name = "max_commission"];
+
+  // Sort order (optional)
+  string order_by = 7 [json_name = "order_by"];
+}
+
+// GetValidatorRequest requests single validator details
+message GetValidatorRequest {
+  // Validator address (operator_address or consensus_address)
+  string address = 1;
+}
+
+// GetValidatorUptimeRequest requests validator uptime statistics
+message GetValidatorUptimeRequest {
+  // Validator address (required)
+  string address = 1;
+
+  // Query by blocks (optional)
+  int64 blocks = 2;
+
+  // Query by time period (optional): "24h", "7d", "30d", "90d"
+  string period = 3;
+}

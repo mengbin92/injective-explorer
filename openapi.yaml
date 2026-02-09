@@ -3122,6 +3122,117 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/validator/info:
+        get:
+            tags:
+                - Explorer
+            description: Get detailed validator information
+            operationId: Explorer_GetValidator
+            parameters:
+                - name: address
+                  in: query
+                  description: Validator address (operator_address or consensus_address)
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/validator/uptime:
+        get:
+            tags:
+                - Explorer
+            description: Get validator uptime statistics
+            operationId: Explorer_GetValidatorUptime
+            parameters:
+                - name: address
+                  in: query
+                  description: Validator address (required)
+                  schema:
+                    type: string
+                - name: blocks
+                  in: query
+                  description: Query by blocks (optional)
+                  schema:
+                    type: string
+                - name: period
+                  in: query
+                  description: 'Query by time period (optional): "24h", "7d", "30d", "90d"'
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/validators:
+        get:
+            tags:
+                - Explorer
+            description: Get list of validators with filtering and sorting
+            operationId: Explorer_GetValidators
+            parameters:
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  description: Filter by status (optional)
+                  schema:
+                    type: string
+                - name: jailed
+                  in: query
+                  description: Filter by jailed status (optional)
+                  schema:
+                    type: boolean
+                - name: search
+                  in: query
+                  description: Search by moniker or address (optional)
+                  schema:
+                    type: string
+                - name: min_commission
+                  in: query
+                  description: Commission rate range filter (optional)
+                  schema:
+                    type: string
+                - name: max_commission
+                  in: query
+                  schema:
+                    type: string
+                - name: order_by
+                  in: query
+                  description: Sort order (optional)
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/wasm/code/info:
         get:
             tags:
