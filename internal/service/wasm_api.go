@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
 
+	chainclient "github.com/InjectiveLabs/sdk-go/client/chain"
 	"github.com/bytedance/sonic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -171,6 +173,7 @@ func (s *ExplorerService) GetWasmCodes(ctx context.Context, req *pb.GetWasmCodes
 }
 
 // GetWasmCodeByID retrieves detailed information for a specific Wasm code.
+// Falls back to chain query if not found in database (when chain client is available).
 func (s *ExplorerService) GetWasmCodeByID(ctx context.Context, req *pb.GetWasmCodeByIDRequest) (*pb.Reply, error) {
 	var code models.WasmCode
 
@@ -178,9 +181,26 @@ func (s *ExplorerService) GetWasmCodeByID(ctx context.Context, req *pb.GetWasmCo
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Error(codes.NotFound, "wasm code not found")
+			// Try chain fallback if available
+			chainClient, chainErr := GetSharedChainClient()
+			if chainErr == nil {
+				chainCode, queryErr := s.queryWasmCodeFromChain(ctx, chainClient, uint64(req.CodeId))
+				if queryErr == nil {
+					// Cache to database asynchronously
+					go func() {
+						_ = db.Get().Create(chainCode).Error
+					}()
+					code = *chainCode
+					err = nil // Clear the error
+				}
+			}
+
+			if err != nil {
+				return nil, status.Error(codes.NotFound, "wasm code not found")
+			}
+		} else {
+			return nil, status.Error(codes.Internal, "failed to fetch wasm code")
 		}
-		return nil, status.Error(codes.Internal, "failed to fetch wasm code")
 	}
 
 	dto := convertWasmCodeToDTO(&code)
@@ -195,6 +215,32 @@ func (s *ExplorerService) GetWasmCodeByID(ctx context.Context, req *pb.GetWasmCo
 		Message: "Success",
 		Data:    dataStruct,
 	}, nil
+}
+
+// queryWasmCodeFromChain queries wasm code from chain
+func (s *ExplorerService) queryWasmCodeFromChain(ctx context.Context, chainClient chainclient.ChainClientV2, codeID uint64) (*models.WasmCode, error) {
+	resp, err := chainClient.FetchCode(ctx, codeID)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.CodeInfoResponse == nil {
+		return nil, fmt.Errorf("code info response is nil")
+	}
+
+	code := &models.WasmCode{
+		CodeID:      int64(codeID),
+		Creator:     resp.CodeInfoResponse.Creator,
+		DataHash:    hex.EncodeToString(resp.CodeInfoResponse.DataHash),
+		BlockHeight: 0, // Will be filled by sync service later
+	}
+
+	// Parse InstantiatePermission
+	if permJSON, err := sonic.MarshalString(resp.CodeInfoResponse.InstantiatePermission); err == nil {
+		code.InstantiatePermission = permJSON
+	}
+
+	return code, nil
 }
 
 // GetContractTxs retrieves contract execution history.
