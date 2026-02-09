@@ -9152,6 +9152,200 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Wasm代码&交易接口",
+      "item": [
+        {
+          "name": "获取Wasm代码列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has codes and pagination\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('codes');",
+                  "    pm.expect(jsonData).to.have.property('pagination');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/wasm/codes?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wasm",
+                "codes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "creator",
+                  "value": "",
+                  "description": "Filter by creator address",
+                  "disabled": true
+                },
+                {
+                  "key": "contract_type",
+                  "value": "",
+                  "description": "Filter by contract type (cw20, cw721)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取已上传的Wasm代码列表,支持分页和过滤"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Wasm代码详情",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has code details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code_id');",
+                  "    pm.expect(jsonData).to.have.property('creator');",
+                  "    pm.expect(jsonData).to.have.property('data_hash');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/wasm/code/info?code_id=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wasm",
+                "code",
+                "info"
+              ],
+              "query": [
+                {
+                  "key": "code_id",
+                  "value": "1",
+                  "description": "Wasm code ID"
+                }
+              ]
+            },
+            "description": "获取指定Wasm代码的详细信息"
+          },
+          "response": []
+        },
+        {
+          "name": "获取合约执行记录",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has executions and pagination\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('executions');",
+                  "    pm.expect(jsonData).to.have.property('pagination');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/wasm/contract/transactions?contract_address=inj1contract...&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wasm",
+                "contract",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "contract_address",
+                  "value": "inj1contract...",
+                  "description": "Contract address (required)"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sender",
+                  "value": "",
+                  "description": "Filter by sender",
+                  "disabled": true
+                },
+                {
+                  "key": "start_time",
+                  "value": "",
+                  "description": "Start timestamp (Unix milliseconds)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_time",
+                  "value": "",
+                  "description": "End timestamp (Unix milliseconds)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取合约执行历史,支持分页、时间范围和发送者过滤"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "event": [
