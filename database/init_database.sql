@@ -1160,5 +1160,54 @@ CREATE TABLE `cw20_transfers` (
   KEY `idx_cw20_transfers_timestamp` (`unix_timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='CW20 transfer history';
 
+-- ----------------------------
+-- Table structure for bank_transfers
+-- ----------------------------
+DROP TABLE IF EXISTS `bank_transfers`;
+CREATE TABLE `bank_transfers` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `tx_hash` varchar(128) NOT NULL COMMENT 'Transaction hash',
+  `sender` varchar(128) NOT NULL COMMENT 'Sender address',
+  `recipient` varchar(128) NOT NULL COMMENT 'Recipient address',
+  `amounts` text NOT NULL COMMENT 'Transfer amounts (JSON array)',
+  `block_height` bigint NOT NULL COMMENT 'Block height',
+  `unix_timestamp` bigint NOT NULL COMMENT 'Unix timestamp in milliseconds',
+  `success` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Transfer success status',
+  `is_community_pool_related` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Whether transfer is related to community pool',
+  `created_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_bank_transfers_tx_hash` (`tx_hash`),
+  KEY `idx_bank_transfers_sender` (`sender`),
+  KEY `idx_bank_transfers_recipient` (`recipient`),
+  KEY `idx_bank_transfers_block_height` (`block_height`),
+  KEY `idx_bank_transfers_timestamp` (`unix_timestamp`),
+  KEY `idx_bank_transfers_sender_time` (`sender`,`unix_timestamp` DESC),
+  KEY `idx_bank_transfers_recipient_time` (`recipient`,`unix_timestamp` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Bank transfer records';
+
+-- ----------------------------
+-- Table structure for relayers
+-- ----------------------------
+DROP TABLE IF EXISTS `relayers`;
+CREATE TABLE `relayers` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `market_id` varchar(128) NOT NULL COMMENT 'Market ID',
+  `relayer_address` varchar(128) NOT NULL COMMENT 'Relayer address',
+  `total_packets_relayed` bigint NOT NULL DEFAULT '0' COMMENT 'Total packets relayed',
+  `total_packets_failed` bigint NOT NULL DEFAULT '0' COMMENT 'Total packets failed',
+  `success_rate` decimal(5,2) NOT NULL DEFAULT '0.00' COMMENT 'Success rate percentage',
+  `avg_relay_time_ms` bigint NOT NULL DEFAULT '0' COMMENT 'Average relay time in milliseconds',
+  `total_fees_earned` text COMMENT 'Total fees earned (JSON array)',
+  `active_channels` text COMMENT 'Active channels (JSON array)',
+  `last_active_at` bigint DEFAULT NULL COMMENT 'Last active timestamp in milliseconds',
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_market_relayer` (`market_id`,`relayer_address`),
+  KEY `idx_relayers_market_id` (`market_id`),
+  KEY `idx_relayers_relayer_address` (`relayer_address`),
+  KEY `idx_relayers_last_active` (`last_active_at` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Relayer information';
+
 SET FOREIGN_KEY_CHECKS = 1;
 

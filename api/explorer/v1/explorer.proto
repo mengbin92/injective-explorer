@@ -6,6 +6,7 @@ import "explorer/v1/common.proto";
 import "explorer/v1/wasm.proto";
 import "explorer/v1/validator.proto";
 import "explorer/v1/bank.proto";
+import "explorer/v1/relayer.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
@@ -297,6 +298,15 @@ service Explorer {
   rpc GetBankTransfers(GetBankTransfersRequest) returns (Reply) {
     option (google.api.http) = {
       get: "/api/v1/bank/transfers"
+    };
+  }
+
+  // Relayer APIs
+
+  // Get relayer information
+  rpc GetRelayers(GetRelayersRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/relayers"
     };
   }
 }

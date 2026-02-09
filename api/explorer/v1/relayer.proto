@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package api.explorer.v1;
+
+import "explorer/v1/common.proto";
+
+option go_package = "injective-explorer/api/explorer/v1;v1";
+
+// Relayer query messages
+
+// GetRelayersRequest requests relayer information
+message GetRelayersRequest {
+  // Filter by market IDs (optional, multiple)
+  repeated string market_ids = 1 [json_name = "market_ids"];
+
+  // Filter by relayer addresses (optional, multiple)
+  repeated string relayer_addresses = 2 [json_name = "relayer_addresses"];
+
+  // Pagination
+  PaginationRequest pagination = 3;
+}

@@ -2465,6 +2465,54 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/relayers:
+        get:
+            tags:
+                - Explorer
+            description: Get relayer information
+            operationId: Explorer_GetRelayers
+            parameters:
+                - name: market_ids
+                  in: query
+                  description: Filter by market IDs (optional, multiple)
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: relayer_addresses
+                  in: query
+                  description: Filter by relayer addresses (optional, multiple)
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/stats/error-analysis:
         get:
             tags:

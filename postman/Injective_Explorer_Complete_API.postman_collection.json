@@ -9458,6 +9458,89 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "中继者接口",
+      "item": [
+        {
+          "name": "获取中继者信息",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has relayers and pagination\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('relayers');",
+                  "    pm.expect(jsonData).to.have.property('pagination');",
+                  "});",
+                  "",
+                  "pm.test(\"Relayer has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.relayers && jsonData.relayers.length > 0) {",
+                  "        var relayer = jsonData.relayers[0];",
+                  "        pm.expect(relayer).to.have.property('market_id');",
+                  "        pm.expect(relayer).to.have.property('relayer_address');",
+                  "        pm.expect(relayer).to.have.property('total_packets_relayed');",
+                  "        pm.expect(relayer).to.have.property('success_rate');",
+                  "        pm.expect(relayer).to.have.property('avg_relay_time_ms');",
+                  "        pm.expect(relayer).to.have.property('total_fees_earned');",
+                  "        pm.expect(relayer).to.have.property('active_channels');",
+                  "        pm.expect(relayer).to.have.property('last_active_at');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/relayers?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "relayers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "market_ids",
+                  "value": "",
+                  "description": "Filter by market IDs (comma-separated)",
+                  "disabled": true
+                },
+                {
+                  "key": "relayer_addresses",
+                  "value": "",
+                  "description": "Filter by relayer addresses (comma-separated)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取中继者信息,支持按市场ID和中继者地址过滤"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "event": [
