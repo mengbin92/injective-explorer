@@ -305,6 +305,7 @@ func parseMsgDepositClaim(
 		TxHash:         finalTxHash,
 		BlockHeight:    blockHeight,
 		BlockTimestamp: blockTimestamp,
+		EthTxHash:      converter.NormalizeHash(evmHash), // Store EVM hash if this is an EVM transaction
 	}
 
 	// Extract orchestrator from message and convert to EVM format
@@ -372,6 +373,7 @@ func parseMsgSendToEth(
 		TxHash:         finalTxHash,
 		BlockHeight:    blockHeight,
 		BlockTimestamp: blockTimestamp,
+		EthTxHash:      converter.NormalizeHash(evmHash), // Store EVM hash if this is an EVM transaction
 	}
 
 	// Extract outgoing_tx_id and batch_timeout from events
@@ -452,6 +454,7 @@ func parseMsgWithdrawClaim(
 		TxHash:         finalTxHash,
 		BlockHeight:    blockHeight,
 		BlockTimestamp: blockTimestamp,
+		EthTxHash:      converter.NormalizeHash(evmHash), // Store EVM hash if this is an EVM transaction
 	}
 
 	// Extract orchestrator if available and convert to EVM format

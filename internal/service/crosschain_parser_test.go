@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"injective-explorer/internal/models"
@@ -403,6 +404,140 @@ func TestParseCrossChainTransaction_MultipleMsgs(t *testing.T) {
 	assert.Len(t, result.PeggyDeposits, 1)
 	assert.Len(t, result.PeggyWithdrawals, 1)
 	assert.Len(t, result.IBCTransfers, 0)
+}
+
+// TestParseCrossChainTransaction_WithEVMHash tests that EthTxHash is properly set when EVM hash is present
+func TestParseCrossChainTransaction_WithEVMHash(t *testing.T) {
+	cdc := getCodec()
+
+	// Create a MsgDepositClaim
+	msg := &peggytypes.MsgDepositClaim{
+		EventNonce:     99,
+		BlockHeight:    200000,
+		TokenContract:  "0xTokenContract",
+		Amount:         math.NewInt(5000000),
+		EthereumSender: "0xEthSender",
+		CosmosReceiver: "inj1receiver",
+		Orchestrator:   "inj1orchestrator",
+	}
+
+	msgBytes, err := cdc.Marshal(msg)
+	require.NoError(t, err)
+
+	anyMsg := &codectypes.Any{
+		TypeUrl: "/injective.peggy.v1.MsgDepositClaim",
+		Value:   msgBytes,
+	}
+
+	// Create transaction response with EVM event
+	evmHash := "0xABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890"
+	txResp := &tx.GetTxResponse{
+		Tx: &tx.Tx{
+			Body: &tx.TxBody{
+				Messages: []*codectypes.Any{anyMsg},
+			},
+		},
+		TxResponse: &sdk.TxResponse{
+			TxHash: "cosmos_tx_hash",
+			Events: []abci.Event{
+				{
+					Type: "ethereum_tx",
+					Attributes: []abci.EventAttribute{
+						{
+							Key:   "ethereumTxHash",
+							Value: evmHash,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Parse
+	result, err := ParseCrossChainTransaction(context.Background(), txResp, 60000, 9999999999)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result.PeggyDeposits, 1)
+
+	deposit := result.PeggyDeposits[0]
+
+	// Verify that EthTxHash is set to the EVM hash (normalized)
+	expectedEthTxHash := strings.ToLower(evmHash)
+	assert.Equal(t, expectedEthTxHash, deposit.EthTxHash, "EthTxHash should be set to normalized EVM hash")
+
+	// Verify that TxHash is also set to EVM hash (since evmHash is available)
+	assert.Equal(t, expectedEthTxHash, deposit.TxHash, "TxHash should be set to normalized EVM hash when available")
+
+	// Verify other fields
+	assert.Equal(t, uint64(99), deposit.EventNonce)
+	assert.Equal(t, "0xethsender", deposit.Sender) // Normalized to lowercase
+}
+
+// TestParseCrossChainTransaction_WithoutEVMHash tests that EthTxHash is empty when no EVM hash is present
+func TestParseCrossChainTransaction_WithoutEVMHash(t *testing.T) {
+	cdc := getCodec()
+
+	msg := &peggytypes.MsgSendToEth{
+		Sender:  "inj1sender",
+		EthDest: "0xDestination",
+		Amount: sdk.Coin{
+			Denom:  "peggy0xToken",
+			Amount: math.NewInt(3000),
+		},
+		BridgeFee: sdk.Coin{
+			Denom:  "peggy0xToken",
+			Amount: math.NewInt(100),
+		},
+	}
+
+	msgBytes, err := cdc.Marshal(msg)
+	require.NoError(t, err)
+
+	anyMsg := &codectypes.Any{
+		TypeUrl: "/injective.peggy.v1.MsgSendToEth",
+		Value:   msgBytes,
+	}
+
+	// Create transaction response WITHOUT EVM event
+	txResp := &tx.GetTxResponse{
+		Tx: &tx.Tx{
+			Body: &tx.TxBody{
+				Messages: []*codectypes.Any{anyMsg},
+			},
+		},
+		TxResponse: &sdk.TxResponse{
+			TxHash: "COSMOS_TX_HASH_UPPER",
+			Events: []abci.Event{
+				{
+					Type: "send_to_eth",
+					Attributes: []abci.EventAttribute{
+						{
+							Key:   "outgoing_tx_id",
+							Value: "123",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := ParseCrossChainTransaction(context.Background(), txResp, 70000, 8888888888)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result.PeggyWithdrawals, 1)
+
+	withdrawal := result.PeggyWithdrawals[0]
+
+	// Verify that EthTxHash is empty (normalized empty string)
+	assert.Equal(t, "", withdrawal.EthTxHash, "EthTxHash should be empty when no EVM hash is present")
+
+	// Verify that TxHash is set to normalized Cosmos hash
+	assert.Equal(t, "0xcosmos_tx_hash_upper", withdrawal.TxHash, "TxHash should be normalized Cosmos hash")
+
+	// Verify that outgoing_tx_id was extracted from events
+	assert.Equal(t, uint64(123), withdrawal.OutgoingTxId)
 }
 
 // TestCrossChainData_IsEmpty tests the IsEmpty method
