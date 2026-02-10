@@ -1871,6 +1871,7 @@ func (s *ExplorerService) queryCrossChainTransactionsForAddress(
 
 // convertCrossChainToTransactions converts cross-chain transactions to regular transaction format
 // so they can be merged with normal transactions in the response.
+// It tries to fetch complete transaction data from transactions table using the hash.
 func (s *ExplorerService) convertCrossChainToTransactions(
 	ctx context.Context,
 	crossChainTxs []CrossChainTransaction,
@@ -1886,22 +1887,40 @@ func (s *ExplorerService) convertCrossChainToTransactions(
 		txHashes = append(txHashes, ccTx.TxHash)
 	}
 
-	// Query existing transactions by hash to avoid duplicates
+	// Query existing transactions by hash to get complete data (including messages)
 	var existingTxs []models.Transaction
 	db.Get().WithContext(ctx).Where("hash IN ?", txHashes).Find(&existingTxs)
 
-	existingTxMap := make(map[string]bool)
+	existingTxMap := make(map[string]models.Transaction)
 	for _, tx := range existingTxs {
-		existingTxMap[tx.Hash] = true
+		existingTxMap[tx.Hash] = tx
 	}
 
-	// Convert cross-chain transactions that are not already in the transactions table
+	// Convert cross-chain transactions
 	result := make([]models.Transaction, 0, len(crossChainTxs))
 	for _, ccTx := range crossChainTxs {
-		// Skip if this transaction already exists in the transactions table
-		if existingTxMap[ccTx.TxHash] {
+		// If transaction exists in transactions table, use it directly (has complete data including messages)
+		if existingTx, found := existingTxMap[ccTx.TxHash]; found {
+			result = append(result, existingTx)
 			continue
 		}
+
+		// Otherwise, create a simplified transaction representation
+		// Ensure sender address is in EVM format
+		senderEVM := ccTx.Sender
+		if evmAddr, err := converter.InjectiveToEthAddress(ccTx.Sender); err == nil {
+			senderEVM = evmAddr
+		}
+		// Normalize to lowercase with 0x prefix
+		senderEVM = converter.NormalizeHash(senderEVM)
+
+		// Ensure receiver address is in EVM format
+		receiverEVM := ccTx.Receiver
+		if evmAddr, err := converter.InjectiveToEthAddress(ccTx.Receiver); err == nil {
+			receiverEVM = evmAddr
+		}
+		// Normalize to lowercase with 0x prefix
+		receiverEVM = converter.NormalizeHash(receiverEVM)
 
 		// Create a simplified transaction representation for cross-chain transactions
 		// These will have limited information but enough for display in the transaction list
@@ -1911,9 +1930,9 @@ func (s *ExplorerService) convertCrossChainToTransactions(
 			BlockUnixTimestamp: ccTx.BlockTimestamp,
 			TxType:             ccTx.TxType,
 			MessageTypes:       []string{ccTx.TxType},
-			// For cross-chain transactions, we use sender/receiver from the cross-chain tables
-			Signer: ccTx.Sender,
-			To:     ccTx.Receiver,
+			// Use EVM-formatted addresses for consistent display
+			Signer: senderEVM,
+			To:     receiverEVM,
 			Values: []string{fmt.Sprintf("%s%s", ccTx.Amount, ccTx.Denom)},
 			Code:   0, // Cross-chain transactions are always successful in our tables
 		}
@@ -1921,8 +1940,8 @@ func (s *ExplorerService) convertCrossChainToTransactions(
 		result = append(result, tx)
 	}
 
-	global.Logger.Debugf("converted cross-chain transactions: total=%d, new=%d, existing=%d",
-		len(crossChainTxs), len(result), len(existingTxs))
+	global.Logger.Debugf("converted cross-chain transactions: total=%d, from_transactions_table=%d, created_new=%d",
+		len(crossChainTxs), len(existingTxs), len(result)-len(existingTxs))
 
 	return result
 }

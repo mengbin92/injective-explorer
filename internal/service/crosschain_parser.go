@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
@@ -86,7 +87,17 @@ func ParseCrossChainTransaction(
 	// Step 3: Extract events for enrichment
 	events := extractEvents(txResp)
 
-	// Step 4: Process messages and collect cross-chain data
+	// Step 4: Extract EVM hash if this is an EVM transaction
+	// Convert []*abci.Event to []abci.Event for ExtractEVMHashFromABCIEvents
+	var eventsSlice []abci.Event
+	for _, e := range events {
+		if e != nil {
+			eventsSlice = append(eventsSlice, *e)
+		}
+	}
+	evmHash := ExtractEVMHashFromABCIEvents(eventsSlice)
+
+	// Step 5: Process messages and collect cross-chain data
 	txHash := txResp.TxResponse.TxHash
 	data := &CrossChainData{}
 
@@ -96,7 +107,8 @@ func ParseCrossChainTransaction(
 		}
 
 		// Dispatch to appropriate handler based on message type
-		if err := processCrossChainMessage(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data); err != nil {
+		// Pass evmHash so it can be stored in cross-chain tables
+		if err := processCrossChainMessage(anyMsg, cdc, events, txHash, evmHash, blockHeight, blockTimestamp, data); err != nil {
 			global.Logger.Warnf("Failed to process cross-chain message in tx %s: %v", txHash, err)
 		}
 	}
@@ -127,18 +139,19 @@ func processCrossChainMessage(
 	cdc codec.Codec,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 	data *CrossChainData,
 ) error {
 	switch anyMsg.TypeUrl {
 	case "/ibc.applications.transfer.v1.MsgTransfer":
-		return handleMsgTransfer(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+		return handleMsgTransfer(anyMsg, cdc, events, txHash, evmHash, blockHeight, blockTimestamp, data)
 	case "/injective.peggy.v1.MsgDepositClaim":
-		return handleMsgDepositClaim(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+		return handleMsgDepositClaim(anyMsg, cdc, events, txHash, evmHash, blockHeight, blockTimestamp, data)
 	case "/injective.peggy.v1.MsgSendToEth":
-		return handleMsgSendToEth(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+		return handleMsgSendToEth(anyMsg, cdc, events, txHash, evmHash, blockHeight, blockTimestamp, data)
 	case "/injective.peggy.v1.MsgWithdrawClaim":
-		return handleMsgWithdrawClaim(anyMsg, cdc, events, txHash, blockHeight, blockTimestamp, data)
+		return handleMsgWithdrawClaim(anyMsg, cdc, events, txHash, evmHash, blockHeight, blockTimestamp, data)
 	default:
 		// Not a cross-chain message, skip silently
 		return nil
@@ -151,6 +164,7 @@ func handleMsgTransfer(
 	cdc codec.Codec,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 	data *CrossChainData,
 ) error {
@@ -159,7 +173,7 @@ func handleMsgTransfer(
 		return errors.Wrap(err, "failed to unmarshal MsgTransfer")
 	}
 
-	ibc, err := parseMsgTransfer(&msg, events, txHash, blockHeight, blockTimestamp)
+	ibc, err := parseMsgTransfer(&msg, events, txHash, evmHash, blockHeight, blockTimestamp)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse MsgTransfer")
 	}
@@ -176,6 +190,7 @@ func handleMsgDepositClaim(
 	cdc codec.Codec,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 	data *CrossChainData,
 ) error {
@@ -184,7 +199,7 @@ func handleMsgDepositClaim(
 		return errors.Wrap(err, "failed to unmarshal MsgDepositClaim")
 	}
 
-	deposit, err := parseMsgDepositClaim(&msg, events, txHash, blockHeight, blockTimestamp)
+	deposit, err := parseMsgDepositClaim(&msg, events, txHash, evmHash, blockHeight, blockTimestamp)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse MsgDepositClaim")
 	}
@@ -201,6 +216,7 @@ func handleMsgSendToEth(
 	cdc codec.Codec,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 	data *CrossChainData,
 ) error {
@@ -209,7 +225,7 @@ func handleMsgSendToEth(
 		return errors.Wrap(err, "failed to unmarshal MsgSendToEth")
 	}
 
-	withdrawal, err := parseMsgSendToEth(&msg, events, txHash, blockHeight, blockTimestamp)
+	withdrawal, err := parseMsgSendToEth(&msg, events, txHash, evmHash, blockHeight, blockTimestamp)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse MsgSendToEth")
 	}
@@ -226,6 +242,7 @@ func handleMsgWithdrawClaim(
 	cdc codec.Codec,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 	data *CrossChainData,
 ) error {
@@ -234,7 +251,7 @@ func handleMsgWithdrawClaim(
 		return errors.Wrap(err, "failed to unmarshal MsgWithdrawClaim")
 	}
 
-	withdrawal, err := parseMsgWithdrawClaim(&msg, events, txHash, blockHeight, blockTimestamp)
+	withdrawal, err := parseMsgWithdrawClaim(&msg, events, txHash, evmHash, blockHeight, blockTimestamp)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse MsgWithdrawClaim")
 	}
@@ -250,29 +267,55 @@ func parseMsgDepositClaim(
 	msg *peggytypes.MsgDepositClaim,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 ) (*models.PeggyDepositTx, error) {
 	if msg == nil {
 		return nil, fmt.Errorf("nil MsgDepositClaim")
 	}
 
+	// Convert receiver from Bech32 to EVM format for consistent storage
+	receiverEVM := msg.CosmosReceiver
+	if evmAddr, err := converter.InjectiveToEthAddress(msg.CosmosReceiver); err == nil {
+		receiverEVM = evmAddr
+	} else {
+		global.Logger.Debugf("Failed to convert receiver %s to EVM format: %v, using original", msg.CosmosReceiver, err)
+	}
+
+	// Ensure sender (Ethereum address) is normalized
+	senderEVM := converter.NormalizeHash(msg.EthereumSender)
+
+	// Use EVM hash if available, otherwise use Cosmos hash and normalize it
+	finalTxHash := txHash
+	if evmHash != "" {
+		finalTxHash = converter.NormalizeHash(evmHash)
+	} else {
+		finalTxHash = converter.NormalizeHash(txHash)
+	}
+
 	deposit := &models.PeggyDepositTx{
-		Sender:         msg.EthereumSender,
-		Receiver:       msg.CosmosReceiver,
+		Sender:         senderEVM,
+		Receiver:       receiverEVM,
 		Amount:         msg.Amount.String(),
 		Denom:          fmt.Sprintf("peggy%s", msg.TokenContract),
 		EventNonce:     msg.EventNonce,
 		EventHeight:    msg.BlockHeight,
 		State:          "completed", // MsgDepositClaim means already completed
 		ClaimType:      1,            // DepositClaim = 1
-		TxHash:         txHash,
+		TxHash:         finalTxHash,
 		BlockHeight:    blockHeight,
 		BlockTimestamp: blockTimestamp,
 	}
 
-	// Extract orchestrator from message
+	// Extract orchestrator from message and convert to EVM format
 	if msg.Orchestrator != "" {
-		deposit.OrchestratorAddress = msg.Orchestrator
+		orchestratorEVM := msg.Orchestrator
+		if evmAddr, err := converter.InjectiveToEthAddress(msg.Orchestrator); err == nil {
+			orchestratorEVM = evmAddr
+		} else {
+			global.Logger.Debugf("Failed to convert orchestrator %s to EVM format: %v, using original", msg.Orchestrator, err)
+		}
+		deposit.OrchestratorAddress = orchestratorEVM
 	}
 
 	// Enrich with event data if available
@@ -292,21 +335,41 @@ func parseMsgSendToEth(
 	msg *peggytypes.MsgSendToEth,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 ) (*models.PeggyWithdrawalTx, error) {
 	if msg == nil {
 		return nil, fmt.Errorf("nil MsgSendToEth")
 	}
 
+	// Convert sender from Bech32 to EVM format for consistent storage
+	senderEVM := msg.Sender
+	if evmAddr, err := converter.InjectiveToEthAddress(msg.Sender); err == nil {
+		senderEVM = evmAddr
+	} else {
+		global.Logger.Debugf("Failed to convert sender %s to EVM format: %v, using original", msg.Sender, err)
+	}
+
+	// Ensure receiver (Ethereum address) is normalized
+	receiverEVM := converter.NormalizeHash(msg.EthDest)
+
+	// Use EVM hash if available, otherwise use Cosmos hash and normalize it
+	finalTxHash := txHash
+	if evmHash != "" {
+		finalTxHash = converter.NormalizeHash(evmHash)
+	} else {
+		finalTxHash = converter.NormalizeHash(txHash)
+	}
+
 	withdrawal := &models.PeggyWithdrawalTx{
-		Sender:         msg.Sender,
-		Receiver:       msg.EthDest,
+		Sender:         senderEVM,
+		Receiver:       receiverEVM,
 		Amount:         msg.Amount.Amount.String(),
 		Denom:          msg.Amount.Denom,
 		BridgeFee:      msg.BridgeFee.Amount.String(),
 		State:          "pending", // Intent, not yet completed
 		ClaimType:      2,          // WithdrawalClaim = 2
-		TxHash:         txHash,
+		TxHash:         finalTxHash,
 		BlockHeight:    blockHeight,
 		BlockTimestamp: blockTimestamp,
 	}
@@ -363,10 +426,19 @@ func parseMsgWithdrawClaim(
 	msg *peggytypes.MsgWithdrawClaim,
 	_ []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 ) (*models.PeggyWithdrawalTx, error) {
 	if msg == nil {
 		return nil, fmt.Errorf("nil MsgWithdrawClaim")
+	}
+
+	// Use EVM hash if available, otherwise use Cosmos hash and normalize it
+	finalTxHash := txHash
+	if evmHash != "" {
+		finalTxHash = converter.NormalizeHash(evmHash)
+	} else {
+		finalTxHash = converter.NormalizeHash(txHash)
 	}
 
 	// MsgWithdrawClaim confirms a batch withdrawal
@@ -377,14 +449,20 @@ func parseMsgWithdrawClaim(
 		EventHeight:    msg.BlockHeight,
 		State:          "completed",
 		ClaimType:      2, // WithdrawalClaim = 2
-		TxHash:         txHash,
+		TxHash:         finalTxHash,
 		BlockHeight:    blockHeight,
 		BlockTimestamp: blockTimestamp,
 	}
 
-	// Extract orchestrator if available
+	// Extract orchestrator if available and convert to EVM format
 	if msg.Orchestrator != "" {
-		withdrawal.OrchestratorAddress = msg.Orchestrator
+		orchestratorEVM := msg.Orchestrator
+		if evmAddr, err := converter.InjectiveToEthAddress(msg.Orchestrator); err == nil {
+			orchestratorEVM = evmAddr
+		} else {
+			global.Logger.Debugf("Failed to convert orchestrator %s to EVM format: %v, using original", msg.Orchestrator, err)
+		}
+		withdrawal.OrchestratorAddress = orchestratorEVM
 	}
 
 	// Note: We don't have sender/receiver/amount in MsgWithdrawClaim
@@ -398,22 +476,49 @@ func parseMsgTransfer(
 	msg *ibctypes.MsgTransfer,
 	events []*abci.Event,
 	txHash string,
+	evmHash string,
 	blockHeight, blockTimestamp uint64,
 ) (*models.IBCTransferTx, error) {
 	if msg == nil {
 		return nil, fmt.Errorf("nil MsgTransfer")
 	}
 
+	// Convert sender from Bech32 to EVM format if it's a Injective address
+	senderEVM := msg.Sender
+	if evmAddr, err := converter.InjectiveToEthAddress(msg.Sender); err == nil {
+		senderEVM = evmAddr
+	} else {
+		// For IBC, sender might be from another chain, keep original if conversion fails
+		global.Logger.Debugf("Sender %s is not a Injective address or conversion failed: %v, using original", msg.Sender, err)
+	}
+
+	// Convert receiver from Bech32 to EVM format if it's a Injective address
+	receiverEVM := msg.Receiver
+	if evmAddr, err := converter.InjectiveToEthAddress(msg.Receiver); err == nil {
+		receiverEVM = evmAddr
+	} else {
+		// For IBC, receiver might be from another chain, keep original if conversion fails
+		global.Logger.Debugf("Receiver %s is not a Injective address or conversion failed: %v, using original", msg.Receiver, err)
+	}
+
+	// Use EVM hash if available, otherwise use Cosmos hash and normalize it
+	finalTxHash := txHash
+	if evmHash != "" {
+		finalTxHash = converter.NormalizeHash(evmHash)
+	} else {
+		finalTxHash = converter.NormalizeHash(txHash)
+	}
+
 	transfer := &models.IBCTransferTx{
-		Sender:           msg.Sender,
-		Receiver:         msg.Receiver,
+		Sender:           senderEVM,
+		Receiver:         receiverEVM,
 		SourcePort:       msg.SourcePort,
 		SourceChannel:    msg.SourceChannel,
 		Amount:           msg.Token.Amount.String(),
 		Denom:            msg.Token.Denom,
 		TimeoutTimestamp: msg.TimeoutTimestamp,
 		State:            "completed",
-		TxHash:           txHash,
+		TxHash:           finalTxHash,
 		BlockHeight:      blockHeight,
 		BlockTimestamp:   blockTimestamp,
 	}

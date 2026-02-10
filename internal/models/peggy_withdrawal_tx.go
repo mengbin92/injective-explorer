@@ -5,7 +5,6 @@ import (
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/converter"
-	"injective-explorer/internal/global"
 
 	"gorm.io/gorm"
 )
@@ -45,47 +44,53 @@ func (PeggyWithdrawalTx) TableName() string {
 }
 
 // ToProto converts PeggyWithdrawalTx to protobuf DTO for API responses.
-// Converts Bech32 addresses to EVM format (0x...) and normalizes to lowercase for consistent display.
+// Detects and converts addresses and hashes to EVM format for consistent API responses.
 func (t *PeggyWithdrawalTx) ToProto() *pb.PeggyWithdrawalTxDTO {
-	// Convert sender address from Bech32 to EVM format (Injective → Ethereum withdrawal)
+	// Convert sender to EVM format if needed (should already be EVM format, but check for backward compatibility)
 	senderEVM := t.Sender
-	if converted, err := converter.InjectiveToEthAddress(t.Sender); err == nil {
-		senderEVM = converted
-	} else {
-		// Log conversion failure for debugging, but continue with original address
-		global.Logger.Debugf("Failed to convert sender address %s to EVM format: %v", t.Sender, err)
+	if evmAddr, err := converter.InjectiveToEthAddress(t.Sender); err == nil {
+		senderEVM = evmAddr
 	}
+	senderEVM = converter.NormalizeHash(senderEVM)
 
-	// Convert orchestrator address from Bech32 to EVM format
+	// Convert receiver to EVM format if needed
+	receiverEVM := t.Receiver
+	if evmAddr, err := converter.InjectiveToEthAddress(t.Receiver); err == nil {
+		receiverEVM = evmAddr
+	}
+	receiverEVM = converter.NormalizeHash(receiverEVM)
+
+	// Convert orchestrator address to EVM format if needed
 	orchestratorEVM := t.OrchestratorAddress
 	if t.OrchestratorAddress != "" {
-		if converted, err := converter.InjectiveToEthAddress(t.OrchestratorAddress); err == nil {
-			orchestratorEVM = converted
-		} else {
-			// Log conversion failure for debugging, but continue with original address
-			global.Logger.Debugf("Failed to convert orchestrator address %s to EVM format: %v", t.OrchestratorAddress, err)
+		if evmAddr, err := converter.InjectiveToEthAddress(t.OrchestratorAddress); err == nil {
+			orchestratorEVM = evmAddr
 		}
+		orchestratorEVM = converter.NormalizeHash(orchestratorEVM)
 	}
 
-	// Normalize all addresses and hashes to lowercase with 0x prefix (EVM convention)
+	// Normalize transaction hash to EVM format (0x + lowercase)
+	txHash := converter.NormalizeHash(t.TxHash)
+	ethTxHash := converter.NormalizeHash(t.EthTxHash)
+
 	return &pb.PeggyWithdrawalTxDTO{
-		Sender:              converter.NormalizeHash(senderEVM),
-		Receiver:            converter.NormalizeHash(t.Receiver), // Already in EVM format
+		Sender:              senderEVM,
+		Receiver:            receiverEVM,
 		Amount:              t.Amount,
 		Denom:               t.Denom,
 		BridgeFee:           t.BridgeFee,
 		OutgoingTxId:        t.OutgoingTxId,
 		BatchTimeout:        t.BatchTimeout,
 		BatchNonce:          t.BatchNonce,
-		OrchestratorAddress: converter.NormalizeHash(orchestratorEVM),
+		OrchestratorAddress: orchestratorEVM,
 		EventNonce:          t.EventNonce,
 		EventHeight:         t.EventHeight,
 		State:               t.State,
 		ClaimType:           t.ClaimType,
-		TxHashes:            []string{converter.NormalizeHash(t.TxHash)},
+		TxHashes:            []string{txHash},
 		CreatedAt:           t.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:           t.UpdatedAt.Format(time.RFC3339),
-		EthTxHash:           converter.NormalizeHash(t.EthTxHash),
+		EthTxHash:           ethTxHash,
 	}
 }
 

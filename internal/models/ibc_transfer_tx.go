@@ -5,7 +5,6 @@ import (
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/converter"
-	"injective-explorer/internal/global"
 
 	"gorm.io/gorm"
 )
@@ -44,31 +43,30 @@ func (IBCTransferTx) TableName() string {
 }
 
 // ToProto converts IBCTransferTx to protobuf DTO for API responses.
-// Converts Bech32 addresses to EVM format (0x...) and normalizes to lowercase for consistent display.
+// Detects and converts addresses and hashes to EVM format for consistent API responses.
 func (t *IBCTransferTx) ToProto() *pb.IBCTransferTxDTO {
-	// Convert sender address from Bech32 to EVM format if it's a Injective address
+	// Convert sender to EVM format if it's a Injective address
 	senderEVM := t.Sender
-	if converted, err := converter.InjectiveToEthAddress(t.Sender); err == nil {
-		senderEVM = converted
-	} else {
-		// Log conversion failure for debugging, but continue with original address
-		global.Logger.Debugf("Failed to convert sender address %s to EVM format: %v", t.Sender, err)
+	if evmAddr, err := converter.InjectiveToEthAddress(t.Sender); err == nil {
+		senderEVM = evmAddr
 	}
+	// For non-Injective addresses (other chains), just normalize if it looks like an EVM address
+	senderEVM = converter.NormalizeHash(senderEVM)
 
-	// Convert receiver address from Bech32 to EVM format if it's a Injective address
-	// Note: For IBC transfers to other chains, receiver might be in a different format
+	// Convert receiver to EVM format if it's a Injective address
 	receiverEVM := t.Receiver
-	if converted, err := converter.InjectiveToEthAddress(t.Receiver); err == nil {
-		receiverEVM = converted
-	} else {
-		// Log conversion failure for debugging, but continue with original address
-		global.Logger.Debugf("Failed to convert receiver address %s to EVM format: %v", t.Receiver, err)
+	if evmAddr, err := converter.InjectiveToEthAddress(t.Receiver); err == nil {
+		receiverEVM = evmAddr
 	}
+	// For non-Injective addresses (other chains), just normalize if it looks like an EVM address
+	receiverEVM = converter.NormalizeHash(receiverEVM)
 
-	// Normalize all addresses and hashes to lowercase with 0x prefix (EVM convention)
+	// Normalize transaction hash to EVM format (0x + lowercase)
+	txHash := converter.NormalizeHash(t.TxHash)
+
 	return &pb.IBCTransferTxDTO{
-		Sender:             converter.NormalizeHash(senderEVM),
-		Receiver:           converter.NormalizeHash(receiverEVM),
+		Sender:             senderEVM,
+		Receiver:           receiverEVM,
 		SourcePort:         t.SourcePort,
 		SourceChannel:      t.SourceChannel,
 		DestinationPort:    t.DestinationPort,
@@ -80,7 +78,7 @@ func (t *IBCTransferTx) ToProto() *pb.IBCTransferTxDTO {
 		PacketSequence:     t.PacketSequence,
 		DataHex:            t.DataHex,
 		State:              t.State,
-		TxHashes:           []string{converter.NormalizeHash(t.TxHash)},
+		TxHashes:           []string{txHash},
 		CreatedAt:          t.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:          t.UpdatedAt.Format(time.RFC3339),
 	}

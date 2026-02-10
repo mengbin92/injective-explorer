@@ -29,7 +29,7 @@ func TestParseMsgDepositClaim(t *testing.T) {
 		Orchestrator:   "inj1validator",
 	}
 
-	result, err := parseMsgDepositClaim(msg, nil, "txhash123", 50000, 1234567890)
+	result, err := parseMsgDepositClaim(msg, nil, "txhash123", "", 50000, 1234567890)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -43,13 +43,13 @@ func TestParseMsgDepositClaim(t *testing.T) {
 	assert.Equal(t, "inj1validator", result.OrchestratorAddress)
 	assert.Equal(t, "completed", result.State)
 	assert.Equal(t, int32(1), result.ClaimType)
-	assert.Equal(t, "txhash123", result.TxHash)
+	assert.Equal(t, "0xtxhash123", result.TxHash) // Should be normalized
 	assert.Equal(t, uint64(50000), result.BlockHeight)
 	assert.Equal(t, uint64(1234567890), result.BlockTimestamp)
 }
 
 func TestParseMsgDepositClaim_Nil(t *testing.T) {
-	result, err := parseMsgDepositClaim(nil, nil, "txhash", 100, 200)
+	result, err := parseMsgDepositClaim(nil, nil, "txhash", "", 100, 200)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -69,7 +69,7 @@ func TestParseMsgSendToEth(t *testing.T) {
 		},
 	}
 
-	result, err := parseMsgSendToEth(msg, nil, "txhash456", 60000, 1234567900)
+	result, err := parseMsgSendToEth(msg, nil, "txhash456", "", 60000, 1234567900)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -81,7 +81,7 @@ func TestParseMsgSendToEth(t *testing.T) {
 	assert.Equal(t, "1000", result.BridgeFee)
 	assert.Equal(t, "pending", result.State) // MsgSendToEth starts as pending
 	assert.Equal(t, int32(2), result.ClaimType)
-	assert.Equal(t, "txhash456", result.TxHash)
+	assert.Equal(t, "0xtxhash456", result.TxHash)
 	assert.Equal(t, uint64(60000), result.BlockHeight)
 	assert.Equal(t, uint64(1234567900), result.BlockTimestamp)
 	assert.Equal(t, uint64(0), result.OutgoingTxId) // Should be enriched from events
@@ -95,7 +95,7 @@ func TestParseMsgWithdrawClaim(t *testing.T) {
 		Orchestrator: "inj1orchestrator",
 	}
 
-	result, err := parseMsgWithdrawClaim(msg, nil, "txhash789", 70000, 1234567910)
+	result, err := parseMsgWithdrawClaim(msg, nil, "txhash789", "", 70000, 1234567910)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -107,7 +107,7 @@ func TestParseMsgWithdrawClaim(t *testing.T) {
 	assert.Equal(t, "inj1orchestrator", result.OrchestratorAddress)
 	assert.Equal(t, "completed", result.State) // MsgWithdrawClaim marks as completed
 	assert.Equal(t, int32(2), result.ClaimType)
-	assert.Equal(t, "txhash789", result.TxHash)
+	assert.Equal(t, "0xtxhash789", result.TxHash)
 	assert.Equal(t, uint64(70000), result.BlockHeight)
 	assert.Equal(t, uint64(1234567910), result.BlockTimestamp)
 
@@ -116,7 +116,7 @@ func TestParseMsgWithdrawClaim(t *testing.T) {
 }
 
 func TestParseMsgWithdrawClaim_Nil(t *testing.T) {
-	result, err := parseMsgWithdrawClaim(nil, nil, "txhash", 100, 200)
+	result, err := parseMsgWithdrawClaim(nil, nil, "txhash", "", 100, 200)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -140,7 +140,7 @@ func TestParseMsgTransfer(t *testing.T) {
 		TimeoutTimestamp: 1234567890000000000,
 	}
 
-	result, err := parseMsgTransfer(msg, nil, "txhash123", 50000, 1234567890)
+	result, err := parseMsgTransfer(msg, nil, "txhash123", "", 50000, 1234567890)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

@@ -16,8 +16,8 @@ CREATE TABLE `ibc_transfer_txs` (
   `deleted_at` datetime(3) DEFAULT NULL,
 
   -- 核心字段
-  `sender` varchar(128) NOT NULL COMMENT '发送方地址',
-  `receiver` varchar(128) NOT NULL COMMENT '接收方地址',
+  `sender` varchar(128) NOT NULL COMMENT '发送方地址（0x...，EVM格式，从Bech32转换，非Injective地址保持原样）',
+  `receiver` varchar(128) NOT NULL COMMENT '接收方地址（0x...，EVM格式，从Bech32转换，非Injective地址保持原样）',
   `source_port` varchar(100) DEFAULT NULL COMMENT '源端口',
   `source_channel` varchar(100) DEFAULT NULL COMMENT '源通道',
   `destination_port` varchar(100) DEFAULT NULL COMMENT '目标端口',
@@ -43,7 +43,7 @@ CREATE TABLE `ibc_transfer_txs` (
   KEY `idx_ibc_block_height` (`block_height`),
   KEY `idx_ibc_block_timestamp` (`block_timestamp`),
   KEY `idx_ibc_state` (`state`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IBC 转账交易表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IBC 转账交易表，Injective地址以EVM格式存储';
 
 -- ============================================================================
 -- Peggy 存款交易表（以太坊→Injective）
@@ -56,13 +56,13 @@ CREATE TABLE `peggy_deposit_txs` (
   `deleted_at` datetime(3) DEFAULT NULL,
 
   -- 核心字段
-  `sender` varchar(128) NOT NULL COMMENT '以太坊发送地址（0x...）',
-  `receiver` varchar(128) NOT NULL COMMENT 'Injective 接收地址（inj1...）',
+  `sender` varchar(128) NOT NULL COMMENT '以太坊发送地址（0x...，EVM格式）',
+  `receiver` varchar(128) NOT NULL COMMENT 'Injective 接收地址（0x...，EVM格式，从inj1...转换）',
   `amount` varchar(100) DEFAULT NULL COMMENT '存款金额',
   `denom` varchar(100) DEFAULT NULL COMMENT '代币种类（peggy0x...）',
   `event_nonce` bigint unsigned DEFAULT NULL COMMENT 'WithdrawalClaim 事件的 nonce',
   `event_height` bigint unsigned DEFAULT NULL COMMENT 'WithdrawalClaim 事件的区块高度',
-  `orchestrator_address` varchar(128) DEFAULT NULL COMMENT '创建批次请求的协调者地址',
+  `orchestrator_address` varchar(128) DEFAULT NULL COMMENT '创建批次请求的协调者地址（0x...，EVM格式）',
   `state` varchar(50) DEFAULT 'completed' COMMENT '交易状态：pending, completed, failed',
   `claim_type` int DEFAULT 1 COMMENT '声明类型（存款为 DepositClaim=1）',
 
@@ -79,7 +79,7 @@ CREATE TABLE `peggy_deposit_txs` (
   KEY `idx_peggy_deposit_block_height` (`block_height`),
   KEY `idx_peggy_deposit_block_timestamp` (`block_timestamp`),
   KEY `idx_peggy_deposit_state` (`state`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy 存款交易表（以太坊→Injective）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy 存款交易表（以太坊→Injective），地址以EVM格式存储';
 
 -- ============================================================================
 -- Peggy 取款交易表（Injective→以太坊）
@@ -92,15 +92,15 @@ CREATE TABLE `peggy_withdrawal_txs` (
   `deleted_at` datetime(3) DEFAULT NULL,
 
   -- 核心字段
-  `sender` varchar(128) NOT NULL COMMENT 'Injective 发送地址（inj1...）',
-  `receiver` varchar(128) NOT NULL COMMENT '以太坊接收地址（0x...）',
+  `sender` varchar(128) NOT NULL COMMENT 'Injective 发送地址（0x...，EVM格式，从inj1...转换）',
+  `receiver` varchar(128) NOT NULL COMMENT '以太坊接收地址（0x...，EVM格式）',
   `amount` varchar(100) DEFAULT NULL COMMENT '取款金额',
   `denom` varchar(100) DEFAULT NULL COMMENT '代币种类（peggy0x...）',
   `bridge_fee` varchar(100) DEFAULT NULL COMMENT '发送方支付的跨链桥费用',
   `outgoing_tx_id` bigint unsigned DEFAULT NULL COMMENT '取款请求的自增唯一 ID',
   `batch_timeout` bigint unsigned DEFAULT NULL COMMENT '批次请求被丢弃的时间戳',
   `batch_nonce` bigint unsigned DEFAULT NULL COMMENT '取款批次的自增唯一 ID',
-  `orchestrator_address` varchar(128) DEFAULT NULL COMMENT '创建批次请求的协调者地址',
+  `orchestrator_address` varchar(128) DEFAULT NULL COMMENT '创建批次请求的协调者地址（0x...，EVM格式）',
   `event_nonce` bigint unsigned DEFAULT NULL COMMENT 'WithdrawalClaim 事件的 nonce',
   `event_height` bigint unsigned DEFAULT NULL COMMENT 'WithdrawalClaim 事件的区块高度',
   `state` varchar(50) DEFAULT 'pending' COMMENT '交易状态：pending, batched, completed, failed',
@@ -119,7 +119,7 @@ CREATE TABLE `peggy_withdrawal_txs` (
   KEY `idx_peggy_withdrawal_block_height` (`block_height`),
   KEY `idx_peggy_withdrawal_block_timestamp` (`block_timestamp`),
   KEY `idx_peggy_withdrawal_state` (`state`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy 取款交易表（Injective→以太坊）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy 取款交易表（Injective→以太坊），地址以EVM格式存储';
 
 -- ============================================================================
 -- 跨链交易同步状态表（用于记录同步进度）
