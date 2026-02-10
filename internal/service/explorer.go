@@ -1882,28 +1882,43 @@ func (s *ExplorerService) convertCrossChainToTransactions(
 
 	// Build a map to deduplicate by transaction hash (since cross-chain txs are already in transactions table)
 	// We need to check if these cross-chain transactions already exist in the transactions table
+	// Note: Cross-chain tables store hashes in uppercase hex without 0x prefix,
+	// while transactions table stores hashes in EVM format (0x + lowercase)
 	txHashes := make([]string, 0, len(crossChainTxs))
+	hashMap := make(map[string]string) // Map from original hash to normalized EVM hash
 	for _, ccTx := range crossChainTxs {
-		txHashes = append(txHashes, ccTx.TxHash)
+		evmHash := converter.NormalizeHash(ccTx.TxHash)
+		txHashes = append(txHashes, evmHash)
+		hashMap[ccTx.TxHash] = evmHash
+		global.Logger.Debugf("Cross-chain tx hash conversion: original=%s, evmHash=%s", ccTx.TxHash, evmHash)
 	}
 
 	// Query existing transactions by hash to get complete data (including messages)
 	var existingTxs []models.Transaction
+	global.Logger.Debugf("Querying transactions table with %d normalized hashes: %v", len(txHashes), txHashes)
 	db.Get().WithContext(ctx).Where("hash IN ?", txHashes).Find(&existingTxs)
+	global.Logger.Debugf("Found %d matching transactions in transactions table", len(existingTxs))
 
 	existingTxMap := make(map[string]models.Transaction)
 	for _, tx := range existingTxs {
 		existingTxMap[tx.Hash] = tx
+		global.Logger.Debugf("Existing tx in map: hash=%s, has_messages=%v", tx.Hash, len(tx.Messages) > 0)
 	}
 
 	// Convert cross-chain transactions
 	result := make([]models.Transaction, 0, len(crossChainTxs))
 	for _, ccTx := range crossChainTxs {
+		// Get the normalized EVM hash for this transaction
+		evmHash := hashMap[ccTx.TxHash]
+
 		// If transaction exists in transactions table, use it directly (has complete data including messages)
-		if existingTx, found := existingTxMap[ccTx.TxHash]; found {
+		if existingTx, found := existingTxMap[evmHash]; found {
+			global.Logger.Debugf("Using existing tx from transactions table: hash=%s, messages=%d", evmHash, len(existingTx.Messages))
 			result = append(result, existingTx)
 			continue
 		}
+
+		global.Logger.Debugf("No matching tx found for hash=%s, creating simplified representation", evmHash)
 
 		// Otherwise, create a simplified transaction representation
 		// Ensure sender address is in EVM format
@@ -1925,7 +1940,7 @@ func (s *ExplorerService) convertCrossChainToTransactions(
 		// Create a simplified transaction representation for cross-chain transactions
 		// These will have limited information but enough for display in the transaction list
 		tx := models.Transaction{
-			Hash:               ccTx.TxHash,
+			Hash:               evmHash, // Use normalized EVM hash for consistency
 			BlockNumber:        ccTx.BlockHeight,
 			BlockUnixTimestamp: ccTx.BlockTimestamp,
 			TxType:             ccTx.TxType,
