@@ -1914,6 +1914,17 @@ func (s *ExplorerService) convertCrossChainToTransactions(
 		// If transaction exists in transactions table, use it directly (has complete data including messages)
 		if existingTx, found := existingTxMap[evmHash]; found {
 			global.Logger.Debugf("Using existing tx from transactions table: hash=%s, messages=%d", evmHash, len(existingTx.Messages))
+			// Ensure receiver address is in EVM format
+			receiverEVM := ccTx.Receiver
+			if evmAddr, err := converter.InjectiveToEthAddress(ccTx.Receiver); err == nil {
+				receiverEVM = evmAddr
+			}
+			receiverEVM = converter.NormalizeHash(receiverEVM)
+			// For cross-chain transactions, always use receiver from peggy/ibc tables as it's more accurate
+			existingTx.To = receiverEVM
+			if len(existingTx.Values) == 0 && ccTx.Amount != "" {
+				existingTx.Values = []string{fmt.Sprintf("%s%s", ccTx.Amount, ccTx.Denom)}
+			}
 			result = append(result, existingTx)
 			continue
 		}
