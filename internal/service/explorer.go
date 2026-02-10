@@ -1666,6 +1666,37 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		isExactCount = false
 	}
 
+	// Also count cross-chain transactions to get accurate total
+	var crossChainCount int64
+
+	// Count Peggy deposits
+	var peggyDepositCount int64
+	db.Get().WithContext(dbCtx).Model(&models.PeggyDepositTx{}).
+		Where("(sender = ? OR receiver = ?)", dbQueryAddress, dbQueryAddress).
+		Count(&peggyDepositCount)
+
+	// Count Peggy withdrawals
+	var peggyWithdrawalCount int64
+	db.Get().WithContext(dbCtx).Model(&models.PeggyWithdrawalTx{}).
+		Where("(sender = ? OR receiver = ?)", dbQueryAddress, dbQueryAddress).
+		Count(&peggyWithdrawalCount)
+
+	// Count IBC transfers
+	var ibcTransferCount int64
+	db.Get().WithContext(dbCtx).Model(&models.IBCTransferTx{}).
+		Where("(sender = ? OR receiver = ?)", dbQueryAddress, dbQueryAddress).
+		Count(&ibcTransferCount)
+
+	crossChainCount = peggyDepositCount + peggyWithdrawalCount + ibcTransferCount
+
+	// Add cross-chain count to total
+	// Note: There may be some duplicates if cross-chain txs are also in the main transactions table
+	// but this gives us a better approximation
+	total += crossChainCount
+
+	global.Logger.Debugf("transaction counts for address %s: regular=%d, cross_chain=%d (peggy_deposit=%d, peggy_withdrawal=%d, ibc=%d), total=%d",
+		dbQueryAddress, total-crossChainCount, crossChainCount, peggyDepositCount, peggyWithdrawalCount, ibcTransferCount, total)
+
 	query := baseQuery
 	if useCursor {
 		// Use block_unix_timestamp for both cursor and ordering to ensure consistent pagination
@@ -1682,26 +1713,47 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	err = query.Find(&dbTxs).Error
 	queryDuration := time.Since(startTime)
 
-	if err == nil && len(dbTxs) > 0 {
-		global.Logger.Debugf("account transactions found in database: count=%d, query_time=%v", len(dbTxs), queryDuration)
-
-		if !useCursor && page == MinPage && !hasTxTypeFilter {
-			cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
-			cacheAccountTransactions(dbCtx, cacheKey, dbTxs)
-		}
-
-		// Batch query token transfers for EVM transactions
-		tokenTransfersMap := s.batchGetTokenTransfers(dbCtx, dbTxs)
-
-		nextCursor := calculateNextCursor(useCursor, cursorValue, dbTxs, func(tx models.Transaction) uint64 { return tx.BlockUnixTimestamp })
-		txDTOs := models.ToTransactionDTOsWithTokenTransfers(dbTxs, tokenTransfersMap)
-		txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(dbTxs))
-		return MarshalAndReply(txsResp, "marshal transactions error")
-	}
-
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		global.Logger.Errorf("database query error: address=%s, error=%v", address, err)
 		return ErrorReply(http.StatusInternalServerError, "database query error", err), err
+	}
+
+	// Query cross-chain transactions (Peggy deposits/withdrawals and IBC transfers)
+	// These are stored in separate tables with sender/receiver fields instead of signer/to
+	crossChainTxs := s.queryCrossChainTransactionsForAddress(dbCtx, dbQueryAddress, useCursor, cursorValue, int(pageSize))
+
+	// Convert cross-chain transactions to regular transaction format for unified response
+	convertedCrossChainTxs := s.convertCrossChainToTransactions(dbCtx, crossChainTxs)
+
+	// Merge regular transactions and cross-chain transactions
+	allTxs := append(dbTxs, convertedCrossChainTxs...)
+
+	// Sort by block timestamp descending
+	sort.Slice(allTxs, func(i, j int) bool {
+		return allTxs[i].BlockUnixTimestamp > allTxs[j].BlockUnixTimestamp
+	})
+
+	// Apply pagination limit after merging
+	if len(allTxs) > int(pageSize) {
+		allTxs = allTxs[:pageSize]
+	}
+
+	if len(allTxs) > 0 {
+		global.Logger.Debugf("account transactions found in database: count=%d (regular=%d, cross_chain=%d), query_time=%v",
+			len(allTxs), len(dbTxs), len(convertedCrossChainTxs), queryDuration)
+
+		if !useCursor && page == MinPage && !hasTxTypeFilter {
+			cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
+			cacheAccountTransactions(dbCtx, cacheKey, allTxs)
+		}
+
+		// Batch query token transfers for EVM transactions
+		tokenTransfersMap := s.batchGetTokenTransfers(dbCtx, allTxs)
+
+		nextCursor := calculateNextCursor(useCursor, cursorValue, allTxs, func(tx models.Transaction) uint64 { return tx.BlockUnixTimestamp })
+		txDTOs := models.ToTransactionDTOsWithTokenTransfers(allTxs, tokenTransfersMap)
+		txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(allTxs))
+		return MarshalAndReply(txsResp, "marshal transactions error")
 	}
 
 	global.Logger.Debugf("no account transactions found in database: address=%s", address)
@@ -1710,6 +1762,169 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		Message: "no transactions found",
 		Data:    nil,
 	}, nil
+}
+
+// CrossChainTransaction represents a unified cross-chain transaction interface
+type CrossChainTransaction struct {
+	TxHash         string
+	BlockHeight    uint64
+	BlockTimestamp uint64
+	Sender         string
+	Receiver       string
+	Amount         string
+	Denom          string
+	TxType         string
+	State          string
+}
+
+// queryCrossChainTransactionsForAddress queries cross-chain transactions (Peggy and IBC)
+// for a given address from all cross-chain transaction tables.
+func (s *ExplorerService) queryCrossChainTransactionsForAddress(
+	ctx context.Context,
+	address string,
+	useCursor bool,
+	cursorValue uint64,
+	limit int,
+) []CrossChainTransaction {
+	var crossChainTxs []CrossChainTransaction
+
+	// Query Peggy deposit transactions (Ethereum → Injective)
+	var peggyDeposits []models.PeggyDepositTx
+	depositQuery := db.Get().WithContext(ctx).Model(&models.PeggyDepositTx{}).
+		Where("(sender = ? OR receiver = ?)", address, address)
+
+	if useCursor {
+		depositQuery = depositQuery.Where("block_timestamp < ?", cursorValue)
+	}
+
+	depositQuery.Order("block_timestamp DESC").Limit(limit).Find(&peggyDeposits)
+
+	for _, deposit := range peggyDeposits {
+		crossChainTxs = append(crossChainTxs, CrossChainTransaction{
+			TxHash:         deposit.TxHash,
+			BlockHeight:    deposit.BlockHeight,
+			BlockTimestamp: deposit.BlockTimestamp,
+			Sender:         deposit.Sender,
+			Receiver:       deposit.Receiver,
+			Amount:         deposit.Amount,
+			Denom:          deposit.Denom,
+			TxType:         "/injective.peggy.v1.MsgDepositClaim",
+			State:          deposit.State,
+		})
+	}
+
+	// Query Peggy withdrawal transactions (Injective → Ethereum)
+	var peggyWithdrawals []models.PeggyWithdrawalTx
+	withdrawalQuery := db.Get().WithContext(ctx).Model(&models.PeggyWithdrawalTx{}).
+		Where("(sender = ? OR receiver = ?)", address, address)
+
+	if useCursor {
+		withdrawalQuery = withdrawalQuery.Where("block_timestamp < ?", cursorValue)
+	}
+
+	withdrawalQuery.Order("block_timestamp DESC").Limit(limit).Find(&peggyWithdrawals)
+
+	for _, withdrawal := range peggyWithdrawals {
+		crossChainTxs = append(crossChainTxs, CrossChainTransaction{
+			TxHash:         withdrawal.TxHash,
+			BlockHeight:    withdrawal.BlockHeight,
+			BlockTimestamp: withdrawal.BlockTimestamp,
+			Sender:         withdrawal.Sender,
+			Receiver:       withdrawal.Receiver,
+			Amount:         withdrawal.Amount,
+			Denom:          withdrawal.Denom,
+			TxType:         "/injective.peggy.v1.MsgSendToEth",
+			State:          withdrawal.State,
+		})
+	}
+
+	// Query IBC transfer transactions
+	var ibcTransfers []models.IBCTransferTx
+	ibcQuery := db.Get().WithContext(ctx).Model(&models.IBCTransferTx{}).
+		Where("(sender = ? OR receiver = ?)", address, address)
+
+	if useCursor {
+		ibcQuery = ibcQuery.Where("block_timestamp < ?", cursorValue)
+	}
+
+	ibcQuery.Order("block_timestamp DESC").Limit(limit).Find(&ibcTransfers)
+
+	for _, transfer := range ibcTransfers {
+		crossChainTxs = append(crossChainTxs, CrossChainTransaction{
+			TxHash:         transfer.TxHash,
+			BlockHeight:    transfer.BlockHeight,
+			BlockTimestamp: transfer.BlockTimestamp,
+			Sender:         transfer.Sender,
+			Receiver:       transfer.Receiver,
+			Amount:         transfer.Amount,
+			Denom:          transfer.Denom,
+			TxType:         "/ibc.applications.transfer.v1.MsgTransfer",
+			State:          transfer.State,
+		})
+	}
+
+	global.Logger.Debugf("queried cross-chain transactions for address %s: peggy_deposits=%d, peggy_withdrawals=%d, ibc_transfers=%d",
+		address, len(peggyDeposits), len(peggyWithdrawals), len(ibcTransfers))
+
+	return crossChainTxs
+}
+
+// convertCrossChainToTransactions converts cross-chain transactions to regular transaction format
+// so they can be merged with normal transactions in the response.
+func (s *ExplorerService) convertCrossChainToTransactions(
+	ctx context.Context,
+	crossChainTxs []CrossChainTransaction,
+) []models.Transaction {
+	if len(crossChainTxs) == 0 {
+		return nil
+	}
+
+	// Build a map to deduplicate by transaction hash (since cross-chain txs are already in transactions table)
+	// We need to check if these cross-chain transactions already exist in the transactions table
+	txHashes := make([]string, 0, len(crossChainTxs))
+	for _, ccTx := range crossChainTxs {
+		txHashes = append(txHashes, ccTx.TxHash)
+	}
+
+	// Query existing transactions by hash to avoid duplicates
+	var existingTxs []models.Transaction
+	db.Get().WithContext(ctx).Where("hash IN ?", txHashes).Find(&existingTxs)
+
+	existingTxMap := make(map[string]bool)
+	for _, tx := range existingTxs {
+		existingTxMap[tx.Hash] = true
+	}
+
+	// Convert cross-chain transactions that are not already in the transactions table
+	result := make([]models.Transaction, 0, len(crossChainTxs))
+	for _, ccTx := range crossChainTxs {
+		// Skip if this transaction already exists in the transactions table
+		if existingTxMap[ccTx.TxHash] {
+			continue
+		}
+
+		// Create a simplified transaction representation for cross-chain transactions
+		// These will have limited information but enough for display in the transaction list
+		tx := models.Transaction{
+			Hash:               ccTx.TxHash,
+			BlockNumber:        ccTx.BlockHeight,
+			BlockUnixTimestamp: ccTx.BlockTimestamp,
+			TxType:             ccTx.TxType,
+			MessageTypes:       []string{ccTx.TxType},
+			// For cross-chain transactions, we use sender/receiver from the cross-chain tables
+			Signer: ccTx.Sender,
+			To:     ccTx.Receiver,
+			Values: []string{fmt.Sprintf("%s%s", ccTx.Amount, ccTx.Denom)},
+			Code:   0, // Cross-chain transactions are always successful in our tables
+		}
+
+		result = append(result, tx)
+	}
+
+	global.Logger.Debugf("converted cross-chain transactions: total=%d, new=%d, existing=%d",
+		len(crossChainTxs), len(result), len(existingTxs))
+
+	return result
 }
 
 // batchGetTokenTransfers batch queries token transfers for EVM transactions.
