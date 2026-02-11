@@ -1580,23 +1580,8 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	baseQuery := db.Get().WithContext(dbCtx).Model(&models.Transaction{}).
 		Where("(signer = ? OR `to` = ?)", dbQueryAddress, dbQueryAddress)
 
-	if !useCursor && page == MinPage && !hasTxTypeFilter {
-		cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
-		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
-		if err == nil && len(cachedTxs) > 0 {
-			global.Logger.Debugf("account transactions found in cache: address=%s, count=%d", address, len(cachedTxs))
-			cachedTotal, cachedIsExact, cachedCountErr := getApproximateCountForAddressWithError(baseQuery, dbQueryAddress)
-			if cachedCountErr != nil {
-				global.Logger.Debugf("failed to get count for cached account transactions: %v, using approximate", cachedCountErr)
-				cachedTotal = ApproximateCountForAddress
-				cachedIsExact = false
-			}
-			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.BlockUnixTimestamp })
-			txDTOs := models.ToTransactionDTOs(cachedTxs)
-			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, cachedTotal, cachedIsExact, useCursor, cursorValue, nextCursor, len(cachedTxs))
-			return MarshalAndReply(txsResp, "marshal transactions error")
-		}
-	}
+	var txTypeClause string
+	var txTypeArgs []interface{}
 
 	var dbTxs []models.Transaction
 
@@ -1652,50 +1637,38 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		}
 
 		if len(conditions) > 0 {
-			baseQuery = baseQuery.Where("("+strings.Join(conditions, " OR ")+")", args...)
+			txTypeClause = "(" + strings.Join(conditions, " OR ") + ")"
+			txTypeArgs = args
+			baseQuery = baseQuery.Where(txTypeClause, txTypeArgs...)
 		}
 	}
 
-	var total int64
-	var isExactCount bool
-	var countErr error
-	total, isExactCount, countErr = getApproximateCountForAddressWithError(baseQuery, dbQueryAddress)
-	if countErr != nil {
-		global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", dbQueryAddress, countErr)
-		total = ApproximateCountForAddress
-		isExactCount = false
+	total, isExactCount := getAccountTotalCountForAddress(dbCtx, baseQuery, dbQueryAddress, txTypeClause, txTypeArgs)
+
+	if !useCursor && page == MinPage && !hasTxTypeFilter {
+		cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
+		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
+		if err == nil && len(cachedTxs) > 0 {
+			uniqueCached := make([]models.Transaction, 0, len(cachedTxs))
+			seen := make(map[string]struct{}, len(cachedTxs))
+			for _, tx := range cachedTxs {
+				if tx.Hash != "" {
+					if _, ok := seen[tx.Hash]; ok {
+						continue
+					}
+					seen[tx.Hash] = struct{}{}
+				}
+				uniqueCached = append(uniqueCached, tx)
+			}
+			cachedTxs = uniqueCached
+
+			global.Logger.Debugf("account transactions found in cache: address=%s, count=%d", address, len(cachedTxs))
+			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.BlockUnixTimestamp })
+			txDTOs := models.ToTransactionDTOs(cachedTxs)
+			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedTxs))
+			return MarshalAndReply(txsResp, "marshal transactions error")
+		}
 	}
-
-	// Also count cross-chain transactions to get accurate total
-	var crossChainCount int64
-
-	// Count Peggy deposits
-	var peggyDepositCount int64
-	db.Get().WithContext(dbCtx).Model(&models.PeggyDepositTx{}).
-		Where("(sender = ? OR receiver = ?)", dbQueryAddress, dbQueryAddress).
-		Count(&peggyDepositCount)
-
-	// Count Peggy withdrawals
-	var peggyWithdrawalCount int64
-	db.Get().WithContext(dbCtx).Model(&models.PeggyWithdrawalTx{}).
-		Where("(sender = ? OR receiver = ?)", dbQueryAddress, dbQueryAddress).
-		Count(&peggyWithdrawalCount)
-
-	// Count IBC transfers
-	var ibcTransferCount int64
-	db.Get().WithContext(dbCtx).Model(&models.IBCTransferTx{}).
-		Where("(sender = ? OR receiver = ?)", dbQueryAddress, dbQueryAddress).
-		Count(&ibcTransferCount)
-
-	crossChainCount = peggyDepositCount + peggyWithdrawalCount + ibcTransferCount
-
-	// Add cross-chain count to total
-	// Note: There may be some duplicates if cross-chain txs are also in the main transactions table
-	// but this gives us a better approximation
-	total += crossChainCount
-
-	global.Logger.Debugf("transaction counts for address %s: regular=%d, cross_chain=%d (peggy_deposit=%d, peggy_withdrawal=%d, ibc=%d), total=%d",
-		dbQueryAddress, total-crossChainCount, crossChainCount, peggyDepositCount, peggyWithdrawalCount, ibcTransferCount, total)
 
 	query := baseQuery
 	if useCursor {
@@ -1726,7 +1699,26 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	convertedCrossChainTxs := s.convertCrossChainToTransactions(dbCtx, crossChainTxs)
 
 	// Merge regular transactions and cross-chain transactions
-	allTxs := append(dbTxs, convertedCrossChainTxs...)
+	allTxs := make([]models.Transaction, 0, len(dbTxs)+len(convertedCrossChainTxs))
+	seen := make(map[string]struct{}, len(dbTxs)+len(convertedCrossChainTxs))
+	for _, tx := range dbTxs {
+		if tx.Hash != "" {
+			if _, ok := seen[tx.Hash]; ok {
+				continue
+			}
+			seen[tx.Hash] = struct{}{}
+		}
+		allTxs = append(allTxs, tx)
+	}
+	for _, tx := range convertedCrossChainTxs {
+		if tx.Hash != "" {
+			if _, ok := seen[tx.Hash]; ok {
+				continue
+			}
+			seen[tx.Hash] = struct{}{}
+		}
+		allTxs = append(allTxs, tx)
+	}
 
 	// Sort by block timestamp descending
 	sort.Slice(allTxs, func(i, j int) bool {
@@ -2286,6 +2278,7 @@ func normalizePagination(page, pageSize int32, cursor string, maxPageSize int32)
 //
 // Returns:
 //   - approximate count and whether it's an exact count
+//
 // getApproximateCountWithError gets an approximate count for large datasets and returns errors.
 // This function uses database statistics (information_schema for MySQL, pg_class for PostgreSQL)
 // for fast approximate counts instead of scanning the entire table, which is much more efficient
@@ -2422,6 +2415,109 @@ func getApproximateCountForAddressWithError(baseQuery *gorm.DB, address string) 
 
 	global.Logger.Warnf("exact count for address failed, using approximate: %v", err)
 	return ApproximateCountForAddress, false, err
+}
+
+func getAccountTotalCountForAddress(ctx context.Context, baseQuery *gorm.DB, address string, txTypeClause string, txTypeArgs []interface{}) (int64, bool) {
+	dbType := db.Get().Dialector.Name()
+	if dbType == "mysql" {
+		total, err := getAccountTotalCountMySQL(ctx, address, txTypeClause, txTypeArgs)
+		if err == nil {
+			return total, true
+		}
+		global.Logger.Warnf("failed to get exact total count for address %s (mysql union): %v, falling back", address, err)
+	}
+
+	total, isExact, countErr := getApproximateCountForAddressWithError(baseQuery, address)
+	if countErr != nil {
+		global.Logger.Warnf("failed to get approximate count for address %s: %v, using fallback value", address, countErr)
+		total = ApproximateCountForAddress
+		isExact = false
+	}
+
+	crossChainCount, err := countCrossChainForAddress(ctx, address)
+	if err != nil {
+		global.Logger.Warnf("failed to get cross-chain count for address %s: %v", address, err)
+		return total, isExact
+	}
+	if crossChainCount > 0 {
+		total += crossChainCount
+		// Cross-chain count may include hashes already in transactions table.
+		isExact = false
+	}
+
+	return total, isExact
+}
+
+func countCrossChainForAddress(ctx context.Context, address string) (int64, error) {
+	var total int64
+
+	var peggyDepositCount int64
+	if err := db.Get().WithContext(ctx).Model(&models.PeggyDepositTx{}).
+		Where("(sender = ? OR receiver = ?)", address, address).
+		Count(&peggyDepositCount).Error; err != nil {
+		return 0, err
+	}
+
+	var peggyWithdrawalCount int64
+	if err := db.Get().WithContext(ctx).Model(&models.PeggyWithdrawalTx{}).
+		Where("(sender = ? OR receiver = ?)", address, address).
+		Count(&peggyWithdrawalCount).Error; err != nil {
+		return 0, err
+	}
+
+	var ibcTransferCount int64
+	if err := db.Get().WithContext(ctx).Model(&models.IBCTransferTx{}).
+		Where("(sender = ? OR receiver = ?)", address, address).
+		Count(&ibcTransferCount).Error; err != nil {
+		return 0, err
+	}
+
+	total = peggyDepositCount + peggyWithdrawalCount + ibcTransferCount
+	return total, nil
+}
+
+func getAccountTotalCountMySQL(ctx context.Context, address string, txTypeClause string, txTypeArgs []interface{}) (int64, error) {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
+	defer cancel()
+
+	txWhere := "(signer = ? OR `to` = ?)"
+	args := []interface{}{address, address}
+	if txTypeClause != "" {
+		txWhere = txWhere + " AND " + txTypeClause
+		args = append(args, txTypeArgs...)
+	}
+
+	normalize := func(col string) string {
+		return fmt.Sprintf("LOWER(CASE WHEN LOWER(LEFT(%s, 2)) = '0x' THEN %s ELSE CONCAT('0x', %s) END)", col, col, col)
+	}
+
+	unionSQL := fmt.Sprintf(
+		`SELECT COUNT(*) AS total FROM (
+			SELECT LOWER(hash) AS h FROM transactions WHERE %s
+			UNION
+			SELECT %s AS h FROM peggy_deposit_txs WHERE (sender = ? OR receiver = ?)
+			UNION
+			SELECT %s AS h FROM peggy_withdrawal_txs WHERE (sender = ? OR receiver = ?)
+			UNION
+			SELECT %s AS h FROM ibc_transfer_txs WHERE (sender = ? OR receiver = ?)
+		) AS u`,
+		txWhere,
+		normalize("tx_hash"),
+		normalize("tx_hash"),
+		normalize("tx_hash"),
+	)
+
+	args = append(args, address, address, address, address, address, address)
+
+	var total int64
+	err := db.Get().WithContext(ctxWithTimeout).Raw(unionSQL, args...).Scan(&total).Error
+	if err != nil {
+		return 0, err
+	}
+	if total < 0 {
+		total = 0
+	}
+	return total, nil
 }
 
 // buildPaginationInfo builds pagination information for response.
@@ -7020,4 +7116,3 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 	// Build response
 	return buildListReply(dtos, total, page, pageSize), nil
 }
-
