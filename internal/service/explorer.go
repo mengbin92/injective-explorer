@@ -923,28 +923,33 @@ func (s *ExplorerService) GetLatestTransactions(ctx context.Context, req *pb.Pag
 			// Deduplicate cached transactions to ensure we only return complete ones
 			cachedTxs = deduplicateTransactions(cachedTxs)
 			global.Logger.Debugf("transactions after deduplication: count=%d", len(cachedTxs))
-			// Try to get total count from cache first to avoid database query
-			total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalTransactions)
-			if total == 0 {
-				// Cache miss for total, query from database and log error if any
-				var countErr error
-				total, isExactCount, countErr = getApproximateCountWithError(db.Get(), &models.Transaction{}, ctx)
-				if countErr != nil {
-					global.Logger.Warnf("failed to get approximate count for transactions: %v, using fallback value", countErr)
-					// Use fallback value if count query fails
-					total = ApproximateCountFallback
-					isExactCount = false
-				} else {
-					// Cache the total count for future queries
-					if err := cacheTotal(queryCtx, CacheKeyTotalTransactions, total); err != nil {
-						global.Logger.Warnf("failed to cache total transactions count: %v", err)
+
+			if len(cachedTxs) >= int(pageSize) {
+				// Try to get total count from cache first to avoid database query
+				total, isExactCount := getTotalFromCache(queryCtx, CacheKeyTotalTransactions)
+				if total == 0 {
+					// Cache miss for total, query from database and log error if any
+					var countErr error
+					total, isExactCount, countErr = getApproximateCountWithError(db.Get(), &models.Transaction{}, ctx)
+					if countErr != nil {
+						global.Logger.Warnf("failed to get approximate count for transactions: %v, using fallback value", countErr)
+						// Use fallback value if count query fails
+						total = ApproximateCountFallback
+						isExactCount = false
+					} else {
+						// Cache the total count for future queries
+						if err := cacheTotal(queryCtx, CacheKeyTotalTransactions, total); err != nil {
+							global.Logger.Warnf("failed to cache total transactions count: %v", err)
+						}
 					}
 				}
+				nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
+				txDTOs := models.ToTransactionDTOs(cachedTxs)
+				txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedTxs))
+				return MarshalAndReply(txsResp, "marshal transactions error")
 			}
-			nextCursor := calculateNextCursor(useCursor, cursorValue, cachedTxs, func(tx models.Transaction) uint64 { return tx.TxNumber })
-			txDTOs := models.ToTransactionDTOs(cachedTxs)
-			txsResp := buildPaginatedResponse(txDTOs, page, pageSize, total, isExactCount, useCursor, cursorValue, nextCursor, len(cachedTxs))
-			return MarshalAndReply(txsResp, "marshal transactions error")
+
+			global.Logger.Debugf("cached transactions insufficient for requested page_size, fallback to DB: page=%d, page_size=%d, cached=%d", page, pageSize, len(cachedTxs))
 		} else if page != MinPage && !hasMore {
 			// Cache doesn't have enough data for this page, fallback to DB
 			global.Logger.Debugf("cache miss for page %d, fallback to DB", page)
@@ -1582,13 +1587,15 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 
 	var txTypeClause string
 	var txTypeArgs []interface{}
+	var conditions []string
+	var args []interface{}
 
 	var dbTxs []models.Transaction
 
 	if hasTxTypeFilter {
 		dbType := db.Get().Dialector.Name()
-		conditions := make([]string, 0, len(req.TxTypes))
-		args := make([]interface{}, 0, len(req.TxTypes)*2)
+		conditions = make([]string, 0, len(req.TxTypes))
+		args = make([]interface{}, 0, len(req.TxTypes)*2)
 
 		// Check if any requested type is a transfer type
 		hasTransferFilter := false
@@ -1643,7 +1650,16 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 		}
 	}
 
-	total, isExactCount := getAccountTotalCountForAddress(dbCtx, baseQuery, dbQueryAddress, txTypeClause, txTypeArgs)
+	// Convert conditions and args to TxTypeFilter for safe SQL construction
+	var txTypeFilter *TxTypeFilter
+	if len(conditions) > 0 {
+		txTypeFilter = &TxTypeFilter{
+			Conditions: conditions,
+			Args:       args,
+		}
+	}
+
+	total, isExactCount := getAccountTotalCountForAddress(dbCtx, db.Get(), baseQuery, dbQueryAddress, txTypeFilter)
 
 	if !useCursor && page == MinPage && !hasTxTypeFilter {
 		cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
@@ -2422,20 +2438,45 @@ func getApproximateCountForAddressWithError(baseQuery *gorm.DB, address string) 
 // approximate count if needed. Cross-chain transactions are added to the total.
 //
 // Parameters:
+// TxTypeFilter defines transaction type filter conditions to avoid SQL injection risks.
+type TxTypeFilter struct {
+	// Conditions is a list of pre-parsed conditions, each using parameterized queries
+	Conditions []string
+	// Args are the parameters corresponding to the conditions
+	Args []any
+}
+
+// NewTxTypeFilter creates a new TxTypeFilter
+func NewTxTypeFilter() *TxTypeFilter {
+	return &TxTypeFilter{
+		Conditions: make([]string, 0),
+		Args:       make([]any, 0),
+	}
+}
+
+// BuildClause builds the complete WHERE clause
+func (f *TxTypeFilter) BuildClause() (string, []any) {
+	if len(f.Conditions) == 0 {
+		return "", nil
+	}
+	clause := "(" + strings.Join(f.Conditions, " OR ") + ")"
+	return clause, f.Args
+}
+
 //   - ctx: Context for the operation
+//   - db: Database connection for dependency injection
 //   - baseQuery: Base GORM query for main transaction table
 //   - address: The address to count transactions for
-//   - txTypeClause: Optional SQL clause to filter by transaction type
-//   - txTypeArgs: Arguments for the txTypeClause
+//   - txTypeFilter: Optional filter for transaction types (prevents SQL injection)
 //
 // Returns:
 //   - int64: Total transaction count (may include cross-chain transactions)
 //   - bool: isExact - true if the count is exact, false if approximate or includes
 //           cross-chain count (cross-chain hashes may overlap with main transactions table)
-func getAccountTotalCountForAddress(ctx context.Context, baseQuery *gorm.DB, address string, txTypeClause string, txTypeArgs []interface{}) (int64, bool) {
-	dbType := db.Get().Dialector.Name()
+func getAccountTotalCountForAddress(ctx context.Context, dbConn *gorm.DB, baseQuery *gorm.DB, address string, txTypeFilter *TxTypeFilter) (int64, bool) {
+	dbType := dbConn.Dialector.Name()
 	if dbType == "mysql" {
-		total, err := getAccountTotalCountMySQL(ctx, address, txTypeClause, txTypeArgs)
+		total, err := getAccountTotalCountMySQL(ctx, dbConn, address, txTypeFilter)
 		if err == nil {
 			return total, true
 		}
@@ -2449,7 +2490,7 @@ func getAccountTotalCountForAddress(ctx context.Context, baseQuery *gorm.DB, add
 		isExact = false
 	}
 
-	crossChainCount, err := countCrossChainForAddress(ctx, address)
+	crossChainCount, err := countCrossChainForAddress(ctx, dbConn, address)
 	if err != nil {
 		global.Logger.Warnf("failed to get cross-chain count for address %s: %v", address, err)
 		return total, isExact
@@ -2464,40 +2505,43 @@ func getAccountTotalCountForAddress(ctx context.Context, baseQuery *gorm.DB, add
 }
 
 // countCrossChainForAddress counts cross-chain transactions for an address.
-// It sums up counts from peggy deposit, peggy withdrawal, and IBC transfer tables.
+// It uses UNION ALL to combine counts from peggy deposit, peggy withdrawal, and IBC transfer tables
+// in a single query, reducing database round trips (N+1 optimization).
 //
 // Parameters:
 //   - ctx: Context for database operations
+//   - dbConn: Database connection for dependency injection
 //   - address: The address to count cross-chain transactions for
 //
 // Returns:
 //   - int64: Total count of cross-chain transactions
 //   - error: Any error encountered during counting
-func countCrossChainForAddress(ctx context.Context, address string) (int64, error) {
+func countCrossChainForAddress(ctx context.Context, dbConn *gorm.DB, address string) (int64, error) {
+	// Use UNION ALL to merge three queries, reducing database round trips
+	// UNION ALL is used instead of UNION because we want the total count without deduplication
+	// Each cross-chain table count is independent, so there won't be duplicates within each query
+	unionSQL := `
+		SELECT SUM(cnt) AS total FROM (
+			SELECT COUNT(*) AS cnt FROM peggy_deposit_txs WHERE (sender = ? OR receiver = ?)
+			UNION ALL
+			SELECT COUNT(*) AS cnt FROM peggy_withdrawal_txs WHERE (sender = ? OR receiver = ?)
+			UNION ALL
+			SELECT COUNT(*) AS cnt FROM ibc_transfer_txs WHERE (sender = ? OR receiver = ?)
+		) AS counts
+	`
+
+	args := []interface{}{
+		address, address, // peggy_deposit_txs
+		address, address, // peggy_withdrawal_txs
+		address, address, // ibc_transfer_txs
+	}
+
 	var total int64
-
-	var peggyDepositCount int64
-	if err := db.Get().WithContext(ctx).Model(&models.PeggyDepositTx{}).
-		Where("(sender = ? OR receiver = ?)", address, address).
-		Count(&peggyDepositCount).Error; err != nil {
+	err := dbConn.WithContext(ctx).Raw(unionSQL, args...).Scan(&total).Error
+	if err != nil {
 		return 0, err
 	}
 
-	var peggyWithdrawalCount int64
-	if err := db.Get().WithContext(ctx).Model(&models.PeggyWithdrawalTx{}).
-		Where("(sender = ? OR receiver = ?)", address, address).
-		Count(&peggyWithdrawalCount).Error; err != nil {
-		return 0, err
-	}
-
-	var ibcTransferCount int64
-	if err := db.Get().WithContext(ctx).Model(&models.IBCTransferTx{}).
-		Where("(sender = ? OR receiver = ?)", address, address).
-		Count(&ibcTransferCount).Error; err != nil {
-		return 0, err
-	}
-
-	total = peggyDepositCount + peggyWithdrawalCount + ibcTransferCount
 	return total, nil
 }
 
@@ -2508,27 +2552,30 @@ func countCrossChainForAddress(ctx context.Context, address string) (int64, erro
 //
 // Parameters:
 //   - ctx: Context for the operation
+//   - dbConn: Database connection for dependency injection
 //   - address: The address to count transactions for
-//   - txTypeClause: Optional SQL clause to filter by transaction type
-//   - txTypeArgs: Arguments for the txTypeClause
+//   - txTypeFilter: Optional filter for transaction types (prevents SQL injection)
 //
 // Returns:
 //   - int64: Exact total count of unique transactions
 //   - error: Any error encountered during the query
-func getAccountTotalCountMySQL(ctx context.Context, address string, txTypeClause string, txTypeArgs []interface{}) (int64, error) {
+func getAccountTotalCountMySQL(ctx context.Context, dbConn *gorm.DB, address string, txTypeFilter *TxTypeFilter) (int64, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
 	defer cancel()
 
 	// Build WHERE clause for main transactions table
 	txWhere := "(signer = ? OR `to` = ?)"
 	args := []interface{}{address, address}
-	if txTypeClause != "" {
-		var builder strings.Builder
-		builder.WriteString(txWhere)
-		builder.WriteString(" AND ")
-		builder.WriteString(txTypeClause)
-		txWhere = builder.String()
-		args = append(args, txTypeArgs...)
+	if txTypeFilter != nil && len(txTypeFilter.Conditions) > 0 {
+		clause, clauseArgs := txTypeFilter.BuildClause()
+		if clause != "" {
+			var builder strings.Builder
+			builder.WriteString(txWhere)
+			builder.WriteString(" AND ")
+			builder.WriteString(clause)
+			txWhere = builder.String()
+			args = append(args, clauseArgs...)
+		}
 	}
 
 	// normalize normalizes transaction hash format for consistent comparison.
@@ -2565,7 +2612,7 @@ func getAccountTotalCountMySQL(ctx context.Context, address string, txTypeClause
 	args = append(args, address, address, address, address, address, address)
 
 	var total int64
-	err := db.Get().WithContext(ctxWithTimeout).Raw(unionSQL, args...).Scan(&total).Error
+	err := dbConn.WithContext(ctxWithTimeout).Raw(unionSQL, args...).Scan(&total).Error
 	if err != nil {
 		return 0, err
 	}

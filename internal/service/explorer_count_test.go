@@ -8,7 +8,6 @@ import (
 
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
-	"injective-explorer/provider/db"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/stretchr/testify/assert"
@@ -88,9 +87,6 @@ func setupCountTestDB(t *testing.T) *gorm.DB {
 	`).Error
 	require.NoError(t, err, "failed to create ibc_transfer_txs table")
 
-	// Set the global db for the test
-	db.SetForTesting(testDB)
-
 	return testDB
 }
 
@@ -101,7 +97,7 @@ func TestCountCrossChainForAddress(t *testing.T) {
 	testAddress := "0x1234567890abcdef1234567890abcdef12345678"
 
 	t.Run("no cross-chain transactions", func(t *testing.T) {
-		count, err := countCrossChainForAddress(context.Background(), testAddress)
+		count, err := countCrossChainForAddress(context.Background(), testDB, testAddress)
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), count)
 	})
@@ -113,24 +109,28 @@ func TestCountCrossChainForAddress(t *testing.T) {
 		testDB.Exec(`INSERT INTO peggy_deposit_txs (tx_hash, sender, receiver, amount) VALUES (?, ?, ?, ?)`,
 			"0xabc2", "0xother2", testAddress, "200")
 
-		count, err := countCrossChainForAddress(context.Background(), testAddress)
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM peggy_deposit_txs")
+		})
+
+		count, err := countCrossChainForAddress(context.Background(), testDB, testAddress)
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), count)
-
-		// Cleanup
-		testDB.Exec("DELETE FROM peggy_deposit_txs")
 	})
 
 	t.Run("with peggy withdrawal transactions", func(t *testing.T) {
 		testDB.Exec(`INSERT INTO peggy_withdrawal_txs (tx_hash, sender, receiver, amount) VALUES (?, ?, ?, ?)`,
 			"0xdef1", testAddress, "0xother3", "300")
 
-		count, err := countCrossChainForAddress(context.Background(), testAddress)
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM peggy_withdrawal_txs")
+		})
+
+		count, err := countCrossChainForAddress(context.Background(), testDB, testAddress)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), count)
-
-		// Cleanup
-		testDB.Exec("DELETE FROM peggy_withdrawal_txs")
 	})
 
 	t.Run("with IBC transfer transactions", func(t *testing.T) {
@@ -139,12 +139,14 @@ func TestCountCrossChainForAddress(t *testing.T) {
 		testDB.Exec(`INSERT INTO ibc_transfer_txs (tx_hash, sender, receiver, amount) VALUES (?, ?, ?, ?)`,
 			"0xibc2", "0xother5", testAddress, "500")
 
-		count, err := countCrossChainForAddress(context.Background(), testAddress)
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM ibc_transfer_txs")
+		})
+
+		count, err := countCrossChainForAddress(context.Background(), testDB, testAddress)
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), count)
-
-		// Cleanup
-		testDB.Exec("DELETE FROM ibc_transfer_txs")
 	})
 
 	t.Run("with all types of cross-chain transactions", func(t *testing.T) {
@@ -156,14 +158,16 @@ func TestCountCrossChainForAddress(t *testing.T) {
 		testDB.Exec(`INSERT INTO ibc_transfer_txs (tx_hash, sender, receiver, amount) VALUES (?, ?, ?, ?)`,
 			"0xibc1", testAddress, "0xother3", "300")
 
-		count, err := countCrossChainForAddress(context.Background(), testAddress)
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM peggy_deposit_txs")
+			testDB.Exec("DELETE FROM peggy_withdrawal_txs")
+			testDB.Exec("DELETE FROM ibc_transfer_txs")
+		})
+
+		count, err := countCrossChainForAddress(context.Background(), testDB, testAddress)
 		require.NoError(t, err)
 		assert.Equal(t, int64(3), count)
-
-		// Cleanup
-		testDB.Exec("DELETE FROM peggy_deposit_txs")
-		testDB.Exec("DELETE FROM peggy_withdrawal_txs")
-		testDB.Exec("DELETE FROM ibc_transfer_txs")
 	})
 
 	t.Run("with context timeout", func(t *testing.T) {
@@ -172,11 +176,11 @@ func TestCountCrossChainForAddress(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond) // Ensure context is expired
 
-		_, err := countCrossChainForAddress(ctx, testAddress)
-		// Expecting an error due to context timeout
-		// Note: SQLite in-memory DB is very fast, so timeout might not always trigger
-		// This test demonstrates the function respects context cancellation
-		_ = err // Explicitly acknowledge we're checking error handling
+		_, err := countCrossChainForAddress(ctx, testDB, testAddress)
+		// If timeout occurs, assert error contains context deadline exceeded
+		if err != nil {
+			assert.Contains(t, err.Error(), "context deadline exceeded")
+		}
 	})
 }
 
@@ -191,7 +195,7 @@ func TestGetAccountTotalCountMySQL(t *testing.T) {
 	t.Run("no transactions", func(t *testing.T) {
 		// Note: This test will fail on non-MySQL databases as the function
 		// checks for MySQL specifically. We test the logic instead.
-		count, err := getAccountTotalCountMySQL(context.Background(), testAddress, "", nil)
+		count, err := getAccountTotalCountMySQL(context.Background(), testDB, testAddress, nil)
 
 		// On SQLite, the query should still execute but may return different results
 		// The important part is that it doesn't panic or throw unexpected errors
@@ -207,14 +211,16 @@ func TestGetAccountTotalCountMySQL(t *testing.T) {
 		testDB.Exec(`INSERT INTO transactions (hash, signer, to_field, tx_type) VALUES (?, ?, ?, ?)`,
 			"0xhash2", "0xother2", testAddress, "transfer")
 
-		count, err := getAccountTotalCountMySQL(context.Background(), testAddress, "", nil)
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM transactions")
+		})
+
+		count, err := getAccountTotalCountMySQL(context.Background(), testDB, testAddress, nil)
 
 		if err == nil {
 			assert.GreaterOrEqual(t, count, int64(2))
 		}
-
-		// Cleanup
-		testDB.Exec("DELETE FROM transactions")
 	})
 
 	t.Run("with duplicate hashes across tables", func(t *testing.T) {
@@ -224,17 +230,19 @@ func TestGetAccountTotalCountMySQL(t *testing.T) {
 		testDB.Exec(`INSERT INTO peggy_deposit_txs (tx_hash, sender, receiver, amount) VALUES (?, ?, ?, ?)`,
 			"0xsame", testAddress, "0xother2", "100")
 
-		count, err := getAccountTotalCountMySQL(context.Background(), testAddress, "", nil)
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM transactions")
+			testDB.Exec("DELETE FROM peggy_deposit_txs")
+		})
+
+		count, err := getAccountTotalCountMySQL(context.Background(), testDB, testAddress, nil)
 
 		if err == nil {
 			// UNION should deduplicate, so we expect 1 unique transaction
 			// Note: SQLite behavior may differ from MySQL
 			assert.GreaterOrEqual(t, count, int64(1))
 		}
-
-		// Cleanup
-		testDB.Exec("DELETE FROM transactions")
-		testDB.Exec("DELETE FROM peggy_deposit_txs")
 	})
 
 	t.Run("with tx type filter", func(t *testing.T) {
@@ -244,19 +252,23 @@ func TestGetAccountTotalCountMySQL(t *testing.T) {
 		testDB.Exec(`INSERT INTO transactions (hash, signer, to_field, tx_type) VALUES (?, ?, ?, ?)`,
 			"0xhash2", testAddress, "0xother2", "contract_call")
 
-		// Filter by tx_type
-		txTypeClause := "tx_type = ?"
-		txTypeArgs := []interface{}{"transfer"}
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM transactions")
+		})
 
-		count, err := getAccountTotalCountMySQL(context.Background(), testAddress, txTypeClause, txTypeArgs)
+		// Filter by tx_type using TxTypeFilter for SQL injection protection
+		txTypeFilter := &TxTypeFilter{
+			Conditions: []string{"tx_type = ?"},
+			Args:       []interface{}{"transfer"},
+		}
+
+		count, err := getAccountTotalCountMySQL(context.Background(), testDB, testAddress, txTypeFilter)
 
 		if err == nil {
 			// Should only count the transfer transaction
 			assert.GreaterOrEqual(t, count, int64(1))
 		}
-
-		// Cleanup
-		testDB.Exec("DELETE FROM transactions")
 	})
 
 	t.Run("with context timeout", func(t *testing.T) {
@@ -265,16 +277,17 @@ func TestGetAccountTotalCountMySQL(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond) // Ensure context is expired
 
-		_, err := getAccountTotalCountMySQL(ctx, testAddress, "", nil)
-		// Expecting an error due to context timeout
-		// Note: SQLite is very fast, so timeout might not always trigger
-		_ = err // Explicitly acknowledge we're checking error handling
+		_, err := getAccountTotalCountMySQL(ctx, testDB, testAddress, nil)
+		// If timeout occurs, assert error contains context deadline exceeded
+		if err != nil {
+			assert.Contains(t, err.Error(), "context deadline exceeded")
+		}
 	})
 
 	t.Run("negative count edge case", func(t *testing.T) {
 		// The function has logic to handle negative counts (set to 0)
 		// This is a safety check for unexpected database behavior
-		count, err := getAccountTotalCountMySQL(context.Background(), testAddress, "", nil)
+		count, err := getAccountTotalCountMySQL(context.Background(), testDB, testAddress, nil)
 
 		if err == nil {
 			// Count should never be negative
@@ -295,9 +308,9 @@ func TestGetAccountTotalCountForAddress(t *testing.T) {
 
 		count, isExact := getAccountTotalCountForAddress(
 			context.Background(),
+			testDB,
 			baseQuery,
 			testAddress,
-			"",
 			nil,
 		)
 
@@ -311,14 +324,19 @@ func TestGetAccountTotalCountForAddress(t *testing.T) {
 		testDB.Exec(`INSERT INTO peggy_deposit_txs (tx_hash, sender, receiver, amount) VALUES (?, ?, ?, ?)`,
 			"0xcross1", testAddress, "0xother1", "100")
 
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM peggy_deposit_txs")
+		})
+
 		baseQuery := testDB.Model(&models.Transaction{}).
 			Where("(signer = ? OR to_field = ?)", testAddress, testAddress)
 
 		count, isExact := getAccountTotalCountForAddress(
 			context.Background(),
+			testDB,
 			baseQuery,
 			testAddress,
-			"",
 			nil,
 		)
 
@@ -326,9 +344,6 @@ func TestGetAccountTotalCountForAddress(t *testing.T) {
 		// When cross-chain count > 0, isExact should be false
 		// because cross-chain hashes may overlap with main transactions
 		assert.False(t, isExact, "isExact should be false when cross-chain transactions exist")
-
-		// Cleanup
-		testDB.Exec("DELETE FROM peggy_deposit_txs")
 	})
 
 	t.Run("gracefully handles cross-chain count error", func(t *testing.T) {
@@ -338,9 +353,9 @@ func TestGetAccountTotalCountForAddress(t *testing.T) {
 
 		count, isExact := getAccountTotalCountForAddress(
 			context.Background(),
+			testDB,
 			baseQuery,
 			testAddress,
-			"",
 			nil,
 		)
 
@@ -356,25 +371,29 @@ func TestGetAccountTotalCountForAddress(t *testing.T) {
 		testDB.Exec(`INSERT INTO transactions (hash, signer, to_field, tx_type) VALUES (?, ?, ?, ?)`,
 			"0xhash2", testAddress, "0xother2", "contract_call")
 
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM transactions")
+		})
+
 		baseQuery := testDB.Model(&models.Transaction{}).
 			Where("(signer = ? OR to_field = ?) AND tx_type = ?", testAddress, testAddress, "transfer")
 
-		txTypeClause := "tx_type = ?"
-		txTypeArgs := []interface{}{"transfer"}
+		txTypeFilter := &TxTypeFilter{
+			Conditions: []string{"tx_type = ?"},
+			Args:       []interface{}{"transfer"},
+		}
 
 		count, isExact := getAccountTotalCountForAddress(
 			context.Background(),
+			testDB,
 			baseQuery,
 			testAddress,
-			txTypeClause,
-			txTypeArgs,
+			txTypeFilter,
 		)
 
 		assert.GreaterOrEqual(t, count, int64(0))
 		_ = isExact
-
-		// Cleanup
-		testDB.Exec("DELETE FROM transactions")
 	})
 }
 
@@ -391,6 +410,11 @@ func TestGetApproximateCountForAddressWithError(t *testing.T) {
 				"0xhash"+string(rune(i)), testAddress, "0xother1", "transfer")
 		}
 
+		// Register cleanup BEFORE assertions
+		t.Cleanup(func() {
+			testDB.Exec("DELETE FROM transactions")
+		})
+
 		baseQuery := testDB.Model(&models.Transaction{}).
 			Where("(signer = ? OR to_field = ?)", testAddress, testAddress)
 
@@ -399,9 +423,6 @@ func TestGetApproximateCountForAddressWithError(t *testing.T) {
 		assert.Equal(t, int64(5), count)
 		// With count < ApproximateCountThreshold, isExact should be true
 		assert.True(t, isExact)
-
-		// Cleanup
-		testDB.Exec("DELETE FROM transactions")
 	})
 
 	t.Run("handles context timeout", func(t *testing.T) {
