@@ -2417,6 +2417,21 @@ func getApproximateCountForAddressWithError(baseQuery *gorm.DB, address string) 
 	return ApproximateCountForAddress, false, err
 }
 
+// getAccountTotalCountForAddress calculates the total transaction count for an address.
+// It attempts to get an exact count using MySQL UNION query first, then falls back to
+// approximate count if needed. Cross-chain transactions are added to the total.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - baseQuery: Base GORM query for main transaction table
+//   - address: The address to count transactions for
+//   - txTypeClause: Optional SQL clause to filter by transaction type
+//   - txTypeArgs: Arguments for the txTypeClause
+//
+// Returns:
+//   - int64: Total transaction count (may include cross-chain transactions)
+//   - bool: isExact - true if the count is exact, false if approximate or includes
+//           cross-chain count (cross-chain hashes may overlap with main transactions table)
 func getAccountTotalCountForAddress(ctx context.Context, baseQuery *gorm.DB, address string, txTypeClause string, txTypeArgs []interface{}) (int64, bool) {
 	dbType := db.Get().Dialector.Name()
 	if dbType == "mysql" {
@@ -2448,6 +2463,16 @@ func getAccountTotalCountForAddress(ctx context.Context, baseQuery *gorm.DB, add
 	return total, isExact
 }
 
+// countCrossChainForAddress counts cross-chain transactions for an address.
+// It sums up counts from peggy deposit, peggy withdrawal, and IBC transfer tables.
+//
+// Parameters:
+//   - ctx: Context for database operations
+//   - address: The address to count cross-chain transactions for
+//
+// Returns:
+//   - int64: Total count of cross-chain transactions
+//   - error: Any error encountered during counting
 func countCrossChainForAddress(ctx context.Context, address string) (int64, error) {
 	var total int64
 
@@ -2476,21 +2501,50 @@ func countCrossChainForAddress(ctx context.Context, address string) (int64, erro
 	return total, nil
 }
 
+// getAccountTotalCountMySQL gets an exact total count using MySQL UNION query.
+// This function uses a UNION query to deduplicate transaction hashes across multiple tables
+// (transactions, peggy_deposit_txs, peggy_withdrawal_txs, ibc_transfer_txs) in a single
+// database query, which is more efficient than multiple separate COUNT queries.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - address: The address to count transactions for
+//   - txTypeClause: Optional SQL clause to filter by transaction type
+//   - txTypeArgs: Arguments for the txTypeClause
+//
+// Returns:
+//   - int64: Exact total count of unique transactions
+//   - error: Any error encountered during the query
 func getAccountTotalCountMySQL(ctx context.Context, address string, txTypeClause string, txTypeArgs []interface{}) (int64, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, CountQueryTimeout)
 	defer cancel()
 
+	// Build WHERE clause for main transactions table
 	txWhere := "(signer = ? OR `to` = ?)"
 	args := []interface{}{address, address}
 	if txTypeClause != "" {
-		txWhere = txWhere + " AND " + txTypeClause
+		var builder strings.Builder
+		builder.WriteString(txWhere)
+		builder.WriteString(" AND ")
+		builder.WriteString(txTypeClause)
+		txWhere = builder.String()
 		args = append(args, txTypeArgs...)
 	}
 
+	// normalize normalizes transaction hash format for consistent comparison.
+	// It handles case-insensitive comparison and ensures all hashes have '0x' prefix.
+	// This is necessary because different tables may store hashes with or without '0x' prefix.
 	normalize := func(col string) string {
 		return fmt.Sprintf("LOWER(CASE WHEN LOWER(LEFT(%s, 2)) = '0x' THEN %s ELSE CONCAT('0x', %s) END)", col, col, col)
 	}
 
+	// Build UNION query to deduplicate transaction hashes across all tables.
+	// UNION automatically removes duplicates, giving us an exact count.
+	// Each branch selects normalized hashes from different transaction sources:
+	// 1. Main transactions table - filtered by txWhere (may include type filters)
+	// 2. Peggy deposit transactions - cross-chain deposits from Ethereum
+	// 3. Peggy withdrawal transactions - cross-chain withdrawals to Ethereum
+	// 4. IBC transfer transactions - cross-chain transfers via IBC protocol
 	unionSQL := fmt.Sprintf(
 		`SELECT COUNT(*) AS total FROM (
 			SELECT LOWER(hash) AS h FROM transactions WHERE %s
@@ -2507,6 +2561,7 @@ func getAccountTotalCountMySQL(ctx context.Context, address string, txTypeClause
 		normalize("tx_hash"),
 	)
 
+	// Append address parameters for each cross-chain table (2 params per table × 3 tables = 6 params)
 	args = append(args, address, address, address, address, address, address)
 
 	var total int64
