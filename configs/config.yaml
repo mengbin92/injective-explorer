@@ -71,7 +71,7 @@ log:
   format: ${LOG_FORMAT:console}
 
 chain:
-  network: ${CHAIN_NETWORK:mainnet}
+  network: ${CHAIN_NETWORK:injective}
   lcd_endpoint: ${CHAIN_LCD_ENDPOINT:https://sentry.lcd.injective.network}
   tm_endpoint: ${CHAIN_TM_ENDPOINT:https://sentry.tm.injective.network:443}
   chain_grpc_endpoint: ${CHAIN_GRPC_ENDPOINT:sentry.chain.grpc.injective.network:443}
@@ -80,14 +80,14 @@ chain:
   explorer_grpc_endpoint: ${CHAIN_EXPLORER_GRPC_ENDPOINT:sentry.explorer.grpc.injective.network:443}
   chain_id: ${CHAIN_ID:injective-1}
   fee_denom: ${CHAIN_FEE_DENOM:inj}
-  name: ${CHAIN_NAME:mainnet}
+  name: ${CHAIN_NAME:injective}
   official_tokens_list_url: ${CHAIN_OFFICIAL_TOKENS_LIST_URL:https://github.com/InjectiveLabs/injective-lists/raw/master/json/tokens/testnet.json}
   # EVM RPC 配置
   evm:
     enabled: true
-    rpc_endpoint: ${CHAIN_EVM_RPC_ENDPOINT:https://sentry.evm-rpc.injective.network/}
+    rpc_endpoint: ${CHAIN_EVM_RPC_ENDPOINT:https://sentry.evm-rpc.injective.network}
     ws_endpoint: ${CHAIN_EVM_WS_ENDPOINT:wss://sentry.evm-ws.injective.network}
-    chain_id: ${CHAIN_EVM_CHAIN_ID:1776}
+    chain_id: ${CHAIN_EVM_CHAIN_ID:801}
     timeout: 10s
     # API 查询超时（默认: 15s，比 RPC timeout 长以适应详情查询）
     api_timeout: 15s
@@ -100,6 +100,20 @@ chain:
       ttl: 24h
       # 是否启用缓存（默认: true）
       enabled: true
+    # 合约创建事件配置（用于从 Event Logs 解析 Factory 创建的合约地址）
+    contract_creation_events:
+      # Uniswap V2 风格的 PairCreated 事件
+      - name: "PairCreated"
+        signature: "PairCreated(address,address,address,uint256)"
+        contract_param_index: 2      # 第3个参数（0-indexed）
+        contract_param_indexed: false # 该参数在 data 字段中，不是 indexed
+        contract_param_type: "address"
+      # 示例：其他 DEX 的 PoolCreated 事件（如 Uniswap V3）
+      # - name: "PoolCreated"
+      #   signature: "PoolCreated(address,address,uint24,int24,address)"
+      #   contract_param_index: 4      # 第5个参数是 pool 地址
+      #   contract_param_indexed: false
+      #   contract_param_type: "address"
 
 sync:
   # Redis 队列配置
