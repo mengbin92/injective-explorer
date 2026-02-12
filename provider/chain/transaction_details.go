@@ -248,7 +248,7 @@ func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash co
 			topics[j] = topic.Hex()
 		}
 		logs[i] = LogInfo{
-			Address: log.Address.Hex(),
+			Address: strings.ToLower(log.Address.Hex()),
 			Topics:  topics,
 			Data:    hex.EncodeToString(log.Data),
 			Index:   log.Index,
@@ -260,7 +260,14 @@ func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash co
 	to := getToAddress(tx, receipt)
 	contractAddress := ""
 	if receipt.ContractAddress != (common.Address{}) {
-		contractAddress = receipt.ContractAddress.Hex()
+		contractAddress = strings.ToLower(receipt.ContractAddress.Hex())
+	}
+
+	// 10a. If no direct contract creation address, try to extract from event logs
+	// This handles Factory pattern contract creation (e.g., Uniswap V2 PairCreated events)
+	// Note: ExtractContractAddressFromLogs already returns lowercase
+	if contractAddress == "" {
+		contractAddress = ExtractContractAddressFromLogs(receipt)
 	}
 
 	// 11. Build result
@@ -285,7 +292,7 @@ func (c *EVMClient) getTransactionDetailsInternal(ctx context.Context, txHash co
 		BlockHash:        receipt.BlockHash.Hex(),
 		Confirmations:    currentBlockNumber - receipt.BlockNumber.Uint64(),
 		Timestamp:        timestamp,
-		From:             from.Hex(),
+		From:             strings.ToLower(from.Hex()),
 		To:               to,
 		ContractAddress:  contractAddress,
 		Value:            tx.Value().String(),
@@ -322,15 +329,15 @@ func getStatusString(status uint64) string {
 	return "Failed"
 }
 
-// getToAddress gets the To address.
+// getToAddress gets the To address (EVM format: 0x + lowercase).
 func getToAddress(tx *types.Transaction, receipt *types.Receipt) string {
 	// For contract creation, return contract address
 	if receipt.ContractAddress != (common.Address{}) {
-		return receipt.ContractAddress.Hex()
+		return strings.ToLower(receipt.ContractAddress.Hex())
 	}
 	// Otherwise return To address
 	if tx.To() != nil {
-		return tx.To().Hex()
+		return strings.ToLower(tx.To().Hex())
 	}
 	return ""
 }

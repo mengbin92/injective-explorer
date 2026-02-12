@@ -134,10 +134,22 @@ message Chain {
     int64 chain_id = 4; // EVM chain ID (1776 for mainnet, 1439 for testnet)
     google.protobuf.Duration timeout = 5; // RPC timeout
     Retry retry = 6;                      // Retry configuration
+    // Contract creation event configuration for factory pattern detection
+    repeated ContractCreationEvent contract_creation_events = 7;
 
     message Retry {
       int32 max_attempts = 1;                     // Maximum retry attempts
       google.protobuf.Duration initial_delay = 2; // Initial retry delay
+    }
+
+    // Contract creation event configuration
+    // Allows configurable detection of factory-created contracts from event logs
+    message ContractCreationEvent {
+      string name = 1;                    // Event name (e.g., "PairCreated")
+      string signature = 2;               // Full event signature (e.g., "PairCreated(address,address,address,uint256)")
+      int32 contract_param_index = 3;     // Index of the contract address parameter in the event (0-indexed)
+      bool contract_param_indexed = 4;    // Whether the contract address parameter is indexed (in topics) or not (in data)
+      string contract_param_type = 5;     // Parameter type, typically "address"
     }
   }
 }

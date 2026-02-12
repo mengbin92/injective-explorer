@@ -106,6 +106,11 @@ func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig,
 	}
 
 	return &EVMDetailsSyncService{
+
+	// Initialize contract creation events from configuration (for Factory pattern support)
+	if bc != nil && bc.Chain != nil && bc.Chain.Evm != nil {
+		chain.InitContractCreationEventsFromConfig(bc.Chain.Evm)
+	}
 		ctx:         serviceCtx,
 		cancel:      cancel,
 		config:      config,
