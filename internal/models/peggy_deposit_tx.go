@@ -21,7 +21,7 @@ type PeggyDepositTx struct {
 	Receiver            string `gorm:"column:receiver;size:128;not null;index"`     // Injective address
 	Amount              string `gorm:"column:amount;size:100"`
 	Denom               string `gorm:"column:denom;size:100"`
-	EventNonce          uint64 `gorm:"column:event_nonce;uniqueIndex"`
+	EventNonce          uint64 `gorm:"column:event_nonce;index"`                                // Changed to regular index
 	EventHeight         uint64 `gorm:"column:event_height"`
 	OrchestratorAddress string `gorm:"column:orchestrator_address;size:128"`
 	State               string `gorm:"column:state;size:50;default:'completed'"`

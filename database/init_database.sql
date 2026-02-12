@@ -1019,7 +1019,8 @@ CREATE TABLE `peggy_deposit_txs` (
   `block_height` bigint unsigned DEFAULT NULL COMMENT '区块高度',
   `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_peggy_deposit_event_nonce` (`event_nonce`),
+	KEY `idx_peggy_deposit_event_nonce` (`event_nonce`), -- Changed to regular index to allow multiple txs with same event_nonce
+	UNIQUE KEY `uk_peggy_deposit_composite` (`block_height`, `event_nonce`, `tx_hash`), -- Composite unique key allows Cosmos + EVM txs for same event
   KEY `idx_peggy_deposit_txs_deleted_at` (`deleted_at`),
   KEY `idx_peggy_deposit_txs_sender` (`sender`),
   KEY `idx_peggy_deposit_txs_receiver` (`receiver`),
@@ -1057,6 +1058,8 @@ CREATE TABLE `peggy_withdrawal_txs` (
   `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_peggy_withdrawal_outgoing_tx_id` (`outgoing_tx_id`),
+  KEY `idx_peggy_withdrawal_batch_nonce` (`batch_nonce`), -- Index for batch_nonce queries
+  UNIQUE KEY `uk_peggy_withdrawal_composite` (`block_height`, `batch_nonce`, `tx_hash`), -- Composite unique key allows Cosmos + EVM txs for same batch
   KEY `idx_peggy_withdrawal_txs_deleted_at` (`deleted_at`),
   KEY `idx_peggy_withdrawal_txs_sender` (`sender`),
   KEY `idx_peggy_withdrawal_txs_receiver` (`receiver`),

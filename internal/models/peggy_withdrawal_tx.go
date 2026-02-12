@@ -24,7 +24,7 @@ type PeggyWithdrawalTx struct {
 	BridgeFee           string `gorm:"column:bridge_fee;size:100"`
 	OutgoingTxId        uint64 `gorm:"column:outgoing_tx_id;uniqueIndex"`
 	BatchTimeout        uint64 `gorm:"column:batch_timeout"`
-	BatchNonce          uint64 `gorm:"column:batch_nonce"`
+	BatchNonce          uint64 `gorm:"column:batch_nonce;index"` // Index for batch_nonce queries
 	OrchestratorAddress string `gorm:"column:orchestrator_address;size:128"`
 	EventNonce          uint64 `gorm:"column:event_nonce"`
 	EventHeight         uint64 `gorm:"column:event_height"`

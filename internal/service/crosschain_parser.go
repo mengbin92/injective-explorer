@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"time"
 
 	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
@@ -594,31 +593,35 @@ func saveCrossChainTransaction(ctx context.Context, data *CrossChainData) error 
 		}
 	}
 
-	// Save Peggy deposits (UPSERT on event_nonce if non-zero, otherwise use tx_hash)
+	// Save Peggy deposits (UPSERT on composite unique key)
+	// Note: MsgDepositClaim is NOT a transfer transaction - it's a declaration/attestation
+	// Multiple transactions (votes) can have the same event_nonce
+	// We now allow multiple txs with same event_nonce (Cosmos + EVM representations)
+	// using composite unique key: (block_height, event_nonce, tx_hash)
 	for _, deposit := range data.PeggyDeposits {
+		if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "block_height"}, {Name: "event_nonce"}, {Name: "tx_hash"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"state", "updated_at",
+				"sender",      // Update sender
+				"receiver",    // Update receiver
+				"amount",      // Update amount
+				"denom",       // Update denom
+				"orchestrator_address", // Update orchestrator
+				"block_height", "block_timestamp", // Update block info
+			}),
+		}).Create(deposit).Error; err != nil {
+			return errors.Wrap(err, "failed to save Peggy deposit")
+		}
 		if deposit.EventNonce > 0 {
-			// Normal case: use event_nonce as unique key
-			if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "event_nonce"}},
-				DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
-			}).Create(deposit).Error; err != nil {
-				return errors.Wrap(err, "failed to save Peggy deposit")
-			}
+			global.Logger.Debugf("saved Peggy deposit: event_nonce=%d, block_height=%d, tx_hash=%s",
+				deposit.EventNonce, deposit.BlockHeight, deposit.TxHash)
 		} else {
-			// Fallback: use tx_hash as unique key when event_nonce is 0
-			global.Logger.Warnf("MsgDepositClaim with event_nonce=0 in tx %s, using tx_hash as unique key", deposit.TxHash)
-			if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "tx_hash"}},
-				DoUpdates: clause.AssignmentColumns([]string{"state", "updated_at"}),
-			}).Create(deposit).Error; err != nil {
-				return errors.Wrap(err, "failed to save Peggy deposit with zero event_nonce")
-			}
+			global.Logger.Warnf("Peggy deposit with event_nonce=0 in tx %s", deposit.TxHash)
 		}
 	}
 
-	// Save Peggy withdrawals
-	// Strategy:
-	// - MsgSendToEth: Create new record with outgoing_tx_id (UPSERT on outgoing_tx_id)
+	// Save Peggy withdrawals - MsgSendToEth: Create via outgoing_tx_id
 	// - MsgWithdrawClaim: Update existing record via batch_nonce lookup
 	for _, withdrawal := range data.PeggyWithdrawals {
 		if err := savePeggyWithdrawal(ctx, withdrawal); err != nil {
@@ -631,59 +634,31 @@ func saveCrossChainTransaction(ctx context.Context, data *CrossChainData) error 
 
 // savePeggyWithdrawal saves a single Peggy withdrawal with proper logic for MsgSendToEth vs MsgWithdrawClaim.
 func savePeggyWithdrawal(ctx context.Context, withdrawal *models.PeggyWithdrawalTx) error {
-	// MsgWithdrawClaim: has batch_nonce but no outgoing_tx_id
+	// MsgWithdrawClaim: has batch_nonce but no outgoing_tx_id (or with outgoing_tx_id after completion)
 	// MsgSendToEth: has outgoing_tx_id but no batch_nonce (initially)
 
-	if withdrawal.BatchNonce > 0 && withdrawal.OutgoingTxId == 0 {
-		// This is a MsgWithdrawClaim - update existing record by batch_nonce
-		// Use a direct UPDATE query to avoid SELECT roundtrip
-
-		updates := map[string]interface{}{
-			"state":                "completed",
-			"batch_nonce":          withdrawal.BatchNonce,
-			"event_nonce":          withdrawal.EventNonce,
-			"event_height":         withdrawal.EventHeight,
-			"orchestrator_address": withdrawal.OrchestratorAddress,
-			"updated_at":           time.Now(),
-		}
-		if withdrawal.EthTxHash != "" {
-			updates["eth_tx_hash"] = withdrawal.EthTxHash
-		}
-
-		// Execute UPDATE and check RowsAffected to determine if record exists
-		result := db.Get().WithContext(ctx).
-			Model(&models.PeggyWithdrawalTx{}).
-			Where("batch_nonce = ?", withdrawal.BatchNonce).
-			Updates(updates)
-
-		if result.Error != nil {
-			return errors.Wrap(result.Error, "failed to update withdrawal by batch_nonce")
-		}
-
-		// If no rows were affected, the record doesn't exist yet
-		// This might be a MsgWithdrawClaim arriving before MsgSendToEth
-		if result.RowsAffected == 0 {
-			global.Logger.Warnf("MsgWithdrawClaim with batch_nonce=%d has no corresponding MsgSendToEth, creating new record for tx %s",
-				withdrawal.BatchNonce, withdrawal.TxHash)
-			// Use UPSERT with batch_nonce as the unique key
-			return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
-				Columns: []clause.Column{{Name: "batch_nonce"}},
-				DoUpdates: clause.AssignmentColumns([]string{
-					"state", "event_nonce", "event_height",
-					"orchestrator_address", "eth_tx_hash", "updated_at",
-				}),
-			}).Create(withdrawal).Error
-		}
-
-		return nil
-
-	} else if withdrawal.OutgoingTxId > 0 {
+	if withdrawal.OutgoingTxId > 0 {
 		// This is a MsgSendToEth - create or update by outgoing_tx_id
+		// Note: outgoing_tx_id is unique per withdrawal intent
 		return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "outgoing_tx_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"state", "batch_nonce", "event_nonce", "event_height",
 				"orchestrator_address", "eth_tx_hash", "updated_at",
+			}),
+		}).Create(withdrawal).Error
+
+	} else if withdrawal.BatchNonce > 0 {
+		// This is a MsgWithdrawClaim - batch completion confirmation
+		// Note: MsgWithdrawClaim is an attestation/vote, not the actual withdrawal
+		// Multiple transactions (Cosmos + EVM) can have the same batch_nonce
+		// Use composite unique key: (block_height, batch_nonce, tx_hash)
+		return db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "block_height"}, {Name: "batch_nonce"}, {Name: "tx_hash"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"state", "updated_at",
+				"event_nonce", "event_height",
+				"orchestrator_address", "eth_tx_hash",
 			}),
 		}).Create(withdrawal).Error
 

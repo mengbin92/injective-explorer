@@ -1933,6 +1933,15 @@ func (s *ExplorerService) convertCrossChainToTransactions(
 			receiverEVM = converter.NormalizeHash(receiverEVM)
 			// For cross-chain transactions, always use receiver from peggy/ibc tables as it's more accurate
 			existingTx.To = receiverEVM
+
+			// Update Signer field with EVM-formatted sender address
+			senderEVM := ccTx.Sender
+			if evmAddr, err := converter.InjectiveToEthAddress(ccTx.Sender); err == nil {
+				senderEVM = evmAddr
+			}
+			senderEVM = converter.NormalizeHash(senderEVM)
+			existingTx.Signer = senderEVM
+
 			if len(existingTx.Values) == 0 && ccTx.Amount != "" {
 				existingTx.Values = []string{fmt.Sprintf("%s%s", ccTx.Amount, ccTx.Denom)}
 			}
