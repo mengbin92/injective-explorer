@@ -281,3 +281,36 @@ func TestSanitizeHash(t *testing.T) {
 	}
 }
 
+// TestNormalizeHashForCache tests the NormalizeHashForCache function.
+func TestNormalizeHashForCache(t *testing.T) {
+	tests := []struct {
+		name string
+		hash string
+		want string
+	}{
+		{
+			name: "hash with 0x prefix",
+			hash: "0xabc123",
+			want: "0xabc123",
+		},
+		{
+			name: "hash without 0x",
+			hash: "abc123",
+			want: "0xabc123",
+		},
+		{
+			name: "double 0x prefix",
+			hash: "0x0xabc123",
+			want: "0xabc123",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizeHashForCache(tt.hash)
+			if got != tt.want {
+				t.Errorf("NormalizeHashForCache() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+

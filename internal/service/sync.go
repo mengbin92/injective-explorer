@@ -3351,19 +3351,21 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 		return
 	}
 
-	// Use Sorted Set with composite score for automatic deduplication and ordering
-	// Member is the JSON string itself (automatically deduplicated by content)
-	// Score = block_number * 1000000 + tx_number for chronological ordering
-	// This ensures:
-	// - Different blocks have different score ranges
-	// - Transactions within the same block are ordered by tx_number (tx_index + 1, per-block)
-	// - Overall ordering: newest blocks first, then by tx_number within each block
-	// Formula: block_number * 1000000 + tx_number (1000000 allows up to 1M txs per block)
-	compositeScore := float64(tx.BlockNumber)*1000000 + float64(tx.TxNumber)
+	// Compute composite score for ZSet ordering (newest first).
+	// Authoritative tx_number: per-block (tx_index+1), use block_number*1000000+tx_number
+	// Legacy tx_number: blockHeight*1000000+hashOffset (already globally ordered), use tx_number directly
+	var compositeScore float64
+	if tx.TxNumber >= TxNumberLegacyThreshold && tx.BlockNumber > 0 {
+		// Legacy format: TxNumber already encodes global order, use directly
+		compositeScore = float64(tx.TxNumber)
+	} else {
+		// Authoritative: tx_number = tx_index+1 (per-block), composite for global order
+		compositeScore = float64(tx.BlockNumber)*1000000 + float64(tx.TxNumber)
+	}
 	pipe := redisClient.Pipeline()
 	pipe.ZAdd(ctx, CacheKeyTransactionZSet, redis.Z{
 		Score:  compositeScore,
-		Member: string(txJSON),
+		Member: tx.Hash,
 	})
 	// Maintain only the latest CacheMaxSize entries (remove old ones with lowest scores)
 	// Use -int64(CacheMaxSize)-1 to keep elements from rank -CacheMaxSize to -1 (newest CacheMaxSize entries)

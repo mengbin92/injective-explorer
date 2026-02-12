@@ -1222,24 +1222,18 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, cod
 		safeLogWarnf("⚠ blockResp is nil for tx %s in block %d, will use legacy calculation", txHash, blockHeight)
 	}
 	
-	// Legacy fallback: hash-based calculation (for backward compatibility)
-	// This is used when block data is not available or transaction not found in block
+	// Fallback when authoritative method failed (block nil or tx not found in block).
+	// Use block_height*1000000+hashOffset to produce globally unique, roughly chronological tx_number.
+	// Note: cacheTransaction correctly handles this format (uses tx_number directly as score).
 	if txNumber == 0 {
-		// Formula: tx_number = block_height * 1000000 + (hash_based_offset % 1000000)
-		// This ensures:
-		// 1. Transactions in the same block have different tx_number (based on hash)
-		// 2. Transactions in different blocks have different tx_number ranges
-		// 3. tx_number is globally unique and roughly chronological
 		var hashOffset uint64
 		hashHex := txHash[2:] // Remove "0x" prefix
-		// Use a simple hash function: sum of character codes modulo 1000000
-		// This distributes transactions evenly across the 0-999999 range
 		for _, char := range hashHex {
 			hashOffset = (hashOffset*31 + uint64(char)) % 1000000
 		}
 		txNumber = blockHeight*1000000 + hashOffset
-		safeLogWarnf("⚠ calculated tx_number=%d using legacy hash-based method for tx %s in block %d (hashOffset=%d). "+
-			"This indicates the authoritative method failed or block data was unavailable.",
+		safeLogWarnf("⚠ calculated tx_number=%d using fallback hash-based method for tx %s in block %d (hashOffset=%d). "+
+			"Authoritative method failed or block data unavailable - consider ensuring block fetch succeeds.",
 			txNumber, txHash, blockHeight, hashOffset)
 	}
 

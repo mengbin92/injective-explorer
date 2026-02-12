@@ -199,11 +199,25 @@ func SanitizeAddress(address string) string {
 //   - hash: The hash string to sanitize
 //
 // Returns:
-//   - string: The sanitized hash
+//   - string: The sanitized hash (without 0x prefix)
 func SanitizeHash(hash string) string {
 	hash = strings.TrimSpace(hash)
 	hash = strings.ToLower(hash)
-	// Remove 0x prefix if present
+	// Remove 0x prefix if present ( TrimPrefix only removes one occurrence )
 	hash = strings.TrimPrefix(hash, "0x")
 	return hash
+}
+
+// NormalizeHashForCache returns hash with exactly one "0x" prefix for cache key consistency.
+// Use this when looking up or storing transaction cache (cache:transaction:0x<hex>).
+// Handles inputs like "0xabc", "abc", "0x0xabc" -> "0xabc"
+func NormalizeHashForCache(hash string) string {
+	s := strings.TrimSpace(strings.ToLower(hash))
+	for strings.HasPrefix(s, "0x") {
+		s = strings.TrimPrefix(s, "0x")
+	}
+	if s == "" {
+		return ""
+	}
+	return "0x" + s
 }

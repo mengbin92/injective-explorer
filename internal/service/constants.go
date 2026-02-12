@@ -43,6 +43,11 @@ const (
 	// Redis cache constants
 	CacheMaxSize = 1000 // Cache the most recent 1000 records (increased from 100 for better cache hit rate)
 
+	// TxNumberLegacyThreshold: tx_number from authoritative method is per-block (1~N). Legacy produces
+	// blockHeight*1000000+hashOffset. When tx_number >= blockNumber*1000000, it's legacy format.
+	// We use 100000 as threshold (no block has 100k txs) to detect legacy for score calculation.
+	TxNumberLegacyThreshold = 100000
+
 	// Stream and cache query constants
 	StreamInitialBlocksCount       = 10               // Number of initial blocks to send from cache in stream
 	StreamInitialTransactionsCount = 20               // Number of initial transactions to send from cache in stream

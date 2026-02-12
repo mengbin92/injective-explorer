@@ -1139,6 +1139,9 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 		return ErrorReply(http.StatusBadRequest, "invalid transaction hash", err), err
 	}
 
+	// Use normalized hash (exactly one 0x prefix) for cache lookup to avoid key mismatch
+	cacheLookupHash := NormalizeHashForCache(req.GetHash())
+
 	global.Logger.Debugf("get transaction by hash: hash=%s", hash)
 
 	// Create independent context for queries
@@ -1146,7 +1149,7 @@ func (s *ExplorerService) GetTransactionByHash(ctx context.Context, req *pb.GetT
 	defer queryCancel()
 
 	// First, try to query from Redis cache
-	cachedTx, err := getTransactionFromCache(queryCtx, "0x"+hash)
+	cachedTx, err := getTransactionFromCache(queryCtx, cacheLookupHash)
 	if err == nil && cachedTx != nil {
 		global.Logger.Debugf("transaction found in cache: hash=0x%s", hash)
 		txDTO := models.ToTransactionDTO(cachedTx, models.DTOModeWithDetail)
@@ -3507,8 +3510,8 @@ func getBlocksFromCacheWithOffset(ctx context.Context, offset, limit int) ([]mod
 	return blocks, hasMore, nil
 }
 
-// getTransactionsFromCache retrieves latest transactions from Redis cache list.
-// This function queries the cached list of recent transactions and deserializes them.
+// getTransactionsFromCache retrieves latest transactions from Redis cache.
+// ZSet stores tx.Hash as member; full data is in cache:transaction:0x<hash>.
 // Returns an empty slice (not nil) if no transactions are found in cache.
 //
 // Parameters:
@@ -3523,45 +3526,50 @@ func getTransactionsFromCache(ctx context.Context, limit int) ([]models.Transact
 	if redisClient == nil {
 		return nil, errors.New("redis client is nil")
 	}
-	// Use Sorted Set ZREVRANGE: returns elements in reverse order of score (highest first)
-	// With composite score (block_number * 1000000 + tx_number), this gives us newest transactions first
-	// Indices 0 to limit-1 gets the 'limit' most recent transactions
-	data, err := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, 0, int64(limit-1)).Result()
+	// ZSet member is tx.Hash (e.g. 0xabc...); ZREVRANGE returns newest first by score
+	// Backward compat: old entries may have full JSON as member
+	members, err := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, err
 	}
-
-	// Return empty slice (not nil) if no data found, as documented
-	if len(data) == 0 {
+	if len(members) == 0 {
 		return []models.Transaction{}, nil
 	}
 
-	txs := make([]models.Transaction, 0, len(data))
-	unmarshalErrors := 0
-	for _, item := range data {
+	txs := make([]models.Transaction, 0, len(members))
+	for _, item := range members {
 		var tx models.Transaction
-		if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
-			unmarshalErrors++
-			global.Logger.Warnf("failed to unmarshal transaction from cache (item %d/%d): %v", unmarshalErrors, len(data), err)
-			continue
+		// New format: item is hash, fetch from individual key
+		if strings.HasPrefix(item, "0x") && len(item) >= 20 && !strings.Contains(item, "{") {
+			key := CacheKeyTransactionPrefix + item
+			data, err := redisClient.Get(ctx, key).Result()
+			if err != nil {
+				if err != redis.Nil {
+					global.Logger.Warnf("failed to get transaction from cache (key=%s): %v", key, err)
+				}
+				continue
+			}
+			if err := sonic.Unmarshal([]byte(data), &tx); err != nil {
+				global.Logger.Warnf("failed to unmarshal transaction from cache (key=%s): %v", key, err)
+				continue
+			}
+		} else {
+			// Old format: item is full JSON, unmarshal directly
+			if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
+				global.Logger.Warnf("failed to unmarshal transaction from cache (legacy JSON): %v", err)
+				continue
+			}
 		}
 		txs = append(txs, tx)
 	}
-
-	// If all items failed to unmarshal, log warning but return empty slice (not error)
-	// This allows graceful degradation - cache miss is better than complete failure
-	if len(txs) == 0 && len(data) > 0 {
-		global.Logger.Warnf("all %d transactions failed to unmarshal from cache, returning empty slice", len(data))
+	if len(txs) == 0 && len(members) > 0 {
+		global.Logger.Warnf("all %d ZSet members failed to yield valid transactions", len(members))
 	}
-
-	// No need to sort - ZREVRANGE already returns in correct order (highest score first)
-	// Sorted Set guarantees order by score (block_number * 1000000 + tx_number)
-
 	return txs, nil
 }
 
 // getTransactionsFromCacheWithOffset retrieves transactions from Redis cache with offset and limit for pagination.
-// This enables paginated access to cached transactions for better performance on multi-page requests.
+// ZSet stores tx.Hash as member; full data is in cache:transaction:0x<hash>.
 // Returns (transactions, hasMore, error) where hasMore indicates if cache has enough data.
 func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) ([]models.Transaction, bool, error) {
 	redisClient := cache.GetRedisClient()
@@ -3569,28 +3577,37 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 		return nil, false, errors.New("redis client is nil")
 	}
 
-	// Use Sorted Set ZREVRANGE: returns elements in reverse order of score (highest first)
-	// With composite score (block_number * 1000000 + tx_number), this gives us newest transactions first
-	// To get page at offset with newest first, we need items from offset to offset+limit-1
 	startIdx := int64(offset)
 	endIdx := int64(offset + limit - 1)
-
-	data, err := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, startIdx, endIdx).Result()
+	members, err := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, startIdx, endIdx).Result()
 	if err != nil {
 		return nil, false, err
 	}
-
-	// Check if we have enough data in cache
-	if len(data) < limit {
+	if len(members) < limit {
 		return nil, false, nil
 	}
 
-	txs := make([]models.Transaction, 0, len(data))
-	for _, item := range data {
+	txs := make([]models.Transaction, 0, len(members))
+	for _, item := range members {
 		var tx models.Transaction
-		if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
-			global.Logger.Warnf("failed to unmarshal transaction from cache: %v", err)
-			continue
+		if strings.HasPrefix(item, "0x") && len(item) >= 20 && !strings.Contains(item, "{") {
+			key := CacheKeyTransactionPrefix + item
+			data, err := redisClient.Get(ctx, key).Result()
+			if err != nil {
+				if err != redis.Nil {
+					global.Logger.Warnf("failed to get transaction from cache (key=%s): %v", key, err)
+				}
+				continue
+			}
+			if err := sonic.Unmarshal([]byte(data), &tx); err != nil {
+				global.Logger.Warnf("failed to unmarshal transaction from cache (key=%s): %v", key, err)
+				continue
+			}
+		} else {
+			if err := sonic.Unmarshal([]byte(item), &tx); err != nil {
+				global.Logger.Warnf("failed to unmarshal transaction from cache (legacy JSON): %v", err)
+				continue
+			}
 		}
 		txs = append(txs, tx)
 	}
@@ -3599,14 +3616,9 @@ func getTransactionsFromCacheWithOffset(ctx context.Context, offset, limit int) 
 		return []models.Transaction{}, false, nil
 	}
 
-	// No need to sort - ZREVRANGE already returns in correct order (highest score first)
-	// Sorted Set guarantees order by score (block_number * 1000000 + tx_number)
-
-	// Check if there might be more data in cache (for cursor calculation)
-	// Try to get one more item to determine hasMore
 	nextStartIdx := int64(offset + limit)
-	nextData, _ := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, nextStartIdx, nextStartIdx).Result()
-	hasMore := len(nextData) > 0
+	nextMembers, _ := redisClient.ZRevRange(ctx, CacheKeyTransactionZSet, nextStartIdx, nextStartIdx).Result()
+	hasMore := len(nextMembers) > 0
 
 	return txs, hasMore, nil
 }
