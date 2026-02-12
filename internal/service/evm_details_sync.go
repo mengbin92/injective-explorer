@@ -106,11 +106,6 @@ func NewEVMDetailsSyncService(ctx context.Context, config *EVMDetailsSyncConfig,
 	}
 
 	return &EVMDetailsSyncService{
-
-	// Initialize contract creation events from configuration (for Factory pattern support)
-	if bc != nil && bc.Chain != nil && bc.Chain.Evm != nil {
-		chain.InitContractCreationEventsFromConfig(bc.Chain.Evm)
-	}
 		ctx:         serviceCtx,
 		cancel:      cancel,
 		config:      config,
@@ -767,6 +762,18 @@ func (s *EVMDetailsSyncService) saveEVMDetails(ctx context.Context, evmTx *model
 		}
 	}
 
+	// Save contract info if this is a contract creation transaction
+	// ParseStatus condition relaxed to include "partial" (方案C)
+	// This ensures contracts are saved even when main parsing partially fails
+	// but we have successfully extracted the contract address
+	if details.ContractAddress != "" && (details.ParseStatus == "success" || details.ParseStatus == "partial") {
+		if err := s.saveContractInfoIfNotExists(ctx, evmTx, details); err != nil {
+			// Log error but don't fail the whole operation
+			// Contract info saving is a secondary operation
+			global.Logger.Warnf("failed to save contract info for %s: %v", evmTx.TransactionHash, err)
+		}
+	}
+
 	return nil
 }
 
@@ -1365,4 +1372,94 @@ func (s *EVMDetailsSyncService) fallbackToIndividualUpdates(updates []*EVMTransa
 	}
 
 	global.Logger.Infof("Individual updates completed: %d/%d successful", successCount, len(updates))
+}
+
+// saveContractInfoIfNotExists saves contract information to contract_infos table if it doesn't exist.
+// This handles both direct contract creation and Factory pattern contract creation.
+//
+// Implementation notes:
+//   - Uses FirstOrCreate pattern with unique constraint on (contract_address, chain_id) to prevent duplicates
+//   - Extracts creator from transaction details
+//   - Attempts to fetch ERC20 metadata (name, symbol, decimals) for token contracts
+//   - Sets minimal required fields with sensible defaults
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - evmTx: The EVM transaction model
+//   - details: The transaction details containing contract address and other info
+//
+// Returns:
+//   - error: Error if the save operation fails (not including duplicate errors)
+func (s *EVMDetailsSyncService) saveContractInfoIfNotExists(ctx context.Context, evmTx *models.EVMTransaction, details *chain.TransactionDetails) error {
+	if details.ContractAddress == "" {
+		return nil // No contract address to save
+	}
+
+	// Normalize contract address
+	contractAddress := strings.ToLower(details.ContractAddress)
+
+	// Get chain ID from global ChainConfig (e.g., "injective-1")
+	chainID := global.ChainConfig.ChainId
+	if chainID == "" {
+		chainID = "injective-1"
+	}
+
+	// Prepare contract info with minimal required fields
+	contractInfo := &models.ContractInfo{
+		ContractAddress:    contractAddress,
+		ChainID:            chainID,
+		ContractType:       "solidity",
+		VerificationStatus: "unverified",
+		Creator:            strings.ToLower(details.From),
+		TxHash:             evmTx.EVMHash,
+		Decimals:           18, // Default decimals
+	}
+
+	// Set block height if available
+	if details.BlockNumber > 0 {
+		blockHeight := int64(details.BlockNumber)
+		contractInfo.BlockHeight = &blockHeight
+	}
+
+	// Try to fetch ERC20 metadata (name, symbol, decimals) from the contract
+	// This is done in a background context with timeout to avoid blocking the main sync process
+	metadataCtx, metadataCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer metadataCancel()
+
+	if s.evmClient != nil {
+		name, symbol, decimals, metadataErr := s.evmClient.GetERC20Metadata(metadataCtx, details.ContractAddress)
+		if metadataErr == nil && name != "" {
+			// Successfully fetched ERC20 metadata
+			contractInfo.Name = name
+			contractInfo.TokenName = name
+			contractInfo.TokenSymbol = symbol
+			contractInfo.Decimals = decimals
+			global.Logger.Debugf("Fetched ERC20 metadata for %s: name=%s, symbol=%s, decimals=%d",
+				contractAddress, name, symbol, decimals)
+		} else {
+			// Not an ERC20 token or failed to fetch metadata - that's okay, save with defaults
+			global.Logger.Debugf("Could not fetch ERC20 metadata for %s (not an ERC20 or call failed): %v",
+				contractAddress, metadataErr)
+		}
+	}
+
+	// Use FirstOrCreate to avoid duplicates
+	// The unique constraint on (contract_address, chain_id) should exist in database
+	result := db.Get().WithContext(ctx).
+		Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).
+		Attrs(contractInfo).
+		FirstOrCreate(contractInfo)
+
+	if result.Error != nil {
+		return errors.Wrapf(result.Error, "failed to save contract info for %s", contractAddress)
+	}
+
+	if result.RowsAffected > 0 {
+		global.Logger.Infof("Saved new contract info: address=%s, chain=%s, creator=%s, tx=%s, token=%s",
+			contractAddress, chainID, details.From, evmTx.EVMHash, contractInfo.TokenSymbol)
+	} else {
+		global.Logger.Debugf("Contract info already exists: address=%s, chain=%s", contractAddress, chainID)
+	}
+
+	return nil
 }

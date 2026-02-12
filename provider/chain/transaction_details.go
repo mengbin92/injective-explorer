@@ -410,12 +410,12 @@ func (c *EVMClient) getRawTransactionDetailsFallback(ctx context.Context, txHash
 		global.Logger.Warnf("Fallback: Failed to recover sender for %s: %v", txHash.Hex(), err)
 		// Continue without from address - downstream will handle missing signer
 	} else {
-		details.From = from.Hex()
+		details.From = strings.ToLower(from.Hex())
 	}
 
 	// Try to extract basic information from transaction
 	if tx.To() != nil {
-		details.To = tx.To().Hex()
+		details.To = strings.ToLower(tx.To().Hex())
 	}
 	details.Value = tx.Value().String()
 	details.Nonce = tx.Nonce()
@@ -448,7 +448,7 @@ func (c *EVMClient) getRawTransactionDetailsFallback(ctx context.Context, txHash
 				topics[j] = topic.Hex()
 			}
 			logs[i] = LogInfo{
-				Address: log.Address.Hex(),
+				Address: strings.ToLower(log.Address.Hex()),
 				Topics:  topics,
 				Data:    hex.EncodeToString(log.Data),
 				Index:   uint(log.Index),
@@ -456,6 +456,16 @@ func (c *EVMClient) getRawTransactionDetailsFallback(ctx context.Context, txHash
 			}
 		}
 		details.Logs = logs
+
+		// Extract contract address from receipt or logs (Fallback enhancement - 方案B)
+		// This ensures contract address is captured even when main parsing fails
+		if receipt.ContractAddress != (common.Address{}) {
+			details.ContractAddress = strings.ToLower(receipt.ContractAddress.Hex())
+		} else {
+			// Try to extract from event logs (Factory pattern)
+			// Note: ExtractContractAddressFromLogs already returns lowercase
+			details.ContractAddress = ExtractContractAddressFromLogs(receipt)
+		}
 	}
 
 	// Get block info for timestamp

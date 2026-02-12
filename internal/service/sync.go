@@ -20,6 +20,7 @@ import (
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
+	"injective-explorer/provider/chain"
 	"injective-explorer/provider/db"
 
 	chaintypes "github.com/InjectiveLabs/sdk-go/chain/types"
@@ -1964,6 +1965,15 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			}
 		}
 
+		// Check for contract creation events (e.g., MsgCreateTokenPair) and save to contract_infos
+		// This handles Cosmos SDK messages that create contracts (not EVM transactions)
+		if tm.txData != nil && tm.txData.TxResponse != nil {
+			if err := s.saveContractInfoFromCosmosEvents(ctx, tm.txData.TxResponse); err != nil {
+				global.Logger.Warnf("failed to save contract info from Cosmos events for tx %s: %v", tm.hash, err)
+				// Don't fail the batch processing if contract info saving fails
+			}
+		}
+
 		// Return transaction to pool
 		go func(tx *models.Transaction) {
 			time.Sleep(ShortDelayMilliseconds * time.Millisecond)
@@ -2211,6 +2221,15 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 		defer cleanupCancel()
 		redisClient.LRem(cleanupCtx, s.config.TxHashProcessingQueueKey, 0, txHash)
 	}()
+
+	// Check for contract creation events (e.g., MsgCreateTokenPair) and save to contract_infos
+	// This handles Cosmos SDK messages that create contracts (not EVM transactions)
+	if txResp != nil && txResp.TxResponse != nil {
+		if err := s.saveContractInfoFromCosmosEvents(ctx, txResp.TxResponse); err != nil {
+			global.Logger.Warnf("failed to save contract info from Cosmos events for tx %s: %v", txHash, err)
+			// Don't fail the transaction processing if contract info saving fails
+		}
+	}
 
 	// Cache transaction to Redis
 	cacheTransaction(ctx, txModel)
@@ -2498,6 +2517,192 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 			// Continue processing even if balance update fails
 		}
 	}
+
+	return nil
+}
+
+// saveContractInfoFromCosmosEvents checks for contract creation events in Cosmos SDK transactions
+// and saves the contract information to contract_infos table.
+// This handles cases like MsgCreateTokenPair which creates ERC20 contracts through Cosmos messages.
+//
+// Parameters:
+//   - ctx: The context for database operations
+//   - txResp: The transaction response containing events
+//
+// Returns:
+//   - error: Error if saving fails (but errors are logged and not propagated to avoid blocking)
+func (s *SyncService) saveContractInfoFromCosmosEvents(ctx context.Context, txResp *github_com_cosmos_cosmos_sdk_types.TxResponse) error {
+	// Normalize transaction hash for logging
+	txHashForLog := utils.NormalizeEVMHash(txResp.TxHash)
+	if txHashForLog == "" {
+		txHashForLog = strings.ToLower(txResp.TxHash)
+		if !strings.HasPrefix(txHashForLog, "0x") {
+			txHashForLog = "0x" + txHashForLog
+		}
+	}
+
+	global.Logger.Infof("saveContractInfoFromCosmosEvents: called for tx %s", txHashForLog)
+
+	if txResp == nil || len(txResp.Events) == 0 {
+		global.Logger.Warnf("saveContractInfoFromCosmosEvents: no events in tx %s", txHashForLog)
+		return nil
+	}
+
+	global.Logger.Infof("saveContractInfoFromCosmosEvents: processing tx %s with %d events", txHashForLog, len(txResp.Events))
+
+	// Track contract creation events
+	var contractAddress, creatorAddress, bankDenom string
+
+	// Search for EventCreateTokenPair in transaction events
+	for _, event := range txResp.Events {
+		global.Logger.Debugf("saveContractInfoFromCosmosEvents: checking event type: %s", event.Type)
+		if event.Type == "injective.erc20.v1beta1.EventCreateTokenPair" {
+			global.Logger.Infof("saveContractInfoFromCosmosEvents: found EventCreateTokenPair in tx %s", txResp.TxHash)
+			// Extract attributes from the event
+			for _, attr := range event.Attributes {
+				global.Logger.Debugf("saveContractInfoFromCosmosEvents: attr key=%s, value=%s", attr.Key, attr.Value)
+				if attr.Key == "erc20_address" {
+					contractAddress = utils.NormalizeEVMAddress(strings.Trim(attr.Value, "\""))
+				} else if attr.Key == "sender" {
+					// Creator is typically the sender of the transaction
+					creatorAddress = utils.NormalizeEVMAddress(strings.Trim(attr.Value, "\""))
+				} else if attr.Key == "bank_denom" {
+					bankDenom = strings.Trim(attr.Value, "\"")
+				}
+			}
+			break // Found the event, no need to continue
+		}
+	}
+
+	// If no contract address found, nothing to do
+	if contractAddress == "" {
+		return nil
+	}
+
+	// Validate the contract address
+	if !utils.IsValidAddress(contractAddress) {
+		global.Logger.Warnf("invalid contract address extracted from EventCreateTokenPair: %s", contractAddress)
+		return nil
+	}
+
+	// Get chain ID from global ChainConfig (e.g., "injective-1")
+	chainID := global.ChainConfig.ChainId
+	if chainID == "" {
+		chainID = "injective-1"
+	}
+
+	// Normalize transaction hash to EVM format (0x + lowercase)
+	txHash := utils.NormalizeEVMHash(txResp.TxHash)
+	if txHash == "" {
+		// Fallback: ensure 0x prefix and lowercase
+		txHash = strings.ToLower(txResp.TxHash)
+		if !strings.HasPrefix(txHash, "0x") {
+			txHash = "0x" + txHash
+		}
+	}
+
+	// Prepare contract info
+	contractInfo := &models.ContractInfo{
+		ContractAddress: contractAddress,
+		ContractType:    "erc20", // MsgCreateTokenPair creates ERC20 contracts
+		ChainID:         chainID,
+		Creator:         creatorAddress,
+		TxHash:          txHash,
+		BlockHeight:     &txResp.Height,
+		Name:            "", // Will be filled by token metadata sync later
+		TokenName:       "", // Will be filled by token metadata sync later
+		TokenSymbol:     "", // Will be filled by token metadata sync later
+		Decimals:        18, // Default for ERC20
+	}
+
+	// Set instantiated time from block timestamp
+	if txResp.Timestamp != "" {
+		if ts, err := time.Parse(time.RFC3339, txResp.Timestamp); err == nil {
+			contractInfo.InstantiatedAt = &ts
+		}
+	}
+
+	// Add metadata about the bank denom
+	if bankDenom != "" {
+		contractInfo.Metadata = map[string]interface{}{
+			"bank_denom":      bankDenom,
+			"creation_source": "MsgCreateTokenPair",
+		}
+	}
+
+	// Save to database using FirstOrCreate to avoid duplicates
+	err := db.Get().WithContext(ctx).
+		Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).
+		FirstOrCreate(contractInfo).Error
+
+	if err != nil {
+		return errors.Wrapf(err, "failed to save contract info for %s", contractAddress)
+	}
+
+	global.Logger.Infof("saved contract info from Cosmos event: address=%s, type=erc20, creator=%s, tx_hash=%s",
+		contractAddress, creatorAddress, txHash)
+
+	// Async: Fetch ERC20 metadata (name, symbol, decimals) and update contract info
+	go func(contractAddr, cid string) {
+		metadataCtx, metadataCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer metadataCancel()
+
+		// Try to get EVM client and fetch metadata
+		if err := s.fetchAndUpdateERC20Metadata(metadataCtx, contractAddr, cid); err != nil {
+			global.Logger.Warnf("failed to fetch ERC20 metadata for %s: %v", contractAddr, err)
+		}
+	}(contractAddress, chainID)
+
+	return nil
+}
+
+// fetchAndUpdateERC20Metadata fetches ERC20 token metadata from EVM and updates contract info
+func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractAddress, chainID string) error {
+	// Get EVM client from config
+	evmClient, err := chain.NewEVMClient(global.NetworkName)
+	if err != nil {
+		return errors.Wrap(err, "failed to create EVM client")
+	}
+	defer evmClient.Close()
+
+	// Fetch ERC20 metadata
+	name, symbol, decimals, err := evmClient.GetERC20Metadata(ctx, contractAddress)
+	if err != nil {
+		// Log error but don't fail - partial metadata is still useful
+		global.Logger.Warnf("partial or failed ERC20 metadata fetch for %s: %v", contractAddress, err)
+	}
+
+	// Only update if we got at least one field
+	if name == "" && symbol == "" && decimals == 0 {
+		return nil
+	}
+
+	// Update contract info in database
+	updates := map[string]interface{}{}
+	if name != "" {
+		updates["name"] = name
+		updates["token_name"] = name
+	}
+	if symbol != "" {
+		updates["token_symbol"] = symbol
+	}
+	if decimals != 0 {
+		updates["decimals"] = decimals
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	if err := db.Get().WithContext(ctx).
+		Model(&models.ContractInfo{}).
+		Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).
+		Updates(updates).Error; err != nil {
+		return errors.Wrap(err, "failed to update contract metadata")
+	}
+
+	global.Logger.Infof("updated ERC20 metadata for %s: name=%s, symbol=%s, decimals=%d",
+		contractAddress, name, symbol, decimals)
 
 	return nil
 }

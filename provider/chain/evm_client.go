@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -414,6 +415,136 @@ func (c *EVMClient) GetERC20Decimals(ctx context.Context, contractAddress string
 	return int(decimals), nil
 }
 
+// GetERC20Name queries the name() function of an ERC20 token contract.
+// Returns the token name as a string. If the query fails, returns empty string.
+func (c *EVMClient) GetERC20Name(ctx context.Context, contractAddress string) (string, error) {
+	// ERC20 name() function signature: 0x06fdde03
+	data := []byte{0x06, 0xfd, 0xde, 0x03}
+	addr := common.HexToAddress(contractAddress)
+
+	result, err := c.client.CallContract(ctx, ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}, nil)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to query name for contract %s", contractAddress)
+	}
+
+	if len(result) == 0 {
+		return "", nil
+	}
+
+	// Decode ABI-encoded string
+	// First 32 bytes: offset to data (usually 0x20 = 32)
+	// Second 32 bytes: length of string
+	// Remaining bytes: string data (padded to 32-byte boundary)
+	if len(result) < 64 {
+		return "", nil
+	}
+
+	// Parse offset
+	offset := new(big.Int).SetBytes(result[:32]).Int64()
+	if offset < 0 || offset+32 > int64(len(result)) {
+		return "", nil
+	}
+
+	// Parse length
+	lengthBytes := result[offset : offset+32]
+	length := new(big.Int).SetBytes(lengthBytes).Int64()
+	if length < 0 || offset+32+length > int64(len(result)) {
+		return "", nil
+	}
+
+	// Extract string
+	nameBytes := result[offset+32 : offset+32+length]
+	return string(nameBytes), nil
+}
+
+// GetERC20Symbol queries the symbol() function of an ERC20 token contract.
+// Returns the token symbol as a string. If the query fails, returns empty string.
+func (c *EVMClient) GetERC20Symbol(ctx context.Context, contractAddress string) (string, error) {
+	// ERC20 symbol() function signature: 0x95d89b41
+	data := []byte{0x95, 0xd8, 0x9b, 0x41}
+	addr := common.HexToAddress(contractAddress)
+
+	result, err := c.client.CallContract(ctx, ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}, nil)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to query symbol for contract %s", contractAddress)
+	}
+
+	if len(result) == 0 {
+		return "", nil
+	}
+
+	// Decode ABI-encoded string (same as name)
+	if len(result) < 64 {
+		return "", nil
+	}
+
+	offset := new(big.Int).SetBytes(result[:32]).Int64()
+	if offset < 0 || offset+32 > int64(len(result)) {
+		return "", nil
+	}
+
+	lengthBytes := result[offset : offset+32]
+	length := new(big.Int).SetBytes(lengthBytes).Int64()
+	if length < 0 || offset+32+length > int64(len(result)) {
+		return "", nil
+	}
+
+	symbolBytes := result[offset+32 : offset+32+length]
+	return string(symbolBytes), nil
+}
+
+// GetERC20Metadata queries all metadata (name, symbol, decimals) of an ERC20 token contract.
+// Returns the metadata and any error encountered. On error, returns partial results.
+func (c *EVMClient) GetERC20Metadata(ctx context.Context, contractAddress string) (name, symbol string, decimals int, err error) {
+	// Query all three properties concurrently for efficiency
+	var wg sync.WaitGroup
+	var nameErr, symbolErr, decimalsErr error
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		name, nameErr = c.GetERC20Name(ctx, contractAddress)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		symbol, symbolErr = c.GetERC20Symbol(ctx, contractAddress)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		decimals, decimalsErr = c.GetERC20Decimals(ctx, contractAddress)
+	}()
+
+	wg.Wait()
+
+	// Combine errors if any
+	var errs []string
+	if nameErr != nil {
+		errs = append(errs, nameErr.Error())
+	}
+	if symbolErr != nil {
+		errs = append(errs, symbolErr.Error())
+	}
+	if decimalsErr != nil {
+		errs = append(errs, decimalsErr.Error())
+	}
+
+	if len(errs) > 0 {
+		return name, symbol, decimals, errors.New(strings.Join(errs, "; "))
+	}
+
+	return name, symbol, decimals, nil
+}
+
 // newCircuitBreaker creates a new circuit breaker with default settings
 func newCircuitBreaker(failureThreshold int, recoveryTimeout time.Duration) *CircuitBreaker {
 	return &CircuitBreaker{
@@ -764,18 +895,26 @@ func (c *EVMClient) buildTransactionDetailsFromComponents(
 		}
 	}
 
-	// Determine To address
+	// Determine To address (EVM format: 0x + lowercase)
 	to := ""
 	if tx.To() != nil {
-		to = tx.To().Hex()
+		to = strings.ToLower(tx.To().Hex())
 	}
 
-	// For contract creation, use contract address from receipt
+	// For contract creation, use contract address from receipt (EVM format: 0x + lowercase)
 	contractAddress := ""
 	if receipt.ContractAddress != (common.Address{}) {
-		contractAddress = receipt.ContractAddress.Hex()
+		contractAddress = strings.ToLower(receipt.ContractAddress.Hex())
 		// If To is empty and we have a contract address, use it
 		if to == "" {
+			to = contractAddress
+		}
+	}
+	// L2: Try to extract contract address from event logs (for Factory pattern contract creation)
+	// Note: ExtractContractAddressFromLogs already returns lowercase
+	if contractAddress == "" {
+		contractAddress = ExtractContractAddressFromLogs(receipt)
+		if to == "" && contractAddress != "" {
 			to = contractAddress
 		}
 	}

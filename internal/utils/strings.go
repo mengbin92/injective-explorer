@@ -57,9 +57,83 @@ func ExtractAddressesFromString(s string) []string {
 // Returns:
 //   - bool: True if the address is valid, false otherwise
 func IsValidAddress(addr string) bool {
+	// Check for EVM address format (0x prefix + 40 hex characters)
+	if strings.HasPrefix(addr, "0x") && len(addr) == 42 {
+		// Validate hex characters
+		hexPart := addr[2:]
+		for _, c := range hexPart {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+		return true
+	}
+
 	// Injective addresses start with the configured prefix + "1" and are 42 characters long
 	prefix := sdk.GetConfig().GetBech32AccountAddrPrefix()
 	return strings.HasPrefix(addr, prefix+"1") && len(addr) == 42
+}
+
+// NormalizeEVMAddress normalizes an EVM address to standard format (0x prefix + lowercase hex)
+// Returns empty string if the address is not a valid EVM address
+func NormalizeEVMAddress(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+
+	// Add 0x prefix if missing
+	if !strings.HasPrefix(addr, "0x") && !strings.HasPrefix(addr, "0X") {
+		addr = "0x" + addr
+	}
+
+	// Convert to lowercase
+	addr = strings.ToLower(addr)
+
+	// Validate format (0x + 40 hex characters)
+	if len(addr) != 42 {
+		return ""
+	}
+
+	hexPart := addr[2:]
+	for _, c := range hexPart {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return ""
+		}
+	}
+
+	return addr
+}
+
+// NormalizeEVMHash normalizes an EVM transaction hash to standard format (0x prefix + lowercase hex)
+// Returns empty string if the hash is not a valid EVM hash
+func NormalizeEVMHash(hash string) string {
+	hash = strings.TrimSpace(hash)
+	if hash == "" {
+		return ""
+	}
+
+	// Add 0x prefix if missing
+	if !strings.HasPrefix(hash, "0x") && !strings.HasPrefix(hash, "0X") {
+		hash = "0x" + hash
+	}
+
+	// Convert to lowercase
+	hash = strings.ToLower(hash)
+
+	// Validate format (0x + 64 hex characters)
+	if len(hash) != 66 {
+		return ""
+	}
+
+	hexPart := hash[2:]
+	for _, c := range hexPart {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return ""
+		}
+	}
+
+	return hash
 }
 
 // ReverseString reverses a string.
