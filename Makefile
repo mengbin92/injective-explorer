@@ -25,6 +25,56 @@ init:
 	go install github.com/google/gnostic/cmd/protoc-gen-openapi@latest
 	go install github.com/google/wire/cmd/wire@latest
 
+# ============================================
+# Development Environment Commands
+# ============================================
+
+.PHONY: dev-up
+# Start infrastructure services for local development (MySQL, Redis, MinIO, Envoy)
+dev-up:
+	docker-compose -f docker-compose.dev.yaml up -d
+	@echo "Waiting for services to be healthy..."
+	@sleep 5
+	@docker-compose -f docker-compose.dev.yaml ps
+
+.PHONY: dev-down
+# Stop infrastructure services
+dev-down:
+	docker-compose -f docker-compose.dev.yaml down
+
+.PHONY: dev-logs
+# View infrastructure services logs
+dev-logs:
+	docker-compose -f docker-compose.dev.yaml logs -f
+
+.PHONY: dev-clean
+# Stop infrastructure services and remove volumes (WARNING: data will be lost)
+dev-clean:
+	docker-compose -f docker-compose.dev.yaml down -v
+
+.PHONY: run
+# Run the application locally with kratos (infrastructure must be running)
+# Usage: make run
+# Or with custom config: make run CONF=./configs
+run:
+	@if ! docker-compose -f docker-compose.dev.yaml ps | grep -q "Up"; then \
+		echo "⚠️  Infrastructure services not running. Starting them first..."; \
+		make dev-up; \
+		sleep 5; \
+	fi
+	kratos run -c $(or $(CONF),./configs)
+
+.PHONY: run-go
+# Run the application directly with go run (alternative to kratos run)
+# Usage: make run-go
+run-go:
+	@if ! docker-compose -f docker-compose.dev.yaml ps | grep -q "Up"; then \
+		echo "⚠️  Infrastructure services not running. Starting them first..."; \
+		make dev-up; \
+		sleep 5; \
+	fi
+	go run ./cmd/injective-explorer -conf $(or $(CONF),./configs)
+
 .PHONY: config
 # generate internal proto
 config:

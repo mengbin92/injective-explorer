@@ -1,0 +1,92 @@
+# 开发环境 Docker Compose 配置
+# 只启动基础设施服务，主程序通过 kratos run 本地启动
+
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.36-latest
+    container_name: injective-explorer-envoy-dev
+    restart: unless-stopped
+    ports:
+      - 9001:9001  # grpc-web 端口
+      - 9901:9901  # Envoy admin 端口
+    volumes:
+      - ./envoy/envoy.dev.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - injective-explorer-dev-network
+    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml --service-cluster envoy --service-node envoy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9901/server_info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  injective-explorer-redis:
+    image: redis:8.4
+    container_name: injective-explorer-redis-dev
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    volumes:
+      - injective-explorer-redis-dev:/data
+    networks:
+      - injective-explorer-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  injective-explorer-mysql:
+    image: mysql:8.0
+    container_name: injective-explorer-mysql-dev
+    restart: unless-stopped
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=jKBrZHGcsNG5fMc52EWz
+      - MYSQL_DATABASE=explorer
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    volumes:
+      - injective-explorer-mysql-dev:/var/lib/mysql
+      - ./database/init_database.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - injective-explorer-dev-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pjKBrZHGcsNG5fMc52EWz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+
+  minio:
+    image: minio/minio:latest
+    container_name: injective-explorer-minio-dev
+    restart: unless-stopped
+    ports:
+      - 19000:9000  # API 端口
+      - 19001:9001  # Console 管理界面端口
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - injective-explorer-minio-dev:/data
+    networks:
+      - injective-explorer-dev-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10s
+
+networks:
+  injective-explorer-dev-network:
+    driver: bridge
+
+volumes:
+  injective-explorer-redis-dev:
+  injective-explorer-mysql-dev:
+  injective-explorer-minio-dev:
