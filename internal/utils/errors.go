@@ -4,7 +4,15 @@
 package utils
 
 import (
+	"errors"
 	"strings"
+)
+
+// Common error types for classification
+var (
+	ErrDuplicateContract     = errors.New("duplicate contract")
+	ErrInvalidAddress       = errors.New("invalid address")
+	ErrMissingRequiredField = errors.New("missing required field")
 )
 
 // IsRetryableError checks if an error is retryable.
@@ -98,4 +106,20 @@ func SanitizeError(err error, maxLength int) string {
 	}
 
 	return errMsg
+}
+
+// IsDuplicateKeyError checks if an error is a duplicate key/constraint violation.
+// This is useful for distinguishing between errors that can be retried vs. those that should fail fast.
+func IsDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	patterns := []string{"duplicate entry", "unique constraint", "primary key", "conflict"}
+	for _, pattern := range patterns {
+		if strings.Contains(errStr, pattern) {
+			return true
+		}
+	}
+	return false
 }

@@ -19,6 +19,7 @@ import (
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/utils"
+	syncpool "injective-explorer/internal/service/sync"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/chain"
 	"injective-explorer/provider/db"
@@ -103,6 +104,9 @@ type SyncService struct {
 	// EVM details sync service
 	evmDetailsSyncService *EVMDetailsSyncService
 
+	// Metadata worker pool for async ERC20 metadata fetching
+	metadataWorkerPool *syncpool.WorkerPool[MetadataJob]
+
 	// Block signer service for processing block signers
 	blockSignerService *models.BlockSignerService
 
@@ -148,13 +152,14 @@ func NewSyncService(config *SyncConfig, bc *conf.Bootstrap) *SyncService {
 	lockValue := fmt.Sprintf("%s-%d-%d", hostname, os.Getpid(), time.Now().Unix())
 
 	return &SyncService{
-		config:          config,
-		bc:              bc,
-		ctx:             ctx,
-		cancel:          cancel,
-		syncLockKey:     "sync:lock:blockchain",
-		syncLockValue:   lockValue,
-		syncLockRenewal: &sync.WaitGroup{},
+		config:           config,
+		bc:               bc,
+		ctx:              ctx,
+		cancel:           cancel,
+		metadataWorkerPool: syncpool.NewWorkerPool[MetadataJob]("metadata-fetch", 10),
+		syncLockKey:      "sync:lock:blockchain",
+		syncLockValue:    lockValue,
+		syncLockRenewal:  &sync.WaitGroup{},
 	}
 }
 
@@ -2532,7 +2537,6 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 // Returns:
 //   - error: Error if saving fails (but errors are logged and not propagated to avoid blocking)
 func (s *SyncService) saveContractInfoFromCosmosEvents(ctx context.Context, txResp *github_com_cosmos_cosmos_sdk_types.TxResponse) error {
-	// Normalize transaction hash for logging
 	txHashForLog := utils.NormalizeEVMHash(txResp.TxHash)
 	if txHashForLog == "" {
 		txHashForLog = strings.ToLower(txResp.TxHash)
@@ -2548,113 +2552,32 @@ func (s *SyncService) saveContractInfoFromCosmosEvents(ctx context.Context, txRe
 		return nil
 	}
 
-	global.Logger.Infof("saveContractInfoFromCosmosEvents: processing tx %s with %d events", txHashForLog, len(txResp.Events))
-
-	// Track contract creation events
-	var contractAddress, creatorAddress, bankDenom string
-
-	// Search for EventCreateTokenPair in transaction events
-	for _, event := range txResp.Events {
-		global.Logger.Debugf("saveContractInfoFromCosmosEvents: checking event type: %s", event.Type)
-		if event.Type == "injective.erc20.v1beta1.EventCreateTokenPair" {
-			global.Logger.Infof("saveContractInfoFromCosmosEvents: found EventCreateTokenPair in tx %s", txResp.TxHash)
-			// Extract attributes from the event
-			for _, attr := range event.Attributes {
-				global.Logger.Debugf("saveContractInfoFromCosmosEvents: attr key=%s, value=%s", attr.Key, attr.Value)
-				if attr.Key == "erc20_address" {
-					contractAddress = utils.NormalizeEVMAddress(strings.Trim(attr.Value, "\""))
-				} else if attr.Key == "sender" {
-					// Creator is typically the sender of the transaction
-					creatorAddress = utils.NormalizeEVMAddress(strings.Trim(attr.Value, "\""))
-				} else if attr.Key == "bank_denom" {
-					bankDenom = strings.Trim(attr.Value, "\"")
-				}
-			}
-			break // Found the event, no need to continue
-		}
-	}
-
-	// If no contract address found, nothing to do
-	if contractAddress == "" {
+	// Step 1: Extract event data
+	eventData := s.extractContractCreationEvents(txResp)
+	if eventData == nil {
 		return nil
 	}
 
-	// Validate the contract address
-	if !utils.IsValidAddress(contractAddress) {
-		global.Logger.Warnf("invalid contract address extracted from EventCreateTokenPair: %s", contractAddress)
-		return nil
-	}
-
-	// Get chain ID from global ChainConfig (e.g., "injective-1")
+	// Step 2: Build contract info
 	chainID := global.ChainConfig.ChainId
-	if chainID == "" {
-		chainID = "injective-1"
-	}
-
-	// Normalize transaction hash to EVM format (0x + lowercase)
-	txHash := utils.NormalizeEVMHash(txResp.TxHash)
-	if txHash == "" {
-		// Fallback: ensure 0x prefix and lowercase
-		txHash = strings.ToLower(txResp.TxHash)
-		if !strings.HasPrefix(txHash, "0x") {
-			txHash = "0x" + txHash
-		}
-	}
-
-	// Prepare contract info
-	contractInfo := &models.ContractInfo{
-		ContractAddress: contractAddress,
-		ContractType:    "erc20", // MsgCreateTokenPair creates ERC20 contracts
-		ChainID:         chainID,
-		Creator:         creatorAddress,
-		TxHash:          txHash,
-		BlockHeight:     &txResp.Height,
-		Name:            "", // Will be filled by token metadata sync later
-		TokenName:       "", // Will be filled by token metadata sync later
-		TokenSymbol:     "", // Will be filled by token metadata sync later
-		Decimals:        18, // Default for ERC20
-	}
-
-	// Set instantiated time from block timestamp
-	if txResp.Timestamp != "" {
-		if ts, err := time.Parse(time.RFC3339, txResp.Timestamp); err == nil {
-			contractInfo.InstantiatedAt = &ts
-		}
-	}
-
-	// Add metadata about the bank denom
-	if bankDenom != "" {
-		contractInfo.Metadata = map[string]interface{}{
-			"bank_denom":      bankDenom,
-			"creation_source": "MsgCreateTokenPair",
-		}
-	}
-
-	// Save to database using FirstOrCreate to avoid duplicates
-	err := db.Get().WithContext(ctx).
-		Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).
-		FirstOrCreate(contractInfo).Error
-
+	contractInfo, err := s.buildContractInfo(eventData, txResp, chainID)
 	if err != nil {
-		return errors.Wrapf(err, "failed to save contract info for %s", contractAddress)
+		global.Logger.Errorf("failed to build contract info: %v", err)
+		return err
 	}
 
-	global.Logger.Infof("saved contract info from Cosmos event: address=%s, type=erc20, creator=%s, tx_hash=%s",
-		contractAddress, creatorAddress, txHash)
+	// Step 3: Persist to database
+	if err := s.persistContractInfo(ctx, contractInfo); err != nil {
+		return err
+	}
 
-	// Async: Fetch ERC20 metadata (name, symbol, decimals) and update contract info
-	go func(contractAddr, cid string) {
-		metadataCtx, metadataCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer metadataCancel()
-
-		// Try to get EVM client and fetch metadata
-		if err := s.fetchAndUpdateERC20Metadata(metadataCtx, contractAddr, cid); err != nil {
-			global.Logger.Warnf("failed to fetch ERC20 metadata for %s: %v", contractAddr, err)
-		}
-	}(contractAddress, chainID)
+	// Step 4: Schedule async metadata fetch
+	s.scheduleMetadataFetch(contractInfo.ContractAddress, chainID)
 
 	return nil
 }
+
+// fetchAndUpdateERC20Metadata
 
 // fetchAndUpdateERC20Metadata fetches ERC20 token metadata from EVM and updates contract info
 func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractAddress, chainID string) error {
@@ -2704,6 +2627,143 @@ func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractA
 	global.Logger.Infof("updated ERC20 metadata for %s: name=%s, symbol=%s, decimals=%d",
 		contractAddress, name, symbol, decimals)
 
+	return nil
+}
+
+// contractEventData holds parsed contract creation information from Cosmos events.
+type contractEventData struct {
+	contractAddress string
+	creatorAddress  string
+	bankDenom       string
+}
+
+// extractContractCreationEvents searches for EventCreateTokenPair in Cosmos transaction events.
+func (s *SyncService) extractContractCreationEvents(txResp *github_com_cosmos_cosmos_sdk_types.TxResponse) *contractEventData {
+	if txResp == nil || len(txResp.Events) == 0 {
+		return nil
+	}
+
+	for _, event := range txResp.Events {
+		if event.Type != EventCreateTokenPair {
+			continue
+		}
+
+		data := &contractEventData{}
+		for _, attr := range event.Attributes {
+			value := strings.Trim(attr.Value, "\"")
+			switch attr.Key {
+			case EventAttributeERC20Address:
+				data.contractAddress = utils.NormalizeEVMAddress(value)
+			case EventAttributeSender:
+				data.creatorAddress = utils.NormalizeEVMAddress(value)
+			case EventAttributeBankDenom:
+				data.bankDenom = value
+			}
+		}
+
+		if data.contractAddress != "" {
+			return data
+		}
+		return nil
+	}
+	return nil
+}
+
+// buildContractInfo constructs a ContractInfo model from event data and transaction context.
+func (s *SyncService) buildContractInfo(eventData *contractEventData, txResp *github_com_cosmos_cosmos_sdk_types.TxResponse, chainID string) (*models.ContractInfo, error) {
+	if eventData.contractAddress == "" {
+		return nil, errors.New("contract address is required")
+	}
+	if !utils.IsValidAddress(eventData.contractAddress) {
+		return nil, errors.Errorf("invalid contract address: %s", eventData.contractAddress)
+	}
+
+	if chainID == "" {
+		chainID = global.ChainConfig.ChainId
+		if chainID == "" {
+			chainID = DefaultChainID
+		}
+	}
+
+	txHash := utils.NormalizeEVMHash(txResp.TxHash)
+	if txHash == "" {
+		txHash = strings.ToLower(txResp.TxHash)
+		if !strings.HasPrefix(txHash, "0x") {
+			txHash = "0x" + txHash
+		}
+	}
+
+	contractInfo := &models.ContractInfo{
+		ContractAddress: eventData.contractAddress,
+		ContractType:    "erc20",
+		ChainID:         chainID,
+		Creator:         eventData.creatorAddress,
+		TxHash:          txHash,
+		BlockHeight:     &txResp.Height,
+		Decimals:        DefaultERC20Decimals,
+	}
+
+	if txResp.Timestamp != "" {
+		if ts, err := time.Parse(time.RFC3339, txResp.Timestamp); err == nil {
+			contractInfo.InstantiatedAt = &ts
+		}
+	}
+
+	if eventData.bankDenom != "" {
+		contractInfo.Metadata = map[string]interface{}{
+			"bank_denom":      eventData.bankDenom,
+			"creation_source": CreationSourceMsgCreateTokenPair,
+		}
+	}
+
+	return contractInfo, nil
+}
+
+// persistContractInfo saves contract information to database.
+func (s *SyncService) persistContractInfo(ctx context.Context, contractInfo *models.ContractInfo) error {
+	if contractInfo == nil {
+		return errors.New("contract info cannot be nil")
+	}
+
+	err := db.Get().WithContext(ctx).
+		Where("contract_address = ? AND chain_id = ?", contractInfo.ContractAddress, contractInfo.ChainID).
+		FirstOrCreate(contractInfo).Error
+
+	if err != nil {
+		return errors.Wrapf(err, "failed to save contract info for %s", contractInfo.ContractAddress)
+	}
+
+	global.Logger.Infof("saved contract info: address=%s, type=%s, creator=%s",
+		contractInfo.ContractAddress, contractInfo.ContractType, contractInfo.Creator)
+
+	return nil
+}
+
+// scheduleMetadataFetch schedules an async metadata fetch job using the worker pool.
+func (s *SyncService) scheduleMetadataFetch(contractAddress, chainID string) {
+	job := MetadataJob{ContractAddress: contractAddress, ChainID: chainID}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		_, err := s.metadataWorkerPool.ProcessConcurrently(ctx, []MetadataJob{job}, s.processMetadataJob)
+		if err != nil {
+			global.Logger.Warnf("failed to submit metadata job for %s: %v", contractAddress, err)
+		}
+	}()
+}
+
+// processMetadataJob processes a single metadata fetch job.
+func (s *SyncService) processMetadataJob(ctx context.Context, job MetadataJob) error {
+	if err := s.fetchAndUpdateERC20Metadata(ctx, job.ContractAddress, job.ChainID); err != nil {
+		if utils.IsRetryableError(err) {
+			global.Logger.Warnf("retryable error for %s: %v", job.ContractAddress, err)
+		} else {
+			global.Logger.Errorf("non-retryable error for %s: %v", job.ContractAddress, err)
+		}
+		return err
+	}
 	return nil
 }
 

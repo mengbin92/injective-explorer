@@ -401,6 +401,32 @@ const (
 )
 
 // ============================================================================
+// Cosmos Event Constants
+// ============================================================================
+
+const (
+	// Event type constants for Cosmos SDK events
+	EventCreateTokenPair = "injective.erc20.v1beta1.EventCreateTokenPair"
+
+	// Event attribute keys for EventCreateTokenPair
+	EventAttributeERC20Address = "erc20_address"
+	EventAttributeSender       = "sender"
+	EventAttributeBankDenom     = "bank_denom"
+
+	// Contract creation source metadata
+	CreationSourceMsgCreateTokenPair = "MsgCreateTokenPair"
+
+	// Default values
+	DefaultERC20Decimals = 18
+)
+
+// MetadataJob represents a job for fetching ERC20 metadata asynchronously.
+type MetadataJob struct {
+	ContractAddress string
+	ChainID         string
+}
+
+// ============================================================================
 // Unified Archive Configuration
 // ============================================================================
 
