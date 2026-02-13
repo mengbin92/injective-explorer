@@ -236,6 +236,27 @@ func main() {
 		log.NewHelper(logger).Infof("Archive scheduler service is disabled (set archive.enabled=true to enable)")
 	}
 
+	// Start Peggy EVM hash sync service (if enabled)
+	if bc.Service == nil || bc.Service.EnablePeggyEvmHashSync {
+		peggyEvmHashSyncService, err := service.NewPeggyEvmHashSyncServiceFromConfig(&bc)
+		if err != nil {
+			log.NewHelper(logger).Warnf("Failed to create Peggy EVM hash sync service: %v", err)
+		} else if peggyEvmHashSyncService != nil {
+			if err := peggyEvmHashSyncService.Run(); err != nil {
+				log.NewHelper(logger).Warnf("Failed to start Peggy EVM hash sync service: %v", err)
+			} else {
+				defer func() {
+					if err := peggyEvmHashSyncService.Stop(); err != nil {
+						log.NewHelper(logger).Errorf("Failed to stop Peggy EVM hash sync service: %v", err)
+					}
+				}()
+				log.NewHelper(logger).Infof("Peggy EVM hash sync service started")
+			}
+		}
+	} else {
+		log.NewHelper(logger).Infof("Peggy EVM hash sync service disabled via service.enable_peggy_evm_hash_sync=false")
+	}
+
 	app, cleanup, err := wireApp(bc.Server, bc.Data, logger, &bc)
 	if err != nil {
 		log.NewHelper(logger).Errorf("Failed to wire application: %v", err)

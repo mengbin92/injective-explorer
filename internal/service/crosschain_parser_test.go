@@ -49,6 +49,209 @@ func TestParseMsgDepositClaim(t *testing.T) {
 	assert.Equal(t, uint64(1234567890), result.BlockTimestamp)
 }
 
+func TestParseEventOutgoingBatch(t *testing.T) {
+	tests := []struct {
+		name           string
+		eventType      string
+		attributes     []abci.EventAttribute
+		expectedCount  int
+		expectedBatch  uint64
+		expectedTxIDs  []uint64
+	}{
+		{
+			name:      "Standard EventOutgoingBatch",
+			eventType: "injective.peggy.v1.EventOutgoingBatch",
+			attributes: []abci.EventAttribute{
+				{Key: "batch_nonce", Value: "123"},
+				{Key: "batch_tx_ids", Value: "1,2,3"},
+				{Key: "denom", Value: "peggy0xabc123"},
+			},
+			expectedCount: 3,
+			expectedBatch: 123,
+			expectedTxIDs: []uint64{1, 2, 3},
+		},
+		{
+			name:      "EventOutgoingBatch without prefix",
+			eventType: "EventOutgoingBatch",
+			attributes: []abci.EventAttribute{
+				{Key: "batchNonce", Value: "456"},
+				{Key: "batchTxIds", Value: "[10,20,30,40]"},
+				{Key: "denom", Value: "inj"},
+			},
+			expectedCount: 4,
+			expectedBatch: 456,
+			expectedTxIDs: []uint64{10, 20, 30, 40},
+		},
+		{
+			name:      "Invalid batch_tx_ids format",
+			eventType: "EventOutgoingBatch",
+			attributes: []abci.EventAttribute{
+				{Key: "batch_nonce", Value: "789"},
+				{Key: "batch_tx_ids", Value: "invalid"},
+			},
+			expectedCount: 0,
+			expectedBatch: 789,
+			expectedTxIDs: nil,
+		},
+		{
+			name:      "Missing batch_nonce",
+			eventType: "EventOutgoingBatch",
+			attributes: []abci.EventAttribute{
+				{Key: "batch_tx_ids", Value: "1,2,3"},
+			},
+			expectedCount: 0,
+			expectedBatch: 0,
+			expectedTxIDs: nil,
+		},
+		{
+			name:      "Different event type - should be ignored",
+			eventType: "send_to_eth",
+			attributes: []abci.EventAttribute{
+				{Key: "batch_nonce", Value: "123"},
+				{Key: "batch_tx_ids", Value: "1,2,3"},
+			},
+			expectedCount: 0,
+			expectedBatch: 0,
+			expectedTxIDs: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events := []*abci.Event{
+				{
+					Type:       tt.eventType,
+					Attributes: tt.attributes,
+				},
+			}
+
+			mappings := parseEventOutgoingBatch(events, 1000, 1234567890)
+
+			if tt.expectedCount == 0 {
+				assert.Len(t, mappings, 0, "Should return no mappings")
+				return
+			}
+
+			assert.Len(t, mappings, tt.expectedCount, "Should return correct number of mappings")
+
+			// Verify all mappings have the same batch_nonce
+			for _, m := range mappings {
+				assert.Equal(t, tt.expectedBatch, m.BatchNonce, "BatchNonce should match")
+				assert.Equal(t, uint64(1000), m.BlockHeight, "BlockHeight should match")
+				assert.Equal(t, uint64(1234567890), m.BlockTimestamp, "BlockTimestamp should match")
+			}
+
+			// Verify the outgoing_tx_ids
+			txIDs := make([]uint64, len(mappings))
+			for i, m := range mappings {
+				txIDs[i] = m.OutgoingTxID
+			}
+			assert.Equal(t, tt.expectedTxIDs, txIDs, "OutgoingTxIDs should match")
+		})
+	}
+}
+
+func TestParseUint64Array(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []uint64
+	}{
+		{
+			name:     "Comma-separated values",
+			input:    "1,2,3",
+			expected: []uint64{1, 2, 3},
+		},
+		{
+			name:     "Array with brackets",
+			input:    "[10,20,30]",
+			expected: []uint64{10, 20, 30},
+		},
+		{
+			name:     "Array with curly braces",
+			input:    "{100,200,300}",
+			expected: []uint64{100, 200, 300},
+		},
+		{
+			name:     "Single value",
+			input:    "42",
+			expected: []uint64{42},
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: nil,
+		},
+		{
+			name:     "With spaces",
+			input:    " 1 , 2 , 3 ",
+			expected: []uint64{1, 2, 3},
+		},
+		{
+			name:     "Invalid values mixed with valid",
+			input:    "1,abc,3",
+			expected: []uint64{1, 3}, // Should skip invalid values
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseUint64Array(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestParseMsgWithdrawClaimWithTokenContract(t *testing.T) {
+	msg := &peggytypes.MsgWithdrawClaim{
+		BatchNonce:  456,
+		EventNonce:  789,
+		BlockHeight: 200000,
+		Orchestrator: "inj1validator",
+	}
+
+	// Create EventWithdrawClaim with token_contract
+	events := []*abci.Event{
+		{
+			Type: "injective.peggy.v1.EventWithdrawClaim",
+			Attributes: []abci.EventAttribute{
+				{Key: "token_contract", Value: "0xABCDEF"},
+			},
+		},
+	}
+
+	result, err := parseMsgWithdrawClaim(msg, events, "txhash456", "", 60000, 1234567890)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Equal(t, uint64(456), result.BatchNonce)
+	assert.Equal(t, uint64(789), result.EventNonce)
+	assert.Equal(t, "peggy0xabcdef", result.Denom, "Denom should be built from token_contract")
+	assert.Equal(t, "completed", result.State)
+	assert.Equal(t, int32(2), result.ClaimType)
+}
+
+func TestParseMsgWithdrawClaimWithoutTokenContract(t *testing.T) {
+	msg := &peggytypes.MsgWithdrawClaim{
+		BatchNonce:  789,
+		EventNonce:  101112,
+		BlockHeight: 300000,
+		Orchestrator: "inj1validator",
+	}
+
+	// No EventWithdrawClaim events
+	events := []*abci.Event{}
+
+	result, err := parseMsgWithdrawClaim(msg, events, "txhash789", "", 70000, 1234567890)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Equal(t, uint64(789), result.BatchNonce)
+	assert.Empty(t, result.Denom, "Denom should be empty when no token_contract in events")
+}
+
 func TestParseMsgDepositClaim_Nil(t *testing.T) {
 	result, err := parseMsgDepositClaim(nil, nil, "txhash", "", 100, 200)
 

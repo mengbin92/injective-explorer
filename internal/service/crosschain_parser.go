@@ -2,13 +2,16 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -23,9 +26,10 @@ import (
 
 // CrossChainData contains parsed cross-chain transaction data.
 type CrossChainData struct {
-	IBCTransfers     []*models.IBCTransferTx
-	PeggyDeposits    []*models.PeggyDepositTx
-	PeggyWithdrawals []*models.PeggyWithdrawalTx
+	IBCTransfers       []*models.IBCTransferTx
+	PeggyDeposits      []*models.PeggyDepositTx
+	PeggyWithdrawals   []*models.PeggyWithdrawalTx
+	PeggyBatchMappings []*models.PeggyBatchTxMapping // batch_nonce → outgoing_tx_ids mappings
 }
 
 // Global codec singleton for cross-chain message parsing.
@@ -55,7 +59,8 @@ func getCodec() codec.Codec {
 func (d *CrossChainData) IsEmpty() bool {
 	return len(d.IBCTransfers) == 0 &&
 		len(d.PeggyDeposits) == 0 &&
-		len(d.PeggyWithdrawals) == 0
+		len(d.PeggyWithdrawals) == 0 &&
+		len(d.PeggyBatchMappings) == 0
 }
 
 // ParseCrossChainTransaction detects and parses cross-chain transactions
@@ -99,6 +104,12 @@ func ParseCrossChainTransaction(
 	// Step 5: Process messages and collect cross-chain data
 	txHash := txResp.TxResponse.TxHash
 	data := &CrossChainData{}
+
+	// Step 5.5: Parse EventOutgoingBatch to establish batch → outgoing_tx_ids mappings
+	batchMappings := parseEventOutgoingBatch(events, blockHeight, blockTimestamp)
+	if len(batchMappings) > 0 {
+		data.PeggyBatchMappings = append(data.PeggyBatchMappings, batchMappings...)
+	}
 
 	for _, anyMsg := range anyMsgs {
 		if anyMsg == nil {
@@ -421,11 +432,106 @@ func enrichPeggyWithdrawalFromEvents(withdrawal *models.PeggyWithdrawalTx, event
 	}
 }
 
+// parseEventOutgoingBatch parses EventOutgoingBatch events and creates batch mappings.
+// This function extracts batch_nonce → outgoing_tx_ids mappings.
+func parseEventOutgoingBatch(events []*abci.Event, blockHeight, blockTimestamp uint64) []*models.PeggyBatchTxMapping {
+	var mappings []*models.PeggyBatchTxMapping
+
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+
+		// EventOutgoingBatch from Injective Peggy v1
+		if event.Type == "injective.peggy.v1.EventOutgoingBatch" || event.Type == "EventOutgoingBatch" {
+			global.Logger.Debugf("Found EventOutgoingBatch with %d attributes", len(event.Attributes))
+
+			var batchNonce uint64
+			var batchTxIds []uint64
+			var denom string
+
+			// Parse event attributes
+			for _, attr := range event.Attributes {
+				global.Logger.Debugf("  - %s = %s", attr.Key, attr.Value)
+
+				switch attr.Key {
+				case "batch_nonce", "batchNonce":
+					if nonce, err := parseUint64(attr.Value); err == nil {
+						batchNonce = nonce
+						global.Logger.Debugf("Extracted batch_nonce: %d", nonce)
+					} else {
+						global.Logger.Warnf("Failed to parse batch_nonce: %v", err)
+					}
+				case "batch_tx_ids", "batchTxIds":
+					// Parse comma-separated list of outgoing_tx_ids
+					// Format: "1,2,3" or as JSON array
+					ids := parseUint64Array(attr.Value)
+					if len(ids) > 0 {
+						batchTxIds = ids
+						global.Logger.Debugf("Extracted %d batch_tx_ids", len(ids))
+					}
+				case "denom":
+					denom = attr.Value
+					global.Logger.Debugf("Extracted denom: %s", denom)
+				}
+			}
+
+			// Create mapping records
+			if batchNonce > 0 && len(batchTxIds) > 0 {
+				for _, txID := range batchTxIds {
+					mapping := &models.PeggyBatchTxMapping{
+						BatchNonce:     batchNonce,
+						OutgoingTxID:   txID,
+						BlockHeight:    blockHeight,
+						BlockTimestamp: blockTimestamp,
+					}
+					mappings = append(mappings, mapping)
+				}
+				global.Logger.Infof("Parsed EventOutgoingBatch: batch_nonce=%d, outgoing_tx_count=%d, denom=%s",
+					batchNonce, len(batchTxIds), denom)
+			} else {
+				global.Logger.Warnf("EventOutgoingBatch missing required fields: batch_nonce=%d, tx_ids=%d",
+					batchNonce, len(batchTxIds))
+			}
+		}
+	}
+
+	return mappings
+}
+
+// parseUint64Array parses a comma-separated string of uint64 values.
+// Handles formats: "1,2,3" or "[1,2,3]" or JSON array.
+func parseUint64Array(s string) []uint64 {
+	if s == "" {
+		return nil
+	}
+
+	// Trim whitespace and brackets
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, "[]{}")
+
+	// Split by comma
+	parts := strings.Split(s, ",")
+	var result []uint64
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if val, err := parseUint64(part); err == nil {
+			result = append(result, val)
+		}
+	}
+
+	return result
+}
+
 // parseMsgWithdrawClaim parses a Peggy MsgWithdrawClaim (withdrawal confirmation).
 // This updates an existing PeggyWithdrawalTx record.
 func parseMsgWithdrawClaim(
 	msg *peggytypes.MsgWithdrawClaim,
-	_ []*abci.Event,
+	events []*abci.Event,
 	txHash string,
 	evmHash string,
 	blockHeight, blockTimestamp uint64,
@@ -467,10 +573,52 @@ func parseMsgWithdrawClaim(
 		withdrawal.OrchestratorAddress = orchestratorEVM
 	}
 
+	// Extract token_contract from EventWithdrawClaim and build denom
+	enrichPeggyWithdrawClaimFromEvents(withdrawal, events)
+
 	// Note: We don't have sender/receiver/amount in MsgWithdrawClaim
 	// These will be preserved from the original MsgSendToEth record via UPSERT
 
 	return withdrawal, nil
+}
+
+// enrichPeggyWithdrawClaimFromEvents extracts token_contract from EventWithdrawClaim
+// and builds the denom field (peggy0x...).
+func enrichPeggyWithdrawClaimFromEvents(withdrawal *models.PeggyWithdrawalTx, events []*abci.Event) {
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+
+		// EventWithdrawClaim from Injective Peggy v1
+		if event.Type == "injective.peggy.v1.EventWithdrawClaim" || event.Type == "EventWithdrawClaim" {
+			global.Logger.Debugf("Found EventWithdrawClaim with %d attributes", len(event.Attributes))
+
+			for _, attr := range event.Attributes {
+				global.Logger.Debugf("  - %s = %s", attr.Key, attr.Value)
+
+				if attr.Key == "token_contract" || attr.Key == "tokenContract" {
+					// Build denom: peggy0x...
+					tokenContract := attr.Value
+					// Normalize to lowercase with 0x prefix
+					if len(tokenContract) > 0 && tokenContract[0] == '0' && tokenContract[1] == 'x' {
+						// Already has 0x prefix
+					} else if len(tokenContract) > 0 && tokenContract[0] != '0' {
+						tokenContract = "0x" + tokenContract
+					}
+					withdrawal.Denom = "peggy" + converter.NormalizeHash(tokenContract)
+					global.Logger.Infof("Extracted token_contract from EventWithdrawClaim: %s → denom: %s",
+						attr.Value, withdrawal.Denom)
+					break
+				}
+			}
+		}
+	}
+
+	// If no denom was found, log a warning
+	if withdrawal.Denom == "" {
+		global.Logger.Warnf("No token_contract found in EventWithdrawClaim for batch_nonce=%d", withdrawal.BatchNonce)
+	}
 }
 
 // parseMsgTransfer parses an IBC MsgTransfer.
@@ -629,6 +777,23 @@ func saveCrossChainTransaction(ctx context.Context, data *CrossChainData) error 
 		}
 	}
 
+	// Save Peggy batch mappings (batch_nonce → outgoing_tx_ids)
+	// Use ON CONFLICT to handle duplicates (idempotent)
+	for _, mapping := range data.PeggyBatchMappings {
+		if err := db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "batch_nonce"}, {Name: "outgoing_tx_id"}},
+			DoNothing: true, // Skip if already exists (idempotent)
+		}).Create(mapping).Error; err != nil {
+			// Log error but don't fail the entire transaction
+			global.Logger.Warnf("Failed to save Peggy batch mapping (batch_nonce=%d, outgoing_tx_id=%d): %v",
+				mapping.BatchNonce, mapping.OutgoingTxID, err)
+		}
+	}
+
+	// Enqueue sync tasks for Peggy transactions with empty eth_tx_hash
+	// This is done asynchronously after successful save
+	enqueuePeggyEvmHashSyncTasks(ctx, data)
+
 	return nil
 }
 
@@ -644,7 +809,7 @@ func savePeggyWithdrawal(ctx context.Context, withdrawal *models.PeggyWithdrawal
 			Columns: []clause.Column{{Name: "outgoing_tx_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"state", "batch_nonce", "event_nonce", "event_height",
-				"orchestrator_address", "eth_tx_hash", "updated_at",
+				"orchestrator_address", "eth_tx_hash", "denom", "updated_at", // Include denom for EventWithdrawClaim updates
 			}),
 		}).Create(withdrawal).Error
 
@@ -658,7 +823,7 @@ func savePeggyWithdrawal(ctx context.Context, withdrawal *models.PeggyWithdrawal
 			DoUpdates: clause.AssignmentColumns([]string{
 				"state", "updated_at",
 				"event_nonce", "event_height",
-				"orchestrator_address", "eth_tx_hash",
+				"orchestrator_address", "eth_tx_hash", "denom", // Include denom for EventWithdrawClaim updates
 			}),
 		}).Create(withdrawal).Error
 
@@ -670,8 +835,96 @@ func savePeggyWithdrawal(ctx context.Context, withdrawal *models.PeggyWithdrawal
 			Columns: []clause.Column{{Name: "tx_hash"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"state", "batch_nonce", "event_nonce", "event_height",
-				"orchestrator_address", "eth_tx_hash", "updated_at",
+				"orchestrator_address", "eth_tx_hash", "denom", "updated_at",
 			}),
 		}).Create(withdrawal).Error
+	}
+}
+
+// enqueuePeggyEvmHashSyncTasks enqueues sync tasks for Peggy transactions with empty eth_tx_hash.
+// This is called after saving Peggy deposits/withdrawals to trigger async EVM hash synchronization.
+func enqueuePeggyEvmHashSyncTasks(ctx context.Context, data *CrossChainData) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		global.Logger.Warn("Redis client not available for Peggy EVM hash sync task enqueuing")
+		return
+	}
+
+	const queueKey = "peggy:evm_hash:queue"
+	var tasksEnqueued int
+
+	// Enqueue deposit tasks
+	for _, deposit := range data.PeggyDeposits {
+		// Only enqueue if eth_tx_hash is empty
+		if deposit.EthTxHash != "" {
+			continue
+		}
+
+		task := map[string]interface{}{
+			"type":         "deposit",
+			"block_height": deposit.EventHeight, // Use event_height (Ethereum height)
+			"event_nonce":  deposit.EventNonce,
+			"tx_hash":      deposit.TxHash,
+			"denom":        deposit.Denom,
+			"amount":       deposit.Amount,
+			"sender":       deposit.Sender,
+		}
+
+		taskData, err := json.Marshal(task)
+		if err != nil {
+			global.Logger.Errorf("Failed to marshal deposit sync task: %v", err)
+			continue
+		}
+
+		// Use LPUSH to add to queue (RPOP on worker side)
+		if err := redisClient.LPush(ctx, queueKey, taskData).Err(); err != nil {
+			global.Logger.Errorf("Failed to enqueue deposit sync task: %v", err)
+			continue
+		}
+
+		tasksEnqueued++
+		global.Logger.Debugf("Enqueued deposit sync task: event_nonce=%d, event_height=%d, tx_hash=%s",
+			deposit.EventNonce, deposit.EventHeight, deposit.TxHash)
+	}
+
+	// Enqueue withdrawal tasks
+	for _, withdrawal := range data.PeggyWithdrawals {
+		// Only enqueue if eth_tx_hash is empty
+		if withdrawal.EthTxHash != "" {
+			continue
+		}
+
+		// Only enqueue withdrawals with batch_nonce (MsgWithdrawClaim)
+		if withdrawal.BatchNonce == 0 {
+			continue
+		}
+
+		task := map[string]interface{}{
+			"type":         "withdrawal",
+			"block_height": withdrawal.EventHeight,
+			"batch_nonce":  withdrawal.BatchNonce,
+			"tx_hash":      withdrawal.TxHash,
+			"denom":        withdrawal.Denom,
+		}
+
+		taskData, err := json.Marshal(task)
+		if err != nil {
+			global.Logger.Errorf("Failed to marshal withdrawal sync task: %v", err)
+			continue
+		}
+
+		// Use LPUSH to add to queue (RPOP on worker side)
+		if err := redisClient.LPush(ctx, queueKey, taskData).Err(); err != nil {
+			global.Logger.Errorf("Failed to enqueue withdrawal sync task: %v", err)
+			continue
+		}
+
+		tasksEnqueued++
+		global.Logger.Debugf("Enqueued withdrawal sync task: batch_nonce=%d, tx_hash=%s",
+			withdrawal.BatchNonce, withdrawal.TxHash)
+	}
+
+	if tasksEnqueued > 0 {
+		global.Logger.Infof("Enqueued %d Peggy EVM hash sync tasks", tasksEnqueued)
 	}
 }

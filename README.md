@@ -13,6 +13,12 @@ A comprehensive blockchain explorer API service for the Injective network, built
 - **Database-First Strategy**: Prioritizes database queries over direct blockchain API calls for improved performance
 - **Pagination Support**: Both page-based and cursor-based pagination for efficient data retrieval
 - **Block Synchronization**: Real-time block synchronization with historical block backfill
+- **Peggy Cross-Chain Support**: Full support for Peggy/Gravity Bridge cross-chain transactions
+  - **Peggy EVM Hash Sync**: Asynchronous synchronization of EVM transaction hashes for Peggy cross-chain transactions
+  - **EventOutgoingBatch Parsing**: Automatic parsing of batch withdrawal mappings
+  - **Deposit Claims**: MsgDepositClaim with automatic EVM tx hash filling
+  - **Withdrawal Claims**: MsgSendToEth and MsgWithdrawClaim with EVM tx hash correlation
+  - **Historical Backfill**: Tool for backfilling historical Peggy transactions with EVM hashes
 - **Dual Protocol Support**: Both gRPC and HTTP/REST APIs
 - **gRPC-Web Support**: Browser-compatible gRPC-Web API via Envoy Proxy
 - **Multiple Database Support**: MySQL, PostgreSQL, and SQLite
@@ -1552,3 +1558,251 @@ For detailed implementation documentation, see:
 - `docs/archive-usage-guide.md`: Archive service usage guide
 - `docs/archive-database-size-analysis.md`: Database size analysis for archiving
 - `docs/archive-storage-testing.md`: Archive storage testing guide
+## Peggy EVM Hash Synchronization
+
+This service provides automatic EVM transaction hash synchronization for Peggy cross-chain transactions, resolving the issue where `eth_tx_hash` fields remain empty for Peggy bridge operations.
+
+### Overview
+
+The Peggy bridge allows users to transfer assets between Cosmos and EVM chains (Ethereum, Sepolia). When a cross-chain transaction occurs:
+
+1. **Deposit (Ethereum → Cosmos)**: User locks assets on EVM chain → `MsgDepositClaim` on Cosmos
+2. **Withdrawal (Cosmos → Ethereum)**: User initiates withdrawal → `MsgSendToEth` → `MsgWithdrawClaim` on Ethereum
+
+The synchronization service automatically queries the EVM chain to fetch the corresponding EVM transaction hash and updates the database records.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Peggy EVM Hash Sync Flow                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Cosmos Chain Event                                          │
+│       │                                                      │
+│       ▼                                                      │
+│  ┌──────────────────┐                                       │
+│  │ Parser Service  │                                       │
+│  │ (crosschain)    │                                       │
+│  └────────┬─────────┘                                       │
+│           │                                                    │
+│           │ eth_tx_hash = ""?                                │
+│           │ Yes                                               │
+│           ▼                                                   │
+│  ┌──────────────────┐                                       │
+│  │  Redis Queue    │                                       │
+│  │  (LPUSH)         │                                       │
+│  └────────┬─────────┘                                       │
+│           │                                                    │
+│           ▼                                                    │
+│  ┌──────────────────────────────┐                           │
+│  │ PeggyEvmHashSyncService     │                           │
+│  │                             │                           │
+│  │  ┌──────────────────────┐   │                           │
+│  │  │ Worker Pool (N=2)    │   │                           │
+│  │  │                      │   │                           │
+│  │  │ ┌────────────────┐   │   │                           │
+│  │  │ │ RPOP Queue     │   │   │                           │
+│  │  │ └───────┬────────┘   │   │                           │
+│  │  │         │            │   │                           │
+│  │  │         ▼            │   │                           │
+│  │  │  ┌────────────────┐   │   │                           │
+│  │  │  │ Query EVM     │   │   │                           │
+│  │  │  │ Chain         │   │   │                           │
+│  │  │  └───────┬────────┘   │   │                           │
+│  │  │          │            │   │                           │
+│  │  │          ▼            │   │                           │
+│  │  │  ┌────────────────┐   │   │                           │
+│  │  │  │ Update DB      │   │   │                           │
+│  │  │  └────────────────┘   │   │                           │
+│  │  └──────────────────────┘   │                           │
+│  └──────────────────────────────┘                           │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Features
+
+1. **Asynchronous Processing**: Non-blocking queue-based architecture
+2. **Worker Pool**: Concurrent workers for efficient processing (configurable)
+3. **Smart Retry**: Automatic retry for transient errors (timeout, rate limit)
+4. **Rate Limiting**: Configurable RPC rate limit to avoid throttling
+5. **Batch Updates**: Efficient database updates in batches
+6. **Graceful Shutdown**: Waits for in-flight tasks before stopping
+7. **Comprehensive Monitoring**: Prometheus metrics and Grafana dashboards
+
+### Configuration
+
+Enable the Peggy EVM hash sync service in your configuration file:
+
+```yaml
+service:
+  # Enable Peggy EVM hash sync service (default: true)
+  enable_peggy_evm_hash_sync: true
+
+chain:
+  # Peggy bridge EVM configuration (for external EVM chain queries)
+  peggy_bridge_evm:
+    enabled: true                      # Enable Peggy bridge EVM client
+    rpc_endpoint: "https://rpc.sepolia.org"  # EVM RPC endpoint
+    chain_id: 11155111                   # Chain ID (11155111=Sepolia, 1=Mainnet)
+    timeout: 10s                         # RPC timeout
+    rate_limit: 10                        # Max requests per second
+```
+
+### How It Works
+
+#### 1. Task Enqueuing
+
+When a Peggy transaction is parsed:
+
+```go
+// For deposits (MsgDepositClaim)
+if deposit.EthTxHash == "" {
+    task := {
+        "type": "deposit",
+        "block_height": deposit.EventHeight,  // Ethereum block height
+        "event_nonce": deposit.EventNonce,
+        "tx_hash": deposit.TxHash,             // Cosmos tx hash
+        "denom": deposit.Denom,
+        "amount": deposit.Amount,
+        "sender": deposit.Sender,
+    }
+    redis.LPUSH("peggy:evm_hash:queue", task)
+}
+
+// For withdrawals (MsgWithdrawClaim)
+if withdrawal.EthTxHash == "" && withdrawal.BatchNonce > 0 {
+    task := {
+        "type": "withdrawal",
+        "block_height": withdrawal.EventHeight,
+        "batch_nonce": withdrawal.BatchNonce,
+        "tx_hash": withdrawal.TxHash,
+        "denom": withdrawal.Denom,
+    }
+    redis.LPUSH("peggy:evm_hash:queue", task)
+}
+```
+
+#### 2. Query EVM Chain
+
+The service queries the EVM chain for matching events:
+
+**For Deposits**: Query `SendToCosmosEvent` by:
+- Event nonce
+- Token contract address
+- Sender address
+- Amount
+
+**For Withdrawals**: Query `TransactionBatchExecutedEvent` by:
+- Batch nonce
+- Token contract address
+
+#### 3. Update Database
+
+Once the EVM tx hash is found:
+
+```sql
+-- Update deposit record
+UPDATE peggy_deposit_tx
+SET eth_tx_hash = ?
+WHERE event_nonce = ?
+  AND block_height = ?
+  AND (eth_tx_hash = '' OR eth_tx_hash IS NULL);
+
+-- Update withdrawal records (MsgSendToEth)
+UPDATE peggy_withdrawal_tx
+SET eth_tx_hash = ?
+WHERE outgoing_tx_id IN (?)
+  AND (eth_tx_hash = '' OR eth_tx_hash IS NULL);
+
+-- Update withdrawal records (MsgWithdrawClaim)
+UPDATE peggy_withdrawal_tx
+SET eth_tx_hash = ?
+WHERE batch_nonce = ?
+  AND denom LIKE ?
+  AND (eth_tx_hash = '' OR eth_tx_hash IS NULL);
+```
+
+### Monitoring
+
+#### Prometheus Metrics
+
+- `peggy_evm_sync_queue_length`: Current queue length
+- `peggy_evm_sync_task_duration_seconds`: Task processing duration (P50, P95, P99)
+- `peggy_evm_sync_task_total`: Total tasks processed (by type and status)
+- `peggy_evm_rpc_duration_seconds`: EVM RPC call duration
+
+#### Grafana Dashboard
+
+Import `deployments/grafana/dashboards/peggy-evm-sync-dashboard.json` for monitoring.
+
+#### Alerts
+
+Import `deployments/prometheus/peggy-evm-sync-alerts.yml` for alerting rules:
+- Queue backlog alert
+- High failure rate alert
+- RPC timeout alert
+- High latency alert
+
+### Historical Data Backfill
+
+For existing Peggy transactions with empty `eth_tx_hash`, use the backfill tool:
+
+```bash
+# Backfill all historical records
+go run cmd/backfill-peggy-evm/main.go \
+  -conf ./configs/config.yaml
+
+# Backfill specific block range
+go run cmd/backfill-peggy-evm/main.go \
+  -conf ./configs/config.yaml \
+  -start-block=1000000 \
+  -end-block=2000000 \
+  -concurrency=10
+
+# Dry run (preview without enqueuing)
+go run cmd/backfill-peggy-evm/main.go \
+  -conf ./configs/config.yaml \
+  -dry-run=true
+```
+
+See `cmd/backfill-peggy-evm/README.md` for detailed usage instructions.
+
+### Performance
+
+| Metric | Target | Notes |
+|--------|--------|-------|
+| Single query duration | < 5s (P95) | Includes RPC call |
+| Queue consumption rate | > 100 tasks/min | Single worker |
+| RPC timeout rate | < 5% | Retried automatically |
+| Memory usage | < 100MB | Service process |
+
+### Troubleshooting
+
+#### Queue Backlog
+
+**Symptom**: `peggy_evm_sync_queue_length` keeps growing
+
+**Solutions**:
+- Increase `rate_limit` in config (if RPC allows)
+- Increase `worker_count` for more parallelism
+- Check RPC endpoint connectivity
+- Verify Peggy bridge contract address
+
+#### High Error Rate
+
+**Symptom**: `peggy_evm_sync_task_total{status="error"}` increasing
+
+**Check**:
+1. RPC endpoint accessibility
+2. Correct contract address
+3. Network connectivity
+4. Rate limit settings
+
+### Documentation
+
+For detailed information:
+- [Technical Design](docs/peggy-bridge-evm-hash-sync-design.md)
+- [Implementation Plan](docs/peggy-evm-sync-implementation-plan.md)
+- [Configuration Guide](docs/peggy-evm-sync-configuration.md)

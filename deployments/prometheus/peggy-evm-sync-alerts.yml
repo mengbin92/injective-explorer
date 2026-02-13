@@ -1,0 +1,139 @@
+groups:
+  - name: peggy_evm_sync
+    interval: 30s
+    rules:
+      # 队列积压告警
+      - alert: PeggyEvmSyncQueueBacklog
+        expr: peggy_evm_sync_queue_length > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync queue backlog detected"
+          description: "Queue length {{ $value }} exceeds threshold (1000). Check if workers are processing tasks properly."
+
+      # 严重队列积压告警
+      - alert: PeggyEvmSyncSevereBacklog
+        expr: peggy_evm_sync_queue_length > 5000
+        for: 5m
+        labels:
+          severity: critical
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync queue severe backlog"
+          description: "Queue length {{ $value }} is critically high. Immediate investigation required."
+
+      # 高错误率告警
+      - alert: PeggyEvmSyncHighFailureRate
+        expr: |
+          rate(peggy_evm_sync_task_total{status="error"}[5m])
+          / rate(peggy_evm_sync_task_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync high failure rate"
+          description: "Failure rate {{ $value | humanizePercentage }} exceeds 10%. Check logs for errors."
+
+      # 严重错误率告警
+      - alert: PeggyEvmSyncCriticalFailureRate
+        expr: |
+          rate(peggy_evm_sync_task_total{status="error"}[5m])
+          / rate(peggy_evm_sync_task_total[5m]) > 0.3
+        for: 2m
+        labels:
+          severity: critical
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync critical failure rate"
+          description: "Failure rate {{ $value | humanizePercentage }} exceeds 30%. Service may be down."
+
+      # RPC 超时告警
+      - alert: PeggyEvmSyncRPCTimeout
+        expr: |
+          rate(peggy_evm_rpc_duration_seconds{status="error"}[1m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          component: peggy_evm_rpc
+        annotations:
+          summary: "Peggy EVM RPC timeout detected"
+          description: "High RPC timeout rate detected ({{ $value }} calls/sec). Check RPC endpoint connectivity."
+
+      # 处理延迟告警
+      - alert: PeggyEvmSyncHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(peggy_evm_sync_task_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync high latency"
+          description: "P95 task duration {{ $value | humanizeDuration }} exceeds 30s. Check RPC performance."
+
+      # 严重延迟告警
+      - alert: PeggyEvmSyncCriticalLatency
+        expr: |
+          histogram_quantile(0.95, rate(peggy_evm_sync_task_duration_seconds_bucket[5m])) > 60
+        for: 2m
+        labels:
+          severity: critical
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync critical latency"
+          description: "P95 task duration {{ $value | humanizeDuration }} exceeds 60s. Service may be stuck."
+
+      # RPC 错误率告警
+      - alert: PeggyEvmSyncRPCErrorRate
+        expr: |
+          rate(peggy_evm_rpc_duration_seconds_count{status="error"}[5m])
+          / rate(peggy_evm_rpc_duration_seconds_count[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          component: peggy_evm_rpc
+        annotations:
+          summary: "Peggy EVM RPC high error rate"
+          description: "RPC error rate {{ $value | humanizePercentage }} exceeds 20%. Check RPC endpoint."
+
+      # 队列为空但仍有未同步记录（监控缺口）
+      - alert: PeggyEvmSyncNoProgress
+        expr: |
+          peggy_evm_sync_queue_length == 0
+          and rate(peggy_evm_sync_task_total[5m]) == 0
+        for: 15m
+        labels:
+          severity: info
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync idle"
+          description: "No tasks processed in 15 minutes. This may be normal if all Peggy transactions are synced."
+
+      # Deposit vs Withdrawal 处理不平衡
+      - alert: PeggyEvmSyncImbalance
+        expr: |
+          abs(
+            rate(peggy_evm_sync_task_total{type="deposit"}[10m])
+            rate(peggy_evm_sync_task_total{type="withdrawal"}[10m])
+          ) / (rate(peggy_evm_sync_task_total[10m]) + 0.1) > 0.5
+        for: 10m
+        labels:
+          severity: info
+          component: peggy_evm_sync
+        annotations:
+          summary: "Peggy EVM sync type imbalance"
+          description: "Large imbalance between deposit and withdrawal processing rates. May indicate traffic pattern change."
+
+      # 内存使用告警（需要添加 process_resident_memory_bytes 指标）
+      # - alert: PeggyEvmSyncHighMemoryUsage
+      #   expr: |
+      #     process_resident_memory_bytes{job="injective-explorer"} / 1024 / 1024 > 500
+      #   for: 5m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: "Peggy EVM sync high memory usage"
+      #     description: "Memory usage {{ $value }}MB exceeds 500MB"

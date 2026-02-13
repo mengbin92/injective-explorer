@@ -1070,6 +1070,29 @@ CREATE TABLE `peggy_withdrawal_txs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链提款交易表（Injective→以太坊），地址以EVM格式存储';
 
 -- ----------------------------
+-- Table structure for peggy_batch_tx_mapping
+-- ----------------------------
+-- 用于建立 batch_nonce → outgoing_tx_ids 映射关系
+-- 支持更新 MsgSendToEth 记录的 EVM tx hash
+DROP TABLE IF EXISTS `peggy_batch_tx_mapping`;
+CREATE TABLE `peggy_batch_tx_mapping` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `batch_nonce` bigint unsigned NOT NULL COMMENT 'Batch 唯一标识，与 MsgWithdrawClaim 中的 batch_nonce 对应',
+  `outgoing_tx_id` bigint unsigned NOT NULL COMMENT '提款交易唯一标识（来自 send_to_eth 事件）',
+  `block_height` bigint unsigned DEFAULT NULL COMMENT '区块高度',
+  `block_timestamp` bigint unsigned DEFAULT NULL COMMENT '区块时间戳',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_peggy_batch_mapping_batch_outgoing` (`batch_nonce`, `outgoing_tx_id`) COMMENT 'batch_nonce + outgoing_tx_id 组合唯一键',
+  KEY `idx_peggy_batch_mapping_batch_nonce` (`batch_nonce`) COMMENT 'batch_nonce 索引，用于查询 batch 下的所有 outgoing_tx_id',
+  KEY `idx_peggy_batch_mapping_outgoing_tx_id` (`outgoing_tx_id`) COMMENT 'outgoing_tx_id 索引，用于反向查询所属 batch',
+  KEY `idx_peggy_batch_mapping_block_height` (`block_height`) COMMENT '区块高度索引，用于回填和验证',
+  KEY `idx_peggy_batch_tx_mapping_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy Batch → OutgoingTxIDs 映射表，用于关联 MsgSendToEth 和 MsgWithdrawClaim，支持更新用户可见记录的 EVM tx hash';
+
+-- ----------------------------
 -- Table structure for wasm_codes
 -- ----------------------------
 DROP TABLE IF EXISTS `wasm_codes`;

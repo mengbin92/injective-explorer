@@ -114,6 +114,23 @@ chain:
       #   contract_param_index: 4      # 第5个参数是 pool 地址
       #   contract_param_indexed: false
       #   contract_param_type: "address"
+  # Peggy Bridge EVM 配置（用于 Peggy EVM Hash 同步服务）
+  peggy_bridge_evm:
+    enabled: true
+    # EVM chain RPC endpoint（用于查询 Peggy Bridge 事件）
+    # Sepolia testnet RPC (tested and working):
+    # - https://sepolia.drpc.org (✓ Working)
+    # - https://ethereum-sepolia.blockpi.network/v1/rpc/public
+    # - https://rpc.ankr.com/eth_sepolia (requires API key)
+    # Ethereum mainnet: https://eth.llamarpc.com 或 https://rpc.ankr.com/eth
+    rpc_endpoint: ${PEGGY_BRIDGE_EVM_RPC_ENDPOINT:https://sepolia.drpc.org}
+    # EVM chain ID（Sepolia: 11155111, Mainnet: 1）
+    chain_id: ${PEGGY_BRIDGE_EVM_CHAIN_ID:11155111}
+    # RPC 请求超时（默认: 5s）
+    timeout: 5s
+    # RPC 速率限制（请求/秒，默认: 10）
+    # 公共 RPC 通常限制在 10-30 req/s，私有节点可以设置更高
+    rate_limit: ${PEGGY_BRIDGE_EVM_RATE_LIMIT:10}
 
 sync:
   # Redis 队列配置
@@ -268,6 +285,9 @@ service:
   enable_token_transfer_sync: true
   # Enable token market cache sync service (default: true)
   enable_token_market_cache_sync: true
+  # Enable Peggy EVM hash sync service (default: true)
+  # 异步同步 Peggy 跨链交易的 EVM tx hash
+  enable_peggy_evm_hash_sync: true
 
 api_management:
   # Test mode: bypasses authentication and rate limiting for testing
@@ -332,3 +352,21 @@ api_management:
     # Fallback mode: allow access when user service fails (default: false)
     # WARNING: Setting to true reduces security - only use in development
     fallback_enabled: false
+
+# Peggy EVM Hash Sync 服务配置
+# 异步同步 Peggy 跨链交易的 EVM transaction hash
+peggy_evm_hash_sync:
+  # Worker pool 并发数（默认: 10）
+  # 根据队列积压情况和 RPC 性能调整
+  worker_count: ${PEGGY_EVM_SYNC_WORKER_COUNT:10}
+  # 批量更新数据库的批次大小（默认: 100）
+  # 避免单次更新大量记录导致超时
+  batch_update_size: ${PEGGY_EVM_SYNC_BATCH_SIZE:100}
+  # 最大重试次数（默认: 3）
+  max_retries: ${PEGGY_EVM_SYNC_MAX_RETRIES:3}
+  # 重试延迟（默认: 5s）
+  retry_delay: 5s
+  # Redis 队列键名（默认: peggy:evm_hash:queue）
+  queue_key: ${PEGGY_EVM_SYNC_QUEUE_KEY:peggy:evm_hash:queue}
+  # 服务健康检查间隔（默认: 30s）
+  health_check_interval: 30s

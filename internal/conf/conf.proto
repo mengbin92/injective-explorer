@@ -32,6 +32,8 @@ message Service {
   bool enable_token_transfer_sync = 4;
   // Enable token market cache sync service (default: true)
   bool enable_token_market_cache_sync = 5;
+  // Enable Peggy EVM hash sync service (default: true)
+  bool enable_peggy_evm_hash_sync = 6;
 }
 
 message Server {
@@ -126,6 +128,7 @@ message Chain {
   string name = 10;
   string official_tokens_list_url = 11;
   EVM evm = 12; // EVM RPC configuration
+  PeggyBridgeEVM peggy_bridge_evm = 13; // Peggy bridge EVM configuration (for external EVM chain)
 
   message EVM {
     bool enabled = 1;        // Whether EVM support is enabled
@@ -151,6 +154,14 @@ message Chain {
       bool contract_param_indexed = 4;    // Whether the contract address parameter is indexed (in topics) or not (in data)
       string contract_param_type = 5;     // Parameter type, typically "address"
     }
+  }
+
+  message PeggyBridgeEVM {
+    bool enabled = 1;         // Whether Peggy bridge EVM hash sync is enabled
+    string rpc_endpoint = 2;  // EVM JSON-RPC endpoint for Peggy bridge (Sepolia/Mainnet)
+    int64 chain_id = 3;       // EVM chain ID (11155111=Sepolia, 1=Mainnet)
+    google.protobuf.Duration timeout = 4; // RPC timeout
+    int32 rate_limit = 5;     // Max requests per second (default: 10)
   }
 }
 
