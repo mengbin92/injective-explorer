@@ -21,7 +21,6 @@ import (
 	"injective-explorer/internal/utils"
 	syncpool "injective-explorer/internal/service/sync"
 	"injective-explorer/provider/cache"
-	"injective-explorer/provider/chain"
 	"injective-explorer/provider/db"
 
 	chaintypes "github.com/InjectiveLabs/sdk-go/chain/types"
@@ -2579,10 +2578,10 @@ func (s *SyncService) saveContractInfoFromCosmosEvents(ctx context.Context, txRe
 
 // fetchAndUpdateERC20Metadata
 
-// fetchAndUpdateERC20Metadata fetches ERC20 token metadata from EVM and updates contract info
+// fetchAndUpdateERC20Metadata fetches ERC20 token metadata from EVM and updates contract info.
+// Uses createEVMClient() to respect chain.evm config (rpc_endpoint, etc.) for custom chains like injective.
 func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractAddress, chainID string) error {
-	// Get EVM client from config
-	evmClient, err := chain.NewEVMClient(global.NetworkName)
+	evmClient, err := createEVMClient()
 	if err != nil {
 		return errors.Wrap(err, "failed to create EVM client")
 	}
