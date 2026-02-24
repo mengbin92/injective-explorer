@@ -293,8 +293,9 @@ func backfillPeggyMetadataBatch(ctx context.Context, chainID string, contracts [
 		}
 		return processed, succeeded, failed
 	}
-	var originalAddrs []string
-	var contractIndex []int
+	// Pre-allocate slices with known capacity to avoid multiple allocations
+	originalAddrs := make([]string, 0, len(contracts))
+	contractIndex := make([]int, 0, len(contracts))
 	for i, c := range contracts {
 		denom := c.PeggyDenom
 		if denom == "" && c.Metadata != nil {

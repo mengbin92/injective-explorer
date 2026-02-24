@@ -2,13 +2,16 @@
 package service
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/bytedance/sonic"
 
 	"injective-explorer/internal/conf"
 	"injective-explorer/internal/global"
@@ -26,6 +29,13 @@ const (
 	coinGeckoRequestPath = "/coins/ethereum/contract/%s"
 	peggyPrefix          = "peggy"
 )
+
+// bufferPool reuses byte buffers for HTTP response decoding to reduce allocations.
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
 
 // MetadataFetchError represents a classified metadata fetch error.
 type MetadataFetchError struct {
@@ -204,7 +214,13 @@ func fetchMetadataFromCoinGeckoWithConfig(ctx context.Context, contractAddress s
 	if baseURL == "" {
 		baseURL = defaultCoinGeckoURL
 	}
-	url := fmt.Sprintf("%s%s", strings.TrimSuffix(baseURL, "/"), fmt.Sprintf(coinGeckoRequestPath, addr))
+	// Use strings.Builder for efficient URL construction
+	var urlBuilder strings.Builder
+	urlBuilder.Grow(len(baseURL) + len(coinGeckoRequestPath) + len(addr) - 2) // -2 for %s placeholder
+	urlBuilder.WriteString(strings.TrimSuffix(baseURL, "/"))
+	urlBuilder.WriteString(fmt.Sprintf(coinGeckoRequestPath, addr))
+	url := urlBuilder.String()
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", "", 0, errors.Wrap(err, "failed to create request")
@@ -225,6 +241,16 @@ func fetchMetadataFromCoinGeckoWithConfig(ctx context.Context, contractAddress s
 	if resp.StatusCode != 200 {
 		return "", "", 0, errors.Errorf("CoinGecko returned status %d", resp.StatusCode)
 	}
+
+	// Use sync.Pool for buffer reuse when reading response body
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
+
+	if _, err := buf.ReadFrom(resp.Body); err != nil {
+		return "", "", 0, errors.Wrap(err, "failed to read CoinGecko response")
+	}
+
 	var data struct {
 		Name              string `json:"name"`
 		Symbol            string `json:"symbol"`
@@ -234,7 +260,7 @@ func fetchMetadataFromCoinGeckoWithConfig(ctx context.Context, contractAddress s
 			} `json:"ethereum"`
 		} `json:"detail_platforms"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := sonic.Unmarshal(buf.Bytes(), &data); err != nil {
 		return "", "", 0, errors.Wrap(err, "failed to decode CoinGecko response")
 	}
 	symbol = strings.ToUpper(data.Symbol)

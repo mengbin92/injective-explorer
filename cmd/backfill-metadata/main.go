@@ -36,6 +36,16 @@ var (
 	showVersion bool
 )
 
+// CLIConfig holds all command-line flags for the backfill tool.
+type CLIConfig struct {
+	ConfPath  string
+	Limit     int
+	ChainID   string
+	DelayMs   int
+	DryRun    bool
+	ShowVersion bool
+}
+
 func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
 	flag.IntVar(&limit, "limit", 50, "max contracts to process per run")
@@ -45,33 +55,46 @@ func init() {
 	flag.BoolVar(&showVersion, "version", false, "show version and exit")
 }
 
-func main() {
-	flag.Parse()
-
-	if showVersion {
-		fmt.Println("injective-explorer backfill-metadata tool")
-		fmt.Println("Version: (built from source)")
-		os.Exit(0)
+// parseFlags parses and returns CLI flags.
+func parseFlags() *CLIConfig {
+	return &CLIConfig{
+		ConfPath:    flagconf,
+		Limit:       limit,
+		ChainID:     chainID,
+		DelayMs:     delayMs,
+		DryRun:      dryRun,
+		ShowVersion: showVersion,
 	}
+}
 
-	// Load configuration
+// loadConfig loads the application configuration from file and environment.
+func loadConfig(confPath string) (*conf.Bootstrap, config.Config, error) {
 	c := config.New(
 		config.WithSource(
-			file.NewSource(flagconf),
+			file.NewSource(confPath),
 			env.NewSource(""),
 		),
 	)
-	defer c.Close()
 
 	if err := c.Load(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
-		os.Exit(1)
+		c.Close() // Close before exiting
+		return nil, nil, err
 	}
 
 	var bc conf.Bootstrap
 	if err := c.Scan(&bc); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to scan configuration: %v\n", err)
-		os.Exit(1)
+		c.Close() // Close before exiting
+		return nil, nil, err
+	}
+
+	return &bc, c, nil
+}
+
+// initApp initializes the application: loads config, sets up logger and global components.
+func initApp(confPath string) (*conf.Bootstrap, *log.Helper, config.Config, error) {
+	bc, c, err := loadConfig(confPath)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	// Initialize logger
@@ -81,14 +104,36 @@ func main() {
 	)
 
 	// Initialize global (database, redis, etc.)
-	global.Init(&bc, logger)
-	logHelper := log.NewHelper(logger)
+	global.Init(bc, logger)
+
+	return bc, log.NewHelper(logger), c, nil
+}
+
+func main() {
+	flag.Parse()
+
+	cliCfg := parseFlags()
+
+	if cliCfg.ShowVersion {
+		fmt.Println("injective-explorer backfill-metadata tool")
+		fmt.Println("Version: (built from source)")
+		os.Exit(0)
+	}
+
+	// Initialize application
+	_, logHelper, cfg, err := initApp(cliCfg.ConfPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize application: %v\n", err)
+		os.Exit(1)
+	}
+	defer cfg.Close() // Ensure config is closed on normal exit
 
 	logHelper.Infof("Starting metadata backfill tool...")
-	logHelper.Infof("Configuration loaded from: %s", flagconf)
-	logHelper.Infof("Options: limit=%d, chain-id=%q, delay=%dms, dry-run=%v", limit, chainID, delayMs, dryRun)
+	logHelper.Infof("Configuration loaded from: %s", cliCfg.ConfPath)
+	logHelper.Infof("Options: limit=%d, chain-id=%q, delay=%dms, dry-run=%v",
+		cliCfg.Limit, cliCfg.ChainID, cliCfg.DelayMs, cliCfg.DryRun)
 
-	if dryRun {
+	if cliCfg.DryRun {
 		logHelper.Warn("DRY RUN MODE: No metadata will be actually refreshed")
 	}
 
@@ -96,12 +141,12 @@ func main() {
 	defer cancel()
 
 	opt := service.BackfillOptions{
-		Limit:   limit,
-		ChainID: chainID,
-		DryRun:  dryRun,
+		Limit:   cliCfg.Limit,
+		ChainID: cliCfg.ChainID,
+		DryRun:  cliCfg.DryRun,
 	}
-	if delayMs > 0 {
-		opt.Delay = time.Duration(delayMs) * time.Millisecond
+	if cliCfg.DelayMs > 0 {
+		opt.Delay = time.Duration(cliCfg.DelayMs) * time.Millisecond
 	}
 
 	startTime := time.Now()
@@ -112,11 +157,11 @@ func main() {
 		processed, succeeded, failed, duration)
 
 	// Update Prometheus metrics (when not dry-run)
-	if !dryRun && processed > 0 {
-		service.UpdateContractMetadataMetrics(ctx, chainID)
+	if !cliCfg.DryRun && processed > 0 {
+		service.UpdateContractMetadataMetrics(ctx, cliCfg.ChainID)
 	}
 
-	if failed > 0 && !dryRun {
+	if failed > 0 && !cliCfg.DryRun {
 		logHelper.Warnf("Completed with %d failure(s)", failed)
 		os.Exit(1)
 	}

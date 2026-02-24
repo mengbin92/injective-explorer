@@ -4,10 +4,11 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/bytedance/sonic"
 
 	"injective-explorer/internal/conf"
 	"injective-explorer/internal/global"
@@ -62,7 +63,7 @@ func getContractMetadataFromCache(ctx context.Context, chainID, contractAddress 
 		return nil, false
 	}
 	var m ERC20MetadataCached
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err := sonic.Unmarshal(data, &m); err != nil {
 		global.Logger.Debugf("invalid cached metadata for contract_address=%s: %v", strings.ToLower(contractAddress), err)
 		return nil, false
 	}
@@ -87,7 +88,7 @@ func setContractMetadataToCacheWithTTL(ctx context.Context, chainID, contractAdd
 		ttl = defaultMetadataCacheTTL
 	}
 	key := buildMetadataCacheKey(chainID, contractAddress)
-	data, err := json.Marshal(m)
+	data, err := sonic.Marshal(m)
 	if err != nil {
 		global.Logger.Debugf("failed to marshal metadata for cache: %v", err)
 		return

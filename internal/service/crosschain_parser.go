@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/bytedance/sonic"
 
 	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
@@ -870,7 +871,7 @@ func enqueuePeggyEvmHashSyncTasks(ctx context.Context, data *CrossChainData) {
 			"sender":       deposit.Sender,
 		}
 
-		taskData, err := json.Marshal(task)
+		taskData, err := sonic.Marshal(task)
 		if err != nil {
 			global.Logger.Errorf("Failed to marshal deposit sync task: %v", err)
 			continue
@@ -907,7 +908,7 @@ func enqueuePeggyEvmHashSyncTasks(ctx context.Context, data *CrossChainData) {
 			"denom":        withdrawal.Denom,
 		}
 
-		taskData, err := json.Marshal(task)
+		taskData, err := sonic.Marshal(task)
 		if err != nil {
 			global.Logger.Errorf("Failed to marshal withdrawal sync task: %v", err)
 			continue

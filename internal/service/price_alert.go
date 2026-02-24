@@ -4,10 +4,11 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/bytedance/sonic"
 
 	"injective-explorer/internal/models"
 	"injective-explorer/provider/db"
@@ -250,7 +251,7 @@ func (s *PriceAlertService) sendWebhookNotification(ctx context.Context, alert *
 		"description":     alert.Description,
 	}
 
-	jsonData, err := json.Marshal(payload)
+	jsonData, err := sonic.Marshal(payload)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal webhook payload")
 	}

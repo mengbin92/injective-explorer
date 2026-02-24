@@ -49,8 +49,8 @@ func (SonicJSONSerializer) Scan(ctx context.Context, field *schema.Field, dst re
 			}
 
 			// Try to unmarshal as array first
-			var rawArray []interface{}
-			if err := json.Unmarshal(bytes, &rawArray); err == nil {
+			var rawArray []any
+			if err := sonic.Unmarshal(bytes, &rawArray); err == nil {
 				stringArray := make([]string, len(rawArray))
 				for i, elem := range rawArray {
 					stringArray[i] = toString(elem)
@@ -61,8 +61,8 @@ func (SonicJSONSerializer) Scan(ctx context.Context, field *schema.Field, dst re
 			}
 
 			// Try to unmarshal as single value (e.g., 100000000 or "value")
-			var singleValue interface{}
-			if err := json.Unmarshal(bytes, &singleValue); err == nil {
+			var singleValue any
+			if err := sonic.Unmarshal(bytes, &singleValue); err == nil {
 				fieldValue.Elem().Set(reflect.ValueOf([]string{toString(singleValue)}))
 				field.ReflectValueOf(ctx, dst).Set(fieldValue.Elem())
 				return nil

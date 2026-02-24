@@ -4,12 +4,13 @@ package service
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bytedance/sonic"
 
 	pb "injective-explorer/api/explorer/v1"
 	"injective-explorer/internal/global"
@@ -679,7 +680,7 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 		if err == nil && configData != "" {
 			// Successfully loaded from Redis
 			var redisConfig map[string]interface{}
-			if err := json.Unmarshal([]byte(configData), &redisConfig); err == nil {
+			if err := sonic.Unmarshal([]byte(configData), &redisConfig); err == nil {
 				if v, ok := redisConfig["ip_per_minute"].(float64); ok {
 					ipPerMinute = int(v)
 				}
@@ -743,7 +744,7 @@ func (s *AdminService) UpdateIPRateLimitConfig(ctx context.Context, req *pb.Upda
 		// Redis not available, log warning but still return success
 		global.Logger.Warn("Redis client not available, configuration not persisted (will be lost on restart)")
 	} else {
-		configJSON, err := json.Marshal(configData)
+		configJSON, err := sonic.Marshal(configData)
 		if err != nil {
 			global.Logger.Errorf("Failed to marshal IP rate limit config: %v", err)
 			return ErrorReply(http.StatusInternalServerError, "failed to persist configuration", err), err
@@ -787,7 +788,7 @@ func LoadIPRateLimitConfigFromRedis(ctx context.Context) error {
 	}
 
 	var redisConfig map[string]interface{}
-	if err := json.Unmarshal([]byte(configData), &redisConfig); err != nil {
+	if err := sonic.Unmarshal([]byte(configData), &redisConfig); err != nil {
 		global.Logger.Warnf("Failed to parse IP rate limit config from Redis: %v", err)
 		return err
 	}
