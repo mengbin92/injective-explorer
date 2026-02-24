@@ -118,11 +118,18 @@ func (c *PeggyBridgeEVMClient) GetDepositTxHash(
 	// Normalize addresses
 	tokenContractAddr := common.HexToAddress(tokenContract)
 
-	// Build filter query
-	// For indexed parameters, we need to use the hash of the value
+	// Build filter query with block range
+	// Search window: eventHeight to eventHeight+searchWindow (max 9990 to stay under RPC limit)
+	// Wider window helps when eventHeight is approximate or from different chain semantics
+	const depositSearchWindow = 5000
+	toBlock := eventHeight + depositSearchWindow
+	if toBlock > eventHeight+maxLogQueryBlocks {
+		toBlock = eventHeight + maxLogQueryBlocks
+	}
+
 	query := ethereum.FilterQuery{
 		FromBlock: big.NewInt(int64(eventHeight)),
-		ToBlock:   big.NewInt(int64(eventHeight + 10)), // Search window
+		ToBlock:   big.NewInt(int64(toBlock)),
 		Addresses: []common.Address{tokenContractAddr},
 		Topics: [][]common.Hash{
 			{SendToCosmosEventSig},
@@ -144,8 +151,44 @@ func (c *PeggyBridgeEVMClient) GetDepositTxHash(
 		}
 	}
 
+	// Fallback: search recent blocks when eventHeight may be wrong (e.g. Cosmos block height)
+	latestBlock, err := c.client.BlockNumber(ctx)
+	if err != nil {
+		return "", fmt.Errorf("SendToCosmosEvent not found for event_nonce=%d", eventNonce)
+	}
+	fromFallback := uint64(0)
+	if latestBlock > maxLogQueryBlocks {
+		fromFallback = latestBlock - maxLogQueryBlocks
+	}
+	fallbackQuery := ethereum.FilterQuery{
+		FromBlock: big.NewInt(int64(fromFallback)),
+		ToBlock:   big.NewInt(int64(latestBlock)),
+		Addresses: []common.Address{tokenContractAddr},
+		Topics: [][]common.Hash{
+			{SendToCosmosEventSig},
+			{common.HexToHash(tokenContract)},
+			{common.HexToHash(sender)},
+		},
+	}
+	fallbackLogs, fallbackErr := c.client.FilterLogs(ctx, fallbackQuery)
+	if fallbackErr == nil {
+		for _, log := range fallbackLogs {
+			if txHash, match := c.matchDepositLog(log, eventNonce, amount); match {
+				return txHash, nil
+			}
+		}
+	}
+
 	return "", fmt.Errorf("SendToCosmosEvent not found for event_nonce=%d", eventNonce)
 }
+
+// maxLogQueryBlocks is the maximum block range for FilterLogs.
+// Many free-tier RPC providers (Alchemy, Infura) limit to 10,000 blocks.
+const maxLogQueryBlocks = 9990
+
+// maxWithdrawalSearchChunks limits how far back we search for withdrawal batches.
+// 5 chunks × 9990 blocks ≈ 50k blocks (~7 days on Ethereum, ~3 days on Sepolia).
+const maxWithdrawalSearchChunks = 5
 
 // GetWithdrawalBatchTxHash queries the EVM chain for the TransactionBatchExecutedEvent
 // corresponding to a withdrawal batch.
@@ -156,6 +199,7 @@ func (c *PeggyBridgeEVMClient) GetDepositTxHash(
 //   - denom: the denom in format "peggy0x..."
 //
 // Returns the EVM transaction hash, or an error if not found.
+// Uses chunked search (max 10k blocks per query) to comply with free-tier RPC limits.
 func (c *PeggyBridgeEVMClient) GetWithdrawalBatchTxHash(
 	ctx context.Context,
 	batchNonce uint64,
@@ -172,27 +216,43 @@ func (c *PeggyBridgeEVMClient) GetWithdrawalBatchTxHash(
 		return "", fmt.Errorf("invalid denom %s: %w", denom, err)
 	}
 
-	// Build filter query
-	// For indexed parameters, we need to use the hash of the value
-	// Note: We don't set FromBlock/ToBlock to search all blocks
-	// In production, you might want to limit the search range
-	query := ethereum.FilterQuery{
-		Topics: [][]common.Hash{
-			{TransactionBatchExecutedEventSig},
-			{common.BigToHash(big.NewInt(int64(batchNonce)))},
-			{common.HexToHash(tokenContract)},
-		},
-	}
-
-	// Query logs
-	logs, err := c.client.FilterLogs(ctx, query)
+	// Chunked search: query in segments of maxLogQueryBlocks going backwards from latest
+	toBlock, err := c.client.BlockNumber(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to query logs: %w", err)
+		return "", fmt.Errorf("failed to get block number: %w", err)
 	}
 
-	// Return the first match (should be unique)
-	if len(logs) > 0 {
-		return logs[0].TxHash.Hex(), nil
+	for chunk := 0; chunk < maxWithdrawalSearchChunks; chunk++ {
+		var fromBlock uint64
+		if toBlock > maxLogQueryBlocks {
+			fromBlock = toBlock - maxLogQueryBlocks
+		} else {
+			fromBlock = 0
+		}
+
+		query := ethereum.FilterQuery{
+			FromBlock: big.NewInt(int64(fromBlock)),
+			ToBlock:   big.NewInt(int64(toBlock)),
+			Topics: [][]common.Hash{
+				{TransactionBatchExecutedEventSig},
+				{common.BigToHash(big.NewInt(int64(batchNonce)))},
+				{common.HexToHash(tokenContract)},
+			},
+		}
+
+		logs, err := c.client.FilterLogs(ctx, query)
+		if err != nil {
+			return "", fmt.Errorf("failed to query logs: %w", err)
+		}
+
+		if len(logs) > 0 {
+			return logs[0].TxHash.Hex(), nil
+		}
+
+		if fromBlock == 0 {
+			break
+		}
+		toBlock = fromBlock - 1
 	}
 
 	return "", fmt.Errorf("TransactionBatchExecutedEvent not found for batch_nonce=%d", batchNonce)
@@ -230,21 +290,29 @@ func (c *PeggyBridgeEVMClient) matchDepositLog(
 }
 
 // ParseTokenContractFromDenom extracts the token contract address from a Peggy denom.
-// Format: "peggy0x..." -> "0x..."
+// Accepts two formats:
+// 1. "peggy0x..." - standard Peggy denom (peggy prefix + contract address)
+// 2. "0x..." - raw EVM contract address (caller may pass already-parsed address)
 func ParseTokenContractFromDenom(denom string) (string, error) {
-	if !strings.HasPrefix(denom, "peggy") {
-		return "", fmt.Errorf("not a peggy denom: %s", denom)
+	denom = strings.TrimSpace(strings.Trim(denom, "\"'"))
+	if denom == "" {
+		return "", fmt.Errorf("not a peggy denom: empty string")
 	}
 
-	addr := strings.TrimPrefix(denom, "peggy")
-
-	// Validate address format
-	if !common.IsHexAddress(addr) {
-		return "", fmt.Errorf("invalid address format: %s", addr)
+	if strings.HasPrefix(denom, "peggy") {
+		addr := strings.TrimPrefix(denom, "peggy")
+		if !common.IsHexAddress(addr) {
+			return "", fmt.Errorf("invalid address format: %s", addr)
+		}
+		return normalizeHash(addr), nil
 	}
 
-	// Normalize to lowercase with 0x prefix
-	return normalizeHash(addr), nil
+	// Accept raw 0x-prefixed EVM address (40 hex chars) - caller may pass parsed tokenContract
+	if len(denom) >= 42 && (denom[0:2] == "0x" || denom[0:2] == "0X") && common.IsHexAddress(denom) {
+		return normalizeHash(denom), nil
+	}
+
+	return "", fmt.Errorf("not a peggy denom: %s", denom)
 }
 
 // normalizeHash normalizes an Ethereum address to lowercase with 0x prefix.
