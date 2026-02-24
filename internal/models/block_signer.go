@@ -21,8 +21,12 @@ import (
 // ValidatorQueryClient defines the interface for querying validators from chain.
 // This is used to fetch validator info in real-time when it's not in local DB.
 type ValidatorQueryClient interface {
-	// GetValidators queries all validators from chain
+	// GetValidators queries all validators from chain (current height).
 	GetValidators(ctx interface{}) ([]stakingtypes.Validator, error)
+	// GetValidatorsAtHeight queries validators at a specific block height.
+	// Use this for historical blocks where validators may have since unbonded.
+	// Returns error if the chain doesn't support historical queries (e.g., pruned nodes).
+	GetValidatorsAtHeight(ctx context.Context, height uint64) ([]stakingtypes.Validator, error)
 	// GetValidatorByConsensusAddress queries a single validator by consensus address.
 	// If not implemented, returns an error and the caller should fall back to GetValidators.
 	GetValidatorByConsensusAddress(ctx context.Context, consAddr string) (*stakingtypes.Validator, error)
@@ -55,11 +59,13 @@ func NewBlockSignerService(validatorQueryClient ValidatorQueryClient) *BlockSign
 }
 
 // hexToConsAddress converts hex consensus address to bech32 format.
-// Block header proposer address is in hex format (uppercase), but DB stores bech32 format.
-// This function uses encoding/hex.DecodeString for better performance and clarity.
+// Block header proposer address is in hex format (uppercase), but DB stores bech32 format (injvalcons1xxx).
+// Note: Hex strings can contain "1" as a digit, so we must check for bech32 prefix, not just "1".
 func hexToConsAddress(hexAddr string) string {
-	// If already in bech32 format (contains "1" which is the separator), return as-is
-	if strings.Contains(hexAddr, "1") {
+	// If already in bech32 format (starts with consensus prefix + "1" separator), return as-is
+	// e.g. injvalcons1xxx - "1" is the Bech32 separator between HRP and data
+	consensusPrefix := sdk.GetConfig().GetBech32ConsensusAddrPrefix()
+	if strings.HasPrefix(hexAddr, consensusPrefix+"1") {
 		return hexAddr
 	}
 
@@ -82,9 +88,10 @@ func hexToConsAddress(hexAddr string) string {
 // getOrFetchValidator gets validator from local DB, or fetches from chain if not found.
 // It saves the fetched validator to local DB for future use.
 // consensusAddress can be either hex format (from block header) or bech32 format.
+// blockHeight is used for historical query when validator not in current set (e.g., unbonded).
 //
 // This method uses caching to avoid repeated expensive chain queries for the same validator.
-func (s *BlockSignerService) getOrFetchValidator(consensusAddress string) (*Validator, error) {
+func (s *BlockSignerService) getOrFetchValidator(consensusAddress string, blockHeight uint64) (*Validator, error) {
 	// Convert hex address to bech32 format if needed
 	bech32ConsAddress := hexToConsAddress(consensusAddress)
 
@@ -140,14 +147,36 @@ func (s *BlockSignerService) getOrFetchValidator(consensusAddress string) (*Vali
 		return validatorModel, nil
 	}
 
-	// Fallback to fetching all validators (less efficient but works)
-	// This should be avoided if possible by implementing GetValidatorByConsensusAddress
+	// Fallback to fetching all validators (current height first)
 	validators, err := s.validatorQueryClient.GetValidators(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch validators from chain: %w", err)
 	}
 
-	// Find the validator with matching consensus address and save to DB
+	foundValidator := s.findAndPersistValidator(validators, bech32ConsAddress)
+	if foundValidator != nil {
+		return foundValidator, nil
+	}
+
+	// For historical blocks: validator may have unbonded, query at block height
+	if blockHeight > 0 {
+		global.Logger.Debugf("validator %s not in current set, trying historical query at height %d", consensusAddress, blockHeight)
+		historicalValidators, histErr := s.validatorQueryClient.GetValidatorsAtHeight(ctx, blockHeight)
+		if histErr != nil {
+			return nil, fmt.Errorf("validator with consensus address %s not found (current set), historical query at height %d failed: %w", consensusAddress, blockHeight, histErr)
+		}
+		foundValidator = s.findAndPersistValidator(historicalValidators, bech32ConsAddress)
+		if foundValidator != nil {
+			global.Logger.Debugf("found validator %s via historical query at height %d", consensusAddress, blockHeight)
+			return foundValidator, nil
+		}
+	}
+
+	return nil, fmt.Errorf("validator with consensus address %s not found", consensusAddress)
+}
+
+// findAndPersistValidator finds validator by consensus address in the list, persists to DB and cache.
+func (s *BlockSignerService) findAndPersistValidator(validators []stakingtypes.Validator, bech32ConsAddress string) *Validator {
 	var foundValidator *Validator
 	for _, v := range validators {
 		validatorModel := ValidatorFromStakingTypes(v)
@@ -164,24 +193,17 @@ func (s *BlockSignerService) getOrFetchValidator(consensusAddress string) (*Vali
 			continue
 		}
 
-		// Check if this is the validator we're looking for
-		// Compare with bech32 format address
 		if validatorModel.ConsensusAddress == bech32ConsAddress {
 			foundValidator = validatorModel
 		}
 
-		// Update cache for all validators we fetch
+		// Update cache
 		s.cacheMutex.Lock()
 		s.validatorCache[validatorModel.ConsensusAddress] = validatorModel
 		s.lastCacheUpdate = time.Now()
 		s.cacheMutex.Unlock()
 	}
-
-	if foundValidator != nil {
-		return foundValidator, nil
-	}
-
-	return nil, fmt.Errorf("validator with consensus address %s not found", consensusAddress)
+	return foundValidator
 }
 
 // SignerInfo represents a validator's participation in a block (used internally, not stored in DB).
@@ -210,7 +232,8 @@ func (s *BlockSignerService) SaveBlockSigners(block *coretypes.ResultBlock) erro
 
 	// Get proposer validator info - fetch from chain if not in local DB
 	// This is critical information - if we can't find the proposer, we should return an error
-	proposerValidator, err := s.getOrFetchValidator(proposerHex)
+	// Pass block height for historical query when proposer may have unbonded
+	proposerValidator, err := s.getOrFetchValidator(proposerHex, height)
 	if err != nil {
 		return fmt.Errorf("cannot find validator for proposer consensus address %s at height %d: %w", proposerHex, height, err)
 	}
@@ -252,7 +275,8 @@ func (s *BlockSignerService) SaveBlockSigners(block *coretypes.ResultBlock) erro
 			// Get validator operator address - fetch from chain if not in local DB
 			// For signers, we log a warning but continue processing other signers
 			// as missing a signer is less critical than missing the proposer
-			signerValidator, err := s.getOrFetchValidator(signerBech32Addr)
+			// Pass block height for historical query when signer may have unbonded
+			signerValidator, err := s.getOrFetchValidator(signerBech32Addr, height)
 			if err != nil {
 				global.Logger.Warnf("cannot find validator for signer consensus address %s (bech32: %s) at height %d: %v", signerConsensusHex, signerBech32Addr, height, err)
 				continue // Skip this signer if not found

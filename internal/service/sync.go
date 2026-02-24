@@ -37,6 +37,7 @@ import (
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc/metadata"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -53,7 +54,7 @@ type validatorQueryClientImpl struct {
 	chainClient chainclient.ChainClientV2
 }
 
-// GetValidators queries all validators from chain
+// GetValidators queries all validators from chain (current height)
 func (v *validatorQueryClientImpl) GetValidators(ctx interface{}) ([]stakingtypes.Validator, error) {
 	stakingClient := stakingtypes.NewQueryClient(v.chainClient.QueryClient())
 	validatorsResp, err := stakingClient.Validators(context.Background(), &stakingtypes.QueryValidatorsRequest{
@@ -63,6 +64,26 @@ func (v *validatorQueryClientImpl) GetValidators(ctx interface{}) ([]stakingtype
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query validators from chain")
+	}
+	return validatorsResp.Validators, nil
+}
+
+// GetValidatorsAtHeight queries validators at a specific block height.
+// Uses x-cosmos-block-height gRPC metadata for historical query.
+// Required for processing historical blocks where proposer/signers may have since unbonded.
+func (v *validatorQueryClientImpl) GetValidatorsAtHeight(ctx context.Context, height uint64) ([]stakingtypes.Validator, error) {
+	// Cosmos SDK supports historical queries via x-cosmos-block-height header
+	md := metadata.Pairs("x-cosmos-block-height", strconv.FormatUint(height, 10))
+	queryCtx := metadata.NewOutgoingContext(ctx, md)
+
+	stakingClient := stakingtypes.NewQueryClient(v.chainClient.QueryClient())
+	validatorsResp, err := stakingClient.Validators(queryCtx, &stakingtypes.QueryValidatorsRequest{
+		Pagination: &query.PageRequest{
+			Limit: MaxValidatorQueryLimit,
+		},
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query validators at height %d", height)
 	}
 	return validatorsResp.Validators, nil
 }

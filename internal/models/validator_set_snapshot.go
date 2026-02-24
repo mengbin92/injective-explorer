@@ -54,18 +54,35 @@ func SaveValidatorSetSnapshot(blockHeight uint64, validators *coretypes.ResultVa
 
 		consensusHex := fmt.Sprintf("%X", val.Address)
 
-		// Get validator operator address
-		var validator Validator
-		validatorErr := db.Get().Model(&Validator{}).Where("consensus_address = ?", consensusHex).First(&validator).Error
-		operatorAddress := consensusHex // Fallback to consensus address if not found
-		if validatorErr == nil && validator.OperatorAddress != "" {
-			operatorAddress = validator.OperatorAddress
+		// Convert hex to bech32 for DB lookup - validators.consensus_address stores injvalcons1xxx
+		consensusBech32, convErr := HexToValconsAddress(consensusHex)
+		if convErr != nil {
+			global.Logger.Warnf("failed to convert consensus hex %s to bech32: %v", consensusHex, convErr)
 		}
 
+		// Get validator operator address (validators table uses bech32 consensus_address)
+		var validator Validator
+		lookupAddr := consensusHex
+		if convErr == nil {
+			lookupAddr = consensusBech32
+		}
+		validatorErr := db.Get().Model(&Validator{}).Where("consensus_address = ?", lookupAddr).First(&validator).Error
+		operatorAddress := consensusBech32 // Fallback: use bech32 if no validator found
+		if validatorErr == nil && validator.OperatorAddress != "" {
+			operatorAddress = validator.OperatorAddress
+		} else if convErr != nil {
+			operatorAddress = consensusHex // Last fallback when conversion failed
+		}
+
+		// Store bech32 for consistency with validators table
+		consensusAddrToStore := consensusBech32
+		if convErr != nil {
+			consensusAddrToStore = consensusHex
+		}
 		snapshots = append(snapshots, ValidatorSetSnapshot{
 			BlockHeight:            blockHeight,
 			ValidatorOperatorAddress: operatorAddress,
-			ValidatorConsensusAddress: consensusHex,
+			ValidatorConsensusAddress: consensusAddrToStore,
 			VotingPower:           uint64(val.VotingPower),
 			BlockUnixTimestamp:    blockUnixTimestamp,
 		})
@@ -167,12 +184,16 @@ func CheckIfValidatorSetChanged(currentHeight uint64, currentValidators *coretyp
 		return true, nil // Different number of validators
 	}
 
-	// Create map of current validators by consensus address
+	// Create map of current validators by consensus address (both hex and bech32 for backward compat)
 	currentMap := make(map[string]bool)
 	for _, val := range currentValidators.Validators {
 		if val.Address != nil && len(val.Address) > 0 {
 			consensusHex := fmt.Sprintf("%X", val.Address)
 			currentMap[consensusHex] = true
+			consensusBech32, err := HexToValconsAddress(consensusHex)
+			if err == nil {
+				currentMap[consensusBech32] = true
+			}
 		}
 	}
 
@@ -187,9 +208,11 @@ func CheckIfValidatorSetChanged(currentHeight uint64, currentValidators *coretyp
 	for _, val := range currentValidators.Validators {
 		if val.Address != nil && len(val.Address) > 0 {
 			consensusHex := fmt.Sprintf("%X", val.Address)
+			consensusBech32, _ := HexToValconsAddress(consensusHex)
 			found := false
 			for _, snapshotVal := range lastSnapshotValidators {
-				if snapshotVal.ValidatorConsensusAddress == consensusHex {
+				// Snapshot may store hex (old) or bech32 (new)
+				if snapshotVal.ValidatorConsensusAddress == consensusHex || snapshotVal.ValidatorConsensusAddress == consensusBech32 {
 					found = true
 					break
 				}

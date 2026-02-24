@@ -713,7 +713,10 @@ func enrichIBCTransferFromEvents(transfer *models.IBCTransferTx, events []*abci.
 }
 
 // parseUint64 safely parses a string to uint64.
+// Handles Cosmos event attribute values that may be JSON-encoded with surrounding quotes (e.g. "\"12\"").
 func parseUint64(s string) (uint64, error) {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, "\"'")
 	if s == "" {
 		return 0, fmt.Errorf("empty string")
 	}
