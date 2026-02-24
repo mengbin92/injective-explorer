@@ -222,7 +222,7 @@ func (s *OnChainPriceSyncer) syncNativeTokens(ctx context.Context) {
 	for _, token := range s.nativeTokens {
 		price, err := s.provider.GetNativeTokenPrice(ctx, token.Denom)
 		if err != nil {
-			s.logger.Warnw("failed to sync native token price",
+			s.logger.Warnw("msg", "failed to sync native token price",
 				"symbol", token.Symbol,
 				"denom", token.Denom,
 				"error", err,
@@ -232,7 +232,7 @@ func (s *OnChainPriceSyncer) syncNativeTokens(ctx context.Context) {
 
 		// Save to database
 		if err := s.savePrice(ctx, price); err != nil {
-			s.logger.Warnw("failed to save price",
+			s.logger.Warnw("msg", "failed to save price",
 				"symbol", token.Symbol,
 				"error", err,
 			)
@@ -282,13 +282,13 @@ func (s *OnChainPriceSyncer) syncAllMarkets(ctx context.Context) {
 
 	chainClient, err := GetSharedChainClient()
 	if err != nil {
-		s.logger.Warnw("failed to get chain client", "error", err)
+		s.logger.Warnw("msg", "failed to get chain client", "error", err)
 		return
 	}
 
 	marketsResp, err := chainClient.FetchChainSpotMarkets(queryCtx, "", nil)
 	if err != nil {
-		s.logger.Warnw("failed to fetch markets", "error", err)
+		s.logger.Warnw("msg", "failed to fetch markets", "error", err)
 		return
 	}
 
@@ -420,7 +420,7 @@ func (s *OnChainPriceSyncer) acquireLock(ctx context.Context) bool {
 
 	success, err := redisClient.SetNX(ctx, priceSyncLockKey, s.syncLockValue, 60*time.Second).Result()
 	if err != nil {
-		s.logger.Warnw("failed to acquire lock", "error", err)
+		s.logger.Warnw("msg", "failed to acquire lock", "error", err)
 		return false
 	}
 
@@ -445,7 +445,7 @@ func (s *OnChainPriceSyncer) renewLock() bool {
 
 	result, err := redisClient.Eval(context.Background(), script, []string{priceSyncLockKey}, s.syncLockValue, 60).Result()
 	if err != nil {
-		s.logger.Warnw("failed to renew lock", "error", err)
+		s.logger.Warnw("msg", "failed to renew lock", "error", err)
 		return false
 	}
 
@@ -470,7 +470,7 @@ func (s *OnChainPriceSyncer) releaseLock() {
 
 	_, err := redisClient.Eval(context.Background(), script, []string{priceSyncLockKey}, s.syncLockValue).Result()
 	if err != nil {
-		s.logger.Warnw("failed to release lock", "error", err)
+		s.logger.Warnw("msg", "failed to release lock", "error", err)
 	}
 }
 

@@ -104,6 +104,18 @@ build:
 build-loadtest:
 	mkdir -p bin/ && go build -o bin/loadtest ./cmd/loadtest
 
+.PHONY: backfill-metadata
+# ERC20 metadata backfill CLI (usage: make backfill-metadata LIMIT=50 DELAY=500 DRY_RUN=1)
+# LIMIT: max contracts per run (default 50)
+# DELAY: ms between each contract for RPC rate limiting
+# DRY_RUN: 1=simulate only
+backfill-metadata:
+	go run ./cmd/backfill-metadata -conf $(or $(CONF),./configs) \
+		$(if $(LIMIT),-limit $(LIMIT)) \
+		$(if $(CHAIN_ID),-chain-id $(CHAIN_ID)) \
+		$(if $(DELAY),-delay $(DELAY)) \
+		$(if $(DRY_RUN),-dry-run)
+
 .PHONY: loadtest
 # run loadtest (usage: make loadtest URL=http://localhost:8000 C=10 D=30s)
 loadtest: build-loadtest

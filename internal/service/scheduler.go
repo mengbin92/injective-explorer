@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	"injective-explorer/internal/conf"
 	"injective-explorer/internal/global"
 	"injective-explorer/provider/cache"
 
@@ -26,12 +27,13 @@ const (
 )
 
 // Scheduler manages background scheduled tasks for API management.
-// It handles daily stats updates, monthly quota resets, and log archiving.
+// It handles daily stats updates, monthly quota resets, log archiving, and metadata backfill.
 type Scheduler struct {
-	statsService    *UsageStatsService
-	archiveService  *ArchiveUsageService
-	redis           *redis.Client
-	logger          *log.Helper
+	statsService   *UsageStatsService
+	archiveService *ArchiveUsageService
+	bootstrap      *conf.Bootstrap
+	redis          *redis.Client
+	logger         *log.Helper
 }
 
 // NewScheduler creates a new scheduler instance.
@@ -39,13 +41,15 @@ type Scheduler struct {
 // Parameters:
 //   - statsService: The usage stats service for daily stats updates
 //   - archiveService: The archive service for archiving old logs
+//   - bootstrap: Bootstrap config for metadata backfill (can be nil)
 //
 // Returns:
 //   - *Scheduler: A new scheduler instance
-func NewScheduler(statsService *UsageStatsService, archiveService *ArchiveUsageService) *Scheduler {
+func NewScheduler(statsService *UsageStatsService, archiveService *ArchiveUsageService, bootstrap *conf.Bootstrap) *Scheduler {
 	return &Scheduler{
 		statsService:   statsService,
 		archiveService: archiveService,
+		bootstrap:      bootstrap,
 		redis:          cache.GetRedisClient(),
 		logger:         global.Logger,
 	}
@@ -65,6 +69,9 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 	// Start archive task (runs daily at 2 AM)
 	go s.scheduleArchive(ctx)
+
+	// Start metadata backfill (runs at configured interval, e.g. every 6h)
+	go s.scheduleMetadataBackfill(ctx)
 }
 
 // scheduleDailyStats schedules daily stats update task.
@@ -177,6 +184,36 @@ func (s *Scheduler) scheduleArchive(ctx context.Context) {
 				// Sleep to avoid running multiple times
 				time.Sleep(schedulerSleepAfterRun)
 			}
+		}
+	}
+}
+
+const defaultMetadataBackfillInterval = 6 * time.Hour
+
+// scheduleMetadataBackfill runs periodic metadata backfill for contracts with missing ERC20 metadata.
+// Interval is configurable via sync.metadata_backfill_interval (0=disabled).
+func (s *Scheduler) scheduleMetadataBackfill(ctx context.Context) {
+	interval := defaultMetadataBackfillInterval
+	if s.bootstrap != nil && s.bootstrap.Sync != nil && s.bootstrap.Sync.MetadataBackfillInterval != nil {
+		d := s.bootstrap.Sync.MetadataBackfillInterval.AsDuration()
+		if d <= 0 {
+			s.logger.Info("Metadata backfill disabled (metadata_backfill_interval <= 0)")
+			return
+		}
+		interval = d
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	s.logger.Infof("Metadata backfill scheduler started, interval=%v", interval)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.logger.Info("Starting scheduled metadata backfill")
+			processed, succeeded, failed := RunScheduledMetadataBackfill(ctx, 50)
+			s.logger.Infof("Scheduled metadata backfill completed: processed=%d, succeeded=%d, failed=%d", processed, succeeded, failed)
+			UpdateContractMetadataMetrics(ctx, "")
 		}
 	}
 }

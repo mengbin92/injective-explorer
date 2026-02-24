@@ -84,9 +84,11 @@ func NewHTTPServer(c *conf.Server, logger log.Logger, bootstrap *conf.Bootstrap)
 	statsService.StartLogProcessor(ctx)
 
 	archiveService := service.NewArchiveUsageService()
-	scheduler := service.NewScheduler(statsService, archiveService)
+	scheduler := service.NewScheduler(statsService, archiveService, bootstrap)
 	scheduler.Start(ctx)
 	log.NewHelper(logger).Info("Background scheduler started")
+
+	service.StartEthereumHealthChecker(ctx, bootstrap)
 
 	// Start validator statistics service
 	validatorStatsService := service.NewValidatorStatsService(ctx)

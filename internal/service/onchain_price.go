@@ -103,8 +103,8 @@ func LoadDenomSymbolMapFromConfig() map[string]string {
 	customMapMu.RUnlock()
 
 	// Finally add config-provided mappings (highest priority)
-	if global.TokenPriceConfig != nil {
-		configMap := global.TokenPriceConfig.GetDenomSymbolMap()
+	if cfg := global.GetTokenPriceConfig(); cfg != nil {
+		configMap := cfg.GetDenomSymbolMap()
 		for k, v := range configMap {
 			result[strings.ToLower(k)] = strings.ToLower(v)
 		}

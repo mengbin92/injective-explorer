@@ -217,6 +217,13 @@ CREATE TABLE `contract_infos` (
   `verified_by` varchar(128) DEFAULT NULL,
   `creator` varchar(128) DEFAULT NULL COMMENT '合约创建者/部署者地址',
   `decimals` int DEFAULT 18 COMMENT 'ERC20代币精度（默认18位，USDC/USDT为6位）',
+  `metadata_not_applicable` tinyint(1) DEFAULT 0 COMMENT '是否非 ERC20 合约（避免重复尝试）',
+  `version` int DEFAULT 0 COMMENT '乐观锁版本',
+  `metadata_updated_at` datetime(3) DEFAULT NULL COMMENT '元数据最后更新时间',
+  `is_peggy_token` tinyint(1) DEFAULT 0 COMMENT '是否为 Peggy bridge token',
+  `peggy_denom` varchar(255) DEFAULT NULL COMMENT 'Peggy bank_denom，如 peggy0xa8c8...',
+  `peggy_original_address` varchar(42) DEFAULT NULL COMMENT 'Peggy 原始链 ERC20 地址',
+  `metadata_source` varchar(50) DEFAULT NULL COMMENT '元数据来源：evm/ethereum/coingecko/manual',
   `metadata` json DEFAULT NULL,
   `code_id` bigint DEFAULT NULL COMMENT 'Wasm code ID',
   `label` varchar(255) DEFAULT NULL COMMENT 'Contract label',
@@ -239,7 +246,12 @@ CREATE TABLE `contract_infos` (
   KEY `idx_contract_infos_code_id` (`code_id`),
   KEY `idx_contract_infos_block_height` (`block_height`),
   KEY `idx_contract_infos_label` (`label`),
-  KEY `idx_contract_infos_admin` (`admin`)
+  KEY `idx_contract_infos_admin` (`admin`),
+  KEY `idx_contract_infos_metadata_not_applicable` (`metadata_not_applicable`),
+  KEY `idx_contract_infos_metadata_missing` (`contract_type`, `chain_id`, `metadata_not_applicable`),
+  KEY `idx_contract_infos_metadata_updated_at` (`metadata_updated_at`),
+  KEY `idx_contract_infos_is_peggy` (`is_peggy_token`),
+  KEY `idx_contract_infos_peggy_denom` (`peggy_denom`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------

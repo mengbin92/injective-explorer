@@ -545,6 +545,166 @@ func (c *EVMClient) GetERC20Metadata(ctx context.Context, contractAddress string
 	return name, symbol, decimals, nil
 }
 
+// ERC20MetadataResult holds metadata for one contract (used by batch).
+type ERC20MetadataResult struct {
+	Address  string
+	Name     string
+	Symbol   string
+	Decimals int
+	Error    error
+}
+
+const (
+	erc20BatchSizeLimit = 50 // Max contracts per batch to stay within RPC limits
+)
+
+// GetERC20MetadataBatch fetches metadata for multiple contracts in one JSON-RPC batch.
+// Reduces network round-trips (3*N calls -> 1 batch). Falls back to individual calls on batch failure.
+func (c *EVMClient) GetERC20MetadataBatch(ctx context.Context, addresses []string) ([]*ERC20MetadataResult, error) {
+	if len(addresses) == 0 {
+		return nil, nil
+	}
+	results := make([]*ERC20MetadataResult, len(addresses))
+	for i, addr := range addresses {
+		results[i] = &ERC20MetadataResult{Address: normalizeContractAddress(addr)}
+	}
+	for i := 0; i < len(addresses); i += erc20BatchSizeLimit {
+		end := i + erc20BatchSizeLimit
+		if end > len(addresses) {
+			end = len(addresses)
+		}
+		batch := addresses[i:end]
+		batchResults := c.batchFetchERC20Metadata(ctx, batch)
+		for j, r := range batchResults {
+			results[i+j] = r
+		}
+	}
+	return results, nil
+}
+
+func normalizeContractAddress(addr string) string {
+	addr = strings.TrimPrefix(addr, "0x")
+	if addr != "" {
+		return "0x" + strings.ToLower(addr)
+	}
+	return ""
+}
+
+func (c *EVMClient) batchFetchERC20Metadata(ctx context.Context, addresses []string) []*ERC20MetadataResult {
+	results := make([]*ERC20MetadataResult, len(addresses))
+	for i, addr := range addresses {
+		results[i] = &ERC20MetadataResult{Address: normalizeContractAddress(addr)}
+	}
+	rpcClient, err := rpc.DialContext(ctx, c.rpcURL)
+	if err != nil {
+		for _, r := range results {
+			r.Error = errors.Wrap(err, "failed to dial RPC for batch")
+		}
+		return results
+	}
+	defer rpcClient.Close()
+
+	// Build batch: for each address, 3 calls (name, symbol, decimals)
+	type hexResult = string
+	batchElems := make([]rpc.BatchElem, 0, len(addresses)*3)
+	selectorName := "0x06fdde03"
+	selectorSymbol := "0x95d89b41"
+	selectorDecimals := "0x313ce567"
+
+	for _, addr := range addresses {
+		n := normalizeContractAddress(addr)
+		batchElems = append(batchElems, rpc.BatchElem{
+			Method: "eth_call",
+			Args:   []interface{}{map[string]interface{}{"to": n, "data": selectorName}, "latest"},
+			Result: new(hexResult),
+		})
+		batchElems = append(batchElems, rpc.BatchElem{
+			Method: "eth_call",
+			Args:   []interface{}{map[string]interface{}{"to": n, "data": selectorSymbol}, "latest"},
+			Result: new(hexResult),
+		})
+		batchElems = append(batchElems, rpc.BatchElem{
+			Method: "eth_call",
+			Args:   []interface{}{map[string]interface{}{"to": n, "data": selectorDecimals}, "latest"},
+			Result: new(hexResult),
+		})
+	}
+
+	if err := rpcClient.BatchCallContext(ctx, batchElems); err != nil {
+		for _, r := range results {
+			r.Error = errors.Wrap(err, "batch RPC failed")
+		}
+		return results
+	}
+
+	// Parse results: 3 elems per address
+	for i := range addresses {
+		r := results[i]
+		base := i * 3
+		if batchElems[base].Error != nil || batchElems[base+1].Error != nil || batchElems[base+2].Error != nil {
+			r.Error = batchElems[base].Error
+			if r.Error == nil {
+				r.Error = batchElems[base+1].Error
+			}
+			if r.Error == nil {
+				r.Error = batchElems[base+2].Error
+			}
+			continue
+		}
+		nameStr, _ := batchElems[base].Result.(*string)
+		symbolStr, _ := batchElems[base+1].Result.(*string)
+		decimalsStr, _ := batchElems[base+2].Result.(*string)
+		nameData := []byte(orEmpty(nameStr))
+		symbolData := []byte(orEmpty(symbolStr))
+		decimalsData := []byte(orEmpty(decimalsStr))
+		r.Name = decodeERC20String(nameData)
+		r.Symbol = decodeERC20String(symbolData)
+		r.Decimals = decodeERC20Decimals(decimalsData)
+	}
+	return results
+}
+
+func decodeERC20String(hexData []byte) string {
+	if len(hexData) < 2 {
+		return ""
+	}
+	data, err := hex.DecodeString(string(hexData[2:])) // skip 0x
+	if err != nil || len(data) < 64 {
+		return ""
+	}
+	offset := new(big.Int).SetBytes(data[:32]).Int64()
+	if offset < 0 || offset+32 > int64(len(data)) {
+		return ""
+	}
+	length := new(big.Int).SetBytes(data[offset : offset+32]).Int64()
+	if length < 0 || offset+32+length > int64(len(data)) {
+		return ""
+	}
+	return string(data[offset+32 : offset+32+length])
+}
+
+func decodeERC20Decimals(hexData []byte) int {
+	if len(hexData) < 2 {
+		return 18
+	}
+	data, err := hex.DecodeString(string(hexData[2:]))
+	if err != nil || len(data) == 0 {
+		return 18
+	}
+	d := new(big.Int).SetBytes(data).Int64()
+	if d < 0 || d > 255 {
+		return 18
+	}
+	return int(d)
+}
+
+func orEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 // newCircuitBreaker creates a new circuit breaker with default settings
 func newCircuitBreaker(failureThreshold int, recoveryTimeout time.Duration) *CircuitBreaker {
 	return &CircuitBreaker{

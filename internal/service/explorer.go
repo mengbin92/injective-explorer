@@ -76,20 +76,20 @@ var priceProviderPool = sync.Pool{
 }
 
 // createEVMClient creates an EVM client with custom configuration
-// It uses global.EVMConfig if available, then falls back to defaults
+// It uses global.BootstrapConfig.Chain.Evm if available, then falls back to defaults
 func createEVMClient() (*chain.EVMClient, error) {
-	// Check if custom EVM RPC endpoint is configured via global config
-	if global.EVMConfig != nil && global.EVMConfig.Enabled && global.EVMConfig.RpcEndpoint != "" {
+	evmCfg := global.GetEVMConfig()
+	if evmCfg != nil && evmCfg.Enabled && evmCfg.RpcEndpoint != "" {
 		chainID := new(big.Int)
-		chainID.SetInt64(global.EVMConfig.ChainId)
+		chainID.SetInt64(evmCfg.ChainId)
 
-		timeout := global.EVMConfig.Timeout.AsDuration()
+		timeout := evmCfg.Timeout.AsDuration()
 		if timeout == 0 {
 			timeout = DefaultEVMTimeout
 		}
 
 		return chain.NewEVMClientWithConfig(&chain.EVMConfig{
-			RPCURL:  global.EVMConfig.RpcEndpoint,
+			RPCURL:  evmCfg.RpcEndpoint,
 			ChainID: chainID,
 			Network: global.NetworkName,
 			Timeout: timeout,
@@ -115,10 +115,10 @@ func NewExplorerService() *ExplorerService {
 }
 
 // getStorageThresholdForSync returns the storage threshold for uploading to object storage during sync.
-// It reads from global.ArchiveConfig if available, otherwise returns the default value.
+// It reads from global.BootstrapConfig if available, otherwise returns the default value.
 func getStorageThresholdForSync() int {
-	if global.ArchiveConfig != nil && global.ArchiveConfig.GetStorageThreshold() > 0 {
-		return int(global.ArchiveConfig.GetStorageThreshold())
+	if cfg := global.GetArchiveConfig(); cfg != nil && cfg.GetStorageThreshold() > 0 {
+		return int(cfg.GetStorageThreshold())
 	}
 
 	return DefaultStorageThreshold

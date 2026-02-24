@@ -40,6 +40,17 @@ type ContractInfo struct {
 	// Token decimals for ERC20 tokens (default 18)
 	Decimals int `json:"decimals" gorm:"column:decimals;default:18"`
 
+	// ERC20 metadata sync fields
+	MetadataNotApplicable bool       `json:"metadata_not_applicable" gorm:"column:metadata_not_applicable;default:false"` // 是否非 ERC20 合约
+	Version              int        `json:"version" gorm:"column:version;default:0"`                                   // 乐观锁版本
+	MetadataUpdatedAt    *time.Time `json:"metadata_updated_at" gorm:"column:metadata_updated_at"`                      // 元数据最后更新时间
+
+	// Peggy bridge token fields
+	IsPeggyToken        bool   `json:"is_peggy_token" gorm:"column:is_peggy_token;default:false"`
+	PeggyDenom          string `json:"peggy_denom" gorm:"column:peggy_denom;size:255"`
+	PeggyOriginalAddress string `json:"peggy_original_address" gorm:"column:peggy_original_address;size:42"`
+	MetadataSource      string `json:"metadata_source" gorm:"column:metadata_source;size:50"` // evm/ethereum/coingecko/manual
+
 	// Extended fields (JSON format for storing additional information)
 	Metadata map[string]interface{} `json:"metadata" gorm:"column:metadata;serializer:json"`
 

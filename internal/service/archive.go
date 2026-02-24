@@ -150,13 +150,12 @@ type ArchiveConfig struct {
 }
 
 // DefaultArchiveConfig returns default archive configuration.
-// It automatically loads from global.ArchiveConfig if available, otherwise uses constants
+// It automatically loads from global.BootstrapConfig if available, otherwise uses constants
 // (DefaultArchiveAgeMonths, DefaultArchiveBatchSize, DefaultStorageThreshold) from constants.go.
 // This ensures that configuration from config.yaml is automatically used when available.
 func DefaultArchiveConfig() *ArchiveConfig {
-	// Try to load from global config first
-	if global.ArchiveConfig != nil {
-		return LoadArchiveConfig(global.ArchiveConfig)
+	if cfg := global.GetArchiveConfig(); cfg != nil {
+		return LoadArchiveConfig(cfg)
 	}
 
 	// Fallback to constants if global config is not available

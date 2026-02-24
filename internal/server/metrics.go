@@ -61,4 +61,11 @@ func init() {
 	_ = metrics.OnChainPriceSyncDuration
 	_ = metrics.OnChainPriceSyncErrors
 	_ = metrics.OnChainPriceAPICalls
+	_ = metrics.ContractMetadataFetchTotal
+	_ = metrics.ContractMetadataFetchDuration
+	_ = metrics.ContractsMissingMetadata
+	_ = metrics.ContractsNotERC20
+	_ = metrics.PeggyMetadataFetchTotal
+	_ = metrics.PeggyMetadataFetchDuration
+	_ = metrics.PeggyTokensDetected
 }

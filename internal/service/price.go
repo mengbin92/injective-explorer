@@ -176,7 +176,7 @@ func GetTokenConfigOrCreate(tokenSymbol string) *TokenConfig {
 
 // getTokenConfig retrieves token configuration from global config.
 func getTokenConfig(tokenSymbol string) (*TokenConfig, error) {
-	if global.TokenPriceConfig != nil {
+	if global.GetTokenPriceConfig() != nil {
 		return LoadTokenConfigFromConf(nil, tokenSymbol)
 	}
 
@@ -736,15 +736,14 @@ func CalculateMarketCap(priceUSD float64, totalSupply *big.Int, decimals int32) 
 }
 
 // LoadTokenConfigFromConf loads token configuration from conf.Bootstrap or global config.
-// If bc is nil, it will try to use global.TokenPriceConfig.
+// If bc is nil, it will try to use global.GetTokenPriceConfig().
 func LoadTokenConfigFromConf(bc *conf.Bootstrap, tokenSymbol string) (*TokenConfig, error) {
 	var tokenPrice *conf.TokenPrice
 
-	// Try to get config from parameter first, then from global
 	if bc != nil && bc.TokenPrice != nil {
 		tokenPrice = bc.TokenPrice
-	} else if global.TokenPriceConfig != nil {
-		tokenPrice = global.TokenPriceConfig
+	} else {
+		tokenPrice = global.GetTokenPriceConfig()
 	}
 
 	if tokenPrice == nil {

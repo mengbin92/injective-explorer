@@ -129,6 +129,33 @@ message Chain {
   string official_tokens_list_url = 11;
   EVM evm = 12; // EVM RPC configuration
   PeggyBridgeEVM peggy_bridge_evm = 13; // Peggy bridge EVM configuration (for external EVM chain)
+  Ethereum ethereum = 14; // Ethereum RPC (for Peggy token metadata from mainnet)
+  CoinGecko coingecko = 15; // CoinGecko API (optional fallback for Peggy token metadata)
+
+  message Ethereum {
+    bool enabled = 1;
+    string rpc_endpoint = 2 [json_name = "rpc_endpoint"];
+    int64 chain_id = 3 [json_name = "chain_id"];
+    google.protobuf.Duration timeout = 4;
+    // RPC multi-active: multiple endpoints for failover (takes precedence over rpc_endpoint when non-empty)
+    repeated string rpc_endpoints = 5 [json_name = "rpc_endpoints"];
+    // Health check: periodic probe to reorder endpoints by health
+    HealthCheck health_check = 6 [json_name = "health_check"];
+
+    message HealthCheck {
+      bool enabled = 1;
+      google.protobuf.Duration interval = 2;   // e.g. 30s
+      google.protobuf.Duration timeout = 3;    // e.g. 5s per probe
+      int32 failure_threshold = 4;             // switch after N consecutive failures
+    }
+  }
+
+  message CoinGecko {
+    bool enabled = 1;
+    string api_key = 2 [json_name = "api_key"];
+    string base_url = 3 [json_name = "base_url"];
+    google.protobuf.Duration timeout = 4;
+  }
 
   message EVM {
     bool enabled = 1;        // Whether EVM support is enabled
@@ -173,6 +200,9 @@ message Sync {
   BatchSize batch_size = 5;
   Retry retry = 6;
   Blocks blocks = 7;
+  google.protobuf.Duration metadata_cache_ttl = 8; // ERC20 metadata cache TTL (default: 1h)
+  google.protobuf.Duration metadata_backfill_interval = 9; // Scheduled metadata backfill interval (default: 6h, 0=disabled)
+  bool erc20_pre_check = 10; // Pre-check symbol() before full metadata fetch; saves 2 RPC for non-ERC20 (default: false)
 
   message Redis {
     string queue_key = 1; // Redis queue key name

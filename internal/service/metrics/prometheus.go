@@ -266,6 +266,77 @@ var (
 		},
 		[]string{"endpoint", "status"},
 	)
+
+	// ContractMetadataFetchTotal tracks ERC20 metadata fetch attempts.
+	ContractMetadataFetchTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "contract_metadata_fetch_total",
+			Help: "Total number of ERC20 metadata fetch attempts",
+		},
+		[]string{"status", "error_type"},
+	)
+
+	// ContractMetadataFetchDuration tracks metadata fetch duration.
+	ContractMetadataFetchDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "contract_metadata_fetch_duration_seconds",
+			Help:    "Duration of ERC20 metadata fetch in seconds",
+			Buckets: []float64{0.1, 0.25, 0.5, 1, 2, 5, 10},
+		},
+		[]string{"source"},
+	)
+
+	// ContractsMissingMetadata tracks contracts with incomplete metadata.
+	ContractsMissingMetadata = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "contracts_missing_metadata_total",
+			Help: "Number of contracts with incomplete metadata",
+		},
+	)
+
+	// ContractsNotERC20 tracks contracts marked as not ERC20.
+	ContractsNotERC20 = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "contracts_not_erc20_total",
+			Help: "Number of contracts marked as not ERC20",
+		},
+	)
+
+	// PeggyMetadataFetchTotal tracks Peggy token metadata fetch by source.
+	PeggyMetadataFetchTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "peggy_metadata_fetch_total",
+			Help: "Total number of Peggy token metadata fetch attempts",
+		},
+		[]string{"source", "status"},
+	)
+
+	// PeggyMetadataFetchDuration tracks duration of Peggy token metadata fetch by source.
+	PeggyMetadataFetchDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "peggy_metadata_fetch_duration_seconds",
+			Help:    "Duration of Peggy token metadata fetch by source",
+			Buckets: []float64{0.1, 0.25, 0.5, 1, 2, 5, 10},
+		},
+		[]string{"source"},
+	)
+
+	// PeggyTokensDetected counts total Peggy tokens detected/processed.
+	PeggyTokensDetected = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "peggy_tokens_detected_total",
+			Help: "Total number of Peggy tokens detected",
+		},
+	)
+
+	// EthereumRPCEndpointHealth tracks health of Ethereum RPC endpoints (1=healthy, 0=unhealthy).
+	EthereumRPCEndpointHealth = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "ethereum_rpc_endpoint_health",
+			Help: "Health status of Ethereum RPC endpoints for Peggy metadata (1=healthy, 0=unhealthy)",
+		},
+		[]string{"endpoint"},
+	)
 )
 
 // RecordHTTPRequestDuration records the duration of an HTTP request.
@@ -408,4 +479,48 @@ func RecordOnChainPriceSyncError(operation string, errorType string) {
 // RecordOnChainPriceAPICall records an on-chain price API call.
 func RecordOnChainPriceAPICall(endpoint string, status string) {
 	OnChainPriceAPICalls.WithLabelValues(endpoint, status).Inc()
+}
+
+// RecordContractMetadataFetch records an ERC20 metadata fetch attempt.
+func RecordContractMetadataFetch(status, errorType string) {
+	ContractMetadataFetchTotal.WithLabelValues(status, errorType).Inc()
+}
+
+// RecordContractMetadataFetchDuration records metadata fetch duration.
+func RecordContractMetadataFetchDuration(source string, duration float64) {
+	ContractMetadataFetchDuration.WithLabelValues(source).Observe(duration)
+}
+
+// SetContractsMissingMetadata sets the count of contracts missing metadata.
+func SetContractsMissingMetadata(count float64) {
+	ContractsMissingMetadata.Set(count)
+}
+
+// SetContractsNotERC20 sets the count of contracts marked as not ERC20.
+func SetContractsNotERC20(count float64) {
+	ContractsNotERC20.Set(count)
+}
+
+// RecordPeggyMetadataFetch records a Peggy token metadata fetch.
+func RecordPeggyMetadataFetch(source, status string) {
+	PeggyMetadataFetchTotal.WithLabelValues(source, status).Inc()
+}
+
+// RecordPeggyMetadataFetchDuration records duration of Peggy token metadata fetch by source.
+func RecordPeggyMetadataFetchDuration(source string, duration float64) {
+	PeggyMetadataFetchDuration.WithLabelValues(source).Observe(duration)
+}
+
+// RecordPeggyTokensDetected increments the count of Peggy tokens detected.
+func RecordPeggyTokensDetected() {
+	PeggyTokensDetected.Inc()
+}
+
+// SetEthereumEndpointHealth sets health status for an Ethereum RPC endpoint (1=healthy, 0=unhealthy).
+func SetEthereumEndpointHealth(endpoint string, healthy bool) {
+	v := 0.0
+	if healthy {
+		v = 1.0
+	}
+	EthereumRPCEndpointHealth.WithLabelValues(endpoint).Set(v)
 }

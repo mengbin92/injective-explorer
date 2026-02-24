@@ -81,3 +81,48 @@ groups:
         annotations:
           summary: "Goroutine数量过多"
           description: "Goroutine数量超过10000个 (可能存在泄漏)"
+
+  - name: contract_metadata
+    interval: 30s
+    rules:
+      # 元数据缺失数量异常增长
+      - alert: TooManyMissingMetadata
+        expr: contracts_missing_metadata_total > 1000
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "元数据缺失合约数量过多"
+          description: "缺失元数据的合约数量超过1000 (当前: {{ $value }})"
+
+      # 非 ERC20 合约数量异常（可选监控）
+      - alert: TooManyContractsNotERC20
+        expr: contracts_not_erc20_total > 5000
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "非 ERC20 合约数量较多"
+          description: "已标记为非 ERC20 的合约数量超过5000 (当前: {{ $value }})"
+
+      # Ethereum RPC 端点全宕（当配置了多端点时）
+      - alert: AllEthereumRPCEndpointsDown
+        expr: sum(ethereum_rpc_endpoint_health) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "所有 Ethereum RPC 端点不可用"
+          description: "Peggy token 元数据无法从 Ethereum 获取"
+
+      # 元数据获取失败率过高
+      - alert: HighMetadataFetchFailureRate
+        expr: |
+          (sum(rate(contract_metadata_fetch_total{status="failure"}[5m])) /
+           sum(rate(contract_metadata_fetch_total[5m]))) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "元数据获取失败率过高"
+          description: "元数据获取失败率超过30% (当前: {{ $value | humanizePercentage }})"

@@ -132,7 +132,37 @@ chain:
     # 公共 RPC 通常限制在 10-30 req/s，私有节点可以设置更高
     rate_limit: ${PEGGY_BRIDGE_EVM_RATE_LIMIT:10}
 
+  # Ethereum RPC（用于 Peggy token 元数据获取，从原始链查询）
+  ethereum:
+    enabled: true
+    rpc_endpoint: ${ETHEREUM_RPC_ENDPOINT:https://sepolia.drpc.org}
+    chain_id: 11155111
+    timeout: 10s
+    # RPC 多活：多端点故障转移，非空时优先于 rpc_endpoint
+    # rpc_endpoints:
+    #   - https://eth.llamarpc.com
+    #   - https://ethereum.publicnode.com
+    # RPC 健康检查：周期性探测端点可用性，按健康度排序（需配合 rpc_endpoints 使用）
+    # health_check:
+    #   enabled: true
+    #   interval: 30s
+    #   timeout: 5s
+    #   failure_threshold: 3
+
+  # CoinGecko API（Peggy token 元数据备选数据源，可选）
+  coingecko:
+    enabled: false
+    api_key: ${COINGECKO_API_KEY:}
+    base_url: https://api.coingecko.com/api/v3
+    timeout: 10s
+
 sync:
+  # ERC20 元数据缓存 TTL（protobuf Duration：3600s=1h）
+  # metadata_cache_ttl: 3600s
+  # 定时回填任务间隔（protobuf Duration 格式：秒数+后缀 s，如 21600s=6h，0=禁用）
+  metadata_backfill_interval: 21600s
+  # ERC20 预检测：在主要为非 ERC20 场景下可启用，用 symbol() 预检测节省 2 次 RPC
+  # erc20_pre_check: true
   # Redis 队列配置
   redis:
     queue_key: "tx:hash:queue"

@@ -21,18 +21,9 @@ var (
 	ChainConfig common.Network
 	// NetworkName is the network name ("mainnet" or "testnet").
 	NetworkName string
-	// ArchiveConfig is the global archive configuration.
-	// It is set during initialization and can be used to access archive configuration values.
-	ArchiveConfig *conf.Archive
-	// TokenPriceConfig is the global token price service configuration.
-	// It is set during initialization and can be used to access token price configuration.
-	TokenPriceConfig *conf.TokenPrice
-	// EVMConfig is the global EVM RPC configuration.
-	// It is set during initialization and can be used to access EVM configuration values.
-	EVMConfig *conf.Chain_EVM
-	// APIManagementConfig is the global API management configuration.
-	// It is set during initialization and can be used to access API management settings.
-	APIManagementConfig *conf.APIManagement
+	// BootstrapConfig is the full bootstrap configuration. All other configs (Archive, TokenPrice,
+	// EVM, APIManagement) are accessed via BootstrapConfig or the Get*Config() helpers.
+	BootstrapConfig *conf.Bootstrap
 )
 
 // QuoteTokenConfig holds the configuration for quote tokens used in on-chain price fetching.
@@ -69,17 +60,7 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 		panic("bootstrap config cannot be nil")
 	}
 
-	// Save archive config globally for later use
-	ArchiveConfig = bc.GetArchive()
-
-	// Save token price config globally for later use
-	TokenPriceConfig = bc.GetTokenPrice()
-
-	// Save EVM config globally for later use
-	EVMConfig = bc.Chain.Evm
-
-	// Save API management config globally for later use
-	APIManagementConfig = bc.GetApiManagement()
+	BootstrapConfig = bc
 
 	Logger = log.NewHelper(logger)
 	Logger.Infof("logger initialized: %v", bc.Log)
@@ -143,13 +124,45 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 	}
 }
 
+// GetArchiveConfig returns archive config from BootstrapConfig. Returns nil if not configured.
+func GetArchiveConfig() *conf.Archive {
+	if BootstrapConfig == nil {
+		return nil
+	}
+	return BootstrapConfig.GetArchive()
+}
+
+// GetTokenPriceConfig returns token price config from BootstrapConfig. Returns nil if not configured.
+func GetTokenPriceConfig() *conf.TokenPrice {
+	if BootstrapConfig == nil {
+		return nil
+	}
+	return BootstrapConfig.GetTokenPrice()
+}
+
+// GetEVMConfig returns EVM RPC config from BootstrapConfig. Returns nil if not configured.
+func GetEVMConfig() *conf.Chain_EVM {
+	if BootstrapConfig == nil || BootstrapConfig.Chain == nil {
+		return nil
+	}
+	return BootstrapConfig.Chain.Evm
+}
+
+// GetAPIManagementConfig returns API management config from BootstrapConfig. Returns nil if not configured.
+func GetAPIManagementConfig() *conf.APIManagement {
+	if BootstrapConfig == nil {
+		return nil
+	}
+	return BootstrapConfig.GetApiManagement()
+}
+
 // GetQuoteTokenConfig returns the quote token configuration for on-chain price fetching.
-// It retrieves the configuration from TokenPriceConfig and falls back to default values
+// It retrieves the configuration from BootstrapConfig.TokenPrice and falls back to default values
 // if not configured.
 //
 // Returns:
 //   - QuoteTokenConfig: The configuration containing USDT/USDC contract addresses and
-//     quote token priority list. If TokenPriceConfig is nil or OnChain config is not set,
+//     quote token priority list. If GetTokenPriceConfig() returns nil or OnChain config is not set,
 //     returns DefaultQuoteTokens.
 //
 // The function ensures that empty values are replaced with defaults:
@@ -163,11 +176,12 @@ func Init(bc *conf.Bootstrap, logger log.Logger) {
 //	usdtAddr := config.USDTAddress
 //	priority := config.QuotePriority
 func GetQuoteTokenConfig() QuoteTokenConfig {
-	if TokenPriceConfig == nil || TokenPriceConfig.OnChain == nil {
+	tokenPrice := GetTokenPriceConfig()
+	if tokenPrice == nil || tokenPrice.OnChain == nil {
 		return DefaultQuoteTokens
 	}
 
-	onChain := TokenPriceConfig.OnChain
+	onChain := tokenPrice.OnChain
 	config := QuoteTokenConfig{
 		USDTAddress:   onChain.UsdtAddress,
 		USDCAddress:   onChain.UsdcAddress,

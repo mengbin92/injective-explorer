@@ -363,6 +363,46 @@ service AdminService {
       get: "/api/v1/admin/token-market-cache"
     };
   }
+
+  // ========== ERC20 Metadata Sync Management ==========
+  // RefreshContractMetadata refreshes metadata for a single contract
+  rpc RefreshContractMetadata(RefreshContractMetadataRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/contract/metadata/refresh"
+      body: "*"
+    };
+  }
+
+  // BackfillContractMetadata batch backfills metadata for contracts with missing data
+  rpc BackfillContractMetadata(BackfillContractMetadataRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/contract/metadata/backfill"
+      body: "*"
+    };
+  }
+
+  // GetContractMetadataStats gets metadata statistics (missing count, etc.)
+  rpc GetContractMetadataStats(GetContractMetadataStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/contract/metadata/stats"
+    };
+  }
+
+  // RefreshPeggyMetadata refreshes metadata for a Peggy token specifically
+  rpc RefreshPeggyMetadata(RefreshPeggyMetadataRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/contract/peggy/metadata/refresh"
+      body: "*"
+    };
+  }
+
+  // ClearContractMetadataCache clears all contract metadata Redis cache (for periodic full refresh).
+  rpc ClearContractMetadataCache(ClearContractMetadataCacheRequest) returns (Reply) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/contract/metadata/cache/clear"
+      body: "*"
+    };
+  }
 }
 
 // ========== Plan Management Messages ==========
@@ -960,3 +1000,50 @@ message TokenMarketCacheDTO {
   int64 last_updated = 15 [json_name = "last_updated"];
   string data_source = 16 [json_name = "data_source"];
 }
+
+// ========== ERC20 Metadata Sync Messages ==========
+message RefreshContractMetadataRequest {
+  string contract_address = 1 [json_name = "contract_address"];
+  string chain_id = 2 [json_name = "chain_id"];
+}
+
+message BackfillContractMetadataRequest {
+  int32 limit = 1;
+  string chain_id = 2 [json_name = "chain_id"];
+  bool async = 3;
+  bool only_peggy = 4 [json_name = "only_peggy"];
+}
+
+message BackfillContractMetadataDTO {
+  int32 queued = 1;
+  int32 processed = 2;
+  int32 succeeded = 3;
+  int32 failed = 4;
+}
+
+message GetContractMetadataStatsRequest {
+  string chain_id = 1 [json_name = "chain_id"];
+}
+
+message ContractMetadataStatsDTO {
+  int64 missing_count = 1 [json_name = "missing_count"];
+  int64 not_erc20_count = 2 [json_name = "not_erc20_count"];
+  string chain_id = 3 [json_name = "chain_id"];
+}
+
+message RefreshPeggyMetadataRequest {
+  string contract_address = 1 [json_name = "contract_address"];
+  bool force = 2;
+}
+
+message RefreshPeggyMetadataDTO {
+  string contract_address = 1 [json_name = "contract_address"];
+  string token_name = 2 [json_name = "token_name"];
+  string token_symbol = 3 [json_name = "token_symbol"];
+  int32 decimals = 4;
+  string metadata_source = 5 [json_name = "metadata_source"];
+  bool is_peggy = 6 [json_name = "is_peggy"];
+  string original_denom = 7 [json_name = "original_denom"];
+}
+
+message ClearContractMetadataCacheRequest {}

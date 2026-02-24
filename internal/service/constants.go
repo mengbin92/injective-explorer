@@ -251,6 +251,8 @@ type SyncConfig struct {
 	MaxRetryAttempts           int
 	RetryDelay                 time.Duration
 	EarliestBlockHeight        uint64
+	MetadataCacheTTL           time.Duration // ERC20 metadata Redis cache TTL (default: 1h)
+	Erc20PreCheck              bool          // Pre-check symbol() before full fetch; saves 2 RPC for non-ERC20 (default: false)
 }
 
 // LoadSyncConfig loads sync configuration from Bootstrap config with default values.
@@ -278,6 +280,8 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		MaxRetryAttempts:           defaultMaxRetryAttempts,
 		RetryDelay:                 defaultRetryDelay,
 		EarliestBlockHeight:        defaultEarliestBlockHeight,
+		MetadataCacheTTL:           1 * time.Hour, // default ERC20 metadata cache TTL
+		Erc20PreCheck:              false,         // default off; enable for non-ERC20-heavy envs
 	}
 
 	if bc == nil || bc.Sync == nil {
@@ -365,6 +369,14 @@ func LoadSyncConfig(bc *conf.Bootstrap) *SyncConfig {
 		cfg.EarliestBlockHeight = sync.Blocks.EarliestHeight
 	}
 
+	// Metadata cache TTL
+	if sync.MetadataCacheTtl != nil && sync.MetadataCacheTtl.AsDuration() > 0 {
+		cfg.MetadataCacheTTL = sync.MetadataCacheTtl.AsDuration()
+	}
+
+	// ERC20 pre-check (symbol() before full fetch)
+	cfg.Erc20PreCheck = sync.Erc20PreCheck
+
 	return cfg
 }
 
@@ -424,6 +436,7 @@ const (
 type MetadataJob struct {
 	ContractAddress string
 	ChainID         string
+	BankDenom       string // Optional: peggy0x... for Peggy tokens, avoids DB query in fetchAndUpdateERC20Metadata
 }
 
 // ============================================================================
@@ -566,7 +579,6 @@ func LoadUnifiedArchiveConfig(bc *conf.Bootstrap) *UnifiedArchiveConfig {
 }
 
 // LoadUnifiedArchiveConfigFromArchive loads unified archive configuration from Archive config with default values.
-// This is a helper function to load from global.ArchiveConfig directly.
 //
 // Parameters:
 //   - archiveCfg: Archive configuration (can be nil to use defaults)
@@ -593,10 +605,10 @@ func LoadUnifiedArchiveConfigFromArchive(archiveCfg *conf.Archive) *UnifiedArchi
 }
 
 // DefaultUnifiedArchiveConfig returns default unified archive configuration.
-// It automatically loads from global.ArchiveConfig if available.
+// It automatically loads from global.BootstrapConfig if available.
 func DefaultUnifiedArchiveConfig() *UnifiedArchiveConfig {
-	if global.ArchiveConfig != nil {
-		return LoadUnifiedArchiveConfigFromArchive(global.ArchiveConfig)
+	if cfg := global.GetArchiveConfig(); cfg != nil {
+		return LoadUnifiedArchiveConfigFromArchive(cfg)
 	}
 
 	// Fallback to constants

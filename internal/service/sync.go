@@ -18,6 +18,7 @@ import (
 	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
+	"injective-explorer/internal/service/metrics"
 	"injective-explorer/internal/utils"
 	syncpool "injective-explorer/internal/service/sync"
 	"injective-explorer/provider/cache"
@@ -2570,61 +2571,202 @@ func (s *SyncService) saveContractInfoFromCosmosEvents(ctx context.Context, txRe
 		return err
 	}
 
-	// Step 4: Schedule async metadata fetch
-	s.scheduleMetadataFetch(contractInfo.ContractAddress, chainID)
+	// Step 4: Schedule async metadata fetch (pass bankDenom for Peggy tokens to avoid DB lookup)
+	bankDenom := ""
+	if eventData.bankDenom != "" && strings.HasPrefix(eventData.bankDenom, peggyPrefix) {
+		bankDenom = eventData.bankDenom
+	}
+	s.scheduleMetadataFetch(contractInfo.ContractAddress, chainID, bankDenom)
 
 	return nil
 }
 
-// fetchAndUpdateERC20Metadata
-
 // fetchAndUpdateERC20Metadata fetches ERC20 token metadata from EVM and updates contract info.
-// Uses createEVMClient() to respect chain.evm config (rpc_endpoint, etc.) for custom chains like injective.
-func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractAddress, chainID string) error {
+// Supports standard ERC20 and Peggy tokens (fallback: Ethereum RPC -> CoinGecko -> default).
+// bankDenom: optional peggy0x... for Peggy tokens; when provided, skips DB query for bank_denom.
+// skipCache: when true, bypass cache and force fresh fetch (e.g. Admin API refresh).
+func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractAddress, chainID, bankDenom string, skipCache bool) error {
+	start := time.Now()
+	defer func() {
+		metrics.RecordContractMetadataFetchDuration("metadata_fetch", time.Since(start).Seconds())
+	}()
+
+	addrLower := strings.ToLower(contractAddress)
+	// Check cache first (unless skipCache for force refresh)
+	if !skipCache {
+		if cached, ok := getContractMetadataFromCache(ctx, chainID, contractAddress); ok && cached != nil && cached.Name != "" && cached.Symbol != "" {
+			validName, validSymbol, validateErr := validateERC20Metadata(cached.Name, cached.Symbol, cached.Decimals)
+			if validateErr == nil {
+				acquired, lockKey := acquireContractMetadataUpdateLock(ctx, chainID, contractAddress)
+				if !acquired {
+					global.Logger.Debugf("skipped cached metadata apply, lock held: contract_address=%s", addrLower)
+					return nil
+				}
+				defer releaseContractMetadataUpdateLock(ctx, lockKey)
+				metadataUpdatedAt := time.Now()
+				updates := map[string]interface{}{
+					"name":                 validName,
+					"token_name":           validName,
+					"token_symbol":        validSymbol,
+					"decimals":            cached.Decimals,
+					"metadata_updated_at": metadataUpdatedAt,
+					"version":             gorm.Expr("version + 1"),
+				}
+				if cached.Source != "" {
+					updates["metadata_source"] = cached.Source
+				}
+				var ci models.ContractInfo
+				if dbErr := db.Get().WithContext(ctx).Select("version").Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).First(&ci).Error; dbErr != nil {
+					global.Logger.Warnf("failed to get version for contract_address=%s: %v", addrLower, dbErr)
+					return nil
+				}
+				result := db.Get().WithContext(ctx).Model(&models.ContractInfo{}).
+					Where("contract_address = ? AND chain_id = ? AND version = ?", contractAddress, chainID, ci.Version).
+					Updates(updates)
+				if result.Error != nil {
+					global.Logger.Warnf("failed to apply cached metadata to DB for contract_address=%s: %v", addrLower, result.Error)
+					return nil
+				}
+				if result.RowsAffected == 0 {
+					global.Logger.Debugf("concurrent update for contract_address=%s, skipped", addrLower)
+					return nil
+				}
+				metrics.RecordContractMetadataFetch("success", "cache")
+				global.Logger.Infof("applied cached ERC20 metadata for contract_address=%s: name=%s, symbol=%s", addrLower, validName, validSymbol)
+				return nil
+			}
+		}
+	} else {
+		deleteContractMetadataCache(ctx, chainID, contractAddress)
+	}
+
 	evmClient, err := createEVMClient()
 	if err != nil {
 		return errors.Wrap(err, "failed to create EVM client")
 	}
 	defer evmClient.Close()
 
-	// Fetch ERC20 metadata
-	name, symbol, decimals, err := evmClient.GetERC20Metadata(ctx, contractAddress)
-	if err != nil {
-		// Log error but don't fail - partial metadata is still useful
-		global.Logger.Warnf("partial or failed ERC20 metadata fetch for %s: %v", contractAddress, err)
+	// Optional pre-check: symbol() before full fetch (saves 2 RPC for non-ERC20; design 4.6.2)
+	if s.bc != nil && s.bc.Sync != nil && s.bc.Sync.Erc20PreCheck {
+		if !isERC20Contract(ctx, evmClient, contractAddress) {
+			metrics.RecordContractMetadataFetch("failure", "contract_not_erc20")
+			if markErr := markContractNotERC20(contractAddress, chainID); markErr != nil {
+				global.Logger.Warnf("failed to mark contract as not ERC20: %v", markErr)
+			}
+			global.Logger.Debugf("pre-check: contract_address=%s not ERC20, skipped full fetch", addrLower)
+			return nil
+		}
 	}
 
-	// Only update if we got at least one field
+	var name, symbol string
+	var decimals int
+	var metadataSource string
+
+	name, symbol, decimals, err = evmClient.GetERC20Metadata(ctx, contractAddress)
+	fetchErr := classifyError(err)
+	if err != nil {
+		if fetchErr != nil && !fetchErr.ShouldRetry && fetchErr.Type == "contract_not_erc20" {
+			metrics.RecordContractMetadataFetch("failure", "contract_not_erc20")
+			if markErr := markContractNotERC20(contractAddress, chainID); markErr != nil {
+				global.Logger.Warnf("failed to mark contract as not ERC20: %v", markErr)
+			}
+			return nil
+		}
+		metrics.RecordContractMetadataFetch("failure", "evm_fetch_error")
+		global.Logger.Warnf("partial or failed ERC20 metadata fetch for contract_address=%s: %v", addrLower, err)
+	}
+
+	// If EVM returned empty, check for Peggy token (use bankDenom from job if provided, else query DB)
+	if (name == "" && symbol == "" && decimals == 0) || err != nil {
+		if bankDenom == "" {
+			var contractInfo models.ContractInfo
+			if dbErr := db.Get().Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).First(&contractInfo).Error; dbErr == nil {
+				if contractInfo.PeggyDenom != "" {
+					bankDenom = contractInfo.PeggyDenom
+				} else if contractInfo.Metadata != nil {
+					if d, ok := contractInfo.Metadata["bank_denom"].(string); ok {
+						bankDenom = d
+					}
+				}
+			}
+		}
+		if bankDenom != "" && strings.HasPrefix(bankDenom, peggyPrefix) {
+			name, symbol, decimals, metadataSource, err = s.fetchPeggyTokenMetadata(ctx, bankDenom, contractAddress)
+			if err != nil {
+				global.Logger.Warnf("failed to fetch Peggy token metadata for contract_address=%s (denom: %s): %v", addrLower, bankDenom, err)
+				name, symbol, decimals = getPeggyTokenDefaults(bankDenom)
+				metadataSource = "manual"
+			}
+		} else if (name == "" && symbol == "" && decimals == 0) && fetchErr != nil && fetchErr.Type == "contract_not_erc20" {
+			metrics.RecordContractMetadataFetch("failure", "contract_not_erc20")
+			if markErr := markContractNotERC20(contractAddress, chainID); markErr != nil {
+				global.Logger.Warnf("failed to mark contract as not ERC20: %v", markErr)
+			}
+			return nil
+		} else if name == "" && symbol == "" && decimals == 0 {
+			return nil
+		}
+	} else {
+		metadataSource = "evm"
+	}
+
 	if name == "" && symbol == "" && decimals == 0 {
 		return nil
 	}
 
-	// Update contract info in database
-	updates := map[string]interface{}{}
-	if name != "" {
-		updates["name"] = name
-		updates["token_name"] = name
+	validName, validSymbol, validateErr := validateERC20Metadata(name, symbol, decimals)
+	if validateErr != nil {
+		global.Logger.Warnf("invalid metadata for contract_address=%s: %v", addrLower, validateErr)
+		return validateErr
 	}
-	if symbol != "" {
-		updates["token_symbol"] = symbol
+	name, symbol = validName, validSymbol
+
+	acquired, lockKey := acquireContractMetadataUpdateLock(ctx, chainID, contractAddress)
+	if !acquired {
+		global.Logger.Debugf("skipped metadata update, lock held: contract_address=%s", addrLower)
+		return nil
 	}
-	if decimals != 0 {
-		updates["decimals"] = decimals
+	defer releaseContractMetadataUpdateLock(ctx, lockKey)
+
+	metadataUpdatedAt := time.Now()
+	updates := map[string]interface{}{
+		"name":                 name,
+		"token_name":           name,
+		"token_symbol":         symbol,
+		"decimals":             decimals,
+		"metadata_updated_at":  metadataUpdatedAt,
+		"version":              gorm.Expr("version + 1"),
+	}
+	if metadataSource != "" {
+		updates["metadata_source"] = metadataSource
 	}
 
-	if len(updates) == 0 {
+	var ci models.ContractInfo
+	if dbErr := db.Get().WithContext(ctx).Select("version").Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).First(&ci).Error; dbErr != nil {
+		return errors.Wrap(dbErr, "failed to get contract version")
+	}
+	result := db.Get().WithContext(ctx).Model(&models.ContractInfo{}).
+		Where("contract_address = ? AND chain_id = ? AND version = ?", contractAddress, chainID, ci.Version).
+		Updates(updates)
+	if result.Error != nil {
+		return errors.Wrap(result.Error, "failed to update contract metadata")
+	}
+	if result.RowsAffected == 0 {
+		global.Logger.Debugf("concurrent update detected for contract_address=%s", addrLower)
 		return nil
 	}
 
-	if err := db.Get().WithContext(ctx).
-		Model(&models.ContractInfo{}).
-		Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).
-		Updates(updates).Error; err != nil {
-		return errors.Wrap(err, "failed to update contract metadata")
-	}
+	// Update cache after successful DB write
+	setContractMetadataToCache(ctx, chainID, contractAddress, &ERC20MetadataCached{
+		Name:     name,
+		Symbol:   symbol,
+		Decimals: decimals,
+		Source:   metadataSource,
+	})
 
-	global.Logger.Infof("updated ERC20 metadata for %s: name=%s, symbol=%s, decimals=%d",
-		contractAddress, name, symbol, decimals)
+	metrics.RecordContractMetadataFetch("success", metadataSource)
+	global.Logger.Infof("updated ERC20 metadata for contract_address=%s: name=%s, symbol=%s, decimals=%d, source=%s",
+		addrLower, name, symbol, decimals, metadataSource)
 
 	return nil
 }
@@ -2713,6 +2855,16 @@ func (s *SyncService) buildContractInfo(eventData *contractEventData, txResp *gi
 			"bank_denom":      eventData.bankDenom,
 			"creation_source": CreationSourceMsgCreateTokenPair,
 		}
+		// Mark Peggy tokens for metadata fallback
+		if strings.HasPrefix(eventData.bankDenom, peggyPrefix) {
+			contractInfo.IsPeggyToken = true
+			contractInfo.PeggyDenom = eventData.bankDenom
+			origAddr := strings.TrimPrefix(eventData.bankDenom, peggyPrefix)
+			if !strings.HasPrefix(origAddr, "0x") {
+				origAddr = "0x" + origAddr
+			}
+			contractInfo.PeggyOriginalAddress = origAddr
+		}
 	}
 
 	return contractInfo, nil
@@ -2739,8 +2891,8 @@ func (s *SyncService) persistContractInfo(ctx context.Context, contractInfo *mod
 }
 
 // scheduleMetadataFetch schedules an async metadata fetch job using the worker pool.
-func (s *SyncService) scheduleMetadataFetch(contractAddress, chainID string) {
-	job := MetadataJob{ContractAddress: contractAddress, ChainID: chainID}
+func (s *SyncService) scheduleMetadataFetch(contractAddress, chainID, bankDenom string) {
+	job := MetadataJob{ContractAddress: contractAddress, ChainID: chainID, BankDenom: bankDenom}
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -2748,14 +2900,14 @@ func (s *SyncService) scheduleMetadataFetch(contractAddress, chainID string) {
 
 		_, err := s.metadataWorkerPool.ProcessConcurrently(ctx, []MetadataJob{job}, s.processMetadataJob)
 		if err != nil {
-			global.Logger.Warnf("failed to submit metadata job for %s: %v", contractAddress, err)
+			global.Logger.Warnf("failed to submit metadata job for contract_address=%s: %v", strings.ToLower(contractAddress), err)
 		}
 	}()
 }
 
 // processMetadataJob processes a single metadata fetch job.
 func (s *SyncService) processMetadataJob(ctx context.Context, job MetadataJob) error {
-	if err := s.fetchAndUpdateERC20Metadata(ctx, job.ContractAddress, job.ChainID); err != nil {
+	if err := s.fetchAndUpdateERC20Metadata(ctx, job.ContractAddress, job.ChainID, job.BankDenom, false); err != nil {
 		if utils.IsRetryableError(err) {
 			global.Logger.Warnf("retryable error for %s: %v", job.ContractAddress, err)
 		} else {

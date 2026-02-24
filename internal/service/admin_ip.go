@@ -590,8 +590,8 @@ func (s *AdminService) GetIPRequestMonitor(ctx context.Context, req *pb.GetIPReq
 
 	// Get IP rate limit config from global configuration
 	ipPerHour := IPRateLimitPerHourDefault
-	if global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
-		ipPerHour = int(global.APIManagementConfig.RateLimit.IpPerHour)
+	if cfg := global.GetAPIManagementConfig(); cfg != nil && cfg.RateLimit != nil {
+		ipPerHour = int(cfg.RateLimit.IpPerHour)
 	}
 
 	// Build top IPs list with status
@@ -697,9 +697,9 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 	}
 
 	// Fallback to global configuration if Redis not available or not configured
-	if ipPerMinute == IPRateLimitPerMinuteDefault && global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
-		ipPerMinute = int(global.APIManagementConfig.RateLimit.IpPerMinute)
-		ipPerHour = int(global.APIManagementConfig.RateLimit.IpPerHour)
+	if cfg := global.GetAPIManagementConfig(); ipPerMinute == IPRateLimitPerMinuteDefault && cfg != nil && cfg.RateLimit != nil {
+		ipPerMinute = int(cfg.RateLimit.IpPerMinute)
+		ipPerHour = int(cfg.RateLimit.IpPerHour)
 	}
 
 	response := &pb.IPRateLimitConfigDTO{
@@ -793,16 +793,16 @@ func LoadIPRateLimitConfigFromRedis(ctx context.Context) error {
 	}
 
 	// Update global configuration if rate limit config exists
-	if global.APIManagementConfig != nil && global.APIManagementConfig.RateLimit != nil {
+	if cfg := global.GetAPIManagementConfig(); cfg != nil && cfg.RateLimit != nil {
 		if v, ok := redisConfig["ip_per_minute"].(float64); ok {
-			global.APIManagementConfig.RateLimit.IpPerMinute = int32(v)
+			cfg.RateLimit.IpPerMinute = int32(v)
 		}
 		if v, ok := redisConfig["ip_per_hour"].(float64); ok {
-			global.APIManagementConfig.RateLimit.IpPerHour = int32(v)
+			cfg.RateLimit.IpPerHour = int32(v)
 		}
 		global.Logger.Infof("Loaded IP rate limit config from Redis: ip_per_minute=%d, ip_per_hour=%d",
-			global.APIManagementConfig.RateLimit.IpPerMinute,
-			global.APIManagementConfig.RateLimit.IpPerHour)
+			cfg.RateLimit.IpPerMinute,
+			cfg.RateLimit.IpPerHour)
 	}
 
 	return nil

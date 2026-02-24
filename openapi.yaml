@@ -472,6 +472,102 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/contract/metadata/backfill:
+        post:
+            tags:
+                - AdminService
+            description: BackfillContractMetadata batch backfills metadata for contracts with missing data
+            operationId: AdminService_BackfillContractMetadata
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.BackfillContractMetadataRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/contract/metadata/cache/clear:
+        post:
+            tags:
+                - AdminService
+            description: ClearContractMetadataCache clears all contract metadata Redis cache (for periodic full refresh).
+            operationId: AdminService_ClearContractMetadataCache
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.ClearContractMetadataCacheRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/contract/metadata/refresh:
+        post:
+            tags:
+                - AdminService
+            description: |-
+                ========== ERC20 Metadata Sync Management ==========
+                 RefreshContractMetadata refreshes metadata for a single contract
+            operationId: AdminService_RefreshContractMetadata
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.RefreshContractMetadataRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/contract/metadata/stats:
+        get:
+            tags:
+                - AdminService
+            description: GetContractMetadataStats gets metadata statistics (missing count, etc.)
+            operationId: AdminService_GetContractMetadataStats
+            parameters:
+                - name: chain_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/admin/contract/peggy/metadata/refresh:
+        post:
+            tags:
+                - AdminService
+            description: RefreshPeggyMetadata refreshes metadata for a Peggy token specifically
+            operationId: AdminService_RefreshPeggyMetadata
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.RefreshPeggyMetadataRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/admin/email/blacklist:
         get:
             tags:
@@ -3755,6 +3851,18 @@ components:
                     type: string
                 operator_name:
                     type: string
+        api.explorer.v1.BackfillContractMetadataRequest:
+            type: object
+            properties:
+                limit:
+                    type: integer
+                    format: int32
+                chain_id:
+                    type: string
+                async:
+                    type: boolean
+                only_peggy:
+                    type: boolean
         api.explorer.v1.BatchAddIPToBlacklistRequest:
             type: object
             properties:
@@ -3882,6 +3990,9 @@ components:
                         $ref: '#/components/schemas/api.explorer.v1.HealthDetails'
                     description: Health details for each component (database, redis, etc.)
             description: CheckHealthyResponse contains the health status of the service
+        api.explorer.v1.ClearContractMetadataCacheRequest:
+            type: object
+            properties: {}
         api.explorer.v1.CreateAddressLabelRequest:
             type: object
             properties:
@@ -4140,6 +4251,21 @@ components:
             properties:
                 id:
                     type: string
+        api.explorer.v1.RefreshContractMetadataRequest:
+            type: object
+            properties:
+                contract_address:
+                    type: string
+                chain_id:
+                    type: string
+            description: ========== ERC20 Metadata Sync Messages ==========
+        api.explorer.v1.RefreshPeggyMetadataRequest:
+            type: object
+            properties:
+                contract_address:
+                    type: string
+                force:
+                    type: boolean
         api.explorer.v1.Reply:
             type: object
             properties:
