@@ -135,13 +135,14 @@ chain:
   # Ethereum RPC（用于 Peggy token 元数据获取，从原始链查询）
   ethereum:
     enabled: true
-    rpc_endpoint: ${ETHEREUM_RPC_ENDPOINT:https://sepolia.drpc.org}
-    chain_id: 11155111
+    rpc_endpoint: ${ETHEREUM_RPC_ENDPOINT:https://eth.llamarpc.com}
+    chain_id: 1
     timeout: 10s
     # RPC 多活：多端点故障转移，非空时优先于 rpc_endpoint
-    # rpc_endpoints:
-    #   - https://eth.llamarpc.com
-    #   - https://ethereum.publicnode.com
+    rpc_endpoints:
+      - https://eth.llamarpc.com
+      - https://1rpc.io/eth
+      - https://rpc.ankr.com/eth
     # RPC 健康检查：周期性探测端点可用性，按健康度排序（需配合 rpc_endpoints 使用）
     # health_check:
     #   enabled: true
@@ -151,7 +152,7 @@ chain:
 
   # CoinGecko API（Peggy token 元数据备选数据源，可选）
   coingecko:
-    enabled: false
+    enabled: true
     api_key: ${COINGECKO_API_KEY:}
     base_url: https://api.coingecko.com/api/v3
     timeout: 10s
