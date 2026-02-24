@@ -20,6 +20,14 @@ import (
 
 // ValidatorQueryClient defines the interface for querying validators from chain.
 // This is used to fetch validator info in real-time when it's not in local DB.
+//
+// Example usage:
+//
+//	client := NewBlockSignerService(validatorQueryClient)
+//	validators, err := client.GetValidatorsAtHeight(ctx, 12345)
+//	if err != nil {
+//	    log.Fatalf("failed to get validators: %v", err)
+//	}
 type ValidatorQueryClient interface {
 	// GetValidators queries all validators from chain (current height).
 	GetValidators(ctx interface{}) ([]stakingtypes.Validator, error)

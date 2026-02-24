@@ -31,6 +31,38 @@ const (
 	configCacheTTL            = 24 * time.Hour              // Config cached for 24 hours
 )
 
+// isValidRateLimitConfig validates the rate limit configuration loaded from Redis.
+// Returns false if the configuration is invalid or missing required fields.
+func isValidRateLimitConfig(config map[string]interface{}) bool {
+	if config == nil {
+		return false
+	}
+
+	// Validate ip_per_minute if present
+	if v, ok := config["ip_per_minute"].(float64); ok {
+		if v < float64(IPRateLimitPerMinMin) || v > float64(IPRateLimitPerMinMax) {
+			return false
+		}
+	}
+
+	// Validate ip_per_hour if present
+	if v, ok := config["ip_per_hour"].(float64); ok {
+		if v < float64(IPRateLimitPerHourMin) || v > float64(IPRateLimitPerHourMax) {
+			return false
+		}
+	}
+
+	// Validate block_type if present
+	if v, ok := config["block_type"].(string); ok {
+		validBlockTypes := map[string]bool{"all": true, "read": true, "write": true}
+		if !validBlockTypes[v] {
+			return false
+		}
+	}
+
+	return true
+}
+
 // ListIPRegistrationRecords lists IP registration records
 func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.ListIPRegistrationRecordsRequest) (*pb.Reply, error) {
 	if req == nil {
@@ -681,16 +713,21 @@ func (s *AdminService) GetIPRateLimitConfig(ctx context.Context, req *emptypb.Em
 			// Successfully loaded from Redis
 			var redisConfig map[string]interface{}
 			if err := sonic.Unmarshal([]byte(configData), &redisConfig); err == nil {
-				if v, ok := redisConfig["ip_per_minute"].(float64); ok {
-					ipPerMinute = int(v)
+				// Validate configuration before applying
+				if !isValidRateLimitConfig(redisConfig) {
+					global.Logger.Warnf("Invalid IP rate limit config from Redis, using fallback")
+				} else {
+					if v, ok := redisConfig["ip_per_minute"].(float64); ok {
+						ipPerMinute = int(v)
+					}
+					if v, ok := redisConfig["ip_per_hour"].(float64); ok {
+						ipPerHour = int(v)
+					}
+					if v, ok := redisConfig["block_type"].(string); ok {
+						blockType = v
+					}
+					global.Logger.Infof("Loaded IP rate limit config from Redis: ip_per_minute=%d, ip_per_hour=%d", ipPerMinute, ipPerHour)
 				}
-				if v, ok := redisConfig["ip_per_hour"].(float64); ok {
-					ipPerHour = int(v)
-				}
-				if v, ok := redisConfig["block_type"].(string); ok {
-					blockType = v
-				}
-				global.Logger.Infof("Loaded IP rate limit config from Redis: ip_per_minute=%d, ip_per_hour=%d", ipPerMinute, ipPerHour)
 			}
 		} else if err != nil && !errors.Is(err, redis.Nil) {
 			global.Logger.Warnf("Failed to load IP rate limit config from Redis: %v, using fallback", err)
@@ -791,6 +828,12 @@ func LoadIPRateLimitConfigFromRedis(ctx context.Context) error {
 	if err := sonic.Unmarshal([]byte(configData), &redisConfig); err != nil {
 		global.Logger.Warnf("Failed to parse IP rate limit config from Redis: %v", err)
 		return err
+	}
+
+	// Validate configuration before applying
+	if !isValidRateLimitConfig(redisConfig) {
+		global.Logger.Warnf("Invalid IP rate limit config from Redis, skipping update")
+		return nil
 	}
 
 	// Update global configuration if rate limit config exists

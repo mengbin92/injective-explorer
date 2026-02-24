@@ -35,6 +35,15 @@ type PriceAggregator struct {
 }
 
 // PriceSource is the interface for price sources.
+//
+// Example usage:
+//
+//	type CoinGeckoSource struct{}
+//
+//	func (c *CoinGeckoSource) Name() string { return "coingecko" }
+//	func (c *CoinGeckoSource) GetPrice(ctx context.Context, symbol string) (float64, error) { ... }
+//	func (c *CoinGeckoSource) GetPriority() int { return 10 }
+//	func (c *CoinGeckoSource) IsHealthy() bool { return true }
 type PriceSource interface {
 	Name() string
 	GetPrice(ctx context.Context, symbol string) (float64, error)

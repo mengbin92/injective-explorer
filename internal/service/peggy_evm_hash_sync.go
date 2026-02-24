@@ -33,6 +33,14 @@ type PeggyEvmHashSyncService struct {
 }
 
 // PeggyEvmHashClient defines the interface for querying EVM hashes.
+//
+// Example usage:
+//
+//	client := NewPeggyEvmHashSync(cfg, logger)
+//	txHash, err := client.GetDepositTxHash(ctx, 1, 100, "sender", "uatom", "1000")
+//	if err != nil {
+//	    log.Fatalf("failed to get deposit tx hash: %v", err)
+//	}
 type PeggyEvmHashClient interface {
 	GetDepositTxHash(
 		ctx context.Context,

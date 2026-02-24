@@ -90,21 +90,36 @@ func loadConfig(confPath string) (*conf.Bootstrap, config.Config, error) {
 	return &bc, c, nil
 }
 
+// initLogger initializes and returns a zap logger configured for the backfill tool.
+func initLogger(bc *conf.Bootstrap) log.Logger {
+	logger := logger.NewZapLogger(bc.Log)
+	logger = logger.With(
+		zap.String("tool", "backfill-metadata"),
+	)
+	return logger
+}
+
+// initComponents initializes global components (database, redis, etc.).
+func initComponents(bc *conf.Bootstrap, logger log.Logger) error {
+	global.Init(bc, logger)
+	return nil
+}
+
 // initApp initializes the application: loads config, sets up logger and global components.
 func initApp(confPath string) (*conf.Bootstrap, *log.Helper, config.Config, error) {
+	// Step 1: Load configuration
 	bc, c, err := loadConfig(confPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	// Initialize logger
-	logger := logger.NewZapLogger(bc.Log)
-	logger = logger.With(
-		zap.String("tool", "backfill-metadata"),
-	)
+	// Step 2: Initialize logger
+	logger := initLogger(bc)
 
-	// Initialize global (database, redis, etc.)
-	global.Init(bc, logger)
+	// Step 3: Initialize global components
+	if err := initComponents(bc, logger); err != nil {
+		return nil, nil, nil, err
+	}
 
 	return bc, log.NewHelper(logger), c, nil
 }
