@@ -600,7 +600,8 @@ func enrichPeggyWithdrawClaimFromEvents(withdrawal *models.PeggyWithdrawalTx, ev
 
 				if attr.Key == "token_contract" || attr.Key == "tokenContract" {
 					// Build denom: peggy0x...
-					tokenContract := attr.Value
+					// Trim quotes - Cosmos event attributes may be JSON-encoded (e.g. "\"0xabc...\"")
+					tokenContract := strings.TrimSpace(strings.Trim(attr.Value, "\"'"))
 					// Normalize to lowercase with 0x prefix
 					if len(tokenContract) > 0 && tokenContract[0] == '0' && tokenContract[1] == 'x' {
 						// Already has 0x prefix
@@ -864,6 +865,12 @@ func enqueuePeggyEvmHashSyncTasks(ctx context.Context, data *CrossChainData) {
 			continue
 		}
 
+		// Skip if denom is empty or not a peggy denom - EVM hash sync requires valid denom
+		if deposit.Denom == "" || !strings.HasPrefix(deposit.Denom, "peggy") {
+			global.Logger.Debugf("Skipping deposit sync task: empty or non-peggy denom=%q", deposit.Denom)
+			continue
+		}
+
 		task := map[string]interface{}{
 			"type":         "deposit",
 			"block_height": deposit.EventHeight, // Use event_height (Ethereum height)
@@ -900,6 +907,12 @@ func enqueuePeggyEvmHashSyncTasks(ctx context.Context, data *CrossChainData) {
 
 		// Only enqueue withdrawals with batch_nonce (MsgWithdrawClaim)
 		if withdrawal.BatchNonce == 0 {
+			continue
+		}
+
+		// Skip if denom is empty or not a peggy denom - EVM hash sync requires valid denom
+		if withdrawal.Denom == "" || !strings.HasPrefix(withdrawal.Denom, "peggy") {
+			global.Logger.Debugf("Skipping withdrawal sync task: empty or non-peggy denom=%q", withdrawal.Denom)
 			continue
 		}
 

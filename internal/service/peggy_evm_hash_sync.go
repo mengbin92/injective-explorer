@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -492,20 +493,46 @@ func indexOf(s, substr string) int {
 }
 
 // parseTokenContractFromDenom extracts the token contract address from a Peggy denom.
+// Handles denom that may have accidental surrounding quotes from JSON encoding.
+// Accepts two formats:
+// 1. "peggy0x..." - standard Peggy denom (peggy prefix + contract address)
+// 2. "0x..." - raw EVM contract address (some DB/chain data may store denom without peggy prefix)
 func parseTokenContractFromDenom(denom string) (string, error) {
+	denom = strings.TrimSpace(strings.Trim(denom, "\"'"))
+	if denom == "" {
+		return "", fmt.Errorf("not a peggy denom: empty string")
+	}
+
 	const prefix = "peggy"
-	if !hasPrefix(denom, prefix) {
-		return "", fmt.Errorf("not a peggy denom: %s", denom)
+	if hasPrefix(denom, prefix) {
+		addr := denom[len(prefix):]
+		// Normalize address to lowercase with 0x prefix
+		if len(addr) >= 2 && addr[0:2] == "0x" {
+			addr = addr[2:]
+		}
+		return "0x" + toLower(addr), nil
 	}
 
-	addr := denom[len(prefix):]
-
-	// Normalize address to lowercase with 0x prefix
-	if len(addr) >= 2 && addr[0:2] == "0x" {
-		addr = addr[2:]
+	// Accept raw 0x-prefixed EVM address (40 hex chars) - some sources store denom without peggy prefix
+	if len(denom) >= 42 && (denom[0:2] == "0x" || denom[0:2] == "0X") && isHexString(denom[2:]) {
+		return "0x" + toLower(denom[2:]), nil
 	}
 
-	return "0x" + toLower(addr), nil
+	return "", fmt.Errorf("not a peggy denom: %s", denom)
+}
+
+// isHexString checks if s contains only hexadecimal characters.
+func isHexString(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // hasPrefix checks if a string has a prefix.

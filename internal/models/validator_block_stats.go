@@ -11,6 +11,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ValidatorBlockStats represents aggregated validator block statistics for a period.
@@ -75,81 +76,49 @@ func UpdateValidatorStatsForBlock(validatorOperatorAddress string, blockHeight u
 	periodStart := GetCurrentPeriodStartHeight(blockHeight)
 	periodEnd := GetCurrentPeriodEndHeight(blockHeight)
 
-	// First, try to get existing record
-	var existingStats ValidatorBlockStats
-	err := db.Get().
-		Where("validator_operator_address = ? AND period_start_height = ?", validatorOperatorAddress, periodStart).
-		First(&existingStats).Error
-
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("failed to check existing stats: %w", err)
-	}
-
-	// Prepare updates
-	updates := map[string]interface{}{
-		"period_end_height": periodEnd,
-	}
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// Create new record
-		newStats := ValidatorBlockStats{
-			ValidatorOperatorAddress: validatorOperatorAddress,
-			PeriodStartHeight:        periodStart,
-			PeriodEndHeight:          periodEnd,
-			ProposedCount:            0,
-			SignedCount:              0,
-			ShouldSignCount:          0,
-			MissedCount:              0,
-		}
-
-		if isProposer {
-			newStats.ProposedCount = 1
-		}
-		if signed {
-			newStats.SignedCount = 1
-		}
-		if shouldSign {
-			newStats.ShouldSignCount = 1
-			// Calculate missed: should_sign - signed
-			if signed {
-				newStats.MissedCount = 0
-			} else {
-				newStats.MissedCount = 1
-			}
-		}
-
-		err = db.Get().Create(&newStats).Error
-		if err != nil {
-			// Handle duplicate entry race condition - another goroutine may have created it
-			if isDuplicateEntryError(err) {
-				// Try to update existing record instead
-				return updateExistingStats(db.Get(), validatorOperatorAddress, periodStart, periodEnd, isProposer, signed, shouldSign)
-			}
-			global.Logger.Errorf("failed to create validator stats for %s at height %d: %v", validatorOperatorAddress, blockHeight, err)
-			return fmt.Errorf("failed to create validator stats: %w", err)
-		}
-		return nil
-	}
-
-	// Update existing record
+	// Build record with increments (1 or 0 for new record)
+	var proposedInc, signedInc, shouldSignInc uint64
 	if isProposer {
-		updates["proposed_count"] = gorm.Expr("proposed_count + ?", 1)
+		proposedInc = 1
 	}
 	if signed {
-		updates["signed_count"] = gorm.Expr("signed_count + ?", 1)
+		signedInc = 1
 	}
 	if shouldSign {
-		updates["should_sign_count"] = gorm.Expr("should_sign_count + ?", 1)
+		shouldSignInc = 1
 	}
-	// Calculate missed count: should_sign_count - signed_count
-	updates["missed_count"] = gorm.Expr("should_sign_count - signed_count")
+	missedInc := uint64(0)
+	if shouldSign && !signed {
+		missedInc = 1
+	}
 
-	err = db.Get().Model(&existingStats).Updates(updates).Error
+	newStats := ValidatorBlockStats{
+		ValidatorOperatorAddress: validatorOperatorAddress,
+		PeriodStartHeight:        periodStart,
+		PeriodEndHeight:          periodEnd,
+		ProposedCount:            proposedInc,
+		SignedCount:              signedInc,
+		ShouldSignCount:          shouldSignInc,
+		MissedCount:              missedInc,
+	}
+
+	// Use upsert to avoid duplicate key errors when multiple workers process the same period
+	err := db.Get().Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "validator_operator_address"}, {Name: "period_start_height"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"period_end_height":   periodEnd,
+			"proposed_count":     gorm.Expr("proposed_count + ?", proposedInc),
+			"signed_count":       gorm.Expr("signed_count + ?", signedInc),
+			"should_sign_count":  gorm.Expr("should_sign_count + ?", shouldSignInc),
+			"missed_count":       gorm.Expr("should_sign_count - signed_count"),
+			"updated_at":         gorm.Expr("CURRENT_TIMESTAMP(3)"),
+		}),
+	}).Create(&newStats).Error
+
 	if err != nil {
-		global.Logger.Errorf("failed to update validator stats for %s at height %d: %v", validatorOperatorAddress, blockHeight, err)
-		return fmt.Errorf("failed to update validator stats: %w", err)
+		global.Logger.Errorf("failed to upsert validator stats for %s at height %d: %v", validatorOperatorAddress, blockHeight, err)
+		return fmt.Errorf("failed to upsert validator stats: %w", err)
 	}
-
 	return nil
 }
 
@@ -207,43 +176,3 @@ func GetValidatorStatsForPeriod(validatorOperatorAddress string, periodStartHeig
 	return &stats, nil
 }
 
-// isDuplicateEntryError checks if an error is a MySQL duplicate entry error.
-func isDuplicateEntryError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	return strings.Contains(errStr, "Error 1062") || strings.Contains(errStr, "Duplicate entry")
-}
-
-// updateExistingStats updates an existing validator stats record.
-// This is used when a duplicate entry race condition occurs.
-func updateExistingStats(tx *gorm.DB, validatorOperatorAddress string, periodStart, periodEnd uint64, isProposer, signed, shouldSign bool) error {
-	updates := map[string]interface{}{
-		"period_end_height": periodEnd,
-	}
-
-	if isProposer {
-		updates["proposed_count"] = gorm.Expr("proposed_count + ?", 1)
-	}
-	if signed {
-		updates["signed_count"] = gorm.Expr("signed_count + ?", 1)
-	}
-	if shouldSign {
-		updates["should_sign_count"] = gorm.Expr("should_sign_count + ?", 1)
-	}
-	// Calculate missed count: should_sign_count - signed_count
-	updates["missed_count"] = gorm.Expr("should_sign_count - signed_count")
-
-	result := tx.Model(&ValidatorBlockStats{}).
-		Where("validator_operator_address = ? AND period_start_height = ?", validatorOperatorAddress, periodStart).
-		Updates(updates)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to update validator stats: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("no validator stats record found for update")
-	}
-	return nil
-}

@@ -227,6 +227,18 @@ func TestParseTokenContractFromDenom(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "Raw 0x address (no peggy prefix)",
+			denom:       "0x6173fcd85ed895f247b59489a5592f7337b8b232",
+			expected:    "0x6173fcd85ed895f247b59489a5592f7337b8b232",
+			expectError: false,
+		},
+		{
+			name:        "Raw 0x address uppercase",
+			denom:       "0x1C7D4B196CB0C7B01D743FBC6116A902379C7238",
+			expected:    "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+			expectError: false,
+		},
+		{
 			name:        "Non-peggy denom",
 			denom:       "inj",
 			expected:    "",
