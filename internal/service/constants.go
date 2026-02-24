@@ -29,8 +29,11 @@ const (
 	EVMDetailsTimeout       = 30 * time.Second // Timeout for EVM transaction details queries
 
 	// Approximate count constants
+	// 10000 is used as threshold for approximate counts (balance, tx count) to determine if we should use EXPLAIN or exact count
 	ApproximateCountThreshold  = 10000
+	// 1000000 is used as fallback when we cannot determine approximate count (e.g., for new addresses with no history)
 	ApproximateCountFallback   = 1000000
+	// 10000 is used for per-address approximate count queries
 	ApproximateCountForAddress = 10000
 
 	// Error message constants

@@ -184,6 +184,7 @@ func (c *PeggyBridgeEVMClient) GetDepositTxHash(
 
 // maxLogQueryBlocks is the maximum block range for FilterLogs.
 // Many free-tier RPC providers (Alchemy, Infura) limit to 10,000 blocks.
+// We use 9990 (instead of 10000) to stay well under the common 10k limit and provide a safety buffer.
 const maxLogQueryBlocks = 9990
 
 // maxWithdrawalSearchChunks limits how far back we search for withdrawal batches.
