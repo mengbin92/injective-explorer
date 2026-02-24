@@ -121,6 +121,11 @@ const (
 	PeriodLast30Days = 30 // Last 30 days
 	PeriodLast1Day   = 1  // Last 1 day
 
+	// Admin and batch operation limits
+	DefaultContractMetadataLimit = 50   // Default limit for contract metadata backfill
+	MaxContractMetadataLimit     = 200  // Maximum limit for contract metadata backfill
+	RedisScanBatchSize           = 100 // Batch size for Redis SCAN iterations
+
 	// Health check constants
 	HealthCheckTimeout = 2 * time.Second // Timeout for health check operations
 
@@ -151,6 +156,7 @@ const (
 	CacheKeyLatestBlockHeight     = "cache:latest:block:height"     // Latest block height cache key
 	CacheKeyGasPrice              = "cache:gas:price"               // Gas price cache key
 	CacheKeyHistoricalSyncHeight  = "sync:historical:block:height"  // Historical block sync height persistence key
+	CacheKeyAccountTxPrefix       = "cache:account:txs:"             // Account transactions cache key prefix (suffix: address)
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 1 * time.Hour                   // Single block cache expiration time (1 hour - increased from 5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)

@@ -65,10 +65,10 @@ func (s *AdminService) RefreshContractMetadata(ctx context.Context, req *pb.Refr
 func (s *AdminService) BackfillContractMetadata(ctx context.Context, req *pb.BackfillContractMetadataRequest) (*pb.Reply, error) {
 	limit := int(req.GetLimit())
 	if limit <= 0 {
-		limit = 50
+		limit = DefaultContractMetadataLimit
 	}
-	if limit > 200 {
-		limit = 200
+	if limit > MaxContractMetadataLimit {
+		limit = MaxContractMetadataLimit
 	}
 	chainID := req.GetChainId()
 	if chainID == "" {

@@ -1665,7 +1665,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 	total, isExactCount := getAccountTotalCountForAddress(dbCtx, db.Get(), baseQuery, dbQueryAddress, txTypeFilter)
 
 	if !useCursor && page == MinPage && !hasTxTypeFilter {
-		cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
+		cacheKey := CacheKeyAccountTxPrefix + dbQueryAddress
 		cachedTxs, err := getAccountTransactionsFromCache(dbCtx, cacheKey, int(pageSize))
 		if err == nil && len(cachedTxs) > 0 {
 			uniqueCached := make([]models.Transaction, 0, len(cachedTxs))
@@ -1754,7 +1754,7 @@ func (s *ExplorerService) GetAccountTransactions(ctx context.Context, req *pb.Ge
 			len(allTxs), len(dbTxs), len(convertedCrossChainTxs), queryDuration)
 
 		if !useCursor && page == MinPage && !hasTxTypeFilter {
-			cacheKey := fmt.Sprintf("cache:account:txs:%s", dbQueryAddress)
+			cacheKey := CacheKeyAccountTxPrefix + dbQueryAddress
 			cacheAccountTransactions(dbCtx, cacheKey, allTxs)
 		}
 
@@ -3733,7 +3733,7 @@ func invalidateAccountTransactionCache(ctx context.Context, address string) {
 	}
 
 	// Delete the account transaction cache key
-	cacheKey := fmt.Sprintf("cache:account:txs:%s", address)
+	cacheKey := CacheKeyAccountTxPrefix + address
 	err := redisClient.Del(ctx, cacheKey).Err()
 	if err != nil {
 		global.Logger.Warnf("failed to invalidate account transaction cache for address %s: %v", address, err)
@@ -6906,17 +6906,16 @@ func (s *ExplorerService) GetAllContractTags(ctx context.Context, req *pb.GetAll
 	}
 
 	// Apply pagination
-	page := int32(1)
-	pageSize := int32(20)
+	page := int32(MinPage)
+	pageSize := int32(DefaultPageSize)
 	if req.GetPagination() != nil {
 		if req.GetPagination().GetPage() > 0 {
 			page = req.GetPagination().GetPage()
 		}
 		if req.GetPagination().GetPageSize() > 0 {
 			pageSize = req.GetPagination().GetPageSize()
-			// Limit max page size
-			if pageSize > 100 {
-				pageSize = 100
+			if pageSize > MaxPageSize {
+				pageSize = MaxPageSize
 			}
 		}
 	}
@@ -7084,13 +7083,13 @@ func (s *ExplorerService) GetIBCTransferTxs(ctx context.Context, req *pb.GetIBCT
 	}
 
 	// Apply pagination
-	page := int32(1)
-	pageSize := int32(20)
+	page := int32(MinPage)
+	pageSize := int32(DefaultPageSize)
 	if req.Pagination != nil {
 		if req.Pagination.Page > 0 {
 			page = req.Pagination.Page
 		}
-		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= 100 {
+		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= MaxPageSize {
 			pageSize = req.Pagination.PageSize
 		}
 	}
@@ -7159,13 +7158,13 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 	}
 
 	// Apply pagination
-	page := int32(1)
-	pageSize := int32(20)
+	page := int32(MinPage)
+	pageSize := int32(DefaultPageSize)
 	if req.Pagination != nil {
 		if req.Pagination.Page > 0 {
 			page = req.Pagination.Page
 		}
-		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= 100 {
+		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= MaxPageSize {
 			pageSize = req.Pagination.PageSize
 		}
 	}
@@ -7209,13 +7208,13 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 	}
 
 	// Apply pagination
-	page := int32(1)
-	pageSize := int32(20)
+	page := int32(MinPage)
+	pageSize := int32(DefaultPageSize)
 	if req.Pagination != nil {
 		if req.Pagination.Page > 0 {
 			page = req.Pagination.Page
 		}
-		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= 100 {
+		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= MaxPageSize {
 			pageSize = req.Pagination.PageSize
 		}
 	}

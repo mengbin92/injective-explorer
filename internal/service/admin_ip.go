@@ -72,16 +72,16 @@ func (s *AdminService) ListIPRegistrationRecords(ctx context.Context, req *pb.Li
 	pagination := req.Pagination
 	if pagination == nil {
 		pagination = &pb.PaginationRequest{
-			Page:     1,
-			PageSize: 20,
+			Page:     MinPage,
+			PageSize: DefaultPageSize,
 		}
 	}
 
-	if pagination.Page < 1 {
-		pagination.Page = 1
+	if pagination.Page < MinPage {
+		pagination.Page = MinPage
 	}
-	if pagination.PageSize < 1 || pagination.PageSize > 100 {
-		pagination.PageSize = 20
+	if pagination.PageSize < MinPageSize || pagination.PageSize > MaxPageSize {
+		pagination.PageSize = DefaultPageSize
 	}
 
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), DBQueryTimeout)
@@ -273,16 +273,16 @@ func (s *AdminService) ListIPBlacklist(ctx context.Context, req *pb.ListIPBlackl
 	pagination := req.GetPagination()
 	if pagination == nil {
 		pagination = &pb.PaginationRequest{
-			Page:     1,
-			PageSize: 20,
+			Page:     MinPage,
+			PageSize: DefaultPageSize,
 		}
 	}
 
-	if pagination.GetPage() < 1 {
-		pagination.Page = 1
+	if pagination.GetPage() < MinPage {
+		pagination.Page = MinPage
 	}
-	if pagination.GetPageSize() < 1 || pagination.GetPageSize() > 100 {
-		pagination.PageSize = 20
+	if pagination.GetPageSize() < MinPageSize || pagination.GetPageSize() > MaxPageSize {
+		pagination.PageSize = DefaultPageSize
 	}
 
 	queryCtx, queryCancel := utils.WithDBTimeout()

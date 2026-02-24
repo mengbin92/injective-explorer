@@ -140,8 +140,8 @@ func (s *PriceAlertService) ListAlerts(ctx context.Context, query *models.PriceA
 		page = 1
 	}
 	pageSize := query.PageSize
-	if pageSize <= 0 || pageSize > 100 {
-		pageSize = 20
+	if pageSize <= 0 || pageSize > MaxPageSize {
+		pageSize = DefaultPageSize
 	}
 
 	var alerts []*models.PriceAlert
@@ -386,8 +386,8 @@ func (s *PriceAlertService) validateAlert(alert *models.PriceAlert) error {
 
 // GetAlertHistory gets the alert trigger history.
 func (s *PriceAlertService) GetAlertHistory(ctx context.Context, alertID uint, limit int) ([]*models.PriceAlertHistory, error) {
-	if limit <= 0 || limit > 100 {
-		limit = 20
+	if limit <= 0 || limit > MaxPageSize {
+		limit = DefaultPageSize
 	}
 
 	var history []*models.PriceAlertHistory

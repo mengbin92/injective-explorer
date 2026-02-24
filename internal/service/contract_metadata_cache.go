@@ -154,7 +154,7 @@ func DeleteContractMetadataCacheByPrefix(ctx context.Context) (int64, error) {
 	if redisClient == nil {
 		return 0, nil
 	}
-	iter := redisClient.Scan(ctx, 0, contractMetadataCacheKeyPrefix+"*", 100).Iterator()
+	iter := redisClient.Scan(ctx, 0, contractMetadataCacheKeyPrefix+"*", RedisScanBatchSize).Iterator()
 	var keys []string
 	for iter.Next(ctx) {
 		keys = append(keys, iter.Val())
