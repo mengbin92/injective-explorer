@@ -15,6 +15,9 @@ var (
 	// injAddressRegex matches Injective addresses (inj1 followed by 38 base58 characters)
 	// Note: This regex is updated at runtime via init() to match the configured prefix
 	injAddressRegex *regexp.Regexp
+	// evmAddressRegex matches EVM addresses (0x followed by 40 hex characters)
+	// Events and Signatures often store addresses in EVM format after convertEventAddressesToEVM
+	evmAddressRegex = regexp.MustCompile(`0x[0-9a-fA-F]{40}`)
 )
 
 func init() {
@@ -23,26 +26,37 @@ func init() {
 	injAddressRegex = regexp.MustCompile(prefix + `1[0-9a-z]{38}`)
 }
 
-// ExtractAddressesFromString extracts Injective addresses from a string.
-// Injective addresses typically start with the configured prefix (e.g., "inj1") and are 42 characters long.
+// ExtractAddressesFromString extracts Injective and EVM addresses from a string.
+// Supports both formats:
+//   - Injective: configured prefix + "1" + 38 chars (e.g., inj1...)
+//   - EVM: 0x + 40 hex chars (e.g., 0x1234...)
+//
+// Events and Signatures often use EVM format after convertEventAddressesToEVM,
+// so both formats must be extracted for account table population.
 //
 // Parameters:
 //   - s: The string to extract addresses from
 //
 // Returns:
-//   - []string: A slice of unique Injective addresses found in the string
+//   - []string: A slice of unique addresses found in the string (deduplicated)
 func ExtractAddressesFromString(s string) []string {
-	// Pattern for Injective addresses: configured prefix + "1" followed by 38 characters (base58 encoded)
-	// Total length: 42 characters
-	matches := injAddressRegex.FindAllString(s, -1)
-
-	// Remove duplicates
 	seen := make(map[string]bool)
-	result := make([]string, 0, len(matches))
-	for _, match := range matches {
+	result := make([]string, 0)
+
+	// Extract Injective addresses
+	for _, match := range injAddressRegex.FindAllString(s, -1) {
 		if !seen[match] {
 			seen[match] = true
 			result = append(result, match)
+		}
+	}
+
+	// Extract EVM addresses (normalize to lowercase for dedup)
+	for _, match := range evmAddressRegex.FindAllString(s, -1) {
+		normalized := strings.ToLower(match)
+		if !seen[normalized] {
+			seen[normalized] = true
+			result = append(result, normalized)
 		}
 	}
 

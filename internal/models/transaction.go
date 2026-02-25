@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"injective-explorer/internal/converter"
 	"injective-explorer/internal/global"
 	"injective-explorer/provider/storage"
 
@@ -1098,10 +1099,14 @@ func ConvertGetTxResponseToTxDetailData(getTxResp *cosmostxpb.GetTxResponse, cod
 					if codec != nil {
 						var pubKey cryptotypes.PubKey
 						if err := codec.UnpackAny(signerInfo.PublicKey, &pubKey); err == nil && pubKey != nil {
-							// Get address from public key and convert to Ethereum format
+							// pubKey.Address().String() returns bech32 (e.g., inj1...), must convert to 0x format
 							addrStr := pubKey.Address().String()
-							// Convert to lowercase Ethereum format (0x...)
-							sigData.Address = fmt.Sprintf("0x%s", strings.ToLower(addrStr))
+							if ethAddr, err := converter.InjectiveToEthAddress(addrStr); err == nil {
+								sigData.Address = ethAddr
+							} else if strings.HasPrefix(addrStr, "0x") && len(addrStr) == 42 {
+								// Already valid 0x format (some chains)
+								sigData.Address = strings.ToLower(addrStr)
+							}
 						}
 					}
 				}

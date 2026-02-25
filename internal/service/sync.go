@@ -1908,7 +1908,15 @@ func (s *SyncService) processTransactionBatchInternal(ctx context.Context, redis
 			// Pass blockResp for authoritative tx_number calculation (tx_number = tx_index + 1, per-block)
 			txDetailData := models.ConvertGetTxResponseToTxDetailData(tm.txData, s.chainClient.ClientContext().Codec, blockResp)
 			if txDetailData != nil {
-				if err := s.updateAccountsFromTransaction(accountCtx, txDetailData); err != nil {
+				// Include signer and to from txModel as fallback (TxDetailData extraction may miss some)
+				extraAddrs := make([]string, 0, 2)
+				if tm.txModel.Signer != "" {
+					extraAddrs = append(extraAddrs, tm.txModel.Signer)
+				}
+				if tm.txModel.To != "" {
+					extraAddrs = append(extraAddrs, tm.txModel.To)
+				}
+				if err := s.updateAccountsFromTransaction(accountCtx, txDetailData, extraAddrs...); err != nil {
 					global.Logger.Warnf("failed to update accounts from transaction %s: %v", tm.hash, err)
 				}
 			}
@@ -2384,8 +2392,18 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 		if address == "" {
 			continue
 		}
+		// Chain client expects Injective (inj1) format; convert 0x to inj1 for chain query
+		chainQueryAddr := address
+		if strings.HasPrefix(address, "0x") {
+			var convErr error
+			chainQueryAddr, convErr = converter.EthToInjectiveAddress(address)
+			if convErr != nil {
+				global.Logger.Warnf("failed to convert address %s for chain query: %v", address, convErr)
+				continue
+			}
+		}
 		// Get account information from chain
-		account, err := s.chainClient.GetAccount(ctx, address)
+		account, err := s.chainClient.GetAccount(ctx, chainQueryAddr)
 		if err != nil {
 			// If account doesn't exist or error, skip it
 			continue
@@ -2430,7 +2448,7 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 
 		// Get and update account balances (outside transaction for now)
 		// Note: Balance updates are done separately as they may take longer
-		if err := s.updateAccountBalances(ctx, address); err != nil {
+		if err := s.updateAccountBalances(ctx, chainQueryAddr); err != nil {
 			global.Logger.Warnf("failed to update balances for account %s: %v", address, err)
 			// Continue processing even if balance update fails
 		}
@@ -2440,9 +2458,16 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 }
 
 // updateAccountsFromTransaction extracts account addresses from transaction and updates database.
-func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData *injective_explorer_rpcpb.TxDetailData) error {
+// extraAddresses are optional fallback addresses (e.g., signer, to from Transaction model).
+func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData *injective_explorer_rpcpb.TxDetailData, extraAddresses ...string) error {
 	// Extract addresses from transaction events
 	addresses := make(map[string]bool)
+	// Add extra addresses first (signer, to from tx model)
+	for _, addr := range extraAddresses {
+		if addr != "" && utils.IsValidAddress(addr) {
+			addresses[addr] = true
+		}
+	}
 
 	// Extract addresses from events
 	// Events typically contain transfer events with sender/receiver addresses
@@ -2487,9 +2512,19 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 		if address == "" {
 			continue
 		}
+		// Chain client expects Injective (inj1) format; convert 0x to inj1 for chain query
+		chainQueryAddr := address
+		if strings.HasPrefix(address, "0x") {
+			var convErr error
+			chainQueryAddr, convErr = converter.EthToInjectiveAddress(address)
+			if convErr != nil {
+				global.Logger.Warnf("failed to convert address %s for chain query: %v", address, convErr)
+				continue
+			}
+		}
 		global.Logger.Infof("create or update address: %s", address)
 		// Get account information from chain
-		account, err := s.chainClient.GetAccount(ctx, address)
+		account, err := s.chainClient.GetAccount(ctx, chainQueryAddr)
 		if err != nil {
 			// If account doesn't exist or error, skip it
 			continue
@@ -2538,7 +2573,7 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 		}
 
 		// Get and update account balances
-		if err := s.updateAccountBalances(ctx, address); err != nil {
+		if err := s.updateAccountBalances(ctx, chainQueryAddr); err != nil {
 			global.Logger.Warnf("failed to update balances for account %s: %v", address, err)
 			// Continue processing even if balance update fails
 		}
