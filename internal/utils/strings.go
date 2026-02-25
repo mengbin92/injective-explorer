@@ -41,10 +41,16 @@ func init() {
 //   - []string: A slice of unique addresses found in the string (deduplicated)
 func ExtractAddressesFromString(s string) []string {
 	seen := make(map[string]bool)
-	result := make([]string, 0)
+
+	// Pre-find all matches to estimate capacity and avoid slice reallocation
+	matchesInj := injAddressRegex.FindAllString(s, -1)
+	matchesEvm := evmAddressRegex.FindAllString(s, -1)
+
+	// Pre-allocate with estimated capacity to avoid multiple slice growth
+	result := make([]string, 0, len(matchesInj)+len(matchesEvm))
 
 	// Extract Injective addresses
-	for _, match := range injAddressRegex.FindAllString(s, -1) {
+	for _, match := range matchesInj {
 		if !seen[match] {
 			seen[match] = true
 			result = append(result, match)
@@ -52,7 +58,7 @@ func ExtractAddressesFromString(s string) []string {
 	}
 
 	// Extract EVM addresses (normalize to lowercase for dedup)
-	for _, match := range evmAddressRegex.FindAllString(s, -1) {
+	for _, match := range matchesEvm {
 		normalized := strings.ToLower(match)
 		if !seen[normalized] {
 			seen[normalized] = true

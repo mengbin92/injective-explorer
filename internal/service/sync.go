@@ -2316,6 +2316,24 @@ func (s *SyncService) processTransaction(redisClient *redis.Client) error {
 	return nil
 }
 
+// toChainQueryAddress converts a display address (0x or inj1...) to the format
+// required by the chain client (Injective inj1...). It returns an error if
+// conversion fails and logs the issue.
+func (s *SyncService) toChainQueryAddress(displayAddr string) (string, error) {
+	if !strings.HasPrefix(displayAddr, "0x") {
+		return displayAddr, nil // Already in chain format
+	}
+
+	chainAddr, err := converter.EthToInjectiveAddress(displayAddr)
+	if err != nil {
+		// Logging is handled here to centralize the warning
+		global.Logger.Warnf("failed to convert EVM address %s for chain query: %v", displayAddr, err)
+		return "", err
+	}
+
+	return chainAddr, nil
+}
+
 // updateAccountsFromTransactionWithTx extracts account addresses from transaction and updates database using the provided transaction.
 // Optimized to use batch account queries to reduce database I/O.
 func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, tx *gorm.DB, txData *injective_explorer_rpcpb.TxDetailData) error {
@@ -2392,15 +2410,10 @@ func (s *SyncService) updateAccountsFromTransactionWithTx(ctx context.Context, t
 		if address == "" {
 			continue
 		}
-		// Chain client expects Injective (inj1) format; convert 0x to inj1 for chain query
-		chainQueryAddr := address
-		if strings.HasPrefix(address, "0x") {
-			var convErr error
-			chainQueryAddr, convErr = converter.EthToInjectiveAddress(address)
-			if convErr != nil {
-				global.Logger.Warnf("failed to convert address %s for chain query: %v", address, convErr)
-				continue
-			}
+		// Convert address to chain query format (EVM 0x -> Injective inj1)
+		chainQueryAddr, err := s.toChainQueryAddress(address)
+		if err != nil {
+			continue // Error already logged by toChainQueryAddress
 		}
 		// Get account information from chain
 		account, err := s.chainClient.GetAccount(ctx, chainQueryAddr)
@@ -2512,17 +2525,12 @@ func (s *SyncService) updateAccountsFromTransaction(ctx context.Context, txData 
 		if address == "" {
 			continue
 		}
-		// Chain client expects Injective (inj1) format; convert 0x to inj1 for chain query
-		chainQueryAddr := address
-		if strings.HasPrefix(address, "0x") {
-			var convErr error
-			chainQueryAddr, convErr = converter.EthToInjectiveAddress(address)
-			if convErr != nil {
-				global.Logger.Warnf("failed to convert address %s for chain query: %v", address, convErr)
-				continue
-			}
+		// Convert address to chain query format (EVM 0x -> Injective inj1)
+		chainQueryAddr, err := s.toChainQueryAddress(address)
+		if err != nil {
+			continue // Error already logged by toChainQueryAddress
 		}
-		global.Logger.Infof("create or update address: %s", address)
+		global.Logger.Infof("create or update address: %s (chain query as: %s)", address, chainQueryAddr)
 		// Get account information from chain
 		account, err := s.chainClient.GetAccount(ctx, chainQueryAddr)
 		if err != nil {
