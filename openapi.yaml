@@ -2345,6 +2345,119 @@ paths:
                   description: Receiver address (Injective address, optional filter)
                   schema:
                     type: string
+                - name: state
+                  in: query
+                  description: Transaction state (optional filter)
+                  schema:
+                    type: string
+                - name: minEventNonce
+                  in: query
+                  description: Minimum event nonce (query event_nonce > this value)
+                  schema:
+                    type: string
+                - name: startTime
+                  in: query
+                  description: Start time (Unix timestamp, block_timestamp >= this value)
+                  schema:
+                    type: string
+                - name: endTime
+                  in: query
+                  description: End time (Unix timestamp, block_timestamp <= this value)
+                  schema:
+                    type: string
+                - name: pagination.page
+                  in: query
+                  description: Page number, starts from 1, default 1 (for page-based pagination)
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.page_size
+                  in: query
+                  description: Page size, default 20, maximum 100
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagination.cursor
+                  in: query
+                  description: |-
+                    Cursor (for cursor-based pagination, optimized for large datasets, takes priority over page)
+                     For blocks: use block height (height)
+                     For transactions: use transaction number (tx_number) or combination of block height + transaction number
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/peggy/stats:
+        get:
+            tags:
+                - Explorer
+            description: Get Peggy statistics
+            operationId: Explorer_GetPeggyStats
+            parameters:
+                - name: startTime
+                  in: query
+                  description: Start time (Unix timestamp, statistics time window start)
+                  schema:
+                    type: string
+                - name: endTime
+                  in: query
+                  description: End time (Unix timestamp, statistics time window end)
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/peggy/transactions:
+        get:
+            tags:
+                - Explorer
+            description: Get unified Peggy transactions (deposit + withdrawal mixed)
+            operationId: Explorer_GetPeggyTransactions
+            parameters:
+                - name: address
+                  in: query
+                  description: User address (matches both deposit.sender and withdrawal.sender)
+                  schema:
+                    type: string
+                - name: type
+                  in: query
+                  description: 'Transaction type filter: deposit / withdrawal / empty (all)'
+                  schema:
+                    type: string
+                - name: state
+                  in: query
+                  description: Transaction state (optional filter)
+                  schema:
+                    type: string
+                - name: eventNonce
+                  in: query
+                  description: Event nonce (exact match)
+                  schema:
+                    type: string
+                - name: outgoingTxId
+                  in: query
+                  description: Outgoing tx ID (exact match)
+                  schema:
+                    type: string
+                - name: startTime
+                  in: query
+                  description: Start time (Unix timestamp, block_timestamp >= this value)
+                  schema:
+                    type: string
+                - name: endTime
+                  in: query
+                  description: End time (Unix timestamp, block_timestamp <= this value)
+                  schema:
+                    type: string
                 - name: pagination.page
                   in: query
                   description: Page number, starts from 1, default 1 (for page-based pagination)
@@ -2387,6 +2500,31 @@ paths:
                 - name: receiver
                   in: query
                   description: Receiver address (Ethereum address, optional filter)
+                  schema:
+                    type: string
+                - name: state
+                  in: query
+                  description: Transaction state (optional filter)
+                  schema:
+                    type: string
+                - name: batchNonce
+                  in: query
+                  description: Batch nonce (exact match)
+                  schema:
+                    type: string
+                - name: minOutgoingTxId
+                  in: query
+                  description: Minimum outgoing tx ID (query outgoing_tx_id > this value)
+                  schema:
+                    type: string
+                - name: startTime
+                  in: query
+                  description: Start time (Unix timestamp, block_timestamp >= this value)
+                  schema:
+                    type: string
+                - name: endTime
+                  in: query
+                  description: End time (Unix timestamp, block_timestamp <= this value)
                   schema:
                     type: string
                 - name: pagination.page

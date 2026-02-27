@@ -7150,6 +7150,18 @@ func (s *ExplorerService) GetPeggyDepositTxs(ctx context.Context, req *pb.GetPeg
 	if req.Receiver != "" {
 		query = query.Where("receiver = ?", req.Receiver)
 	}
+	if req.State != "" {
+		query = query.Where("state = ?", req.State)
+	}
+	if req.MinEventNonce > 0 {
+		query = query.Where("event_nonce > ?", req.MinEventNonce)
+	}
+	if req.StartTime > 0 {
+		query = query.Where("block_timestamp >= ?", req.StartTime)
+	}
+	if req.EndTime > 0 {
+		query = query.Where("block_timestamp <= ?", req.EndTime)
+	}
 
 	// Get total count
 	var total int64
@@ -7200,6 +7212,21 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 	if req.Receiver != "" {
 		query = query.Where("receiver = ?", req.Receiver)
 	}
+	if req.State != "" {
+		query = query.Where("state = ?", req.State)
+	}
+	if req.BatchNonce > 0 {
+		query = query.Where("batch_nonce = ?", req.BatchNonce)
+	}
+	if req.MinOutgoingTxId > 0 {
+		query = query.Where("outgoing_tx_id > ?", req.MinOutgoingTxId)
+	}
+	if req.StartTime > 0 {
+		query = query.Where("block_timestamp >= ?", req.StartTime)
+	}
+	if req.EndTime > 0 {
+		query = query.Where("block_timestamp <= ?", req.EndTime)
+	}
 
 	// Get total count
 	var total int64
@@ -7237,4 +7264,325 @@ func (s *ExplorerService) GetPeggyWithdrawalTxs(ctx context.Context, req *pb.Get
 
 	// Build response
 	return buildListReply(dtos, total, page, pageSize), nil
+}
+
+// GetPeggyTransactions retrieves unified Peggy transactions (deposit + withdrawal mixed) with filters.
+func (s *ExplorerService) GetPeggyTransactions(ctx context.Context, req *pb.GetPeggyTransactionsRequest) (*pb.Reply, error) {
+	var (
+		deposits    []*models.PeggyDepositTx
+		withdrawals []*models.PeggyWithdrawalTx
+		total       int64
+	)
+
+	// Calculate pagination
+	page := int32(MinPage)
+	pageSize := int32(DefaultPageSize)
+	if req.Pagination != nil {
+		if req.Pagination.Page > 0 {
+			page = req.Pagination.Page
+		}
+		if req.Pagination.PageSize > 0 && req.Pagination.PageSize <= MaxPageSize {
+			pageSize = req.Pagination.PageSize
+		}
+	}
+	offset := (page - 1) * pageSize
+
+	// Build filters
+	addressFilter := req.Address
+	typeFilter := req.Type
+	stateFilter := req.State
+	eventNonceFilter := req.EventNonce
+	outgoingTxIdFilter := req.OutgoingTxId
+	startTimeFilter := req.StartTime
+	endTimeFilter := req.EndTime
+
+	// Handle type filter
+	queryDeposit := func() *gorm.DB {
+		query := db.Get().Model(&models.PeggyDepositTx{}).Where("deleted_at IS NULL")
+		if addressFilter != "" {
+			query = query.Where("sender = ?", addressFilter)
+		}
+		if stateFilter != "" {
+			query = query.Where("state = ?", stateFilter)
+		}
+		if eventNonceFilter > 0 {
+			query = query.Where("event_nonce = ?", eventNonceFilter)
+		}
+		if startTimeFilter > 0 {
+			query = query.Where("block_timestamp >= ?", startTimeFilter)
+		}
+		if endTimeFilter > 0 {
+			query = query.Where("block_timestamp <= ?", endTimeFilter)
+		}
+		return query
+	}
+
+	queryWithdrawal := func() *gorm.DB {
+		query := db.Get().Model(&models.PeggyWithdrawalTx{}).Where("deleted_at IS NULL")
+		if addressFilter != "" {
+			query = query.Where("sender = ?", addressFilter)
+		}
+		if stateFilter != "" {
+			query = query.Where("state = ?", stateFilter)
+		}
+		if outgoingTxIdFilter > 0 {
+			query = query.Where("outgoing_tx_id = ?", outgoingTxIdFilter)
+		}
+		if startTimeFilter > 0 {
+			query = query.Where("block_timestamp >= ?", startTimeFilter)
+		}
+		if endTimeFilter > 0 {
+			query = query.Where("block_timestamp <= ?", endTimeFilter)
+		}
+		return query
+	}
+
+	// Query based on type filter
+	if typeFilter == "" || typeFilter == "deposit" {
+		if err := queryDeposit().Find(&deposits).Error; err != nil {
+			return nil, status.Error(codes.Internal, "failed to query Peggy deposits")
+		}
+	}
+	if typeFilter == "" || typeFilter == "withdrawal" {
+		if err := queryWithdrawal().Find(&withdrawals).Error; err != nil {
+			return nil, status.Error(codes.Internal, "failed to query Peggy withdrawals")
+		}
+	}
+
+	// Get total count
+	total = int64(len(deposits) + len(withdrawals))
+
+	// Convert to unified DTOs
+	dtos := make([]*pb.PeggyTransactionDTO, 0, len(deposits)+len(withdrawals))
+
+	for _, tx := range deposits {
+		dtos = append(dtos, convertDepositToTransactionDTO(tx))
+	}
+	for _, tx := range withdrawals {
+		dtos = append(dtos, convertWithdrawalToTransactionDTO(tx))
+	}
+
+	// Sort by block_timestamp descending
+	sort.Slice(dtos, func(i, j int) bool {
+		return dtos[i].GetBlockTimestamp() > dtos[j].GetBlockTimestamp()
+	})
+
+	// Apply pagination after sorting
+	startIdx := int(offset)
+	endIdx := startIdx + int(pageSize)
+	if startIdx > len(dtos) {
+		dtos = []*pb.PeggyTransactionDTO{}
+	} else {
+		if endIdx > len(dtos) {
+			endIdx = len(dtos)
+		}
+		dtos = dtos[startIdx:endIdx]
+	}
+
+	// Build response
+	return buildListReply(dtos, total, page, pageSize), nil
+}
+
+// convertDepositToTransactionDTO converts PeggyDepositTx to PeggyTransactionDTO
+func convertDepositToTransactionDTO(tx *models.PeggyDepositTx) *pb.PeggyTransactionDTO {
+	senderEVM := tx.Sender
+	if evmAddr, err := converter.InjectiveToEthAddress(tx.Sender); err == nil {
+		senderEVM = evmAddr
+	}
+	senderEVM = converter.NormalizeHash(senderEVM)
+
+	receiverEVM := tx.Receiver
+	if evmAddr, err := converter.InjectiveToEthAddress(tx.Receiver); err == nil {
+		receiverEVM = evmAddr
+	}
+	receiverEVM = converter.NormalizeHash(receiverEVM)
+
+	orchestratorEVM := tx.OrchestratorAddress
+	if tx.OrchestratorAddress != "" {
+		if evmAddr, err := converter.InjectiveToEthAddress(tx.OrchestratorAddress); err == nil {
+			orchestratorEVM = evmAddr
+		}
+		orchestratorEVM = converter.NormalizeHash(orchestratorEVM)
+	}
+
+	txHash := converter.NormalizeHash(tx.TxHash)
+	ethTxHash := converter.NormalizeHash(tx.EthTxHash)
+
+	return &pb.PeggyTransactionDTO{
+		Type:                "deposit",
+		Sender:              senderEVM,
+		Receiver:            receiverEVM,
+		Amount:              tx.Amount,
+		Denom:               tx.Denom,
+		EventNonce:          tx.EventNonce,
+		EventHeight:         tx.EventHeight,
+		OutgoingTxId:        0,
+		BatchNonce:          0,
+		BatchTimeout:        0,
+		OrchestratorAddress: orchestratorEVM,
+		State:               tx.State,
+		ClaimType:           tx.ClaimType,
+		TxHashes:            []string{txHash},
+		CreatedAt:           tx.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:           tx.UpdatedAt.Format(time.RFC3339),
+		EthTxHash:           ethTxHash,
+		BlockTimestamp:      tx.BlockTimestamp,
+	}
+}
+
+// convertWithdrawalToTransactionDTO converts PeggyWithdrawalTx to PeggyTransactionDTO
+func convertWithdrawalToTransactionDTO(tx *models.PeggyWithdrawalTx) *pb.PeggyTransactionDTO {
+	senderEVM := tx.Sender
+	if evmAddr, err := converter.InjectiveToEthAddress(tx.Sender); err == nil {
+		senderEVM = evmAddr
+	}
+	senderEVM = converter.NormalizeHash(senderEVM)
+
+	receiverEVM := tx.Receiver
+	if evmAddr, err := converter.InjectiveToEthAddress(tx.Receiver); err == nil {
+		receiverEVM = evmAddr
+	}
+	receiverEVM = converter.NormalizeHash(receiverEVM)
+
+	orchestratorEVM := tx.OrchestratorAddress
+	if tx.OrchestratorAddress != "" {
+		if evmAddr, err := converter.InjectiveToEthAddress(tx.OrchestratorAddress); err == nil {
+			orchestratorEVM = evmAddr
+		}
+		orchestratorEVM = converter.NormalizeHash(orchestratorEVM)
+	}
+
+	txHash := converter.NormalizeHash(tx.TxHash)
+	ethTxHash := converter.NormalizeHash(tx.EthTxHash)
+
+	return &pb.PeggyTransactionDTO{
+		Type:                "withdrawal",
+		Sender:              senderEVM,
+		Receiver:            receiverEVM,
+		Amount:              tx.Amount,
+		Denom:               tx.Denom,
+		BridgeFee:           tx.BridgeFee,
+		EventNonce:          tx.EventNonce,
+		EventHeight:         tx.EventHeight,
+		OutgoingTxId:        tx.OutgoingTxId,
+		BatchNonce:          tx.BatchNonce,
+		BatchTimeout:        tx.BatchTimeout,
+		OrchestratorAddress: orchestratorEVM,
+		State:               tx.State,
+		ClaimType:           tx.ClaimType,
+		TxHashes:            []string{txHash},
+		CreatedAt:           tx.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:           tx.UpdatedAt.Format(time.RFC3339),
+		EthTxHash:           ethTxHash,
+		BlockTimestamp:      tx.BlockTimestamp,
+	}
+}
+
+// GetPeggyStats retrieves Peggy statistics.
+func (s *ExplorerService) GetPeggyStats(ctx context.Context, req *pb.GetPeggyStatsRequest) (*pb.Reply, error) {
+	startTimeFilter := req.StartTime
+	endTimeFilter := req.EndTime
+
+	// Query deposits
+	depositQuery := db.Get().Model(&models.PeggyDepositTx{}).Where("deleted_at IS NULL")
+	if startTimeFilter > 0 {
+		depositQuery = depositQuery.Where("block_timestamp >= ?", startTimeFilter)
+	}
+	if endTimeFilter > 0 {
+		depositQuery = depositQuery.Where("block_timestamp <= ?", endTimeFilter)
+	}
+
+	var depositTotal int64
+	if err := depositQuery.Count(&depositTotal).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to count Peggy deposits")
+	}
+
+	// Get deposits by state
+	depositByState := make(map[string]uint64)
+	states := []string{"pending", "completed", "failed"}
+	for _, state := range states {
+		var count int64
+		q := db.Get().Model(&models.PeggyDepositTx{}).Where("deleted_at IS NULL").Where("state = ?", state)
+		if startTimeFilter > 0 {
+			q = q.Where("block_timestamp >= ?", startTimeFilter)
+		}
+		if endTimeFilter > 0 {
+			q = q.Where("block_timestamp <= ?", endTimeFilter)
+		}
+		if err := q.Count(&count).Error; err != nil {
+			return nil, status.Error(codes.Internal, "failed to count Peggy deposits by state")
+		}
+		depositByState[state] = uint64(count)
+	}
+
+	// Query withdrawals
+	withdrawalQuery := db.Get().Model(&models.PeggyWithdrawalTx{}).Where("deleted_at IS NULL")
+	if startTimeFilter > 0 {
+		withdrawalQuery = withdrawalQuery.Where("block_timestamp >= ?", startTimeFilter)
+	}
+	if endTimeFilter > 0 {
+		withdrawalQuery = withdrawalQuery.Where("block_timestamp <= ?", endTimeFilter)
+	}
+
+	var withdrawalTotal int64
+	if err := withdrawalQuery.Count(&withdrawalTotal).Error; err != nil {
+		return nil, status.Error(codes.Internal, "failed to count Peggy withdrawals")
+	}
+
+	// Get withdrawals by state
+	withdrawalByState := make(map[string]uint64)
+	states = []string{"pending", "batched", "completed", "failed"}
+	for _, state := range states {
+		var count int64
+		q := db.Get().Model(&models.PeggyWithdrawalTx{}).Where("deleted_at IS NULL").Where("state = ?", state)
+		if startTimeFilter > 0 {
+			q = q.Where("block_timestamp >= ?", startTimeFilter)
+		}
+		if endTimeFilter > 0 {
+			q = q.Where("block_timestamp <= ?", endTimeFilter)
+		}
+		if err := q.Count(&count).Error; err != nil {
+			return nil, status.Error(codes.Internal, "failed to count Peggy withdrawals by state")
+		}
+		withdrawalByState[state] = uint64(count)
+	}
+
+	// Get oldest pending withdrawal
+	var oldestPendingWithdrawal *models.PeggyWithdrawalTx
+	err := db.Get().Model(&models.PeggyWithdrawalTx{}).
+		Where("deleted_at IS NULL").
+		Where("state = ?", "pending").
+		Order("block_timestamp ASC").
+		First(&oldestPendingWithdrawal).Error
+
+	var oldestPendingAt string
+	if err == nil && oldestPendingWithdrawal != nil {
+		// Convert block_timestamp to time.Time and format
+		oldestPendingAt = time.Unix(int64(oldestPendingWithdrawal.BlockTimestamp), 0).UTC().Format(time.RFC3339)
+	}
+
+	// Build response
+	data := map[string]interface{}{
+		"deposits": map[string]interface{}{
+			"total":    depositTotal,
+			"by_state": depositByState,
+		},
+		"withdrawals": map[string]interface{}{
+			"total":            withdrawalTotal,
+			"by_state":         withdrawalByState,
+			"oldest_pending_at": oldestPendingAt,
+		},
+	}
+
+	structData, err := ToStruct(data)
+	if err != nil {
+		global.Logger.Errorf("failed to convert to struct: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to build response", err), nil
+	}
+
+	return &pb.Reply{
+		Code:    0,
+		Message: "success",
+		Data:    structData,
+	}, nil
 }

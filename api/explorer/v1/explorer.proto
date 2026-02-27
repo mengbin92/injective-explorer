@@ -225,6 +225,20 @@ service Explorer {
     };
   }
 
+  // Get unified Peggy transactions (deposit + withdrawal mixed)
+  rpc GetPeggyTransactions(GetPeggyTransactionsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/peggy/transactions"
+    };
+  }
+
+  // Get Peggy statistics
+  rpc GetPeggyStats(GetPeggyStatsRequest) returns (Reply) {
+    option (google.api.http) = {
+      get : "/api/v1/peggy/stats"
+    };
+  }
+
   // Wasm Contract APIs
 
   // Get list of Wasm contracts with filtering and pagination
@@ -823,6 +837,14 @@ message GetPeggyDepositTxsRequest {
   string sender = 1;
   // Receiver address (Injective address, optional filter)
   string receiver = 2;
+  // Transaction state (optional filter)
+  string state = 4;
+  // Minimum event nonce (query event_nonce > this value)
+  uint64 min_event_nonce = 5;
+  // Start time (Unix timestamp, block_timestamp >= this value)
+  uint64 start_time = 6;
+  // End time (Unix timestamp, block_timestamp <= this value)
+  uint64 end_time = 7;
   // Pagination parameters
   PaginationRequest pagination = 3;
 }
@@ -833,8 +855,46 @@ message GetPeggyWithdrawalTxsRequest {
   string sender = 1;
   // Receiver address (Ethereum address, optional filter)
   string receiver = 2;
+  // Transaction state (optional filter)
+  string state = 4;
+  // Batch nonce (exact match)
+  uint64 batch_nonce = 5;
+  // Minimum outgoing tx ID (query outgoing_tx_id > this value)
+  uint64 min_outgoing_tx_id = 6;
+  // Start time (Unix timestamp, block_timestamp >= this value)
+  uint64 start_time = 7;
+  // End time (Unix timestamp, block_timestamp <= this value)
+  uint64 end_time = 8;
   // Pagination parameters
   PaginationRequest pagination = 3;
+}
+
+// GetPeggyTransactionsRequest requests unified Peggy transactions (deposit + withdrawal mixed)
+message GetPeggyTransactionsRequest {
+  // User address (matches both deposit.sender and withdrawal.sender)
+  string address = 1;
+  // Transaction type filter: deposit / withdrawal / empty (all)
+  string type = 2;
+  // Transaction state (optional filter)
+  string state = 3;
+  // Event nonce (exact match)
+  uint64 event_nonce = 4;
+  // Outgoing tx ID (exact match)
+  uint64 outgoing_tx_id = 5;
+  // Start time (Unix timestamp, block_timestamp >= this value)
+  uint64 start_time = 6;
+  // End time (Unix timestamp, block_timestamp <= this value)
+  uint64 end_time = 7;
+  // Pagination parameters
+  PaginationRequest pagination = 8;
+}
+
+// GetPeggyStatsRequest requests Peggy statistics
+message GetPeggyStatsRequest {
+  // Start time (Unix timestamp, statistics time window start)
+  uint64 start_time = 1;
+  // End time (Unix timestamp, statistics time window end)
+  uint64 end_time = 2;
 }
 
 // Cross-chain transaction DTOs
@@ -941,4 +1001,64 @@ message PeggyWithdrawalTxDTO {
   // Ethereum transaction hash (for the ETH chain transaction when withdrawal is
   // completed)
   string eth_tx_hash = 17 [ json_name = "eth_tx_hash" ];
+}
+
+// PeggyTransactionDTO represents unified Peggy transaction (deposit or withdrawal) in API response
+message PeggyTransactionDTO {
+  // Transaction type: deposit or withdrawal
+  string type = 1;
+  // Sender address
+  string sender = 2;
+  // Receiver address
+  string receiver = 3;
+  // Amount
+  string amount = 4;
+  // Token denomination
+  string denom = 5;
+  // Bridge fee (for withdrawal only)
+  string bridge_fee = 6 [ json_name = "bridge_fee" ];
+  // Event nonce
+  uint64 event_nonce = 7 [ json_name = "event_nonce" ];
+  // Event height
+  uint64 event_height = 8 [ json_name = "event_height" ];
+  // Outgoing tx ID (for withdrawal only)
+  uint64 outgoing_tx_id = 9 [ json_name = "outgoing_tx_id" ];
+  // Batch nonce (for withdrawal only)
+  uint64 batch_nonce = 10 [ json_name = "batch_nonce" ];
+  // Batch timeout (for withdrawal only)
+  uint64 batch_timeout = 11 [ json_name = "batch_timeout" ];
+  // Orchestrator address
+  string orchestrator_address = 12 [ json_name = "orchestrator_address" ];
+  // Transaction state
+  string state = 13;
+  // Claim type (1 for DepositClaim, 2 for WithdrawalClaim)
+  int32 claim_type = 14 [ json_name = "claim_type" ];
+  // Transaction hashes
+  repeated string tx_hashes = 15 [ json_name = "tx_hashes" ];
+  // Creation timestamp (ISO 8601 format)
+  string created_at = 16 [ json_name = "created_at" ];
+  // Last update timestamp (ISO 8601 format)
+  string updated_at = 17 [ json_name = "updated_at" ];
+  // Ethereum transaction hash
+  string eth_tx_hash = 18 [ json_name = "eth_tx_hash" ];
+  // Block timestamp (Unix timestamp)
+  uint64 block_timestamp = 19 [ json_name = "block_timestamp" ];
+}
+
+// PeggyStatsDTO represents Peggy statistics in API response
+message PeggyStatsDTO {
+  // Total count
+  uint64 total = 1;
+  // Count by state
+  map<string, uint64> by_state = 2 [ json_name = "by_state" ];
+}
+
+// PeggyStatsResponse represents Peggy statistics response
+message PeggyStatsResponse {
+  // Deposit statistics
+  PeggyStatsDTO deposits = 1;
+  // Withdrawal statistics
+  PeggyStatsDTO withdrawals = 2;
+  // Oldest pending withdrawal timestamp (ISO 8601 format)
+  string oldest_pending_at = 3 [ json_name = "oldest_pending_at" ];
 }
