@@ -793,6 +793,30 @@
                   "disabled": true
                 },
                 {
+                  "key": "state",
+                  "value": "",
+                  "description": "Transaction state: pending/completed/failed",
+                  "disabled": true
+                },
+                {
+                  "key": "min_event_nonce",
+                  "value": "",
+                  "description": "Query event_nonce > this value",
+                  "disabled": true
+                },
+                {
+                  "key": "start_time",
+                  "value": "",
+                  "description": "Start time (Unix timestamp)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_time",
+                  "value": "",
+                  "description": "End time (Unix timestamp)",
+                  "disabled": true
+                },
+                {
                   "key": "pagination.page",
                   "value": "1",
                   "description": "页码，从1开始，默认1"
@@ -810,7 +834,7 @@
                 }
               ]
             },
-            "description": "获取Peggy存款交易列表（Ethereum -> Injective），支持按发送方和接收方过滤"
+            "description": "获取Peggy存款交易列表（Ethereum -> Injective），支持按发送方、接收方、状态、event_nonce、时间过滤"
           },
           "response": []
         },
@@ -868,6 +892,36 @@
                   "disabled": true
                 },
                 {
+                  "key": "state",
+                  "value": "",
+                  "description": "Transaction state: pending/batched/completed/failed",
+                  "disabled": true
+                },
+                {
+                  "key": "batch_nonce",
+                  "value": "",
+                  "description": "Batch nonce (exact match)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_outgoing_tx_id",
+                  "value": "",
+                  "description": "Query outgoing_tx_id > this value",
+                  "disabled": true
+                },
+                {
+                  "key": "start_time",
+                  "value": "",
+                  "description": "Start time (Unix timestamp)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_time",
+                  "value": "",
+                  "description": "End time (Unix timestamp)",
+                  "disabled": true
+                },
+                {
                   "key": "pagination.page",
                   "value": "1",
                   "description": "页码，从1开始，默认1"
@@ -885,7 +939,171 @@
                 }
               ]
             },
-            "description": "获取Peggy提款交易列表（Injective -> Ethereum），支持按发送方和接收方过滤"
+            "description": "获取Peggy提款交易列表（Injective -> Ethereum），支持按发送方、接收方、状态、batch_nonce、时间过滤"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Peggy统一交易列表",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/peggy/transactions?pagination.page=1&pagination.page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "peggy",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "",
+                  "description": "User address (matches both deposit.sender and withdrawal.sender)",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "description": "Transaction type: deposit/withdrawal/empty (all)",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "",
+                  "description": "Transaction state: pending/batched/completed/failed",
+                  "disabled": true
+                },
+                {
+                  "key": "event_nonce",
+                  "value": "",
+                  "description": "Event nonce (exact match)",
+                  "disabled": true
+                },
+                {
+                  "key": "outgoing_tx_id",
+                  "value": "",
+                  "description": "Outgoing tx ID (exact match)",
+                  "disabled": true
+                },
+                {
+                  "key": "start_time",
+                  "value": "",
+                  "description": "Start time (Unix timestamp)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_time",
+                  "value": "",
+                  "description": "End time (Unix timestamp)",
+                  "disabled": true
+                },
+                {
+                  "key": "pagination.page",
+                  "value": "1",
+                  "description": "页码，从1开始，默认1"
+                },
+                {
+                  "key": "pagination.page_size",
+                  "value": "20",
+                  "description": "每页大小，默认20，最大100"
+                },
+                {
+                  "key": "pagination.cursor",
+                  "value": "",
+                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取Peggy统一交易列表（deposit + withdrawal 混合），按 block_timestamp 倒序排列"
+          },
+          "response": []
+        },
+        {
+          "name": "获取Peggy统计数据",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/peggy/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "peggy",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "start_time",
+                  "value": "",
+                  "description": "Start time (Unix timestamp)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_time",
+                  "value": "",
+                  "description": "End time (Unix timestamp)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "获取Peggy统计数据，包括 deposits 和 withdrawals 的总数、按状态统计、以及最长的 pending 提现时间"
           },
           "response": []
         }
