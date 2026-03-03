@@ -19,8 +19,8 @@ import (
 
 	injective_explorer_rpcpb "github.com/InjectiveLabs/sdk-go/exchange/explorer_rpc/pb"
 	"github.com/bytedance/sonic"
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
@@ -1457,6 +1457,22 @@ func (s *EVMDetailsSyncService) saveContractInfoIfNotExists(ctx context.Context,
 	if result.RowsAffected > 0 {
 		global.Logger.Infof("Saved new contract info: address=%s, chain=%s, creator=%s, tx=%s, token=%s",
 			contractAddress, chainID, details.From, evmTx.EVMHash, contractInfo.TokenSymbol)
+
+		// Add "未验证" verification status tag for newly deployed contracts
+		verificationTag := &models.ContractTag{
+			ContractAddress: contractAddress,
+			ChainID:         chainID,
+			TagType:         "verification_status",
+			TagValue:        "未验证",
+			TagColor:        "#808080", // gray
+			Description:     "合约验证状态",
+			Visible:         true,
+			IsPreset:        true,
+			CreatedBy:       "system",
+		}
+		if tagErr := db.Get().WithContext(ctx).Create(verificationTag).Error; tagErr != nil {
+			global.Logger.Warnf("Failed to create verification tag for %s: %v", contractAddress, tagErr)
+		}
 	} else {
 		global.Logger.Debugf("Contract info already exists: address=%s, chain=%s", contractAddress, chainID)
 	}
