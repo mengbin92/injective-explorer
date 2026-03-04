@@ -19,8 +19,8 @@ import (
 	"injective-explorer/internal/global"
 	"injective-explorer/internal/models"
 	"injective-explorer/internal/service/metrics"
-	"injective-explorer/internal/utils"
 	syncpool "injective-explorer/internal/service/sync"
+	"injective-explorer/internal/utils"
 	"injective-explorer/provider/cache"
 	"injective-explorer/provider/db"
 
@@ -173,14 +173,14 @@ func NewSyncService(config *SyncConfig, bc *conf.Bootstrap) *SyncService {
 	lockValue := fmt.Sprintf("%s-%d-%d", hostname, os.Getpid(), time.Now().Unix())
 
 	return &SyncService{
-		config:           config,
-		bc:               bc,
-		ctx:              ctx,
-		cancel:           cancel,
+		config:             config,
+		bc:                 bc,
+		ctx:                ctx,
+		cancel:             cancel,
 		metadataWorkerPool: syncpool.NewWorkerPool[MetadataJob]("metadata-fetch", 10),
-		syncLockKey:      "sync:lock:blockchain",
-		syncLockValue:    lockValue,
-		syncLockRenewal:  &sync.WaitGroup{},
+		syncLockKey:        "sync:lock:blockchain",
+		syncLockValue:      lockValue,
+		syncLockRenewal:    &sync.WaitGroup{},
 	}
 }
 
@@ -2669,8 +2669,8 @@ func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractA
 				defer releaseContractMetadataUpdateLock(ctx, lockKey)
 				metadataUpdatedAt := time.Now()
 				updates := map[string]interface{}{
-					"name":                 validName,
-					"token_name":           validName,
+					"name":                validName,
+					"token_name":          validName,
 					"token_symbol":        validSymbol,
 					"decimals":            cached.Decimals,
 					"metadata_updated_at": metadataUpdatedAt,
@@ -2794,12 +2794,12 @@ func (s *SyncService) fetchAndUpdateERC20Metadata(ctx context.Context, contractA
 
 	metadataUpdatedAt := time.Now()
 	updates := map[string]interface{}{
-		"name":                 name,
-		"token_name":           name,
-		"token_symbol":         symbol,
-		"decimals":             decimals,
-		"metadata_updated_at":  metadataUpdatedAt,
-		"version":              gorm.Expr("version + 1"),
+		"name":                name,
+		"token_name":          name,
+		"token_symbol":        symbol,
+		"decimals":            decimals,
+		"metadata_updated_at": metadataUpdatedAt,
+		"version":             gorm.Expr("version + 1"),
 	}
 	if metadataSource != "" {
 		updates["metadata_source"] = metadataSource
@@ -2843,17 +2843,26 @@ type contractEventData struct {
 }
 
 // extractContractCreationEvents searches for EventCreateTokenPair in Cosmos transaction events.
+// It extracts the contract address, bank denom, and creator address.
+//
+// The creator address is resolved in the following order:
+//  1. From the "sender" attribute in EventCreateTokenPair (some chain versions include it)
+//  2. From the "sender" attribute in the associated "message" event (standard Cosmos SDK pattern)
+//  3. Empty string if neither source provides it (caller can fallback to tx signer)
 func (s *SyncService) extractContractCreationEvents(txResp *github_com_cosmos_cosmos_sdk_types.TxResponse) *contractEventData {
 	if txResp == nil || len(txResp.Events) == 0 {
 		return nil
 	}
 
+	var data *contractEventData
+
+	// Step 1: Extract contract address and bank denom from EventCreateTokenPair
 	for _, event := range txResp.Events {
 		if event.Type != EventCreateTokenPair {
 			continue
 		}
 
-		data := &contractEventData{}
+		data = &contractEventData{}
 		for _, attr := range event.Attributes {
 			value := strings.Trim(attr.Value, "\"")
 			switch attr.Key {
@@ -2866,12 +2875,48 @@ func (s *SyncService) extractContractCreationEvents(txResp *github_com_cosmos_co
 			}
 		}
 
-		if data.contractAddress != "" {
-			return data
+		if data.contractAddress == "" {
+			return nil
 		}
+		break
+	}
+
+	if data == nil {
 		return nil
 	}
-	return nil
+
+	// Step 2: If sender not found in EventCreateTokenPair, look in the "message" event
+	// On-chain, the sender is typically in a separate "message" event with
+	// action="/injective.erc20.v1beta1.MsgCreateTokenPair"
+	if data.creatorAddress == "" {
+		for _, event := range txResp.Events {
+			if event.Type != EventTypeMessage {
+				continue
+			}
+
+			isCreateTokenPairMsg := false
+			var sender string
+			for _, attr := range event.Attributes {
+				value := strings.Trim(attr.Value, "\"")
+				switch attr.Key {
+				case EventAttributeAction:
+					if value == ActionMsgCreateTokenPair {
+						isCreateTokenPairMsg = true
+					}
+				case EventAttributeSender:
+					sender = value
+				}
+			}
+
+			if isCreateTokenPairMsg && sender != "" {
+				data.creatorAddress = utils.NormalizeEVMAddress(sender)
+				global.Logger.Infof("extractContractCreationEvents: resolved creator from message event: %s", data.creatorAddress)
+				break
+			}
+		}
+	}
+
+	return data
 }
 
 // buildContractInfo constructs a ContractInfo model from event data and transaction context.
@@ -3859,4 +3904,3 @@ func cacheTransaction(ctx context.Context, tx *models.Transaction) {
 		global.Logger.Warnf("failed to cache transaction to Redis: %v", err)
 	}
 }
-

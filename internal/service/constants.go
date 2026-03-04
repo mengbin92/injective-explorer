@@ -30,9 +30,9 @@ const (
 
 	// Approximate count constants
 	// 10000 is used as threshold for approximate counts (balance, tx count) to determine if we should use EXPLAIN or exact count
-	ApproximateCountThreshold  = 10000
+	ApproximateCountThreshold = 10000
 	// 1000000 is used as fallback when we cannot determine approximate count (e.g., for new addresses with no history)
-	ApproximateCountFallback   = 1000000
+	ApproximateCountFallback = 1000000
 	// 10000 is used for per-address approximate count queries
 	ApproximateCountForAddress = 10000
 
@@ -65,7 +65,7 @@ const (
 	RequestCoalescerMaxInflightSize = 1000             // Maximum number of concurrent inflight requests
 
 	// EVM task deduplication constants
-	EVMDetailsTaskMaxAge         = 60 * time.Second // Maximum age for EVM task before cleanup
+	EVMDetailsTaskMaxAge          = 60 * time.Second // Maximum age for EVM task before cleanup
 	EVMDetailsTaskCleanupInterval = 30 * time.Second // Cleanup interval for EVM tasks
 	EVMDetailsTaskMaxSize         = 5000             // Maximum number of concurrent EVM tasks
 
@@ -73,16 +73,16 @@ const (
 	AccountTransactionLimit = 50 // Maximum number of transactions to return for account queries
 
 	// Transaction statistics constants
-	TPSBlockCount              = 100         // Number of latest blocks to use for TPS calculation
-	AvgBlockTimeSeconds        = 2.0         // Average block time in seconds (for Cosmos chains)
-	MillisecondsPerSecond      = 1000.0      // Conversion factor from milliseconds to seconds
-	StatsDays30                = 30          // Number of days for 30-day statistics
-	StatsHours24               = 24          // Number of hours for 24-hour statistics
-	GasPriceBlockCount         = 10          // Number of latest blocks to use for gas price calculation
-	BlockTimeBlockCount        = 100         // Number of latest blocks to use for average block time calculation
-	GasUtilizationBlockCount   = 10          // Number of latest blocks to use for gas utilization calculation
-	BlockGasLimit              = 150_000_000 // Default block gas limit for Injective (fallback value if consensus params query fails)
-	Latest1000TransactionsLimit = 1000       // Number of latest transactions to analyze for failure statistics
+	TPSBlockCount               = 100         // Number of latest blocks to use for TPS calculation
+	AvgBlockTimeSeconds         = 2.0         // Average block time in seconds (for Cosmos chains)
+	MillisecondsPerSecond       = 1000.0      // Conversion factor from milliseconds to seconds
+	StatsDays30                 = 30          // Number of days for 30-day statistics
+	StatsHours24                = 24          // Number of hours for 24-hour statistics
+	GasPriceBlockCount          = 10          // Number of latest blocks to use for gas price calculation
+	BlockTimeBlockCount         = 100         // Number of latest blocks to use for average block time calculation
+	GasUtilizationBlockCount    = 10          // Number of latest blocks to use for gas utilization calculation
+	BlockGasLimit               = 150_000_000 // Default block gas limit for Injective (fallback value if consensus params query fails)
+	Latest1000TransactionsLimit = 1000        // Number of latest transactions to analyze for failure statistics
 
 	// Chain query constants
 	RecentBlockThreshold = 1000  // Block height threshold for querying from chain (within last N blocks)
@@ -92,11 +92,11 @@ const (
 	MaxTxEnhancementCount = 100 // Maximum number of transactions to enhance synchronously (blocks with more txs are enhanced asynchronously)
 
 	// Batch size constants
-	BlockBatchSizeLimit        = 100  // Maximum batch size for block queries
-	QueryBatchLimit            = 100  // Maximum batch size for generic queries
-	ExportBatchSize            = 1000 // Batch size for export operations
-	MaxValidatorQueryLimit     = 1000 // Maximum number of validators to query at once
-	MaxStorageMigrationBatch   = 1000 // Maximum batch size for storage migration operations
+	BlockBatchSizeLimit      = 100  // Maximum batch size for block queries
+	QueryBatchLimit          = 100  // Maximum batch size for generic queries
+	ExportBatchSize          = 1000 // Batch size for export operations
+	MaxValidatorQueryLimit   = 1000 // Maximum number of validators to query at once
+	MaxStorageMigrationBatch = 1000 // Maximum batch size for storage migration operations
 
 	// API token constants
 	DefaultAPITokenMonthlyLimit = 100000 // Default monthly limit for API tokens
@@ -125,8 +125,8 @@ const (
 	PeriodLast1Day   = 1  // Last 1 day
 
 	// Admin and batch operation limits
-	DefaultContractMetadataLimit = 50   // Default limit for contract metadata backfill
-	MaxContractMetadataLimit     = 200  // Maximum limit for contract metadata backfill
+	DefaultContractMetadataLimit = 50  // Default limit for contract metadata backfill
+	MaxContractMetadataLimit     = 200 // Maximum limit for contract metadata backfill
 	RedisScanBatchSize           = 100 // Batch size for Redis SCAN iterations
 
 	// Health check constants
@@ -159,7 +159,7 @@ const (
 	CacheKeyLatestBlockHeight     = "cache:latest:block:height"     // Latest block height cache key
 	CacheKeyGasPrice              = "cache:gas:price"               // Gas price cache key
 	CacheKeyHistoricalSyncHeight  = "sync:historical:block:height"  // Historical block sync height persistence key
-	CacheKeyAccountTxPrefix       = "cache:account:txs:"             // Account transactions cache key prefix (suffix: address)
+	CacheKeyAccountTxPrefix       = "cache:account:txs:"            // Account transactions cache key prefix (suffix: address)
 	CacheTotalTTL                 = 5 * time.Minute                 // Total count cache expiration time (5 minutes)
 	CacheBlockTTL                 = 1 * time.Hour                   // Single block cache expiration time (1 hour - increased from 5 minutes)
 	CacheTransactionTTL           = 5 * time.Minute                 // Single transaction cache expiration time (5 minutes)
@@ -173,36 +173,36 @@ const (
 
 // Default sync configuration values (used when config is not provided)
 const (
-	defaultTxHashQueueKey             = "tx:hash:queue"        // Redis key name for transaction hash queue
-	defaultTxHashProcessingQueueKey   = "tx:hash:processing"   // Redis key name for transaction hash processing queue
-	defaultBlockPollInterval          = 500 * time.Millisecond // Block polling interval (0.5s)
-	defaultTxProcessInterval          = 500 * time.Millisecond // Transaction processing interval
-	defaultHistoricalSyncInterval     = 10 * time.Second       // Historical block sync interval
-	defaultHistoricalBatchDelay       = 1 * time.Second        // Delay between historical block sync batches
-	defaultBlockQueryTimeout          = 30 * time.Second       // Block query timeout
-	defaultBackwardSyncLogInterval    = 10 * time.Second       // Backward sync progress log interval
-	defaultRpcStatusRetryDelay        = 5 * time.Second        // Retry delay after RPC node status fetch failure
-	defaultConcurrentTxProcessors     = 20                     // Number of concurrent transaction processors (increased from 5 to 20 for better parallelism)
-	defaultBackwardSyncWorkers        = 10                     // Number of backward sync worker threads (increased from 5 to 10)
-	defaultHistoricalSyncWorkers      = 5                      // Number of historical sync worker threads (increased from 2 to 5)
-	defaultBackwardSyncBatchSize      = 10                     // Backward sync batch size
-	defaultHistoricalSyncBatchSize    = 5                      // Historical sync batch size
-	defaultMissingBlockCheckBatchSize = 100                    // Batch size for finding missing blocks
-	defaultBackwardSyncLogBatchSize   = 100                    // Backward sync progress log interval (every N blocks)
-	defaultTxBatchSize                = 50                     // Transaction batch size for batch processing
-	defaultMaxRetryAttempts           = 3                      // Maximum retry attempts
-	defaultRetryDelay                 = 2 * time.Second        // Initial retry delay
-	defaultEarliestBlockHeight        = uint64(1)              // Earliest block height
-	defaultEVMDetailsQueueKey         = "evm:details:queue"    // Redis key name for EVM details queue
-	defaultEVMDetailsWorkerCount      = 20                     // Number of EVM details sync workers (increased from 10 to 20 for faster sync)
-	defaultEVMDetailsBatchSize        = 50                     // EVM details batch size (increased from 10 to 50 for faster sync)
-	defaultEVMDetailsRetryDelay       = 5 * time.Second        // EVM details retry delay
-	defaultEVMDetailsMaxRetryAttempts = 3                      // Maximum retry attempts for EVM details
-	defaultEVMDetailsProcessInterval  = 100 * time.Millisecond // EVM details process interval (reduced from 2s to 100ms for faster sync)
-	defaultEVMDetailsTimeout          = 90 * time.Second       // EVM details timeout
-	defaultEVMDetailsBatchUpdateSize  = 100                    // Batch update buffer size
-	defaultEVMDetailsBatchFlushInterval = 5 * time.Second      // Batch update flush interval
-	defaultEVMDetailsRPCBatchSize     = 20                     // RPC batch size for transaction details (smaller than task batch to avoid timeout)
+	defaultTxHashQueueKey               = "tx:hash:queue"        // Redis key name for transaction hash queue
+	defaultTxHashProcessingQueueKey     = "tx:hash:processing"   // Redis key name for transaction hash processing queue
+	defaultBlockPollInterval            = 500 * time.Millisecond // Block polling interval (0.5s)
+	defaultTxProcessInterval            = 500 * time.Millisecond // Transaction processing interval
+	defaultHistoricalSyncInterval       = 10 * time.Second       // Historical block sync interval
+	defaultHistoricalBatchDelay         = 1 * time.Second        // Delay between historical block sync batches
+	defaultBlockQueryTimeout            = 30 * time.Second       // Block query timeout
+	defaultBackwardSyncLogInterval      = 10 * time.Second       // Backward sync progress log interval
+	defaultRpcStatusRetryDelay          = 5 * time.Second        // Retry delay after RPC node status fetch failure
+	defaultConcurrentTxProcessors       = 20                     // Number of concurrent transaction processors (increased from 5 to 20 for better parallelism)
+	defaultBackwardSyncWorkers          = 10                     // Number of backward sync worker threads (increased from 5 to 10)
+	defaultHistoricalSyncWorkers        = 5                      // Number of historical sync worker threads (increased from 2 to 5)
+	defaultBackwardSyncBatchSize        = 10                     // Backward sync batch size
+	defaultHistoricalSyncBatchSize      = 5                      // Historical sync batch size
+	defaultMissingBlockCheckBatchSize   = 100                    // Batch size for finding missing blocks
+	defaultBackwardSyncLogBatchSize     = 100                    // Backward sync progress log interval (every N blocks)
+	defaultTxBatchSize                  = 50                     // Transaction batch size for batch processing
+	defaultMaxRetryAttempts             = 3                      // Maximum retry attempts
+	defaultRetryDelay                   = 2 * time.Second        // Initial retry delay
+	defaultEarliestBlockHeight          = uint64(1)              // Earliest block height
+	defaultEVMDetailsQueueKey           = "evm:details:queue"    // Redis key name for EVM details queue
+	defaultEVMDetailsWorkerCount        = 20                     // Number of EVM details sync workers (increased from 10 to 20 for faster sync)
+	defaultEVMDetailsBatchSize          = 50                     // EVM details batch size (increased from 10 to 50 for faster sync)
+	defaultEVMDetailsRetryDelay         = 5 * time.Second        // EVM details retry delay
+	defaultEVMDetailsMaxRetryAttempts   = 3                      // Maximum retry attempts for EVM details
+	defaultEVMDetailsProcessInterval    = 100 * time.Millisecond // EVM details process interval (reduced from 2s to 100ms for faster sync)
+	defaultEVMDetailsTimeout            = 90 * time.Second       // EVM details timeout
+	defaultEVMDetailsBatchUpdateSize    = 100                    // Batch update buffer size
+	defaultEVMDetailsBatchFlushInterval = 5 * time.Second        // Batch update flush interval
+	defaultEVMDetailsRPCBatchSize       = 20                     // RPC batch size for transaction details (smaller than task batch to avoid timeout)
 )
 
 // Additional sync block constants
@@ -217,11 +217,11 @@ const (
 	MaxConcurrentRPCCalls = 20 // Maximum concurrent RPC calls
 
 	// Timeout constants (in seconds)
-	EVMContextTimeoutSeconds         = 10 // EVM context timeout in seconds
-	StatsContextTimeoutSeconds       = 5  // Statistics context timeout in seconds
-	CleanupContextTimeoutSeconds     = 5  // Cleanup context timeout in seconds
-	RedisContextTimeoutSeconds       = 2  // Redis context timeout in seconds
-	RedisLongContextTimeoutSeconds   = 10 // Redis long context timeout in seconds
+	EVMContextTimeoutSeconds       = 10 // EVM context timeout in seconds
+	StatsContextTimeoutSeconds     = 5  // Statistics context timeout in seconds
+	CleanupContextTimeoutSeconds   = 5  // Cleanup context timeout in seconds
+	RedisContextTimeoutSeconds     = 2  // Redis context timeout in seconds
+	RedisLongContextTimeoutSeconds = 10 // Redis long context timeout in seconds
 
 	// Retry and backoff constants
 	BalanceQueryMaxRetries        = 2 // Maximum retry attempts for balance queries
@@ -418,7 +418,7 @@ const (
 	CacheKeyArchiveTransactionPrefix = "cache:archive:tx:"
 	CacheKeyArchiveBlockPrefix       = "cache:archive:block:"
 	CacheArchiveTransactionTTL       = 30 * time.Minute // Archive transaction cache TTL (30 minutes)
-	CacheArchiveBlockTTL             = 1 * time.Hour   // Archive block cache TTL (1 hour)
+	CacheArchiveBlockTTL             = 1 * time.Hour    // Archive block cache TTL (1 hour)
 )
 
 // ============================================================================
@@ -428,11 +428,16 @@ const (
 const (
 	// Event type constants for Cosmos SDK events
 	EventCreateTokenPair = "injective.erc20.v1beta1.EventCreateTokenPair"
+	EventTypeMessage     = "message"
 
 	// Event attribute keys for EventCreateTokenPair
 	EventAttributeERC20Address = "erc20_address"
 	EventAttributeSender       = "sender"
-	EventAttributeBankDenom     = "bank_denom"
+	EventAttributeBankDenom    = "bank_denom"
+	EventAttributeAction       = "action"
+
+	// Action values for message events
+	ActionMsgCreateTokenPair = "/injective.erc20.v1beta1.MsgCreateTokenPair"
 
 	// Contract creation source metadata
 	CreationSourceMsgCreateTokenPair = "MsgCreateTokenPair"
@@ -535,9 +540,9 @@ func LoadUnifiedArchiveConfig(bc *conf.Bootstrap) *UnifiedArchiveConfig {
 		BatchSize:        DefaultArchiveBatchSize,
 		StorageThreshold: DefaultStorageThreshold,
 		Interval:         24 * time.Hour,
-		EnableCache:      true,  // Cache enabled by default
+		EnableCache:      true, // Cache enabled by default
 		CacheTTL:         CacheArchiveTransactionTTL,
-		EnableMetrics:    true,  // Metrics enabled by default
+		EnableMetrics:    true, // Metrics enabled by default
 	}
 
 	if bc == nil || bc.Archive == nil {

@@ -10,10 +10,9 @@ import (
 
 // TestExtractContractFromEventCreateTokenPair verifies that we can extract
 // contract address from EventCreateTokenPair events correctly.
-// This test uses the real transaction data from:
-// 0x70AF765A4B927BE4EF9FC63338DAE13DF5E28B26592A2EFF4167A6BE11DF2B16
+// This test uses the real transaction data format where sender is in EventCreateTokenPair.
 func TestExtractContractFromEventCreateTokenPair(t *testing.T) {
-	// Real event data from the transaction
+	// Some chain versions include sender directly in EventCreateTokenPair
 	eventJSON := `{
 		"type": "injective.erc20.v1beta1.EventCreateTokenPair",
 		"attributes": [
@@ -70,6 +69,111 @@ func TestExtractContractFromEventCreateTokenPair(t *testing.T) {
 	t.Logf("  Bank Denom: %s", bankDenom)
 }
 
+// TestExtractCreatorFromMessageEvent verifies that we can extract the creator
+// from the "message" event when EventCreateTokenPair doesn't contain a sender.
+// This matches the real on-chain data structure where sender is in a separate message event.
+func TestExtractCreatorFromMessageEvent(t *testing.T) {
+	// Real on-chain format: EventCreateTokenPair has NO sender attribute
+	tokenPairEventJSON := `{
+		"type": "injective.erc20.v1beta1.EventCreateTokenPair",
+		"attributes": [
+			{
+				"key": "bank_denom",
+				"value": "\"peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238\""
+			},
+			{
+				"key": "erc20_address",
+				"value": "\"0xC8C01C39a28688d63242Fd17F293be76Cf5f9717\""
+			},
+			{
+				"key": "msg_index",
+				"value": "0"
+			}
+		]
+	}`
+
+	// The sender is in a separate "message" event
+	messageEventJSON := `{
+		"type": "message",
+		"attributes": [
+			{
+				"key": "action",
+				"value": "/injective.erc20.v1beta1.MsgCreateTokenPair"
+			},
+			{
+				"key": "module",
+				"value": "erc20"
+			},
+			{
+				"key": "msg_index",
+				"value": "0"
+			},
+			{
+				"key": "sender",
+				"value": "0xe3c970535eb397684dc4db1c32ddeedbab566e6e"
+			}
+		]
+	}`
+
+	type eventData struct {
+		Type       string `json:"type"`
+		Attributes []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"attributes"`
+	}
+
+	var tokenPairEvent, messageEvent eventData
+	assert.NoError(t, json.Unmarshal([]byte(tokenPairEventJSON), &tokenPairEvent))
+	assert.NoError(t, json.Unmarshal([]byte(messageEventJSON), &messageEvent))
+
+	// Step 1: Extract from EventCreateTokenPair (no sender expected)
+	var contractAddress, creatorAddress, bankDenom string
+	for _, attr := range tokenPairEvent.Attributes {
+		value := strings.Trim(attr.Value, "\"")
+		switch attr.Key {
+		case "erc20_address":
+			contractAddress = value
+		case "sender":
+			creatorAddress = value
+		case "bank_denom":
+			bankDenom = value
+		}
+	}
+
+	assert.Equal(t, "0xC8C01C39a28688d63242Fd17F293be76Cf5f9717", contractAddress)
+	assert.Equal(t, "", creatorAddress, "sender should NOT be in EventCreateTokenPair in real on-chain data")
+	assert.Equal(t, "peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", bankDenom)
+
+	// Step 2: Fallback to message event to find sender
+	if creatorAddress == "" && messageEvent.Type == "message" {
+		isCreateTokenPairMsg := false
+		var sender string
+		for _, attr := range messageEvent.Attributes {
+			value := strings.Trim(attr.Value, "\"")
+			switch attr.Key {
+			case "action":
+				if value == "/injective.erc20.v1beta1.MsgCreateTokenPair" {
+					isCreateTokenPairMsg = true
+				}
+			case "sender":
+				sender = value
+			}
+		}
+		if isCreateTokenPairMsg && sender != "" {
+			creatorAddress = sender
+		}
+	}
+
+	assert.Equal(t, "0xe3c970535eb397684dc4db1c32ddeedbab566e6e", creatorAddress,
+		"creator should be resolved from message event")
+
+	t.Logf("Successfully resolved creator from message event:")
+	t.Logf("  Contract Address: %s", contractAddress)
+	t.Logf("  Creator: %s", creatorAddress)
+	t.Logf("  Bank Denom: %s", bankDenom)
+}
+
 // TestEventCreateTokenPairVariations tests different attribute orders and formats
 func TestEventCreateTokenPairVariations(t *testing.T) {
 	testCases := []struct {
@@ -80,7 +184,7 @@ func TestEventCreateTokenPairVariations(t *testing.T) {
 		expectedDenom   string
 	}{
 		{
-			name: "standard format",
+			name: "standard format with sender in event",
 			eventJSON: `{
 				"type": "injective.erc20.v1beta1.EventCreateTokenPair",
 				"attributes": [
@@ -106,6 +210,20 @@ func TestEventCreateTokenPairVariations(t *testing.T) {
 			expectedAddr:    "0xContractAddress",
 			expectedCreator: "0xSenderAddress",
 			expectedDenom:   "peggy0xDenom",
+		},
+		{
+			name: "real on-chain format - no sender in EventCreateTokenPair",
+			eventJSON: `{
+				"type": "injective.erc20.v1beta1.EventCreateTokenPair",
+				"attributes": [
+					{"key": "bank_denom", "value": "\"peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238\""},
+					{"key": "erc20_address", "value": "\"0xC8C01C39a28688d63242Fd17F293be76Cf5f9717\""},
+					{"key": "msg_index", "value": "0"}
+				]
+			}`,
+			expectedAddr:    "0xC8C01C39a28688d63242Fd17F293be76Cf5f9717",
+			expectedCreator: "",
+			expectedDenom:   "peggy0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
 		},
 		{
 			name: "missing optional fields",
