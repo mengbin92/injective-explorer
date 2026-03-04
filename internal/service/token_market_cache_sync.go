@@ -31,11 +31,11 @@ type TokenMarketCacheSyncService struct {
 
 // TokenMarketCacheSyncConfig holds configuration for the sync service.
 type TokenMarketCacheSyncConfig struct {
-	RefreshInterval    time.Duration // How often to refresh market data
-	BatchSize          int           // Number of tokens to process in one batch
-	MaxConcurrency     int           // Maximum concurrent API calls
-	CacheTTL           time.Duration // How long cached data is considered valid
-	EnabledTokens      []string      // List of token symbols to sync (empty = all)
+	RefreshInterval time.Duration // How often to refresh market data
+	BatchSize       int           // Number of tokens to process in one batch
+	MaxConcurrency  int           // Maximum concurrent API calls
+	CacheTTL        time.Duration // How long cached data is considered valid
+	EnabledTokens   []string      // List of token symbols to sync (empty = all)
 }
 
 // DefaultTokenMarketCacheSyncConfig returns default configuration.
@@ -252,6 +252,16 @@ func (s *TokenMarketCacheSyncService) updateTokenCache(symbol string, config *To
 		}
 	}
 
+	// If CoinGecko didn't provide holders count, query on-chain data
+	holdersCount := data.HoldersCount
+	if holdersCount == 0 {
+		onChainCount := getOnChainHoldersCount(symbol, config)
+		if onChainCount > 0 {
+			holdersCount = onChainCount
+			global.Logger.Debugf("Using on-chain holders count for %s: %d", symbol, holdersCount)
+		}
+	}
+
 	// Prepare cache record
 	cache := &models.TokenMarketCache{
 		TokenSymbol:           symbol,
@@ -264,7 +274,7 @@ func (s *TokenMarketCacheSyncService) updateTokenCache(symbol string, config *To
 		MarketCapUSD:          data.MarketCapUSD,
 		FullyDilutedMarketCap: data.FullyDilutedMarketCap,
 		TotalVolume24h:        data.TotalVolume24h,
-		HoldersCount:          data.HoldersCount,
+		HoldersCount:          holdersCount,
 		LastUpdated:           time.Now().Unix(),
 		DataSource:            "coingecko",
 	}
@@ -311,6 +321,54 @@ func (s *TokenMarketCacheSyncService) updateTokenCache(symbol string, config *To
 				symbol, DefaultChainID, "coingecko").
 			Updates(cache).Error
 	})
+}
+
+// getOnChainHoldersCount queries the account_balances table to count unique addresses
+// holding a non-zero balance for the given token.
+//
+// It resolves the chain denom in this order:
+//  1. ContractInfo.PeggyDenom (e.g. "peggy0x3de4027B5b0Bf278Db2D187768AC441e9B356360")
+//  2. TokenConfig.Denom (e.g. "inj", "peggy0x...")
+//  3. Returns 0 if no denom can be resolved
+func getOnChainHoldersCount(tokenSymbol string, config *TokenConfig) int64 {
+	if tokenSymbol == "" {
+		return 0
+	}
+
+	// Step 1: Try to get chain denom from ContractInfo.PeggyDenom
+	denom := ""
+	var contract models.ContractInfo
+	err := db.Get().
+		Model(&models.ContractInfo{}).
+		Where("token_symbol = ?", tokenSymbol).
+		First(&contract).Error
+	if err == nil && contract.PeggyDenom != "" {
+		denom = contract.PeggyDenom
+	}
+
+	// Step 2: Fallback to TokenConfig.Denom
+	if denom == "" && config != nil && config.Denom != "" {
+		denom = config.Denom
+	}
+
+	if denom == "" {
+		global.Logger.Debugf("no chain denom found for token %s, cannot query holders", tokenSymbol)
+		return 0
+	}
+
+	var count int64
+	err = db.Get().
+		Model(&models.AccountBalance{}).
+		Where("denom = ?", denom).
+		Where("amount != ?", "0").
+		Count(&count).Error
+
+	if err != nil {
+		global.Logger.Warnf("failed to query on-chain holders count for %s (denom=%s): %v", tokenSymbol, denom, err)
+		return 0
+	}
+
+	return count
 }
 
 // GetTokenMarketFromCache retrieves token market data from cache.
@@ -396,9 +454,9 @@ func InvalidateTokenMarketCache(ctx context.Context, tokenSymbol string) error {
 
 // TokenMarketCacheStats represents statistics about the cache.
 type TokenMarketCacheStats struct {
-	TotalTokens     int64     `json:"total_tokens"`
-	LastUpdated     time.Time `json:"last_updated"`
-	ExpiredEntries  int64     `json:"expired_entries"`
+	TotalTokens    int64     `json:"total_tokens"`
+	LastUpdated    time.Time `json:"last_updated"`
+	ExpiredEntries int64     `json:"expired_entries"`
 }
 
 // GetTokenMarketCacheStats returns statistics about the cache.

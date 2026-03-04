@@ -198,15 +198,31 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 			item.HoldersCount = marketData.HoldersCount
 		}
 
-		// Get token config for denom and decimals
-		tokenConfig := GetTokenConfigOrCreate(contract.TokenSymbol)
-		if tokenConfig != nil {
+		// Resolve denom and decimals
+		// Priority: contract.PeggyDenom (chain denom) > TokenConfig.Denom > contract address
+		if contract.PeggyDenom != "" {
+			item.Denom = contract.PeggyDenom
+			item.Decimals = int32(contract.Decimals)
+			if item.Decimals == 0 {
+				item.Decimals = 18
+			}
+		} else if tokenConfig := GetTokenConfigOrCreate(contract.TokenSymbol); tokenConfig != nil {
 			item.Denom = tokenConfig.Denom
 			item.Decimals = tokenConfig.Decimals
 		} else {
-			// Fallback: use contract address as denom and default decimals
 			item.Denom = contract.ContractAddress
 			item.Decimals = 18
+		}
+
+		// If holders count is still 0, query on-chain data directly
+		// This handles tokens without CoinGecko mapping (e.g., custom Peggy tokens)
+		if item.HoldersCount == 0 && item.Denom != "" {
+			var holdersCount int64
+			db.Get().Model(&models.AccountBalance{}).
+				Where("denom = ?", item.Denom).
+				Where("amount != ?", "0").
+				Count(&holdersCount)
+			item.HoldersCount = holdersCount
 		}
 
 		items = append(items, item)

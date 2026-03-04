@@ -32,39 +32,39 @@ const (
 // commonCoinGeckoIDMap maps common token symbols to their CoinGecko IDs.
 // This allows tokens not in config to still fetch market data using their symbol.
 var commonCoinGeckoIDMap = map[string]string{
-	"inj":    "injective-protocol",
-	"usdt":   "tether",
-	"usdc":   "usd-coin",
-	"weth":   "weth",
-	"eth":    "ethereum",
-	"btc":    "bitcoin",
-	"wbbtc":  "wrapped-bitcoin",
-	"dai":    "dai",
-	"link":   "chainlink",
-	"uni":    "uniswap",
-	"aave":   "aave",
-	"comp":   "compound-governance-token",
-	"mkr":    "maker",
-	"snx":    "havven",
-	"yfi":    "yearn-finance",
-	"crv":    "curve-dao-token",
-	"1inch":  "1inch",
-	"grt":    "the-graph",
-	"sushi":  "sushi",
-	"band":   "band-protocol",
-	"atom":   "cosmos",
-	"osmo":   "osmosis",
-	"kava":   "kava",
-	"scrt":   "secret",
-	"xprt":   "persistence",
-	"akt":    "akash-network",
-	"dvpn":   "sentinel",
-	"ion":    "ion",
-	"rowan":  "sifchain",
-	"ctk":    "certik",
-	"btsg":   "bitsong",
-	"xki":    "ki-network",
-	"umee":   "umee",
+	"inj":   "injective-protocol",
+	"usdt":  "tether",
+	"usdc":  "usd-coin",
+	"weth":  "weth",
+	"eth":   "ethereum",
+	"btc":   "bitcoin",
+	"wbbtc": "wrapped-bitcoin",
+	"dai":   "dai",
+	"link":  "chainlink",
+	"uni":   "uniswap",
+	"aave":  "aave",
+	"comp":  "compound-governance-token",
+	"mkr":   "maker",
+	"snx":   "havven",
+	"yfi":   "yearn-finance",
+	"crv":   "curve-dao-token",
+	"1inch": "1inch",
+	"grt":   "the-graph",
+	"sushi": "sushi",
+	"band":  "band-protocol",
+	"atom":  "cosmos",
+	"osmo":  "osmosis",
+	"kava":  "kava",
+	"scrt":  "secret",
+	"xprt":  "persistence",
+	"akt":   "akash-network",
+	"dvpn":  "sentinel",
+	"ion":   "ion",
+	"rowan": "sifchain",
+	"ctk":   "certik",
+	"btsg":  "bitsong",
+	"xki":   "ki-network",
+	"umee":  "umee",
 }
 
 // GetCoinGeckoIDFromSymbol attempts to get CoinGecko ID from token symbol.
@@ -903,7 +903,7 @@ func GetTokenMarketDataFromCoinGecko(ctx context.Context, tokenConfig *TokenConf
 				USD float64 `json:"usd"`
 			} `json:"current_price"`
 			PriceChange24h float64 `json:"price_change_percentage_24h"`
-			MarketCap struct {
+			MarketCap      struct {
 				USD float64 `json:"usd"`
 			} `json:"market_cap"`
 			TotalVolume struct {
@@ -1188,6 +1188,17 @@ func fetchAndMergeHoldersData(ctx context.Context, result map[string]*TokenMarke
 	}
 
 	wg.Wait()
+
+	// Final fallback: for tokens still without holders data after CoinGecko attempts,
+	// query on-chain data from the account_balances table
+	for _, symbol := range tokensNeedingHolders {
+		if result[symbol] != nil && result[symbol].HoldersCount == 0 {
+			onChainCount := getOnChainHoldersCount(symbol, tokenConfigs[symbol])
+			if onChainCount > 0 {
+				result[symbol].HoldersCount = onChainCount
+			}
+		}
+	}
 }
 
 // fetchHoldersData fetches holders count from CoinGecko and caches the result
@@ -1316,9 +1327,9 @@ func GetTokenFullMarketData(ctx context.Context, tokenConfig *TokenConfig) (*Tok
 			TotalVolume struct {
 				USD float64 `json:"usd"`
 			} `json:"total_volume"`
-			TotalSupply       *float64 `json:"total_supply"`
-			CirculatingSupply *float64 `json:"circulating_supply"`
-			MaxSupply         *float64 `json:"max_supply"`
+			TotalSupply           *float64 `json:"total_supply"`
+			CirculatingSupply     *float64 `json:"circulating_supply"`
+			MaxSupply             *float64 `json:"max_supply"`
 			FullyDilutedValuation struct {
 				USD float64 `json:"usd"`
 			} `json:"fully_diluted_valuation"`

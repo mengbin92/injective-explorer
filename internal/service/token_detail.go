@@ -25,9 +25,9 @@ import (
 
 const (
 	// Cache key constants for token detail
-	CacheKeyTokenDetail       = "token_detail:%s:%s"       // chain_id:contract_address
-	CacheKeyTokenTransfers    = "token_transfers:%s:%s:%d" // chain_id:contract_address:page
-	CacheKeyTokenHolders      = "token_holders:%s:%s:%d"   // chain_id:contract_address:page
+	CacheKeyTokenDetail       = "token_detail:%s:%s"        // chain_id:contract_address
+	CacheKeyTokenTransfers    = "token_transfers:%s:%s:%d"  // chain_id:contract_address:page
+	CacheKeyTokenHolders      = "token_holders:%s:%s:%d"    // chain_id:contract_address:page
 	CacheKeyTokenHoldersStats = "token_holders_stats:%s:%s" // chain_id:contract_address
 	CacheExpireTokenDetail    = 10 * time.Minute
 	CacheExpireTokenTransfers = 2 * time.Minute
@@ -355,8 +355,13 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 		return ErrorReply(http.StatusInternalServerError, "failed to query contract", err), err
 	}
 
-	// Use token symbol as denom (or contract address if no symbol)
-	denom := contract.TokenSymbol
+	// Use PeggyDenom (chain denom like "peggy0x...") for account_balances query
+	// account_balances.denom stores chain denom format, not token symbol
+	denom := contract.PeggyDenom
+	if denom == "" {
+		// Fallback to TokenSymbol for backward compatibility
+		denom = contract.TokenSymbol
+	}
 	if denom == "" {
 		denom = req.GetContractAddress()
 	}
@@ -410,11 +415,11 @@ func (s *TokenDetailService) GetTokenHolders(ctx context.Context, req *pb.GetTok
 	items := make([]*pb.TokenHolderInfo, 0, len(balances))
 	for i, balance := range balances {
 		holderInfo := &pb.TokenHolderInfo{
-			Rank:      int32(offset) + int32(i) + 1,
-			Address:   balance.Address,
-			Balance:   formatHolderAmountWithDenom(balance.Amount, contract.TokenSymbol),
+			Rank:       int32(offset) + int32(i) + 1,
+			Address:    balance.Address,
+			Balance:    formatHolderAmountWithDenom(balance.Amount, contract.TokenSymbol),
 			Percentage: calculateHolderPercentage(balance.Amount, totalSupply),
-			ValueUsd:  calculateHolderValueUSD(balance.Amount, tokenPrice),
+			ValueUsd:   calculateHolderValueUSD(balance.Amount, tokenPrice),
 		}
 
 		// Set label information if available
@@ -478,8 +483,13 @@ func (s *TokenDetailService) GetTokenHoldersStats(ctx context.Context, req *pb.G
 		return ErrorReply(http.StatusInternalServerError, "failed to query contract", err), err
 	}
 
-	// Use token symbol as denom (or contract address if no symbol)
-	denom := contract.TokenSymbol
+	// Use PeggyDenom (chain denom like "peggy0x...") for account_balances query
+	// account_balances.denom stores chain denom format, not token symbol
+	denom := contract.PeggyDenom
+	if denom == "" {
+		// Fallback to TokenSymbol for backward compatibility
+		denom = contract.TokenSymbol
+	}
 	if denom == "" {
 		denom = req.GetContractAddress()
 	}
