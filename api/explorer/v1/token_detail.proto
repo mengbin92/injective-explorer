@@ -51,8 +51,9 @@ service TokenDetailService {
 // GetTokenDetailRequest specifies which token to query
 message GetTokenDetailRequest {
   string contract_address = 1
-      [ json_name = "contract_address" ];         // Contract address (required)
+      [ json_name = "contract_address" ];         // Contract address (optional)
   string chain_id = 2 [ json_name = "chain_id" ]; // Chain ID (optional)
+  string denom = 3 [ json_name = "denom" ];       // Token denom (optional, e.g., "peggy0x...", "factory/...")
 }
 
 // TokenDetailResponse contains complete token information

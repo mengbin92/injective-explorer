@@ -548,7 +548,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/tokens/detail?contract_address=0x1234567890abcdef",
+              "raw": "{{base_url}}/api/v1/tokens/detail?contract_address=0x1234567890abcdef&denom=peggy0x...",
               "host": [
                 "{{base_url}}"
               ],
@@ -562,11 +562,21 @@
                 {
                   "key": "contract_address",
                   "value": "0x1234567890abcdef",
-                  "description": "Token contract address"
+                  "description": "Token contract address (optional, use instead of denom)"
+                },
+                {
+                  "key": "chain_id",
+                  "value": "1",
+                  "description": "Chain ID (optional)"
+                },
+                {
+                  "key": "denom",
+                  "value": "peggy0x...",
+                  "description": "Token denom (optional, e.g., peegy0x..., factory/...)"
                 }
               ]
             },
-            "description": "Get detailed information for a specific token by contract address."
+            "description": "Get detailed information for a specific token by contract address or denom."
           },
           "response": []
         },

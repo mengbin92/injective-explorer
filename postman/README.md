@@ -142,7 +142,8 @@ This collection focuses on API token management and basic API access testing.
 ### 9. Token Detail APIs
 - **Get Token Detail**: Get detailed information for a specific token
   - Method: `GET /api/v1/tokens/detail`
-  - Query params: `contract_address` (required), `chain_id` (optional)
+  - Query params: `contract_address` (optional), `chain_id` (optional), `denom` (optional, e.g., peegy0x..., factory/...)
+  - Note: At least one of `contract_address` or `denom` must be provided
   - Returns: basic info, overview (supply, market cap), market data, additional info
 - **Get Token Transfers**: Get transfer transactions for a token
   - Method: `GET /api/v1/tokens/transfers`
@@ -533,7 +534,11 @@ Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Get Token Detail
 ```http
+# By contract_address
 GET http://localhost:8000/api/v1/tokens/detail?contract_address=inj1...&chain_id=injective-1
+
+# By denom
+GET http://localhost:8000/api/v1/tokens/detail?denom=peggy0x...&chain_id=injective-1
 Authorization: Bearer inj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 

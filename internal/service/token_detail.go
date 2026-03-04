@@ -52,8 +52,10 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 	if err := utils.ValidateNil(req); err != nil {
 		return ErrorReply(err.Code, err.Message, err.Err), err.Err
 	}
-	if err := utils.ValidateRequiredFields("contract_address", req.GetContractAddress()); err != nil {
-		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+
+	// At least one of contract_address or denom must be provided
+	if req.GetContractAddress() == "" && req.GetDenom() == "" {
+		return ErrorReply(http.StatusBadRequest, "contract_address or denom is required", errors.New("missing required field")), errors.New("missing required field")
 	}
 
 	chainID := req.GetChainId()
@@ -61,8 +63,29 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 		chainID = DefaultChainID
 	}
 
+	// If denom is provided but not contract_address, resolve contract_address from denom
+	contractAddress := req.GetContractAddress()
+	if contractAddress == "" && req.GetDenom() != "" {
+		var contractInfo models.ContractInfo
+		err := db.Get().WithContext(ctx).
+			Where("peggy_denom = ? AND chain_id = ?", req.GetDenom(), chainID).
+			First(&contractInfo).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &pb.Reply{
+					Code:    int32(http.StatusOK),
+					Message: "contract not found",
+					Data:    nil,
+				}, nil
+			}
+			global.Logger.Errorf("failed to query contract by denom: %v", err)
+			return ErrorReply(http.StatusInternalServerError, "failed to query contract by denom", err), err
+		}
+		contractAddress = contractInfo.ContractAddress
+	}
+
 	// Try to get from cache
-	cacheKey := fmt.Sprintf(CacheKeyTokenDetail, chainID, req.GetContractAddress())
+	cacheKey := fmt.Sprintf(CacheKeyTokenDetail, chainID, contractAddress)
 	redisClient := cache.GetRedisClient()
 	if redisClient != nil {
 		cachedData, err := redisClient.Get(ctx, cacheKey).Result()
@@ -78,7 +101,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 	var contract models.ContractInfo
 	err := db.Get().WithContext(ctx).
 		Preload("Tags").
-		Where("contract_address = ? AND chain_id = ?", req.GetContractAddress(), chainID).
+		Where("contract_address = ? AND chain_id = ?", contractAddress, chainID).
 		First(&contract).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -105,7 +128,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 	var totalTransfers int64
 	db.Get().WithContext(ctx).
 		Model(&models.TokenTransfer{}).
-		Where("contract_address = ?", strings.ToLower(req.GetContractAddress())).
+		Where("contract_address = ?", strings.ToLower(contractAddress)).
 		Where("deleted_at IS NULL").
 		Count(&totalTransfers)
 

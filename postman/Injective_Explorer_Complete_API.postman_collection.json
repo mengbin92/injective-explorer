@@ -7585,7 +7585,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/tokens/detail?contract_address={{contract_address}}&chain_id={{chain_id}}",
+              "raw": "{{base_url}}/api/v1/tokens/detail?contract_address={{contract_address}}&chain_id={{chain_id}}&denom={{denom}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -7599,12 +7599,17 @@
                 {
                   "key": "contract_address",
                   "value": "{{contract_address}}",
-                  "description": "Contract address (required)"
+                  "description": "Contract address (optional, use instead of denom)"
                 },
                 {
                   "key": "chain_id",
                   "value": "{{chain_id}}",
                   "description": "Chain ID (optional)"
+                },
+                {
+                  "key": "denom",
+                  "value": "{{denom}}",
+                  "description": "Token denom (optional, e.g., peegy0x..., factory/...)"
                 }
               ]
             },
