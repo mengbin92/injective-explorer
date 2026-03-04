@@ -7298,41 +7298,52 @@ func (s *ExplorerService) GetPeggyTransactions(ctx context.Context, req *pb.GetP
 
 	// Handle type filter
 	queryDeposit := func() *gorm.DB {
-		query := db.Get().Model(&models.PeggyDepositTx{}).Where("deleted_at IS NULL")
+		query := db.Get().Model(&models.PeggyDepositTx{}).Where("peggy_deposit_txs.deleted_at IS NULL")
+
+		// Address filter: query both sender and receiver
 		if addressFilter != "" {
-			query = query.Where("sender = ?", addressFilter)
+			query = query.Where("peggy_deposit_txs.sender = ? OR peggy_deposit_txs.receiver = ?", addressFilter, addressFilter)
 		}
 		if stateFilter != "" {
-			query = query.Where("state = ?", stateFilter)
+			query = query.Where("peggy_deposit_txs.state = ?", stateFilter)
 		}
 		if eventNonceFilter > 0 {
-			query = query.Where("event_nonce = ?", eventNonceFilter)
+			query = query.Where("peggy_deposit_txs.event_nonce = ?", eventNonceFilter)
 		}
 		if startTimeFilter > 0 {
-			query = query.Where("block_timestamp >= ?", startTimeFilter)
+			query = query.Where("peggy_deposit_txs.block_timestamp >= ?", startTimeFilter)
 		}
 		if endTimeFilter > 0 {
-			query = query.Where("block_timestamp <= ?", endTimeFilter)
+			query = query.Where("peggy_deposit_txs.block_timestamp <= ?", endTimeFilter)
 		}
 		return query
 	}
 
+	// queryWithdrawal queries withdrawals with batch_nonce from peggy_batch_tx_mapping via LEFT JOIN
 	queryWithdrawal := func() *gorm.DB {
-		query := db.Get().Model(&models.PeggyWithdrawalTx{}).Where("deleted_at IS NULL")
+		query := db.Get().Model(&models.PeggyWithdrawalTx{}).
+			Select(`
+				peggy_withdrawal_txs.*,
+				COALESCE(peggy_withdrawal_txs.batch_nonce, peggy_batch_tx_mapping.batch_nonce) as batch_nonce
+			`).
+			Joins("LEFT JOIN peggy_batch_tx_mapping ON peggy_batch_tx_mapping.outgoing_tx_id = peggy_withdrawal_txs.outgoing_tx_id").
+			Where("peggy_withdrawal_txs.deleted_at IS NULL")
+
+		// Address filter: query both sender and receiver
 		if addressFilter != "" {
-			query = query.Where("sender = ?", addressFilter)
+			query = query.Where("peggy_withdrawal_txs.sender = ? OR peggy_withdrawal_txs.receiver = ?", addressFilter, addressFilter)
 		}
 		if stateFilter != "" {
-			query = query.Where("state = ?", stateFilter)
+			query = query.Where("peggy_withdrawal_txs.state = ?", stateFilter)
 		}
 		if outgoingTxIdFilter > 0 {
-			query = query.Where("outgoing_tx_id = ?", outgoingTxIdFilter)
+			query = query.Where("peggy_withdrawal_txs.outgoing_tx_id = ?", outgoingTxIdFilter)
 		}
 		if startTimeFilter > 0 {
-			query = query.Where("block_timestamp >= ?", startTimeFilter)
+			query = query.Where("peggy_withdrawal_txs.block_timestamp >= ?", startTimeFilter)
 		}
 		if endTimeFilter > 0 {
-			query = query.Where("block_timestamp <= ?", endTimeFilter)
+			query = query.Where("peggy_withdrawal_txs.block_timestamp <= ?", endTimeFilter)
 		}
 		return query
 	}
@@ -7342,11 +7353,15 @@ func (s *ExplorerService) GetPeggyTransactions(ctx context.Context, req *pb.GetP
 		if err := queryDeposit().Find(&deposits).Error; err != nil {
 			return nil, status.Error(codes.Internal, "failed to query Peggy deposits")
 		}
+		// Deduplicate deposits by event_nonce, keeping only the latest by block_timestamp
+		deposits = deduplicateDeposits(deposits)
 	}
 	if typeFilter == "" || typeFilter == "withdrawal" {
 		if err := queryWithdrawal().Find(&withdrawals).Error; err != nil {
 			return nil, status.Error(codes.Internal, "failed to query Peggy withdrawals")
 		}
+		// Enrich withdrawals with batch_nonce from peggy_batch_tx_mapping and event_nonce from related records
+		withdrawals = enrichWithdrawals(ctx, withdrawals)
 	}
 
 	// Get total count
@@ -7476,6 +7491,100 @@ func convertWithdrawalToTransactionDTO(tx *models.PeggyWithdrawalTx) *pb.PeggyTr
 		EthTxHash:           ethTxHash,
 		BlockTimestamp:      tx.BlockTimestamp,
 	}
+}
+
+// deduplicateDeposits removes duplicate deposits by event_nonce, keeping only the latest one by block_timestamp
+func deduplicateDeposits(deposits []*models.PeggyDepositTx) []*models.PeggyDepositTx {
+	if len(deposits) == 0 {
+		return deposits
+	}
+
+	// Map to keep only the latest deposit for each event_nonce
+	latestByNonce := make(map[uint64]*models.PeggyDepositTx)
+
+	for i := range deposits {
+		tx := deposits[i]
+		existing, exists := latestByNonce[tx.EventNonce]
+		if !exists || tx.BlockTimestamp > existing.BlockTimestamp {
+			latestByNonce[tx.EventNonce] = tx
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]*models.PeggyDepositTx, 0, len(latestByNonce))
+	for _, tx := range latestByNonce {
+		result = append(result, tx)
+	}
+
+	return result
+}
+
+// enrichWithdrawals fills in missing batch_nonce and event_nonce for withdrawal transactions
+// by querying peggy_batch_tx_mapping and related withdrawal records
+func enrichWithdrawals(ctx context.Context, withdrawals []*models.PeggyWithdrawalTx) []*models.PeggyWithdrawalTx {
+	if len(withdrawals) == 0 {
+		return withdrawals
+	}
+
+	// Collect all outgoing_tx_ids to query batch_tx_mapping
+	var outgoingTxIDs []uint64
+	for _, w := range withdrawals {
+		if w.OutgoingTxId > 0 {
+			outgoingTxIDs = append(outgoingTxIDs, w.OutgoingTxId)
+		}
+	}
+
+	// Query batch_tx_mapping to get batch_nonce for all outgoing_tx_ids
+	batchNonceMap := make(map[uint64]uint64)
+	if len(outgoingTxIDs) > 0 {
+		var mappings []models.PeggyBatchTxMapping
+		db.Get().WithContext(ctx).
+			Where("outgoing_tx_id IN ?", outgoingTxIDs).
+			Find(&mappings)
+		for _, m := range mappings {
+			batchNonceMap[m.OutgoingTxID] = m.BatchNonce
+		}
+	}
+
+	// Update batch_nonce and collect batch_nonces that need event_nonce enrichment
+	var batchNonces []uint64
+	for _, w := range withdrawals {
+		// If batch_nonce is 0 but we found mapping, use it
+		if w.BatchNonce == 0 {
+			if bn, ok := batchNonceMap[w.OutgoingTxId]; ok {
+				w.BatchNonce = bn
+			}
+		}
+		// Collect batch_nonces that have event_nonce = 0
+		if w.BatchNonce > 0 && w.EventNonce == 0 {
+			batchNonces = append(batchNonces, w.BatchNonce)
+		}
+	}
+
+	// Query to get max event_nonce for each batch_nonce from completed withdrawals
+	eventNonceMap := make(map[uint64]uint64)
+	if len(batchNonces) > 0 {
+		var relatedWithdrawals []models.PeggyWithdrawalTx
+		db.Get().WithContext(ctx).
+			Where("batch_nonce IN ? AND event_nonce > 0 AND deleted_at IS NULL", batchNonces).
+			Find(&relatedWithdrawals)
+		for _, w := range relatedWithdrawals {
+			if existing, ok := eventNonceMap[w.BatchNonce]; !ok || w.EventNonce > existing {
+				eventNonceMap[w.BatchNonce] = w.EventNonce
+			}
+		}
+	}
+
+	// Apply enriched data to withdrawals
+	for _, w := range withdrawals {
+		if w.EventNonce == 0 {
+			if en, ok := eventNonceMap[w.BatchNonce]; ok {
+				w.EventNonce = en
+			}
+		}
+	}
+
+	return withdrawals
 }
 
 // GetPeggyStats retrieves Peggy statistics.
