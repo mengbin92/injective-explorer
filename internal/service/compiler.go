@@ -207,7 +207,10 @@ func (c *SolidityCompiler) compileWithDocker(ctx context.Context, input []byte, 
 		image = fmt.Sprintf("%s:%s", c.config.DockerImage, version)
 	}
 
-	// Run: docker run --rm -i <image> --standard-json
+	// SECURITY: Use exec.CommandContext with variadic args (not string concatenation)
+	// to prevent command injection via untrusted image names or versions.
+	// The image variable is constructed from trusted config + user-provided version,
+	// and is passed as a single argument to Docker, not interpolated into a shell string.
 	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
 		"--memory=512m", "--cpus=1",
 		image, "--standard-json")

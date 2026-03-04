@@ -3,6 +3,7 @@ package service
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 )
 
@@ -16,6 +17,12 @@ const (
 	BytecodeMatchPartial BytecodeMatchType = "partial_match"
 	// BytecodeMatchNone indicates no match.
 	BytecodeMatchNone BytecodeMatchType = "no_match"
+
+	// MaxSolidityMetadataSize is the maximum expected size (in bytes) of the CBOR-encoded
+	// metadata section appended by the Solidity compiler. Typical metadata is ~50 bytes,
+	// but larger values can occur with extended metadata (source maps, experimental features).
+	// 200 bytes provides a generous upper bound while filtering out invalid length values.
+	MaxSolidityMetadataSize = 200
 )
 
 // CompareBytecodeResult holds the result of a bytecode comparison.
@@ -55,19 +62,28 @@ func CompareBytecode(compiledBytecode, onchainBytecode string) CompareBytecodeRe
 	}
 
 	// Try partial match: strip Solidity metadata hash from both
-	compiledStripped := stripSolidityMetadata(compiled)
-	onchainStripped := stripSolidityMetadata(onchain)
+	compiledStripped, err1 := stripSolidityMetadata(compiled)
+	onchainStripped, err2 := stripSolidityMetadata(onchain)
 
-	if compiledStripped != "" && onchainStripped != "" && compiledStripped == onchainStripped {
+	// If stripping failed for either, we can still try the comparison
+	// but only if at least one succeeded
+	if err1 == nil && err2 == nil && compiledStripped != "" && onchainStripped != "" && compiledStripped == onchainStripped {
 		return CompareBytecodeResult{
 			MatchType: BytecodeMatchPartial,
 			Message:   "bytecodes match after stripping metadata hash",
 		}
 	}
 
+	message := "bytecodes do not match"
+	if err1 != nil {
+		message = fmt.Sprintf("bytecodes do not match (compiled bytecode error: %v)", err1)
+	} else if err2 != nil {
+		message = fmt.Sprintf("bytecodes do not match (on-chain bytecode error: %v)", err2)
+	}
+
 	return CompareBytecodeResult{
 		MatchType: BytecodeMatchNone,
-		Message:   "bytecodes do not match",
+		Message:   message,
 	}
 }
 
@@ -92,43 +108,43 @@ func normalizeBytecode(bytecode string) string {
 //
 // By stripping this metadata, we can compare bytecodes compiled in different environments
 // (which may produce different metadata hashes due to different file paths etc.).
-func stripSolidityMetadata(bytecode string) string {
+func stripSolidityMetadata(bytecode string) (string, error) {
 	if len(bytecode) < 4 {
-		return bytecode
+		return bytecode, nil
 	}
 
 	// Decode to bytes for easier processing
 	data, err := hex.DecodeString(bytecode)
 	if err != nil {
-		return bytecode
+		return "", fmt.Errorf("invalid hex bytecode: %w", err)
 	}
 
 	if len(data) < 2 {
-		return bytecode
+		return bytecode, nil
 	}
 
 	// Read the last 2 bytes as the CBOR metadata length
 	metadataLength := int(data[len(data)-2])<<8 | int(data[len(data)-1])
 
-	// Validate: metadata length should be reasonable (< 100 bytes typically)
-	// and the total should not exceed the bytecode length
-	if metadataLength <= 0 || metadataLength > 200 || metadataLength+2 > len(data) {
-		return bytecode
+	// Validate: metadata length should be reasonable and the total
+	// should not exceed the bytecode length
+	if metadataLength <= 0 || metadataLength > MaxSolidityMetadataSize || metadataLength+2 > len(data) {
+		return bytecode, nil
 	}
 
 	// Check if the metadata section starts with a valid CBOR map marker
 	metadataStart := len(data) - 2 - metadataLength
 	if metadataStart < 0 || metadataStart >= len(data) {
-		return bytecode
+		return bytecode, nil
 	}
 
-	// CBOR map markers: 0xa1 (1 pair), 0xa2 (2 pairs), 0xa3 (3 pairs)
+	// CBOR map markers: 0xa1 (1 pair), 0xa2 (2 pairs), ..., 0xa5 (5 pairs)
 	marker := data[metadataStart]
 	if marker < 0xa1 || marker > 0xa5 {
-		return bytecode
+		return bytecode, nil
 	}
 
 	// Strip the metadata and length bytes
 	strippedData := data[:metadataStart]
-	return hex.EncodeToString(strippedData)
+	return hex.EncodeToString(strippedData), nil
 }

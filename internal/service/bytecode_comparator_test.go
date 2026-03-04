@@ -125,20 +125,78 @@ func TestStripSolidityMetadata(t *testing.T) {
 
 		fullBytecode := mainCode + metadata + lenHex
 
-		stripped := stripSolidityMetadata(fullBytecode)
+		stripped, err := stripSolidityMetadata(fullBytecode)
+		assert.NoError(t, err)
 		assert.Equal(t, mainCode, stripped, "metadata should be stripped, leaving only main code")
 		_ = metadataLen
 	})
 
 	t.Run("no metadata to strip", func(t *testing.T) {
 		bytecode := "608060"
-		result := stripSolidityMetadata(bytecode)
+		result, err := stripSolidityMetadata(bytecode)
+		assert.NoError(t, err)
 		assert.Equal(t, bytecode, result, "short bytecode should be returned as-is")
 	})
 
 	t.Run("empty bytecode", func(t *testing.T) {
-		result := stripSolidityMetadata("")
+		result, err := stripSolidityMetadata("")
+		assert.NoError(t, err)
 		assert.Equal(t, "", result)
+	})
+
+	t.Run("invalid hex input", func(t *testing.T) {
+		_, err := stripSolidityMetadata("zzzz_not_valid_hex")
+		assert.Error(t, err, "invalid hex should return error")
+		assert.Contains(t, err.Error(), "invalid hex bytecode")
+	})
+
+	t.Run("metadata length exceeds data", func(t *testing.T) {
+		// Construct bytecode where last 2 bytes claim a metadata length
+		// larger than the actual data (metadataLength+2 > len(data))
+		// 4 bytes of data, last 2 bytes = 0x00FF = 255 (way too large)
+		bytecode := "aabb00ff"
+		result, err := stripSolidityMetadata(bytecode)
+		assert.NoError(t, err)
+		assert.Equal(t, bytecode, result, "should return original when metadata length exceeds data")
+	})
+
+	t.Run("invalid CBOR marker (below 0xa1)", func(t *testing.T) {
+		// Build bytecode where metadata length is valid but CBOR marker is 0x90 (not a map)
+		// Main code: "6080", metadata: "90" (1 byte), length: "0001"
+		bytecode := "6080" + "90" + "0001"
+		result, err := stripSolidityMetadata(bytecode)
+		assert.NoError(t, err)
+		assert.Equal(t, bytecode, result, "should return original when CBOR marker is invalid")
+	})
+
+	t.Run("invalid CBOR marker (above 0xa5)", func(t *testing.T) {
+		// Main code: "6080", metadata: "b0" (1 byte), length: "0001"
+		bytecode := "6080" + "b0" + "0001"
+		result, err := stripSolidityMetadata(bytecode)
+		assert.NoError(t, err)
+		assert.Equal(t, bytecode, result, "should return original when CBOR marker is above 0xa5")
+	})
+
+	t.Run("zero metadata length", func(t *testing.T) {
+		// Last 2 bytes = 0x0000 (zero length)
+		bytecode := "608060405234801561001057600080fd5b500000"
+		result, err := stripSolidityMetadata(bytecode)
+		assert.NoError(t, err)
+		assert.Equal(t, bytecode, result, "should return original when metadata length is zero")
+	})
+
+	t.Run("metadata length exceeds MaxSolidityMetadataSize", func(t *testing.T) {
+		// Last 2 bytes = 0x00C9 = 201 (exceeds MaxSolidityMetadataSize of 200)
+		// Need enough data: 201 + 2 = 203 bytes minimum
+		mainCode := "6080604052348015610010"
+		padding := ""
+		for len(mainCode+padding)/2 < 201 {
+			padding += "00"
+		}
+		bytecode := mainCode + padding + "00c9"
+		result, err := stripSolidityMetadata(bytecode)
+		assert.NoError(t, err)
+		assert.Equal(t, bytecode, result, "should return original when metadata length exceeds max")
 	})
 }
 
@@ -161,4 +219,11 @@ func TestCompareBytecodePartialMatch(t *testing.T) {
 	result := CompareBytecode(bytecode1, bytecode2)
 	assert.Equal(t, BytecodeMatchPartial, result.MatchType,
 		"should be a partial match when only metadata differs: %s", result.Message)
+}
+
+// TestCompareBytecodeWithInvalidHex tests that CompareBytecode handles invalid hex gracefully.
+func TestCompareBytecodeWithInvalidHex(t *testing.T) {
+	result := CompareBytecode("not_valid_hex", "608060405234801561001057600080fd")
+	assert.Equal(t, BytecodeMatchNone, result.MatchType)
+	assert.Contains(t, result.Message, "compiled bytecode error")
 }

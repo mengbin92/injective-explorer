@@ -33,7 +33,7 @@ CREATE TABLE `account_balances` (
   KEY `idx_account_balances_deleted_at` (`deleted_at`),
   KEY `idx_account_balances_address` (`address`),
   KEY `idx_account_balances_denom` (`denom`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for address_labels
@@ -60,7 +60,7 @@ CREATE TABLE `address_labels` (
   KEY `idx_address_labels_label_value` (`label_value`),
   KEY `idx_address_labels_visible` (`visible`),
   KEY `idx_address_labels_created_by` (`created_by`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for accounts
@@ -77,7 +77,7 @@ CREATE TABLE `accounts` (
   PRIMARY KEY (`id`),
   KEY `idx_accounts_deleted_at` (`deleted_at`),
   KEY `idx_accounts_address` (`address`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for api_plans
@@ -102,7 +102,7 @@ CREATE TABLE `api_plans` (
   KEY `idx_api_plans_deleted_at` (`deleted_at`),
   KEY `idx_api_plans_plan_type` (`plan_type`),
   KEY `idx_api_plans_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Initialize Free plan data
 INSERT INTO `api_plans` (`name`, `plan_type`, `monthly_limit`, `rate_limit_per_second`, `max_tokens`, `enable_webhook`, `price`, `status`) 
@@ -139,7 +139,7 @@ CREATE TABLE `api_request_logs` (
   KEY `idx_api_logs_token_time` (`token_id`,`created_at`),
   KEY `idx_api_logs_ip_time` (`ip_address`,`created_at`),
   KEY `idx_api_logs_user_time` (`user_id`,`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for api_tokens
@@ -163,7 +163,7 @@ CREATE TABLE `api_tokens` (
   KEY `idx_api_tokens_user_id` (`user_id`),
   KEY `idx_api_tokens_plan_type` (`plan_type`),
   KEY `idx_api_tokens_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for blocks
@@ -194,7 +194,7 @@ CREATE TABLE `blocks` (
   KEY `idx_blocks_block_hash` (`block_hash`),
   KEY `idx_timestamp_desc` (`block_unix_timestamp`),
   KEY `idx_blocks_archived_timestamp` (`archived`, `block_unix_timestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for contract_infos
@@ -252,7 +252,7 @@ CREATE TABLE `contract_infos` (
   KEY `idx_contract_infos_metadata_updated_at` (`metadata_updated_at`),
   KEY `idx_contract_infos_is_peggy` (`is_peggy_token`),
   KEY `idx_contract_infos_peggy_denom` (`peggy_denom`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for contract_tags
@@ -279,7 +279,7 @@ CREATE TABLE `contract_tags` (
   KEY `idx_contract_tags_visible` (`visible`),
   KEY `idx_contract_tags_is_preset` (`is_preset`),
   KEY `idx_contract_tags_tag_definition_id` (`tag_definition_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for tag_definitions
@@ -305,7 +305,7 @@ CREATE TABLE `tag_definitions` (
   KEY `idx_tag_type` (`tag_type`),
   KEY `idx_tag_category` (`tag_category`),
   KEY `idx_is_system` (`is_system`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for address_remarks
@@ -324,7 +324,7 @@ CREATE TABLE `address_remarks` (
   UNIQUE KEY `uk_address_remark` (`chain_id`,`address`,`deleted_at`),
   KEY `idx_address_remarks_deleted_at` (`deleted_at`),
   KEY `idx_address` (`chain_id`,`address`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for global_tags
@@ -345,7 +345,7 @@ CREATE TABLE `global_tags` (
   UNIQUE KEY `uk_global_tag` (`chain_id`,`tag_type`),
   KEY `idx_global_tags_deleted_at` (`deleted_at`),
   KEY `idx_global_tags_tag_type` (`tag_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for contract_source_files
@@ -376,7 +376,7 @@ CREATE TABLE `contract_source_files` (
   KEY `idx_contract_source_files_file_hash` (`file_hash`),
   KEY `idx_contract_source_files_contract_chain` (`contract_address`, `chain_id`),
   KEY `idx_contract_source_files_contract_chain_type` (`contract_address`, `chain_id`, `file_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='合约源文件表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='合约源文件表';
 
 -- ----------------------------
 -- Table structure for contract_verifications
@@ -414,7 +414,7 @@ CREATE TABLE `contract_verifications` (
   KEY `idx_contract_verifications_status` (`verification_status`),
   KEY `idx_contract_verifications_address_chain` (`contract_address`, `chain_id`),
   KEY `idx_contract_verifications_type` (`contract_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='合约验证记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='合约验证记录表';
 
 -- ----------------------------
 -- Table structure for transaction_data_archives
@@ -434,7 +434,7 @@ CREATE TABLE `transaction_data_archives` (
   KEY `idx_transaction_data_archives_data_storage_key` (`data_storage_key`),
   KEY `idx_transaction_data_archives_messages_storage_key` (`messages_storage_key`),
   KEY `idx_transaction_data_archives_logs_storage_key` (`logs_storage_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for block_data_archives
@@ -448,7 +448,7 @@ CREATE TABLE `block_data_archives` (
   PRIMARY KEY (`block_id`),
   KEY `idx_block_data_archives_txs_storage_key` (`txs_storage_key`),
   KEY `idx_block_data_archives_archived_at` (`archived_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='区块数据归档表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='区块数据归档表';
 
 -- ----------------------------
 -- Table structure for transactions
@@ -504,7 +504,7 @@ CREATE TABLE `transactions` (
   KEY `idx_timestamp_tx_pagination` (`block_unix_timestamp` DESC,`tx_number` DESC,`id`),
   KEY `idx_signer_timestamp_tx` (`signer`,`block_unix_timestamp` DESC,`tx_number` DESC),
   KEY `idx_transactions_has_token_transfer` (`has_token_transfer`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for evm_transactions
@@ -531,7 +531,7 @@ CREATE TABLE `evm_transactions` (
   KEY `idx_evm_from_address` (`evm_from_address`),
   KEY `idx_evm_to_address` (`evm_to_address`),
   KEY `idx_evm_details_synced` (`evm_details_synced`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='EVM交易表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='EVM交易表';
 
 -- ----------------------------
 -- Table structure for token_market_cache
@@ -566,7 +566,7 @@ CREATE TABLE `token_market_cache` (
   KEY `idx_market_cap_usd` (`market_cap_usd`),
   KEY `idx_token_market_cache_high_24h` (`high_24h`),
   KEY `idx_token_market_cache_low_24h` (`low_24h`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='代币市场数据预计算表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='代币市场数据预计算表';
 
 -- ----------------------------
 -- Table structure for token_transfers
@@ -596,7 +596,7 @@ CREATE TABLE `token_transfers` (
   KEY `idx_to_address_timestamp` (`to_address`,`block_timestamp`),
   KEY `idx_block_number` (`block_number`),
   KEY `idx_method` (`method`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Token转账记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Token转账记录表';
 
 -- ----------------------------
 -- Table structure for usage_daily_stats
@@ -616,7 +616,7 @@ CREATE TABLE `usage_daily_stats` (
   UNIQUE KEY `uk_user_date` (`user_id`,`stat_date`),
   KEY `idx_usage_daily_stats_deleted_at` (`deleted_at`),
   KEY `idx_usage_daily_stats_stat_date` (`stat_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for user_usage_stats
@@ -637,7 +637,7 @@ CREATE TABLE `user_usage_stats` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_user_usage_stats_user_id` (`user_id`),
   KEY `idx_user_usage_stats_deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for webhooks
@@ -659,7 +659,7 @@ CREATE TABLE `webhooks` (
   KEY `idx_webhooks_deleted_at` (`deleted_at`),
   KEY `idx_webhooks_token_id` (`token_id`),
   KEY `idx_webhooks_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for ip_blacklist
@@ -683,7 +683,7 @@ CREATE TABLE `ip_blacklist` (
   KEY `idx_ip_blacklist_deleted_at` (`deleted_at`),
   KEY `idx_ip_blacklist_reason` (`reason`),
   KEY `idx_ip_blacklist_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for ip_registration_records
@@ -703,7 +703,7 @@ CREATE TABLE `ip_registration_records` (
   KEY `idx_ip_registration_records_ip_address` (`ip_address`),
   KEY `idx_ip_registration_records_user_id` (`user_id`),
   KEY `idx_ip_registration_records_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for email_blacklist
@@ -720,7 +720,7 @@ CREATE TABLE `email_blacklist` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_email_blacklist_domain` (`domain`),
   KEY `idx_email_blacklist_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Initialize some common disposable email domains
 INSERT INTO `email_blacklist` (`domain`, `status`, `note`) VALUES
@@ -772,7 +772,7 @@ CREATE TABLE `validators` (
   KEY `idx_validators_operator_address` (`operator_address`),
   KEY `idx_validators_status` (`status`),
   KEY `idx_validators_jailed` (`jailed`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Validator information table';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Validator information table';
 
 -- Note: block_signers table has been removed in favor of validator_block_stats (aggregated statistics table)
 -- This reduces data volume by 99.8% (100 records per period vs 50,000 records per 1000 blocks)
@@ -802,7 +802,7 @@ CREATE TABLE `validator_block_stats` (
   UNIQUE KEY `idx_validator_period` (`validator_operator_address`, `period_start_height`),
   KEY `idx_validator_stats_validator` (`validator_operator_address`),
   KEY `idx_validator_stats_period` (`period_start_height`, `period_end_height`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Validator block statistics by period (aggregated)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Validator block statistics by period (aggregated)';
 
 -- ----------------------------
 -- Table structure for onchain_prices
@@ -828,7 +828,7 @@ CREATE TABLE `onchain_prices` (
   KEY `idx_onchain_prices_market_id` (`market_id`),
   KEY `idx_onchain_prices_timestamp` (`timestamp`),
   KEY `idx_symbol_time` (`symbol`,`timestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='链上价格记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='链上价格记录表';
 
 -- ----------------------------
 -- Table structure for token_market_mappings
@@ -849,7 +849,7 @@ CREATE TABLE `token_market_mappings` (
   UNIQUE KEY `idx_token_market_mappings_denom` (`denom`),
   KEY `idx_token_market_mappings_symbol` (`symbol`),
   KEY `idx_token_market_mappings_deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='代币与市场映射表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='代币与市场映射表';
 
 
 -- ============================================================================
@@ -1044,7 +1044,7 @@ CREATE TABLE `ibc_transfer_txs` (
   KEY `idx_ibc_transfer_txs_tx_hash` (`tx_hash`),
   KEY `idx_ibc_transfer_txs_block_height` (`block_height`),
   KEY `idx_ibc_transfer_txs_block_timestamp` (`block_timestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IBC跨链转账交易表，Injective地址以EVM格式存储';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IBC跨链转账交易表，Injective地址以EVM格式存储';
 
 -- ----------------------------
 -- Table structure for peggy_deposit_txs
@@ -1078,7 +1078,7 @@ CREATE TABLE `peggy_deposit_txs` (
   KEY `idx_peggy_deposit_txs_eth_tx_hash` (`eth_tx_hash`),
   KEY `idx_peggy_deposit_txs_block_height` (`block_height`),
   KEY `idx_peggy_deposit_txs_block_timestamp` (`block_timestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链存款交易表（以太坊→Injective），地址以EVM格式存储';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Peggy跨链存款交易表（以太坊→Injective），地址以EVM格式存储';
 
 -- ----------------------------
 -- Table structure for peggy_withdrawal_txs
@@ -1117,7 +1117,7 @@ CREATE TABLE `peggy_withdrawal_txs` (
   KEY `idx_peggy_withdrawal_txs_eth_tx_hash` (`eth_tx_hash`),
   KEY `idx_peggy_withdrawal_txs_block_height` (`block_height`),
   KEY `idx_peggy_withdrawal_txs_block_timestamp` (`block_timestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy跨链提款交易表（Injective→以太坊），地址以EVM格式存储';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Peggy跨链提款交易表（Injective→以太坊），地址以EVM格式存储';
 
 -- ----------------------------
 -- Table structure for peggy_batch_tx_mapping
@@ -1140,7 +1140,7 @@ CREATE TABLE `peggy_batch_tx_mapping` (
   KEY `idx_peggy_batch_mapping_outgoing_tx_id` (`outgoing_tx_id`) COMMENT 'outgoing_tx_id 索引，用于反向查询所属 batch',
   KEY `idx_peggy_batch_mapping_block_height` (`block_height`) COMMENT '区块高度索引，用于回填和验证',
   KEY `idx_peggy_batch_tx_mapping_deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Peggy Batch → OutgoingTxIDs 映射表，用于关联 MsgSendToEth 和 MsgWithdrawClaim，支持更新用户可见记录的 EVM tx hash';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Peggy Batch → OutgoingTxIDs 映射表，用于关联 MsgSendToEth 和 MsgWithdrawClaim，支持更新用户可见记录的 EVM tx hash';
 
 -- ----------------------------
 -- Table structure for wasm_codes
@@ -1169,7 +1169,7 @@ CREATE TABLE `wasm_codes` (
   KEY `idx_wasm_codes_block_height` (`block_height`),
   KEY `idx_wasm_codes_contract_type` (`contract_type`),
   KEY `idx_wasm_codes_verified` (`verified`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Wasm code registry';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Wasm code registry';
 
 -- ----------------------------
 -- Table structure for contract_executions
@@ -1194,7 +1194,7 @@ CREATE TABLE `contract_executions` (
   KEY `idx_contract_executions_timestamp` (`unix_timestamp`),
   KEY `idx_contract_executions_success` (`success`),
   KEY `idx_contract_executions_address_time` (`contract_address`,`unix_timestamp` DESC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Contract execution records';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contract execution records';
 
 -- ----------------------------
 -- Table structure for cw20_balances
@@ -1211,7 +1211,7 @@ CREATE TABLE `cw20_balances` (
   KEY `idx_cw20_balances_contract_address` (`contract_address`),
   KEY `idx_cw20_balances_owner_address` (`owner_address`),
   KEY `idx_cw20_balances_updated_at` (`updated_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='CW20 token balances';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='CW20 token balances';
 
 -- ----------------------------
 -- Table structure for cw20_transfers
@@ -1234,7 +1234,7 @@ CREATE TABLE `cw20_transfers` (
   KEY `idx_cw20_transfers_tx_hash` (`tx_hash`),
   KEY `idx_cw20_transfers_block_height` (`block_height`),
   KEY `idx_cw20_transfers_timestamp` (`unix_timestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='CW20 transfer history';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='CW20 transfer history';
 
 -- ----------------------------
 -- Table structure for bank_transfers
@@ -1259,7 +1259,7 @@ CREATE TABLE `bank_transfers` (
   KEY `idx_bank_transfers_timestamp` (`unix_timestamp`),
   KEY `idx_bank_transfers_sender_time` (`sender`,`unix_timestamp` DESC),
   KEY `idx_bank_transfers_recipient_time` (`recipient`,`unix_timestamp` DESC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Bank transfer records';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bank transfer records';
 
 -- ----------------------------
 -- Table structure for relayers
@@ -1283,7 +1283,7 @@ CREATE TABLE `relayers` (
   KEY `idx_relayers_market_id` (`market_id`),
   KEY `idx_relayers_relayer_address` (`relayer_address`),
   KEY `idx_relayers_last_active` (`last_active_at` DESC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Relayer information';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Relayer information';
 
 SET FOREIGN_KEY_CHECKS = 1;
 
