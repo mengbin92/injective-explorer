@@ -199,18 +199,14 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		}
 
 		// Resolve denom and decimals
-		// Priority: contract.PeggyDenom (chain denom) > TokenConfig.Denom > contract address
+		// Priority: contract.PeggyDenom (chain denom) > "peggy" + contractAddress
 		if contract.PeggyDenom != "" {
 			item.Denom = contract.PeggyDenom
-			item.Decimals = int32(contract.Decimals)
-			if item.Decimals == 0 {
-				item.Decimals = 18
-			}
-		} else if tokenConfig := GetTokenConfigOrCreate(contract.TokenSymbol); tokenConfig != nil {
-			item.Denom = tokenConfig.Denom
-			item.Decimals = tokenConfig.Decimals
-		} else {
-			item.Denom = contract.ContractAddress
+		} else if contract.ContractAddress != "" {
+			item.Denom = contract.PeggyDenom
+		}
+		item.Decimals = int32(contract.Decimals)
+		if item.Decimals == 0 {
 			item.Decimals = 18
 		}
 
@@ -476,14 +472,14 @@ func (s *TokenListService) getTokensSortedFromCache(ctx context.Context, chainID
 			HoldersCount:         cache.HoldersCount,
 		}
 
-		// Get token config for denom and decimals
-		tokenConfig := GetTokenConfigOrCreate(contract.TokenSymbol)
-		if tokenConfig != nil {
-			item.Denom = tokenConfig.Denom
-			item.Decimals = tokenConfig.Decimals
-		} else {
-			// Fallback: use contract address as denom and default decimals
-			item.Denom = contract.ContractAddress
+		// Get denom and decimals
+		if contract.PeggyDenom != "" {
+			item.Denom = contract.PeggyDenom
+		} else if contract.ContractAddress != "" {
+			item.Denom = "peggy" + contract.ContractAddress
+		}
+		item.Decimals = int32(contract.Decimals)
+		if item.Decimals == 0 {
 			item.Decimals = 18
 		}
 

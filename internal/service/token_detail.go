@@ -135,6 +135,18 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 		},
 	}
 
+	// Resolve denom and decimals
+	// Priority: contract.PeggyDenom (chain denom) > "peggy" + contractAddress
+	if contract.PeggyDenom != "" {
+		response.Basic.Denom = contract.PeggyDenom
+	} else if contract.ContractAddress != "" {
+		response.Basic.Denom = "peggy" + contract.ContractAddress
+	}
+	response.Basic.Decimals = int32(contract.Decimals)
+	if response.Basic.Decimals == 0 {
+		response.Basic.Decimals = 18
+	}
+
 	// Fill market data
 	if marketData != nil {
 		response.Market.Price = formatPrice(marketData.PriceUSD)
