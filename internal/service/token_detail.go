@@ -151,7 +151,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 			Low_24H:        "-",
 		},
 		Additional: &pb.TokenAdditionalInfo{
-			TokenStandard: contract.ContractType,
+			TokenStandard: normalizeTokenStandard(contract.ContractType),
 			Decimals:      18, // Default decimals, should be fetched from contract
 			DeployDate:    formatDeploymentTime(contract.CreatedAt),
 			CreatorShort:  contract.Creator,
@@ -890,6 +890,25 @@ func formatHolderAmountWithDenom(amount, symbol string) string {
 		return fmt.Sprintf("%s %s", formatted, symbol)
 	}
 	return formatted
+}
+
+// normalizeTokenStandard converts contract type to standard format with hyphen
+// e.g., "erc20" -> "erc-20", "erc721" -> "erc-721"
+func normalizeTokenStandard(contractType string) string {
+	if contractType == "" {
+		return ""
+	}
+	// Convert known contract types to standard format with hyphen
+	switch strings.ToLower(contractType) {
+	case "erc20":
+		return "erc-20"
+	case "erc721":
+		return "erc-721"
+	case "erc1155":
+		return "erc-1155"
+	default:
+		return contractType
+	}
 }
 
 // formatTimeAgo formats a Unix timestamp to "X minutes ago" format

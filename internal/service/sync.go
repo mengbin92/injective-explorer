@@ -2945,7 +2945,7 @@ func (s *SyncService) buildContractInfo(eventData *contractEventData, txResp *gi
 
 	contractInfo := &models.ContractInfo{
 		ContractAddress: eventData.contractAddress,
-		ContractType:    "erc20",
+		ContractType:    "erc-20",
 		ChainID:         chainID,
 		Creator:         eventData.creatorAddress,
 		TxHash:          txHash,
