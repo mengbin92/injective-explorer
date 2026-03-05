@@ -124,6 +124,22 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 		}
 	}
 
+	// If no market data from CoinGecko, try to get on-chain holders count
+	var onChainHoldersCount int64
+	if marketData == nil || marketData.HoldersCount == 0 {
+		denom := contract.PeggyDenom
+		if denom == "" {
+			denom = contract.TokenSymbol
+		}
+		if denom != "" {
+			db.Get().WithContext(ctx).
+				Model(&models.AccountBalance{}).
+				Where("denom = ?", denom).
+				Where("amount != ?", "0").
+				Count(&onChainHoldersCount)
+		}
+	}
+
 	// Get total transfer count
 	var totalTransfers int64
 	db.Get().WithContext(ctx).
@@ -180,6 +196,9 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 		response.Market.Low_24H = formatPrice(marketData.Low24h)
 
 		response.Overview.MarketCap = formatLargeNumber(marketData.MarketCapUSD)
+	} else if onChainHoldersCount > 0 {
+		// Fallback: use on-chain holders count if CoinGecko data not available
+		response.Market.HoldersCount = onChainHoldersCount
 	}
 
 	// Fill supply data with full details

@@ -794,6 +794,19 @@ func LoadTokenConfigFromConf(bc *conf.Bootstrap, tokenSymbol string) (*TokenConf
 		}, nil
 	}
 
+	// Fallback: check common CoinGecko ID map for known tokens
+	lowerSymbol := strings.ToLower(tokenSymbol)
+	if coinGeckoID := GetCoinGeckoIDFromSymbol(lowerSymbol); coinGeckoID != "" {
+			return &TokenConfig{
+			Symbol:      tokenSymbol,
+			Denom:       tokenSymbol,
+			CoinGeckoID: coinGeckoID,
+			Decimals:    18, // Default to 18 decimals for unknown tokens
+			PriceSource: "coingecko",
+			DisplayName: tokenSymbol,
+		}, nil
+	}
+
 	return nil, errors.Errorf("token configuration not found for symbol: %s", tokenSymbol)
 }
 
