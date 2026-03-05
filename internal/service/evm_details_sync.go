@@ -138,6 +138,9 @@ func (s *EVMDetailsSyncService) Start() {
 	// Start batch update flusher
 	s.wg.Add(1)
 	go s.batchUpdateFlusher()
+	// Start background worker to periodically update contract totalSupply
+	s.wg.Add(1)
+	go s.periodicContractTotalSupplyUpdateWorker()
 	global.Logger.Infof("EVM details sync service started with %d workers", s.config.WorkerCount)
 }
 

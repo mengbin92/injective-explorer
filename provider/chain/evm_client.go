@@ -499,6 +499,30 @@ func (c *EVMClient) GetERC20Symbol(ctx context.Context, contractAddress string) 
 	return string(symbolBytes), nil
 }
 
+// GetERC20TotalSupply queries the totalSupply() function of an ERC20 token contract.
+// Returns the total supply as a string (decimal representation). If the query fails, returns empty string.
+func (c *EVMClient) GetERC20TotalSupply(ctx context.Context, contractAddress string) (string, error) {
+	// ERC20 totalSupply() function signature: 0x18160ddd
+	data := []byte{0x18, 0x16, 0x0d, 0xdd}
+	addr := common.HexToAddress(contractAddress)
+
+	result, err := c.client.CallContract(ctx, ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}, nil)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to query totalSupply for contract %s", contractAddress)
+	}
+
+	if len(result) == 0 {
+		return "", nil
+	}
+
+	// Decode result (uint256) - result is big-endian
+	supply := new(big.Int).SetBytes(result)
+	return supply.String(), nil
+}
+
 // GetERC20Metadata queries all metadata (name, symbol, decimals) of an ERC20 token contract.
 // Returns the metadata and any error encountered. On error, returns partial results.
 func (c *EVMClient) GetERC20Metadata(ctx context.Context, contractAddress string) (name, symbol string, decimals int, err error) {
