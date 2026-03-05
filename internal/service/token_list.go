@@ -491,6 +491,20 @@ func (s *TokenListService) getTokensSortedFromCache(ctx context.Context, chainID
 			item.Decimals = 18
 		}
 
+		// If holders count is still 0, query on-chain data directly
+		// This handles tokens without CoinGecko mapping (e.g., custom Peggy tokens)
+		if item.HoldersCount == 0 && item.Denom != "" {
+			var holdersCount int64
+			if err := db.Get().Model(&models.AccountBalance{}).
+				Where("denom = ?", item.Denom).
+				Where("amount != ?", "0").
+				Count(&holdersCount).Error; err != nil {
+				global.Logger.Warnf("failed to query holders for denom %s: %v", item.Denom, err)
+			} else {
+				item.HoldersCount = holdersCount
+			}
+		}
+
 		items = append(items, item)
 	}
 
