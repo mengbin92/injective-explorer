@@ -555,3 +555,61 @@ func (s *AdminService) BatchDeleteEmailDomains(ctx context.Context, req *pb.Batc
 
 	return MarshalAndReply(response, "failed to marshal response")
 }
+
+// CheckEmailBlacklist checks if an email address domain is in the blacklist
+// This is a public API for external services (e.g., user-service) to validate email domains
+func (s *AdminService) CheckEmailBlacklist(ctx context.Context, req *pb.CheckEmailBlacklistRequest) (*pb.Reply, error) {
+	if err := utils.ValidateNil(req); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+	if err := utils.ValidateRequiredFields("email", req.GetEmail()); err != nil {
+		return ErrorReply(err.Code, err.Message, err.Err), err.Err
+	}
+
+	email := strings.TrimSpace(req.GetEmail())
+	if email == "" {
+		return ErrorReply(http.StatusBadRequest, "email is required", nil), nil
+	}
+
+	// Extract domain from email
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return ErrorReply(http.StatusBadRequest, "invalid email format", nil), nil
+	}
+	domain := strings.ToLower(strings.TrimSpace(parts[1]))
+	if domain == "" {
+		return ErrorReply(http.StatusBadRequest, "invalid email format", nil), nil
+	}
+
+	queryCtx, queryCancel := utils.WithDBTimeout()
+	defer queryCancel()
+
+	// Check if domain is in the blacklist with active status
+	var blacklist models.EmailBlacklist
+	err := db.Get().WithContext(queryCtx).
+		Where("domain = ? AND status = ?", domain, "active").
+		First(&blacklist).Error
+
+	if err == nil {
+		// Domain is blacklisted
+		result := &pb.CheckEmailBlacklistDTO{
+			IsBlacklisted: true,
+			Domain:        domain,
+			Reason:        blacklist.Note,
+		}
+		return MarshalAndReply(result, "failed to marshal response")
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		global.Logger.Errorf("failed to check email blacklist: %v", err)
+		return ErrorReply(http.StatusInternalServerError, "failed to check email blacklist", err), err
+	}
+
+	// Domain is not blacklisted
+	result := &pb.CheckEmailBlacklistDTO{
+		IsBlacklisted: false,
+		Domain:        domain,
+		Reason:        "",
+	}
+	return MarshalAndReply(result, "failed to marshal response")
+}

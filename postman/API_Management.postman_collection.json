@@ -3207,6 +3207,65 @@
             "description": "批量删除邮箱域名"
           },
           "response": []
+        },
+        {
+          "name": "检查邮箱域名是否在黑名单中",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has is_blacklisted field\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('code');",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    if (jsonData.code === 200 && jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property('is_blacklisted');",
+                  "        pm.expect(jsonData.data).to.have.property('domain');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test@yopmail.net\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/email/check",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "public",
+                "email",
+                "check"
+              ]
+            },
+            "description": "检查邮箱域名是否在黑名单中（公开接口，供 user-service 调用）"
+          },
+          "response": []
         }
       ],
       "description": "Email blacklist management endpoints for admin"

@@ -2699,6 +2699,27 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.explorer.v1.Reply'
+    /api/v1/public/email/check:
+        post:
+            tags:
+                - AdminService
+            description: |-
+                CheckEmailBlacklist checks if an email domain is in the blacklist
+                 This is a public API for external services (e.g., user-service) to validate email domains
+            operationId: AdminService_CheckEmailBlacklist
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.explorer.v1.CheckEmailBlacklistRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.explorer.v1.Reply'
     /api/v1/relayers:
         get:
             tags:
@@ -4114,6 +4135,12 @@ components:
                     type: string
                     description: Timestamp of the update
             description: Streaming response messages
+        api.explorer.v1.CheckEmailBlacklistRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+            description: CheckEmailBlacklistRequest is the request for checking if an email is blacklisted
         api.explorer.v1.CheckHealthyResponse:
             type: object
             properties:

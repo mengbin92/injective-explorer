@@ -279,6 +279,15 @@ service AdminService {
     };
   }
 
+  // CheckEmailBlacklist checks if an email domain is in the blacklist
+  // This is a public API for external services (e.g., user-service) to validate email domains
+  rpc CheckEmailBlacklist(CheckEmailBlacklistRequest) returns (Reply) {
+    option (google.api.http) = {
+      post : "/api/v1/public/email/check"
+      body : "*"
+    };
+  }
+
   // ========== User Token Management ==========
   // ListUserTokens lists all tokens for a specific user
   rpc ListUserTokens(ListUserTokensRequest) returns (Reply) {
@@ -752,6 +761,18 @@ message BatchDeleteEmailDomainsRequest {
 
 message BatchDeleteEmailDomainsDTO {
   int64 deleted = 1; // Number of deleted items
+}
+
+// CheckEmailBlacklistRequest is the request for checking if an email is blacklisted
+message CheckEmailBlacklistRequest {
+  string email = 1 [ json_name = "email" ]; // Email address to check
+}
+
+// CheckEmailBlacklistDTO is the response for email blacklist check
+message CheckEmailBlacklistDTO {
+  bool is_blacklisted = 1 [ json_name = "is_blacklisted" ]; // Whether the email domain is blacklisted
+  string domain = 2 [ json_name = "domain" ]; // The extracted domain
+  string reason = 3 [ json_name = "reason" ]; // Reason for blacklisting (if applicable)
 }
 
 message BatchAddIPToBlacklistDTO {
