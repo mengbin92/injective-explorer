@@ -8,10 +8,10 @@
   },
   "item": [
     {
-      "name": "健康检查",
+      "name": "\u5065\u5eb7\u68c0\u67e5",
       "item": [
         {
-          "name": "健康检查",
+          "name": "\u5065\u5eb7\u68c0\u67e5",
           "event": [
             {
               "listen": "test",
@@ -51,17 +51,17 @@
                 }
               ]
             },
-            "description": "gRPC-Web健康检查接口"
+            "description": "gRPC-Web\u5065\u5eb7\u68c0\u67e5\u63a5\u53e3"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "区块接口",
+      "name": "\u533a\u5757\u63a5\u53e3",
       "item": [
         {
-          "name": "获取最新区块列表",
+          "name": "\u83b7\u53d6\u6700\u65b0\u533a\u5757\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -105,27 +105,27 @@
                 {
                   "key": "page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "cursor",
                   "value": "",
-                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
                   "disabled": true
                 }
               ]
             },
-            "description": "分页获取最新区块列表"
+            "description": "\u5206\u9875\u83b7\u53d6\u6700\u65b0\u533a\u5757\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "根据区块高度获取区块详情",
+          "name": "\u6839\u636e\u533a\u5757\u9ad8\u5ea6\u83b7\u53d6\u533a\u5757\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -166,12 +166,12 @@
                 }
               ]
             },
-            "description": "根据区块高度获取区块详情"
+            "description": "\u6839\u636e\u533a\u5757\u9ad8\u5ea6\u83b7\u53d6\u533a\u5757\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "获取区块交易列表",
+          "name": "\u83b7\u53d6\u533a\u5757\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -222,21 +222,21 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 }
               ]
             },
-            "description": "获取指定区块的交易列表（分页）"
+            "description": "\u83b7\u53d6\u6307\u5b9a\u533a\u5757\u7684\u4ea4\u6613\u5217\u8868\uff08\u5206\u9875\uff09"
           },
           "response": []
         },
         {
-          "name": "获取最新区块高度",
+          "name": "\u83b7\u53d6\u6700\u65b0\u533a\u5757\u9ad8\u5ea6",
           "event": [
             {
               "listen": "test",
@@ -279,12 +279,12 @@
                 "latest-height"
               ]
             },
-            "description": "获取最新区块高度"
+            "description": "\u83b7\u53d6\u6700\u65b0\u533a\u5757\u9ad8\u5ea6"
           },
           "response": []
         },
         {
-          "name": "获取区块Gas利用率",
+          "name": "\u83b7\u53d6\u533a\u5757Gas\u5229\u7528\u7387",
           "event": [
             {
               "listen": "test",
@@ -325,17 +325,17 @@
                 "gas-utilization"
               ]
             },
-            "description": "获取最近10个区块的Gas利用率"
+            "description": "\u83b7\u53d6\u6700\u8fd110\u4e2a\u533a\u5757\u7684Gas\u5229\u7528\u7387"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "交易接口",
+      "name": "\u4ea4\u6613\u63a5\u53e3",
       "item": [
         {
-          "name": "获取最新交易列表",
+          "name": "\u83b7\u53d6\u6700\u65b0\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -383,27 +383,27 @@
                 {
                   "key": "page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "cursor",
                   "value": "",
-                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
                   "disabled": true
                 }
               ]
             },
-            "description": "分页获取最新交易列表"
+            "description": "\u5206\u9875\u83b7\u53d6\u6700\u65b0\u4ea4\u6613\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "根据交易哈希获取交易详情",
+          "name": "\u6839\u636e\u4ea4\u6613\u54c8\u5e0c\u83b7\u53d6\u4ea4\u6613\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -489,12 +489,12 @@
                 }
               ]
             },
-            "description": "根据交易哈希获取交易详情"
+            "description": "\u6839\u636e\u4ea4\u6613\u54c8\u5e0c\u83b7\u53d6\u4ea4\u6613\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "获取交易统计",
+          "name": "\u83b7\u53d6\u4ea4\u6613\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -535,12 +535,12 @@
                 "stats"
               ]
             },
-            "description": "获取交易量统计"
+            "description": "\u83b7\u53d6\u4ea4\u6613\u91cf\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "获取24小时内失败交易列表",
+          "name": "\u83b7\u53d624\u5c0f\u65f6\u5185\u5931\u8d25\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -577,27 +577,27 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "pagination.cursor",
                   "value": "",
-                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
                   "disabled": true
                 }
               ]
             },
-            "description": "获取过去24小时内的失败交易列表（包含失败原因）"
+            "description": "\u83b7\u53d6\u8fc7\u53bb24\u5c0f\u65f6\u5185\u7684\u5931\u8d25\u4ea4\u6613\u5217\u8868\uff08\u5305\u542b\u5931\u8d25\u539f\u56e0\uff09"
           },
           "response": []
         },
         {
-          "name": "获取最近1000笔失败交易统计",
+          "name": "\u83b7\u53d6\u6700\u8fd11000\u7b14\u5931\u8d25\u4ea4\u6613\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -631,17 +631,17 @@
                 "failed-1000"
               ]
             },
-            "description": "获取最近1000笔交易的失败统计"
+            "description": "\u83b7\u53d6\u6700\u8fd11000\u7b14\u4ea4\u6613\u7684\u5931\u8d25\u7edf\u8ba1"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "跨链交易接口",
+      "name": "\u8de8\u94fe\u4ea4\u6613\u63a5\u53e3",
       "item": [
         {
-          "name": "获取IBC转账交易列表",
+          "name": "\u83b7\u53d6IBC\u8f6c\u8d26\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -720,27 +720,27 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "pagination.cursor",
                   "value": "",
-                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
                   "disabled": true
                 }
               ]
             },
-            "description": "获取IBC跨链转账交易列表，支持按发送方、接收方、源/目标通道和端口过滤"
+            "description": "\u83b7\u53d6IBC\u8de8\u94fe\u8f6c\u8d26\u4ea4\u6613\u5217\u8868\uff0c\u652f\u6301\u6309\u53d1\u9001\u65b9\u3001\u63a5\u6536\u65b9\u3001\u6e90/\u76ee\u6807\u901a\u9053\u548c\u7aef\u53e3\u8fc7\u6ee4"
           },
           "response": []
         },
         {
-          "name": "获取Peggy存款交易列表",
+          "name": "\u83b7\u53d6Peggy\u5b58\u6b3e\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -819,27 +819,27 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "pagination.cursor",
                   "value": "",
-                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
                   "disabled": true
                 }
               ]
             },
-            "description": "获取Peggy存款交易列表（Ethereum -> Injective），支持按发送方、接收方、状态、event_nonce、时间过滤"
+            "description": "\u83b7\u53d6Peggy\u5b58\u6b3e\u4ea4\u6613\u5217\u8868\uff08Ethereum -> Injective\uff09\uff0c\u652f\u6301\u6309\u53d1\u9001\u65b9\u3001\u63a5\u6536\u65b9\u3001\u72b6\u6001\u3001event_nonce\u3001\u65f6\u95f4\u8fc7\u6ee4"
           },
           "response": []
         },
         {
-          "name": "获取Peggy提款交易列表",
+          "name": "\u83b7\u53d6Peggy\u63d0\u6b3e\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -924,27 +924,27 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "pagination.cursor",
                   "value": "",
-                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
                   "disabled": true
                 }
               ]
             },
-            "description": "获取Peggy提款交易列表（Injective -> Ethereum），支持按发送方、接收方、状态、batch_nonce、时间过滤"
+            "description": "\u83b7\u53d6Peggy\u63d0\u6b3e\u4ea4\u6613\u5217\u8868\uff08Injective -> Ethereum\uff09\uff0c\u652f\u6301\u6309\u53d1\u9001\u65b9\u3001\u63a5\u6536\u65b9\u3001\u72b6\u6001\u3001batch_nonce\u3001\u65f6\u95f4\u8fc7\u6ee4"
           },
           "response": []
         },
         {
-          "name": "获取Peggy统一交易列表",
+          "name": "\u83b7\u53d6Peggy\u7edf\u4e00\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -1029,27 +1029,27 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "pagination.cursor",
                   "value": "",
-                  "description": "游标（基于游标的分页，优先级高于 page）",
+                  "description": "\u6e38\u6807\uff08\u57fa\u4e8e\u6e38\u6807\u7684\u5206\u9875\uff0c\u4f18\u5148\u7ea7\u9ad8\u4e8e page\uff09",
                   "disabled": true
                 }
               ]
             },
-            "description": "获取Peggy统一交易列表（deposit + withdrawal 混合），按 block_timestamp 倒序排列"
+            "description": "\u83b7\u53d6Peggy\u7edf\u4e00\u4ea4\u6613\u5217\u8868\uff08deposit + withdrawal \u6df7\u5408\uff09\uff0c\u6309 block_timestamp \u5012\u5e8f\u6392\u5217"
           },
           "response": []
         },
         {
-          "name": "获取Peggy统计数据",
+          "name": "\u83b7\u53d6Peggy\u7edf\u8ba1\u6570\u636e",
           "event": [
             {
               "listen": "test",
@@ -1103,17 +1103,17 @@
                 }
               ]
             },
-            "description": "获取Peggy统计数据，包括 deposits 和 withdrawals 的总数、按状态统计、以及最长的 pending 提现时间"
+            "description": "\u83b7\u53d6Peggy\u7edf\u8ba1\u6570\u636e\uff0c\u5305\u62ec deposits \u548c withdrawals \u7684\u603b\u6570\u3001\u6309\u72b6\u6001\u7edf\u8ba1\u3001\u4ee5\u53ca\u6700\u957f\u7684 pending \u63d0\u73b0\u65f6\u95f4"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "账户接口",
+      "name": "\u8d26\u6237\u63a5\u53e3",
       "item": [
         {
-          "name": "获取账户详情",
+          "name": "\u83b7\u53d6\u8d26\u6237\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -1161,12 +1161,12 @@
                 }
               ]
             },
-            "description": "获取账户详情"
+            "description": "\u83b7\u53d6\u8d26\u6237\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "获取账户交易列表",
+          "name": "\u83b7\u53d6\u8d26\u6237\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -1208,12 +1208,12 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "tx_types",
@@ -1223,12 +1223,12 @@
                 }
               ]
             },
-            "description": "获取账户交易列表（支持按类型过滤）"
+            "description": "\u83b7\u53d6\u8d26\u6237\u4ea4\u6613\u5217\u8868\uff08\u652f\u6301\u6309\u7c7b\u578b\u8fc7\u6ee4\uff09"
           },
           "response": []
         },
         {
-          "name": "获取账户余额",
+          "name": "\u83b7\u53d6\u8d26\u6237\u4f59\u989d",
           "event": [
             {
               "listen": "test",
@@ -1276,17 +1276,17 @@
                 }
               ]
             },
-            "description": "获取账户余额"
+            "description": "\u83b7\u53d6\u8d26\u6237\u4f59\u989d"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "EVM接口",
+      "name": "EVM\u63a5\u53e3",
       "item": [
         {
-          "name": "获取EVM交易详情",
+          "name": "\u83b7\u53d6EVM\u4ea4\u6613\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -1334,12 +1334,12 @@
                 }
               ]
             },
-            "description": "根据哈希获取EVM交易详情"
+            "description": "\u6839\u636e\u54c8\u5e0c\u83b7\u53d6EVM\u4ea4\u6613\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "获取EVM交易列表",
+          "name": "\u83b7\u53d6EVM\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -1391,12 +1391,12 @@
                 }
               ]
             },
-            "description": "获取EVM交易列表"
+            "description": "\u83b7\u53d6EVM\u4ea4\u6613\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "获取EVM账户交易列表",
+          "name": "\u83b7\u53d6EVM\u8d26\u6237\u4ea4\u6613\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -1454,17 +1454,17 @@
                 }
               ]
             },
-            "description": "获取EVM账户交易列表（支持0x和inj1格式）"
+            "description": "\u83b7\u53d6EVM\u8d26\u6237\u4ea4\u6613\u5217\u8868\uff08\u652f\u63010x\u548cinj1\u683c\u5f0f\uff09"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "代币价格接口",
+      "name": "\u4ee3\u5e01\u4ef7\u683c\u63a5\u53e3",
       "item": [
         {
-          "name": "获取代币价格和市值",
+          "name": "\u83b7\u53d6\u4ee3\u5e01\u4ef7\u683c\u548c\u5e02\u503c",
           "event": [
             {
               "listen": "test",
@@ -1513,17 +1513,17 @@
                 }
               ]
             },
-            "description": "获取代币价格和市值（支持多种代币）。如果未指定代币符号，则使用配置中的默认代币。"
+            "description": "\u83b7\u53d6\u4ee3\u5e01\u4ef7\u683c\u548c\u5e02\u503c\uff08\u652f\u6301\u591a\u79cd\u4ee3\u5e01\uff09\u3002\u5982\u679c\u672a\u6307\u5b9a\u4ee3\u5e01\u7b26\u53f7\uff0c\u5219\u4f7f\u7528\u914d\u7f6e\u4e2d\u7684\u9ed8\u8ba4\u4ee3\u5e01\u3002"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "链上价格接口",
+      "name": "\u94fe\u4e0a\u4ef7\u683c\u63a5\u53e3",
       "item": [
         {
-          "name": "获取链上代币价格",
+          "name": "\u83b7\u53d6\u94fe\u4e0a\u4ee3\u5e01\u4ef7\u683c",
           "event": [
             {
               "listen": "test",
@@ -1590,12 +1590,12 @@
                 }
               ]
             },
-            "description": "获取指定代币的链上价格。支持通过 symbol 或 denom 查询。优先返回链上现货市场价格。"
+            "description": "\u83b7\u53d6\u6307\u5b9a\u4ee3\u5e01\u7684\u94fe\u4e0a\u4ef7\u683c\u3002\u652f\u6301\u901a\u8fc7 symbol \u6216 denom \u67e5\u8be2\u3002\u4f18\u5148\u8fd4\u56de\u94fe\u4e0a\u73b0\u8d27\u5e02\u573a\u4ef7\u683c\u3002"
           },
           "response": []
         },
         {
-          "name": "批量获取链上代币价格",
+          "name": "\u6279\u91cf\u83b7\u53d6\u94fe\u4e0a\u4ee3\u5e01\u4ef7\u683c",
           "event": [
             {
               "listen": "test",
@@ -1660,12 +1660,12 @@
                 "batch"
               ]
             },
-            "description": "批量获取多个代币的链上价格。支持通过 symbols 或 denoms 列表查询。"
+            "description": "\u6279\u91cf\u83b7\u53d6\u591a\u4e2a\u4ee3\u5e01\u7684\u94fe\u4e0a\u4ef7\u683c\u3002\u652f\u6301\u901a\u8fc7 symbols \u6216 denoms \u5217\u8868\u67e5\u8be2\u3002"
           },
           "response": []
         },
         {
-          "name": "获取链上价格历史",
+          "name": "\u83b7\u53d6\u94fe\u4e0a\u4ef7\u683c\u5386\u53f2",
           "event": [
             {
               "listen": "test",
@@ -1743,12 +1743,12 @@
                 }
               ]
             },
-            "description": "获取指定代币的链上价格历史数据。支持时间范围查询和间隔设置。"
+            "description": "\u83b7\u53d6\u6307\u5b9a\u4ee3\u5e01\u7684\u94fe\u4e0a\u4ef7\u683c\u5386\u53f2\u6570\u636e\u3002\u652f\u6301\u65f6\u95f4\u8303\u56f4\u67e5\u8be2\u548c\u95f4\u9694\u8bbe\u7f6e\u3002"
           },
           "response": []
         },
         {
-          "name": "获取聚合价格",
+          "name": "\u83b7\u53d6\u805a\u5408\u4ef7\u683c",
           "event": [
             {
               "listen": "test",
@@ -1811,12 +1811,12 @@
                 }
               ]
             },
-            "description": "获取多个来源聚合的代币价格。支持链上价格和 CoinGecko 等外部源的聚合。"
+            "description": "\u83b7\u53d6\u591a\u4e2a\u6765\u6e90\u805a\u5408\u7684\u4ee3\u5e01\u4ef7\u683c\u3002\u652f\u6301\u94fe\u4e0a\u4ef7\u683c\u548c CoinGecko \u7b49\u5916\u90e8\u6e90\u7684\u805a\u5408\u3002"
           },
           "response": []
         },
         {
-          "name": "获取同步服务状态",
+          "name": "\u83b7\u53d6\u540c\u6b65\u670d\u52a1\u72b6\u6001",
           "event": [
             {
               "listen": "test",
@@ -1868,12 +1868,12 @@
                 "status"
               ]
             },
-            "description": "获取价格同步服务的当前状态，包括是否启用、同步间隔、正在同步的代币等。"
+            "description": "\u83b7\u53d6\u4ef7\u683c\u540c\u6b65\u670d\u52a1\u7684\u5f53\u524d\u72b6\u6001\uff0c\u5305\u62ec\u662f\u5426\u542f\u7528\u3001\u540c\u6b65\u95f4\u9694\u3001\u6b63\u5728\u540c\u6b65\u7684\u4ee3\u5e01\u7b49\u3002"
           },
           "response": []
         },
         {
-          "name": "触发手动同步",
+          "name": "\u89e6\u53d1\u624b\u52a8\u540c\u6b65",
           "event": [
             {
               "listen": "test",
@@ -1937,12 +1937,12 @@
                 "trigger"
               ]
             },
-            "description": "手动触发价格同步（仅管理员可用）。用于紧急情况下立即更新价格数据。"
+            "description": "\u624b\u52a8\u89e6\u53d1\u4ef7\u683c\u540c\u6b65\uff08\u4ec5\u7ba1\u7406\u5458\u53ef\u7528\uff09\u3002\u7528\u4e8e\u7d27\u6025\u60c5\u51b5\u4e0b\u7acb\u5373\u66f4\u65b0\u4ef7\u683c\u6570\u636e\u3002"
           },
           "response": []
         },
         {
-          "name": "获取价格数据源",
+          "name": "\u83b7\u53d6\u4ef7\u683c\u6570\u636e\u6e90",
           "event": [
             {
               "listen": "test",
@@ -1991,17 +1991,17 @@
                 "sources"
               ]
             },
-            "description": "获取所有可用的价格数据源列表，包括链上价格和外部 API 源。"
+            "description": "\u83b7\u53d6\u6240\u6709\u53ef\u7528\u7684\u4ef7\u683c\u6570\u636e\u6e90\u5217\u8868\uff0c\u5305\u62ec\u94fe\u4e0a\u4ef7\u683c\u548c\u5916\u90e8 API \u6e90\u3002"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "合约信息接口",
+      "name": "\u5408\u7ea6\u4fe1\u606f\u63a5\u53e3",
       "item": [
         {
-          "name": "创建合约信息",
+          "name": "\u521b\u5efa\u5408\u7ea6\u4fe1\u606f",
           "event": [
             {
               "listen": "test",
@@ -2048,12 +2048,12 @@
                 "info"
               ]
             },
-            "description": "创建合约信息"
+            "description": "\u521b\u5efa\u5408\u7ea6\u4fe1\u606f"
           },
           "response": []
         },
         {
-          "name": "根据地址获取合约详情",
+          "name": "\u6839\u636e\u5730\u5740\u83b7\u53d6\u5408\u7ea6\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -2100,12 +2100,12 @@
                 }
               ]
             },
-            "description": "根据地址获取合约详情"
+            "description": "\u6839\u636e\u5730\u5740\u83b7\u53d6\u5408\u7ea6\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "根据代币符号获取合约列表",
+          "name": "\u6839\u636e\u4ee3\u5e01\u7b26\u53f7\u83b7\u53d6\u5408\u7ea6\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -2159,21 +2159,21 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 }
               ]
             },
-            "description": "根据代币符号获取合约列表（支持一对多关系）。主要用于代币合约。"
+            "description": "\u6839\u636e\u4ee3\u5e01\u7b26\u53f7\u83b7\u53d6\u5408\u7ea6\u5217\u8868\uff08\u652f\u6301\u4e00\u5bf9\u591a\u5173\u7cfb\uff09\u3002\u4e3b\u8981\u7528\u4e8e\u4ee3\u5e01\u5408\u7ea6\u3002"
           },
           "response": []
         },
         {
-          "name": "获取合约信息列表",
+          "name": "\u83b7\u53d6\u5408\u7ea6\u4fe1\u606f\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -2241,21 +2241,21 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 }
               ]
             },
-            "description": "获取合约信息列表（支持多种过滤条件）"
+            "description": "\u83b7\u53d6\u5408\u7ea6\u4fe1\u606f\u5217\u8868\uff08\u652f\u6301\u591a\u79cd\u8fc7\u6ee4\u6761\u4ef6\uff09"
           },
           "response": []
         },
         {
-          "name": "编辑合约信息",
+          "name": "\u7f16\u8f91\u5408\u7ea6\u4fe1\u606f",
           "event": [
             {
               "listen": "test",
@@ -2302,12 +2302,12 @@
                 "info"
               ]
             },
-            "description": "编辑合约信息"
+            "description": "\u7f16\u8f91\u5408\u7ea6\u4fe1\u606f"
           },
           "response": []
         },
         {
-          "name": "删除合约信息",
+          "name": "\u5220\u9664\u5408\u7ea6\u4fe1\u606f",
           "event": [
             {
               "listen": "test",
@@ -2360,7 +2360,7 @@
                 }
               ]
             },
-            "description": "删除合约信息（软删除）"
+            "description": "\u5220\u9664\u5408\u7ea6\u4fe1\u606f\uff08\u8f6f\u5220\u9664\uff09"
           },
           "response": [
             {
@@ -2409,7 +2409,7 @@
           ]
         },
         {
-          "name": "添加合约标签",
+          "name": "\u6dfb\u52a0\u5408\u7ea6\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -2457,12 +2457,12 @@
                 "tag"
               ]
             },
-            "description": "添加合约标签"
+            "description": "\u6dfb\u52a0\u5408\u7ea6\u6807\u7b7e"
           },
           "response": []
         },
         {
-          "name": "添加合约标签（从预设标签选择）",
+          "name": "\u6dfb\u52a0\u5408\u7ea6\u6807\u7b7e\uff08\u4ece\u9884\u8bbe\u6807\u7b7e\u9009\u62e9\uff09",
           "event": [
             {
               "listen": "test",
@@ -2516,12 +2516,12 @@
                 "tag"
               ]
             },
-            "description": "添加合约标签（通过tag_definition_id从预设标签选择）"
+            "description": "\u6dfb\u52a0\u5408\u7ea6\u6807\u7b7e\uff08\u901a\u8fc7tag_definition_id\u4ece\u9884\u8bbe\u6807\u7b7e\u9009\u62e9\uff09"
           },
           "response": []
         },
         {
-          "name": "删除合约标签",
+          "name": "\u5220\u9664\u5408\u7ea6\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -2580,7 +2580,7 @@
                 }
               ]
             },
-            "description": "删除合约标签"
+            "description": "\u5220\u9664\u5408\u7ea6\u6807\u7b7e"
           },
           "response": [
             {
@@ -2634,7 +2634,7 @@
           ]
         },
         {
-          "name": "获取合约标签列表",
+          "name": "\u83b7\u53d6\u5408\u7ea6\u6807\u7b7e\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -2681,12 +2681,12 @@
                 }
               ]
             },
-            "description": "获取合约标签列表"
+            "description": "\u83b7\u53d6\u5408\u7ea6\u6807\u7b7e\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "导出合约信息",
+          "name": "\u5bfc\u51fa\u5408\u7ea6\u4fe1\u606f",
           "event": [
             {
               "listen": "test",
@@ -2774,7 +2774,7 @@
                 }
               ]
             },
-            "description": "导出合约信息为CSV或JSON格式"
+            "description": "\u5bfc\u51fa\u5408\u7ea6\u4fe1\u606f\u4e3aCSV\u6216JSON\u683c\u5f0f"
           },
           "response": [
             {
@@ -2824,7 +2824,7 @@
           ]
         },
         {
-          "name": "导入合约信息",
+          "name": "\u5bfc\u5165\u5408\u7ea6\u4fe1\u606f",
           "event": [
             {
               "listen": "test",
@@ -2884,7 +2884,7 @@
                 "import"
               ]
             },
-            "description": "从CSV或JSON文件导入合约信息"
+            "description": "\u4eceCSV\u6216JSON\u6587\u4ef6\u5bfc\u5165\u5408\u7ea6\u4fe1\u606f"
           },
           "response": [
             {
@@ -2937,7 +2937,7 @@
           ]
         },
         {
-          "name": "上传合约源文件",
+          "name": "\u4e0a\u4f20\u5408\u7ea6\u6e90\u6587\u4ef6",
           "event": [
             {
               "listen": "test",
@@ -2996,7 +2996,7 @@
                 "upload"
               ]
             },
-            "description": "上传合约源代码文件(.sol)和ABI文件(.json)。支持同时上传源代码和ABI，或单独上传其中一个。文件内容使用base64编码。"
+            "description": "\u4e0a\u4f20\u5408\u7ea6\u6e90\u4ee3\u7801\u6587\u4ef6(.sol)\u548cABI\u6587\u4ef6(.json)\u3002\u652f\u6301\u540c\u65f6\u4e0a\u4f20\u6e90\u4ee3\u7801\u548cABI\uff0c\u6216\u5355\u72ec\u4e0a\u4f20\u5176\u4e2d\u4e00\u4e2a\u3002\u6587\u4ef6\u5185\u5bb9\u4f7f\u7528base64\u7f16\u7801\u3002"
           },
           "response": [
             {
@@ -3192,10 +3192,10 @@
       ]
     },
     {
-      "name": "地址标签接口",
+      "name": "\u5730\u5740\u6807\u7b7e\u63a5\u53e3",
       "item": [
         {
-          "name": "创建地址标签",
+          "name": "\u521b\u5efa\u5730\u5740\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -3252,12 +3252,12 @@
                 "label"
               ]
             },
-            "description": "创建地址标签"
+            "description": "\u521b\u5efa\u5730\u5740\u6807\u7b7e"
           },
           "response": []
         },
         {
-          "name": "更新地址标签",
+          "name": "\u66f4\u65b0\u5730\u5740\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -3310,12 +3310,12 @@
                 "label"
               ]
             },
-            "description": "更新地址标签\n\n重要说明：\n- label_value（必填）：用于定位要更新的记录（基于唯一约束：chain_id + address + label_value）\n- label_type（可选）：可以更新的字段\n- label_color（可选）：可以更新的字段\n- description（可选）：可以更新的字段\n- visible（可选）：可以更新的字段\n\n示例：更新一个已存在的标签，将其 label_type 从 'exchange' 改为 'wallet'"
+            "description": "\u66f4\u65b0\u5730\u5740\u6807\u7b7e\n\n\u91cd\u8981\u8bf4\u660e\uff1a\n- label_value\uff08\u5fc5\u586b\uff09\uff1a\u7528\u4e8e\u5b9a\u4f4d\u8981\u66f4\u65b0\u7684\u8bb0\u5f55\uff08\u57fa\u4e8e\u552f\u4e00\u7ea6\u675f\uff1achain_id + address + label_value\uff09\n- label_type\uff08\u53ef\u9009\uff09\uff1a\u53ef\u4ee5\u66f4\u65b0\u7684\u5b57\u6bb5\n- label_color\uff08\u53ef\u9009\uff09\uff1a\u53ef\u4ee5\u66f4\u65b0\u7684\u5b57\u6bb5\n- description\uff08\u53ef\u9009\uff09\uff1a\u53ef\u4ee5\u66f4\u65b0\u7684\u5b57\u6bb5\n- visible\uff08\u53ef\u9009\uff09\uff1a\u53ef\u4ee5\u66f4\u65b0\u7684\u5b57\u6bb5\n\n\u793a\u4f8b\uff1a\u66f4\u65b0\u4e00\u4e2a\u5df2\u5b58\u5728\u7684\u6807\u7b7e\uff0c\u5c06\u5176 label_type \u4ece 'exchange' \u6539\u4e3a 'wallet'"
           },
           "response": []
         },
         {
-          "name": "删除地址标签",
+          "name": "\u5220\u9664\u5730\u5740\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -3373,7 +3373,7 @@
                 }
               ]
             },
-            "description": "删除地址标签（软删除）"
+            "description": "\u5220\u9664\u5730\u5740\u6807\u7b7e\uff08\u8f6f\u5220\u9664\uff09"
           },
           "response": [
             {
@@ -3426,7 +3426,7 @@
           ]
         },
         {
-          "name": "获取地址的所有标签",
+          "name": "\u83b7\u53d6\u5730\u5740\u7684\u6240\u6709\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -3481,12 +3481,12 @@
                 }
               ]
             },
-            "description": "获取地址的所有标签"
+            "description": "\u83b7\u53d6\u5730\u5740\u7684\u6240\u6709\u6807\u7b7e"
           },
           "response": []
         },
         {
-          "name": "列出地址标签（带过滤和分页）",
+          "name": "\u5217\u51fa\u5730\u5740\u6807\u7b7e\uff08\u5e26\u8fc7\u6ee4\u548c\u5206\u9875\uff09",
           "event": [
             {
               "listen": "test",
@@ -3570,12 +3570,12 @@
                 }
               ]
             },
-            "description": "列出地址标签（支持过滤条件和分页）"
+            "description": "\u5217\u51fa\u5730\u5740\u6807\u7b7e\uff08\u652f\u6301\u8fc7\u6ee4\u6761\u4ef6\u548c\u5206\u9875\uff09"
           },
           "response": []
         },
         {
-          "name": "获取地址标签统计",
+          "name": "\u83b7\u53d6\u5730\u5740\u6807\u7b7e\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -3625,36 +3625,36 @@
                 {
                   "key": "chain_id",
                   "value": "{{chain_id}}",
-                  "description": "链ID (可选)"
+                  "description": "\u94feID (\u53ef\u9009)"
                 }
               ]
             },
-            "description": "获取地址标签统计信息"
+            "description": "\u83b7\u53d6\u5730\u5740\u6807\u7b7e\u7edf\u8ba1\u4fe1\u606f"
           },
           "response": []
         },
         {
-          "name": "批量导入地址标签",
+          "name": "\u6279\u91cf\u5bfc\u5165\u5730\u5740\u6807\u7b7e",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "// 如果需要从文件读取并转换为base64，请取消下面的注释：",
+                  "// \u5982\u679c\u9700\u8981\u4ece\u6587\u4ef6\u8bfb\u53d6\u5e76\u8f6c\u6362\u4e3abase64\uff0c\u8bf7\u53d6\u6d88\u4e0b\u9762\u7684\u6ce8\u91ca\uff1a",
                   "// const fs = require('fs');",
                   "// const filePath = '/path/to/your/address_labels.csv';",
                   "// const fileContent = fs.readFileSync(filePath);",
                   "// const base64Content = fileContent.toString('base64');",
                   "// pm.variables.set('file_base64', base64Content);",
                   "// ",
-                  "// 然后在请求body中使用 {{file_base64}} 替换 file_content_base64 的值",
+                  "// \u7136\u540e\u5728\u8bf7\u6c42body\u4e2d\u4f7f\u7528 {{file_base64}} \u66ff\u6362 file_content_base64 \u7684\u503c",
                   "",
-                  "// 示例CSV内容（Full格式）：",
+                  "// \u793a\u4f8bCSV\u5185\u5bb9\uff08Full\u683c\u5f0f\uff09\uff1a",
                   "// address,label_name,label_type,label_color,description,visible,remark",
                   "// 0x1234567890abcdef,Test Label,custom,#FF5733,Test description,true,Test remark",
                   "// inj...,Another Label,official,#00FF00,Official label,true,Important address",
                   "",
-                  "// 示例CSV内容（Simple格式）：",
+                  "// \u793a\u4f8bCSV\u5185\u5bb9\uff08Simple\u683c\u5f0f\uff09\uff1a",
                   "// address,label_name,remark",
                   "// 0x1234567890abcdef,Test Label,Test remark",
                   "// inj...,Another Label,Important address"
@@ -3728,12 +3728,12 @@
                 "batch-import"
               ]
             },
-            "description": "批量导入地址标签（支持CSV/JSON）\n\n请求参数说明：\n- chain_id: 链ID（必填）\n- file_content_base64: Base64编码的文件内容（必填）\n- format: 文件格式，csv 或 json（必填）\n- import_mode: 导入模式 - create（仅创建）/update（仅更新）/upsert（创建或更新，默认推荐）\n- skip_errors: 是否跳过错误继续导入（默认false）\n- csv_format: CSV格式 - simple（地址,标签名,备注）/full（完整格式，包含所有字段）\n\nCSV Full格式示例：\naddress,label_name,label_type,label_color,description,visible,remark\n0x1234567890abcdef,Test Label,custom,#FF5733,Test description,true,Test remark\n\nCSV Simple格式示例：\naddress,label_name,remark\n0x1234567890abcdef,Test Label,Test remark\n\n如何生成file_content_base64：\n1. 在线工具: https://www.base64encode.org/\n2. 命令行: base64 < your_file.csv | tr -d '\\n'\n3. Postman Pre-request Script: 参考下面的脚本"
+            "description": "\u6279\u91cf\u5bfc\u5165\u5730\u5740\u6807\u7b7e\uff08\u652f\u6301CSV/JSON\uff09\n\n\u8bf7\u6c42\u53c2\u6570\u8bf4\u660e\uff1a\n- chain_id: \u94feID\uff08\u5fc5\u586b\uff09\n- file_content_base64: Base64\u7f16\u7801\u7684\u6587\u4ef6\u5185\u5bb9\uff08\u5fc5\u586b\uff09\n- format: \u6587\u4ef6\u683c\u5f0f\uff0ccsv \u6216 json\uff08\u5fc5\u586b\uff09\n- import_mode: \u5bfc\u5165\u6a21\u5f0f - create\uff08\u4ec5\u521b\u5efa\uff09/update\uff08\u4ec5\u66f4\u65b0\uff09/upsert\uff08\u521b\u5efa\u6216\u66f4\u65b0\uff0c\u9ed8\u8ba4\u63a8\u8350\uff09\n- skip_errors: \u662f\u5426\u8df3\u8fc7\u9519\u8bef\u7ee7\u7eed\u5bfc\u5165\uff08\u9ed8\u8ba4false\uff09\n- csv_format: CSV\u683c\u5f0f - simple\uff08\u5730\u5740,\u6807\u7b7e\u540d,\u5907\u6ce8\uff09/full\uff08\u5b8c\u6574\u683c\u5f0f\uff0c\u5305\u542b\u6240\u6709\u5b57\u6bb5\uff09\n\nCSV Full\u683c\u5f0f\u793a\u4f8b\uff1a\naddress,label_name,label_type,label_color,description,visible,remark\n0x1234567890abcdef,Test Label,custom,#FF5733,Test description,true,Test remark\n\nCSV Simple\u683c\u5f0f\u793a\u4f8b\uff1a\naddress,label_name,remark\n0x1234567890abcdef,Test Label,Test remark\n\n\u5982\u4f55\u751f\u6210file_content_base64\uff1a\n1. \u5728\u7ebf\u5de5\u5177: https://www.base64encode.org/\n2. \u547d\u4ee4\u884c: base64 < your_file.csv | tr -d '\\n'\n3. Postman Pre-request Script: \u53c2\u8003\u4e0b\u9762\u7684\u811a\u672c"
           },
           "response": []
         },
         {
-          "name": "批量导出地址标签",
+          "name": "\u6279\u91cf\u5bfc\u51fa\u5730\u5740\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -3755,7 +3755,7 @@
                   "        console.log('File Name:', jsonData.data.file_name);",
                   "        console.log('Record Count:', jsonData.data.record_count);",
                   "        ",
-                  "        // 可选：将base64解码并保存为文件",
+                  "        // \u53ef\u9009\uff1a\u5c06base64\u89e3\u7801\u5e76\u4fdd\u5b58\u4e3a\u6587\u4ef6",
                   "        // const fs = require('fs');",
                   "        // const fileContent = Buffer.from(jsonData.data.file_content_base64, 'base64');",
                   "        // fs.writeFileSync('/path/to/save/' + jsonData.data.file_name, fileContent);",
@@ -3796,17 +3796,17 @@
                 "batch-export"
               ]
             },
-            "description": "批量导出地址标签（支持CSV/JSON格式）\n\n请求参数说明：\n- chain_id: 链ID（可选，为空则导出所有链）\n- format: 导出格式，csv 或 json（必填）\n- addresses: 要导出的特定地址列表（可选，为空则导出所有地址）\n- include_hidden: 是否包含隐藏标签（可选，默认true）\n\n响应数据：\n- file_content_base64: Base64编码的文件内容\n- file_name: 文件名\n- record_count: 记录数量\n\n如何保存文件：\n1. 将file_content_base64内容复制到在线解码工具: https://www.base64decode.org/\n2. 使用命令行: echo \"base64content\" | base64 -d > output.csv\n3. 使用Postman Test脚本自动保存（参考Test标签页）"
+            "description": "\u6279\u91cf\u5bfc\u51fa\u5730\u5740\u6807\u7b7e\uff08\u652f\u6301CSV/JSON\u683c\u5f0f\uff09\n\n\u8bf7\u6c42\u53c2\u6570\u8bf4\u660e\uff1a\n- chain_id: \u94feID\uff08\u53ef\u9009\uff0c\u4e3a\u7a7a\u5219\u5bfc\u51fa\u6240\u6709\u94fe\uff09\n- format: \u5bfc\u51fa\u683c\u5f0f\uff0ccsv \u6216 json\uff08\u5fc5\u586b\uff09\n- addresses: \u8981\u5bfc\u51fa\u7684\u7279\u5b9a\u5730\u5740\u5217\u8868\uff08\u53ef\u9009\uff0c\u4e3a\u7a7a\u5219\u5bfc\u51fa\u6240\u6709\u5730\u5740\uff09\n- include_hidden: \u662f\u5426\u5305\u542b\u9690\u85cf\u6807\u7b7e\uff08\u53ef\u9009\uff0c\u9ed8\u8ba4true\uff09\n\n\u54cd\u5e94\u6570\u636e\uff1a\n- file_content_base64: Base64\u7f16\u7801\u7684\u6587\u4ef6\u5185\u5bb9\n- file_name: \u6587\u4ef6\u540d\n- record_count: \u8bb0\u5f55\u6570\u91cf\n\n\u5982\u4f55\u4fdd\u5b58\u6587\u4ef6\uff1a\n1. \u5c06file_content_base64\u5185\u5bb9\u590d\u5236\u5230\u5728\u7ebf\u89e3\u7801\u5de5\u5177: https://www.base64decode.org/\n2. \u4f7f\u7528\u547d\u4ee4\u884c: echo \"base64content\" | base64 -d > output.csv\n3. \u4f7f\u7528Postman Test\u811a\u672c\u81ea\u52a8\u4fdd\u5b58\uff08\u53c2\u8003Test\u6807\u7b7e\u9875\uff09"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "预设标签管理 (TagDefinitionService)",
+      "name": "\u9884\u8bbe\u6807\u7b7e\u7ba1\u7406 (TagDefinitionService)",
       "item": [
         {
-          "name": "列表查询标签定义",
+          "name": "\u5217\u8868\u67e5\u8be2\u6807\u7b7e\u5b9a\u4e49",
           "event": [
             {
               "listen": "test",
@@ -3852,38 +3852,38 @@
                 {
                   "key": "tag_type",
                   "value": "contract",
-                  "description": "标签类型: contract, address (可选)"
+                  "description": "\u6807\u7b7e\u7c7b\u578b: contract, address (\u53ef\u9009)"
                 },
                 {
                   "key": "tag_category",
                   "value": "",
-                  "description": "标签分类: normal, abnormal (可选)",
+                  "description": "\u6807\u7b7e\u5206\u7c7b: normal, abnormal (\u53ef\u9009)",
                   "disabled": true
                 },
                 {
                   "key": "is_system",
                   "value": "",
-                  "description": "是否系统预置 (可选)",
+                  "description": "\u662f\u5426\u7cfb\u7edf\u9884\u7f6e (\u53ef\u9009)",
                   "disabled": true
                 },
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码 (默认1)"
+                  "description": "\u9875\u7801 (\u9ed8\u8ba41)"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页数量 (默认20)"
+                  "description": "\u6bcf\u9875\u6570\u91cf (\u9ed8\u8ba420)"
                 }
               ]
             },
-            "description": "查询预设标签定义列表，支持分页和过滤"
+            "description": "\u67e5\u8be2\u9884\u8bbe\u6807\u7b7e\u5b9a\u4e49\u5217\u8868\uff0c\u652f\u6301\u5206\u9875\u548c\u8fc7\u6ee4"
           },
           "response": []
         },
         {
-          "name": "创建标签定义",
+          "name": "\u521b\u5efa\u6807\u7b7e\u5b9a\u4e49",
           "event": [
             {
               "listen": "test",
@@ -3917,7 +3917,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"tag_type\": \"contract\",\n    \"tag_name\": \"GameFi\",\n    \"tag_category\": \"normal\",\n    \"tag_color\": \"#8B5CF6\",\n    \"description\": \"GameFi相关项目\",\n    \"sort_order\": 10,\n    \"created_by\": \"admin\"\n}",
+              "raw": "{\n    \"tag_type\": \"contract\",\n    \"tag_name\": \"GameFi\",\n    \"tag_category\": \"normal\",\n    \"tag_color\": \"#8B5CF6\",\n    \"description\": \"GameFi\u76f8\u5173\u9879\u76ee\",\n    \"sort_order\": 10,\n    \"created_by\": \"admin\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3936,12 +3936,12 @@
                 "definition"
               ]
             },
-            "description": "创建新的预设标签定义"
+            "description": "\u521b\u5efa\u65b0\u7684\u9884\u8bbe\u6807\u7b7e\u5b9a\u4e49"
           },
           "response": []
         },
         {
-          "name": "更新标签定义",
+          "name": "\u66f4\u65b0\u6807\u7b7e\u5b9a\u4e49",
           "event": [
             {
               "listen": "test",
@@ -3971,7 +3971,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": 1,\n    \"tag_name\": \"官方更新\",\n    \"tag_color\": \"#52c41a\",\n    \"description\": \"官方项目标签（已更新）\"\n}",
+              "raw": "{\n    \"id\": 1,\n    \"tag_name\": \"\u5b98\u65b9\u66f4\u65b0\",\n    \"tag_color\": \"#52c41a\",\n    \"description\": \"\u5b98\u65b9\u9879\u76ee\u6807\u7b7e\uff08\u5df2\u66f4\u65b0\uff09\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3990,12 +3990,12 @@
                 "definition"
               ]
             },
-            "description": "更新预设标签定义（只能更新用户创建的标签）"
+            "description": "\u66f4\u65b0\u9884\u8bbe\u6807\u7b7e\u5b9a\u4e49\uff08\u53ea\u80fd\u66f4\u65b0\u7528\u6237\u521b\u5efa\u7684\u6807\u7b7e\uff09"
           },
           "response": []
         },
         {
-          "name": "删除标签定义",
+          "name": "\u5220\u9664\u6807\u7b7e\u5b9a\u4e49",
           "event": [
             {
               "listen": "test",
@@ -4032,16 +4032,16 @@
                 {
                   "key": "id",
                   "value": "1",
-                  "description": "标签定义ID"
+                  "description": "\u6807\u7b7e\u5b9a\u4e49ID"
                 }
               ]
             },
-            "description": "删除预设标签定义（软删除）"
+            "description": "\u5220\u9664\u9884\u8bbe\u6807\u7b7e\u5b9a\u4e49\uff08\u8f6f\u5220\u9664\uff09"
           },
           "response": []
         },
         {
-          "name": "获取标签使用统计",
+          "name": "\u83b7\u53d6\u6807\u7b7e\u4f7f\u7528\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -4087,16 +4087,16 @@
                 {
                   "key": "tag_type",
                   "value": "contract",
-                  "description": "标签类型 (可选)"
+                  "description": "\u6807\u7b7e\u7c7b\u578b (\u53ef\u9009)"
                 }
               ]
             },
-            "description": "获取标签使用统计"
+            "description": "\u83b7\u53d6\u6807\u7b7e\u4f7f\u7528\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "获取可选标签列表（前端选择器）",
+          "name": "\u83b7\u53d6\u53ef\u9009\u6807\u7b7e\u5217\u8868\uff08\u524d\u7aef\u9009\u62e9\u5668\uff09",
           "event": [
             {
               "listen": "test",
@@ -4143,21 +4143,21 @@
                 {
                   "key": "tag_type",
                   "value": "contract",
-                  "description": "标签类型: contract, address"
+                  "description": "\u6807\u7b7e\u7c7b\u578b: contract, address"
                 }
               ]
             },
-            "description": "获取可选标签列表（用于前端下拉框）"
+            "description": "\u83b7\u53d6\u53ef\u9009\u6807\u7b7e\u5217\u8868\uff08\u7528\u4e8e\u524d\u7aef\u4e0b\u62c9\u6846\uff09"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "地址备注管理 (AddressRemarkService)",
+      "name": "\u5730\u5740\u5907\u6ce8\u7ba1\u7406 (AddressRemarkService)",
       "item": [
         {
-          "name": "设置/更新地址备注",
+          "name": "\u8bbe\u7f6e/\u66f4\u65b0\u5730\u5740\u5907\u6ce8",
           "event": [
             {
               "listen": "test",
@@ -4187,7 +4187,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"remark\": \"主要充值地址，日交易量大，需要重点关注\",\n    \"created_by\": \"admin\"\n}",
+              "raw": "{\n    \"address\": \"{{account_address}}\",\n    \"chain_id\": \"{{chain_id}}\",\n    \"remark\": \"\u4e3b\u8981\u5145\u503c\u5730\u5740\uff0c\u65e5\u4ea4\u6613\u91cf\u5927\uff0c\u9700\u8981\u91cd\u70b9\u5173\u6ce8\",\n    \"created_by\": \"admin\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4206,12 +4206,12 @@
                 "remark"
               ]
             },
-            "description": "设置或更新地址备注"
+            "description": "\u8bbe\u7f6e\u6216\u66f4\u65b0\u5730\u5740\u5907\u6ce8"
           },
           "response": []
         },
         {
-          "name": "获取地址备注",
+          "name": "\u83b7\u53d6\u5730\u5740\u5907\u6ce8",
           "event": [
             {
               "listen": "test",
@@ -4261,12 +4261,12 @@
                 }
               ]
             },
-            "description": "获取地址备注"
+            "description": "\u83b7\u53d6\u5730\u5740\u5907\u6ce8"
           },
           "response": []
         },
         {
-          "name": "删除地址备注",
+          "name": "\u5220\u9664\u5730\u5740\u5907\u6ce8",
           "event": [
             {
               "listen": "test",
@@ -4310,17 +4310,17 @@
                 }
               ]
             },
-            "description": "删除地址备注（软删除）"
+            "description": "\u5220\u9664\u5730\u5740\u5907\u6ce8\uff08\u8f6f\u5220\u9664\uff09"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "API令牌管理",
+      "name": "API\u4ee4\u724c\u7ba1\u7406",
       "item": [
         {
-          "name": "创建API令牌",
+          "name": "\u521b\u5efaAPI\u4ee4\u724c",
           "event": [
             {
               "listen": "test",
@@ -4386,12 +4386,12 @@
                 "tokens"
               ]
             },
-            "description": "创建API令牌。完整令牌仅在响应中显示一次。"
+            "description": "\u521b\u5efaAPI\u4ee4\u724c\u3002\u5b8c\u6574\u4ee4\u724c\u4ec5\u5728\u54cd\u5e94\u4e2d\u663e\u793a\u4e00\u6b21\u3002"
           },
           "response": []
         },
         {
-          "name": "获取API令牌列表",
+          "name": "\u83b7\u53d6API\u4ee4\u724c\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -4439,12 +4439,12 @@
                 "tokens"
               ]
             },
-            "description": "获取已认证用户的所有API令牌列表"
+            "description": "\u83b7\u53d6\u5df2\u8ba4\u8bc1\u7528\u6237\u7684\u6240\u6709API\u4ee4\u724c\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "获取令牌使用详情",
+          "name": "\u83b7\u53d6\u4ee4\u724c\u4f7f\u7528\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -4494,12 +4494,12 @@
                 "usage"
               ]
             },
-            "description": "获取指定令牌的使用详情"
+            "description": "\u83b7\u53d6\u6307\u5b9a\u4ee4\u724c\u7684\u4f7f\u7528\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "删除API令牌",
+          "name": "\u5220\u9664API\u4ee4\u724c",
           "event": [
             {
               "listen": "test",
@@ -4553,7 +4553,7 @@
                 }
               ]
             },
-            "description": "删除API令牌。只能删除属于已认证用户的令牌。"
+            "description": "\u5220\u9664API\u4ee4\u724c\u3002\u53ea\u80fd\u5220\u9664\u5c5e\u4e8e\u5df2\u8ba4\u8bc1\u7528\u6237\u7684\u4ee4\u724c\u3002"
           },
           "response": []
         }
@@ -4561,10 +4561,10 @@
       "description": "Token management endpoints require X-User-ID header for authentication."
     },
     {
-      "name": "流式接口",
+      "name": "\u6d41\u5f0f\u63a5\u53e3",
       "item": [
         {
-          "name": "流式获取最新区块",
+          "name": "\u6d41\u5f0f\u83b7\u53d6\u6700\u65b0\u533a\u5757",
           "request": {
             "method": "GET",
             "header": [
@@ -4592,12 +4592,12 @@
                 }
               ]
             },
-            "description": "流式获取最新区块（当区块添加到链上时）。注意：这是一个流式接口，在Postman中可能无法正常工作。请使用合适的流式客户端进行测试。"
+            "description": "\u6d41\u5f0f\u83b7\u53d6\u6700\u65b0\u533a\u5757\uff08\u5f53\u533a\u5757\u6dfb\u52a0\u5230\u94fe\u4e0a\u65f6\uff09\u3002\u6ce8\u610f\uff1a\u8fd9\u662f\u4e00\u4e2a\u6d41\u5f0f\u63a5\u53e3\uff0c\u5728Postman\u4e2d\u53ef\u80fd\u65e0\u6cd5\u6b63\u5e38\u5de5\u4f5c\u3002\u8bf7\u4f7f\u7528\u5408\u9002\u7684\u6d41\u5f0f\u5ba2\u6237\u7aef\u8fdb\u884c\u6d4b\u8bd5\u3002"
           },
           "response": []
         },
         {
-          "name": "流式获取最新交易",
+          "name": "\u6d41\u5f0f\u83b7\u53d6\u6700\u65b0\u4ea4\u6613",
           "request": {
             "method": "GET",
             "header": [
@@ -4626,12 +4626,12 @@
                 }
               ]
             },
-            "description": "流式获取最新交易（当交易添加到链上时）。注意：这是一个流式接口，在Postman中可能无法正常工作。请使用合适的流式客户端进行测试。"
+            "description": "\u6d41\u5f0f\u83b7\u53d6\u6700\u65b0\u4ea4\u6613\uff08\u5f53\u4ea4\u6613\u6dfb\u52a0\u5230\u94fe\u4e0a\u65f6\uff09\u3002\u6ce8\u610f\uff1a\u8fd9\u662f\u4e00\u4e2a\u6d41\u5f0f\u63a5\u53e3\uff0c\u5728Postman\u4e2d\u53ef\u80fd\u65e0\u6cd5\u6b63\u5e38\u5de5\u4f5c\u3002\u8bf7\u4f7f\u7528\u5408\u9002\u7684\u6d41\u5f0f\u5ba2\u6237\u7aef\u8fdb\u884c\u6d4b\u8bd5\u3002"
           },
           "response": []
         },
         {
-          "name": "流式获取账户更新",
+          "name": "\u6d41\u5f0f\u83b7\u53d6\u8d26\u6237\u66f4\u65b0",
           "request": {
             "method": "GET",
             "header": [
@@ -4664,7 +4664,7 @@
                 }
               ]
             },
-            "description": "流式获取账户更新（余额变化、新交易等）。注意：这是一个流式接口，在Postman中可能无法正常工作。请使用合适的流式客户端进行测试。"
+            "description": "\u6d41\u5f0f\u83b7\u53d6\u8d26\u6237\u66f4\u65b0\uff08\u4f59\u989d\u53d8\u5316\u3001\u65b0\u4ea4\u6613\u7b49\uff09\u3002\u6ce8\u610f\uff1a\u8fd9\u662f\u4e00\u4e2a\u6d41\u5f0f\u63a5\u53e3\uff0c\u5728Postman\u4e2d\u53ef\u80fd\u65e0\u6cd5\u6b63\u5e38\u5de5\u4f5c\u3002\u8bf7\u4f7f\u7528\u5408\u9002\u7684\u6d41\u5f0f\u5ba2\u6237\u7aef\u8fdb\u884c\u6d4b\u8bd5\u3002"
           },
           "response": []
         }
@@ -4672,10 +4672,10 @@
       "description": "Streaming RPCs for real-time updates. Note: These endpoints use server-sent events (SSE) or similar streaming protocols and may not work properly in Postman. Use a proper streaming client or browser for testing."
     },
     {
-      "name": "API令牌管理（扩展）",
+      "name": "API\u4ee4\u724c\u7ba1\u7406\uff08\u6269\u5c55\uff09",
       "item": [
         {
-          "name": "获取仪表盘统计",
+          "name": "\u83b7\u53d6\u4eea\u8868\u76d8\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -4724,12 +4724,12 @@
                 }
               ]
             },
-            "description": "获取用户仪表盘统计"
+            "description": "\u83b7\u53d6\u7528\u6237\u4eea\u8868\u76d8\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "导出使用日志",
+          "name": "\u5bfc\u51fa\u4f7f\u7528\u65e5\u5fd7",
           "event": [
             {
               "listen": "test",
@@ -4780,7 +4780,7 @@
                 }
               ]
             },
-            "description": "导出使用日志为CSV格式（在JSON响应中返回CSV数据）"
+            "description": "\u5bfc\u51fa\u4f7f\u7528\u65e5\u5fd7\u4e3aCSV\u683c\u5f0f\uff08\u5728JSON\u54cd\u5e94\u4e2d\u8fd4\u56deCSV\u6570\u636e\uff09"
           },
           "response": []
         }
@@ -5116,10 +5116,10 @@
       "description": "Admin endpoints for managing token market data cache, including high_24h and low_24h fields for 24-hour price range tracking."
     },
     {
-      "name": "Webhook接口",
+      "name": "Webhook\u63a5\u53e3",
       "item": [
         {
-          "name": "创建Webhook",
+          "name": "\u521b\u5efaWebhook",
           "event": [
             {
               "listen": "test",
@@ -5174,12 +5174,12 @@
                 "webhooks"
               ]
             },
-            "description": "创建Webhook配置（仅限付费令牌）"
+            "description": "\u521b\u5efaWebhook\u914d\u7f6e\uff08\u4ec5\u9650\u4ed8\u8d39\u4ee4\u724c\uff09"
           },
           "response": []
         },
         {
-          "name": "获取Webhook列表",
+          "name": "\u83b7\u53d6Webhook\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -5221,12 +5221,12 @@
                 "webhooks"
               ]
             },
-            "description": "获取Webhook列表"
+            "description": "\u83b7\u53d6Webhook\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "编辑Webhook",
+          "name": "\u7f16\u8f91Webhook",
           "event": [
             {
               "listen": "test",
@@ -5273,12 +5273,12 @@
                 "webhooks"
               ]
             },
-            "description": "编辑Webhook配置"
+            "description": "\u7f16\u8f91Webhook\u914d\u7f6e"
           },
           "response": []
         },
         {
-          "name": "删除Webhook",
+          "name": "\u5220\u9664Webhook",
           "event": [
             {
               "listen": "test",
@@ -5319,7 +5319,7 @@
                 }
               ]
             },
-            "description": "删除Webhook"
+            "description": "\u5220\u9664Webhook"
           },
           "response": []
         }
@@ -5327,10 +5327,10 @@
       "description": "Webhook management endpoints (for paid tokens only). Reserved for future implementation."
     },
     {
-      "name": "管理接口 - 套餐管理",
+      "name": "\u7ba1\u7406\u63a5\u53e3 - \u5957\u9910\u7ba1\u7406",
       "item": [
         {
-          "name": "获取套餐详情",
+          "name": "\u83b7\u53d6\u5957\u9910\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -5371,12 +5371,12 @@
                 }
               ]
             },
-            "description": "根据ID获取套餐详情"
+            "description": "\u6839\u636eID\u83b7\u53d6\u5957\u9910\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "获取套餐列表",
+          "name": "\u83b7\u53d6\u5957\u9910\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -5413,12 +5413,12 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "plan_type",
@@ -5434,12 +5434,12 @@
                 }
               ]
             },
-            "description": "获取套餐列表"
+            "description": "\u83b7\u53d6\u5957\u9910\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "创建套餐",
+          "name": "\u521b\u5efa\u5957\u9910",
           "event": [
             {
               "listen": "test",
@@ -5506,12 +5506,12 @@
                 "plans"
               ]
             },
-            "description": "创建套餐。必填字段：name（唯一）、plan_type（free/paid）、monthly_limit、rate_limit_per_second、max_tokens。可选字段：description、enable_webhook（默认：false）、price（默认：0.00）、status（默认：active）。"
+            "description": "\u521b\u5efa\u5957\u9910\u3002\u5fc5\u586b\u5b57\u6bb5\uff1aname\uff08\u552f\u4e00\uff09\u3001plan_type\uff08free/paid\uff09\u3001monthly_limit\u3001rate_limit_per_second\u3001max_tokens\u3002\u53ef\u9009\u5b57\u6bb5\uff1adescription\u3001enable_webhook\uff08\u9ed8\u8ba4\uff1afalse\uff09\u3001price\uff08\u9ed8\u8ba4\uff1a0.00\uff09\u3001status\uff08\u9ed8\u8ba4\uff1aactive\uff09\u3002"
           },
           "response": []
         },
         {
-          "name": "编辑套餐",
+          "name": "\u7f16\u8f91\u5957\u9910",
           "event": [
             {
               "listen": "test",
@@ -5539,7 +5539,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": 1,\n    \"description\": \"更新后的套餐描述\",\n    \"monthly_limit\": 100000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5,\n    \"price\": 99.99,\n    \"status\": \"active\",\n    \"enable_webhook\": true\n}",
+              "raw": "{\n    \"id\": 1,\n    \"description\": \"\u66f4\u65b0\u540e\u7684\u5957\u9910\u63cf\u8ff0\",\n    \"monthly_limit\": 100000,\n    \"rate_limit_per_second\": 10,\n    \"max_tokens\": 5,\n    \"price\": 99.99,\n    \"status\": \"active\",\n    \"enable_webhook\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5558,12 +5558,12 @@
                 "plans"
               ]
             },
-            "description": "编辑套餐配置\n\n可更新字段：\n- description: 套餐描述\n- monthly_limit: 每月调用限制\n- rate_limit_per_second: 每秒速率限制\n- max_tokens: 最大令牌数\n- price: 价格（支持更新，可以为0表示免费）\n- status: 状态（active/inactive，用于启用/禁用套餐）\n- enable_webhook: 是否启用webhook功能"
+            "description": "\u7f16\u8f91\u5957\u9910\u914d\u7f6e\n\n\u53ef\u66f4\u65b0\u5b57\u6bb5\uff1a\n- description: \u5957\u9910\u63cf\u8ff0\n- monthly_limit: \u6bcf\u6708\u8c03\u7528\u9650\u5236\n- rate_limit_per_second: \u6bcf\u79d2\u901f\u7387\u9650\u5236\n- max_tokens: \u6700\u5927\u4ee4\u724c\u6570\n- price: \u4ef7\u683c\uff08\u652f\u6301\u66f4\u65b0\uff0c\u53ef\u4ee5\u4e3a0\u8868\u793a\u514d\u8d39\uff09\n- status: \u72b6\u6001\uff08active/inactive\uff0c\u7528\u4e8e\u542f\u7528/\u7981\u7528\u5957\u9910\uff09\n- enable_webhook: \u662f\u5426\u542f\u7528webhook\u529f\u80fd"
           },
           "response": []
         },
         {
-          "name": "获取套餐统计",
+          "name": "\u83b7\u53d6\u5957\u9910\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -5605,12 +5605,12 @@
                 }
               ]
             },
-            "description": "获取套餐使用统计"
+            "description": "\u83b7\u53d6\u5957\u9910\u4f7f\u7528\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "上架套餐",
+          "name": "\u4e0a\u67b6\u5957\u9910",
           "event": [
             {
               "listen": "test",
@@ -5658,12 +5658,12 @@
                 "publish"
               ]
             },
-            "description": "上架套餐"
+            "description": "\u4e0a\u67b6\u5957\u9910"
           },
           "response": []
         },
         {
-          "name": "下架套餐",
+          "name": "\u4e0b\u67b6\u5957\u9910",
           "event": [
             {
               "listen": "test",
@@ -5711,12 +5711,12 @@
                 "unpublish"
               ]
             },
-            "description": "下架套餐"
+            "description": "\u4e0b\u67b6\u5957\u9910"
           },
           "response": []
         },
         {
-          "name": "启用套餐",
+          "name": "\u542f\u7528\u5957\u9910",
           "event": [
             {
               "listen": "test",
@@ -5766,12 +5766,12 @@
                 "publish"
               ]
             },
-            "description": "启用套餐（将状态设置为 active）\n\n该接口会将套餐状态设置为 active，使其可以被用户选择使用。\n\n返回的数据中：\n- status: \"active\"\n- is_enabled: true"
+            "description": "\u542f\u7528\u5957\u9910\uff08\u5c06\u72b6\u6001\u8bbe\u7f6e\u4e3a active\uff09\n\n\u8be5\u63a5\u53e3\u4f1a\u5c06\u5957\u9910\u72b6\u6001\u8bbe\u7f6e\u4e3a active\uff0c\u4f7f\u5176\u53ef\u4ee5\u88ab\u7528\u6237\u9009\u62e9\u4f7f\u7528\u3002\n\n\u8fd4\u56de\u7684\u6570\u636e\u4e2d\uff1a\n- status: \"active\"\n- is_enabled: true"
           },
           "response": []
         },
         {
-          "name": "禁用套餐",
+          "name": "\u7981\u7528\u5957\u9910",
           "event": [
             {
               "listen": "test",
@@ -5821,12 +5821,12 @@
                 "unpublish"
               ]
             },
-            "description": "禁用套餐（将状态设置为 inactive）\n\n该接口会将套餐状态设置为 inactive，禁止用户选择该套餐。\n已使用该套餐的用户不受影响。\n\n返回的数据中：\n- status: \"inactive\"\n- is_enabled: false"
+            "description": "\u7981\u7528\u5957\u9910\uff08\u5c06\u72b6\u6001\u8bbe\u7f6e\u4e3a inactive\uff09\n\n\u8be5\u63a5\u53e3\u4f1a\u5c06\u5957\u9910\u72b6\u6001\u8bbe\u7f6e\u4e3a inactive\uff0c\u7981\u6b62\u7528\u6237\u9009\u62e9\u8be5\u5957\u9910\u3002\n\u5df2\u4f7f\u7528\u8be5\u5957\u9910\u7684\u7528\u6237\u4e0d\u53d7\u5f71\u54cd\u3002\n\n\u8fd4\u56de\u7684\u6570\u636e\u4e2d\uff1a\n- status: \"inactive\"\n- is_enabled: false"
           },
           "response": []
         },
         {
-          "name": "切换用户套餐",
+          "name": "\u5207\u6362\u7528\u6237\u5957\u9910",
           "event": [
             {
               "listen": "test",
@@ -5881,7 +5881,7 @@
                 "switch"
               ]
             },
-            "description": "切换用户的套餐到指定套餐"
+            "description": "\u5207\u6362\u7528\u6237\u7684\u5957\u9910\u5230\u6307\u5b9a\u5957\u9910"
           },
           "response": []
         }
@@ -5889,10 +5889,10 @@
       "description": "Plan management endpoints for admin"
     },
     {
-      "name": "管理接口 - IP管理",
+      "name": "\u7ba1\u7406\u63a5\u53e3 - IP\u7ba1\u7406",
       "item": [
         {
-          "name": "获取IP注册记录列表",
+          "name": "\u83b7\u53d6IP\u6ce8\u518c\u8bb0\u5f55\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -5961,12 +5961,12 @@
                 }
               ]
             },
-            "description": "获取IP注册记录列表"
+            "description": "\u83b7\u53d6IP\u6ce8\u518c\u8bb0\u5f55\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "获取IP注册记录统计",
+          "name": "\u83b7\u53d6IP\u6ce8\u518c\u8bb0\u5f55\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -6019,12 +6019,12 @@
                 }
               ]
             },
-            "description": "获取IP注册记录统计"
+            "description": "\u83b7\u53d6IP\u6ce8\u518c\u8bb0\u5f55\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "获取IP详情",
+          "name": "\u83b7\u53d6IP\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -6066,12 +6066,12 @@
                 }
               ]
             },
-            "description": "获取IP详情"
+            "description": "\u83b7\u53d6IP\u8be6\u60c5"
           },
           "response": []
         },
         {
-          "name": "获取IP黑名单列表",
+          "name": "\u83b7\u53d6IP\u9ed1\u540d\u5355\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -6122,12 +6122,12 @@
                 }
               ]
             },
-            "description": "获取IP黑名单列表"
+            "description": "\u83b7\u53d6IP\u9ed1\u540d\u5355\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "获取IP黑名单统计",
+          "name": "\u83b7\u53d6IP\u9ed1\u540d\u5355\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -6173,12 +6173,12 @@
                 "stats"
               ]
             },
-            "description": "获取IP黑名单统计"
+            "description": "\u83b7\u53d6IP\u9ed1\u540d\u5355\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "添加IP到黑名单",
+          "name": "\u6dfb\u52a0IP\u5230\u9ed1\u540d\u5355",
           "event": [
             {
               "listen": "test",
@@ -6226,12 +6226,12 @@
                 "blacklist"
               ]
             },
-            "description": "添加IP到黑名单"
+            "description": "\u6dfb\u52a0IP\u5230\u9ed1\u540d\u5355"
           },
           "response": []
         },
         {
-          "name": "从黑名单移除IP",
+          "name": "\u4ece\u9ed1\u540d\u5355\u79fb\u9664IP",
           "event": [
             {
               "listen": "test",
@@ -6273,12 +6273,12 @@
                 }
               ]
             },
-            "description": "从黑名单移除IP"
+            "description": "\u4ece\u9ed1\u540d\u5355\u79fb\u9664IP"
           },
           "response": []
         },
         {
-          "name": "批量添加IP到黑名单",
+          "name": "\u6279\u91cf\u6dfb\u52a0IP\u5230\u9ed1\u540d\u5355",
           "event": [
             {
               "listen": "test",
@@ -6327,12 +6327,12 @@
                 "batch"
               ]
             },
-            "description": "批量添加IP到黑名单"
+            "description": "\u6279\u91cf\u6dfb\u52a0IP\u5230\u9ed1\u540d\u5355"
           },
           "response": []
         },
         {
-          "name": "批量从黑名单移除IP",
+          "name": "\u6279\u91cf\u4ece\u9ed1\u540d\u5355\u79fb\u9664IP",
           "event": [
             {
               "listen": "test",
@@ -6381,12 +6381,12 @@
                 "batch-remove"
               ]
             },
-            "description": "批量从黑名单移除IP"
+            "description": "\u6279\u91cf\u4ece\u9ed1\u540d\u5355\u79fb\u9664IP"
           },
           "response": []
         },
         {
-          "name": "获取IP请求监控",
+          "name": "\u83b7\u53d6IP\u8bf7\u6c42\u76d1\u63a7",
           "event": [
             {
               "listen": "test",
@@ -6434,12 +6434,12 @@
                 }
               ]
             },
-            "description": "获取IP请求监控数据"
+            "description": "\u83b7\u53d6IP\u8bf7\u6c42\u76d1\u63a7\u6570\u636e"
           },
           "response": []
         },
         {
-          "name": "获取IP限流配置",
+          "name": "\u83b7\u53d6IP\u9650\u6d41\u914d\u7f6e",
           "event": [
             {
               "listen": "test",
@@ -6474,12 +6474,12 @@
                 "config"
               ]
             },
-            "description": "获取IP限流配置"
+            "description": "\u83b7\u53d6IP\u9650\u6d41\u914d\u7f6e"
           },
           "response": []
         },
         {
-          "name": "编辑IP限流配置",
+          "name": "\u7f16\u8f91IP\u9650\u6d41\u914d\u7f6e",
           "event": [
             {
               "listen": "test",
@@ -6527,12 +6527,12 @@
                 "config"
               ]
             },
-            "description": "编辑IP限流配置"
+            "description": "\u7f16\u8f91IP\u9650\u6d41\u914d\u7f6e"
           },
           "response": []
         },
         {
-          "name": "导出IP列表",
+          "name": "\u5bfc\u51faIP\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -6590,7 +6590,7 @@
                 }
               ]
             },
-            "description": "导出IP列表为CSV格式"
+            "description": "\u5bfc\u51faIP\u5217\u8868\u4e3aCSV\u683c\u5f0f"
           },
           "response": []
         }
@@ -6598,10 +6598,10 @@
       "description": "IP management endpoints for admin"
     },
     {
-      "name": "管理接口 - 邮箱黑名单管理",
+      "name": "\u7ba1\u7406\u63a5\u53e3 - \u90ae\u7bb1\u9ed1\u540d\u5355\u7ba1\u7406",
       "item": [
         {
-          "name": "获取邮箱黑名单列表",
+          "name": "\u83b7\u53d6\u90ae\u7bb1\u9ed1\u540d\u5355\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -6658,12 +6658,12 @@
                 }
               ]
             },
-            "description": "获取邮箱黑名单列表"
+            "description": "\u83b7\u53d6\u90ae\u7bb1\u9ed1\u540d\u5355\u5217\u8868"
           },
           "response": []
         },
         {
-          "name": "获取邮箱黑名单统计",
+          "name": "\u83b7\u53d6\u90ae\u7bb1\u9ed1\u540d\u5355\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -6710,12 +6710,12 @@
                 "stats"
               ]
             },
-            "description": "获取邮箱黑名单统计"
+            "description": "\u83b7\u53d6\u90ae\u7bb1\u9ed1\u540d\u5355\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "添加邮箱域名",
+          "name": "\u6dfb\u52a0\u90ae\u7bb1\u57df\u540d",
           "event": [
             {
               "listen": "test",
@@ -6763,12 +6763,12 @@
                 "blacklist"
               ]
             },
-            "description": "添加邮箱域名到黑名单"
+            "description": "\u6dfb\u52a0\u90ae\u7bb1\u57df\u540d\u5230\u9ed1\u540d\u5355"
           },
           "response": []
         },
         {
-          "name": "编辑邮箱域名",
+          "name": "\u7f16\u8f91\u90ae\u7bb1\u57df\u540d",
           "event": [
             {
               "listen": "test",
@@ -6816,12 +6816,12 @@
                 "blacklist"
               ]
             },
-            "description": "编辑邮箱域名"
+            "description": "\u7f16\u8f91\u90ae\u7bb1\u57df\u540d"
           },
           "response": []
         },
         {
-          "name": "删除邮箱域名",
+          "name": "\u5220\u9664\u90ae\u7bb1\u57df\u540d",
           "event": [
             {
               "listen": "test",
@@ -6863,12 +6863,12 @@
                 }
               ]
             },
-            "description": "从黑名单删除邮箱域名"
+            "description": "\u4ece\u9ed1\u540d\u5355\u5220\u9664\u90ae\u7bb1\u57df\u540d"
           },
           "response": []
         },
         {
-          "name": "批量导入邮箱域名",
+          "name": "\u6279\u91cf\u5bfc\u5165\u90ae\u7bb1\u57df\u540d",
           "event": [
             {
               "listen": "test",
@@ -6917,12 +6917,12 @@
                 "batch-import"
               ]
             },
-            "description": "批量导入邮箱域名"
+            "description": "\u6279\u91cf\u5bfc\u5165\u90ae\u7bb1\u57df\u540d"
           },
           "response": []
         },
         {
-          "name": "预览导入邮箱域名",
+          "name": "\u9884\u89c8\u5bfc\u5165\u90ae\u7bb1\u57df\u540d",
           "event": [
             {
               "listen": "test",
@@ -6983,12 +6983,12 @@
                 "preview-import"
               ]
             },
-            "description": "预览批量导入邮箱域名（验证格式但不导入）"
+            "description": "\u9884\u89c8\u6279\u91cf\u5bfc\u5165\u90ae\u7bb1\u57df\u540d\uff08\u9a8c\u8bc1\u683c\u5f0f\u4f46\u4e0d\u5bfc\u5165\uff09"
           },
           "response": []
         },
         {
-          "name": "切换邮箱域名状态",
+          "name": "\u5207\u6362\u90ae\u7bb1\u57df\u540d\u72b6\u6001",
           "event": [
             {
               "listen": "test",
@@ -7037,12 +7037,12 @@
                 "toggle"
               ]
             },
-            "description": "切换邮箱域名状态（启用/禁用）"
+            "description": "\u5207\u6362\u90ae\u7bb1\u57df\u540d\u72b6\u6001\uff08\u542f\u7528/\u7981\u7528\uff09"
           },
           "response": []
         },
         {
-          "name": "批量删除邮箱域名",
+          "name": "\u6279\u91cf\u5220\u9664\u90ae\u7bb1\u57df\u540d",
           "event": [
             {
               "listen": "test",
@@ -7100,7 +7100,7 @@
                 "batch-delete"
               ]
             },
-            "description": "批量删除邮箱域名"
+            "description": "\u6279\u91cf\u5220\u9664\u90ae\u7bb1\u57df\u540d"
           },
           "response": []
         }
@@ -7108,10 +7108,10 @@
       "description": "Email blacklist management endpoints for admin"
     },
     {
-      "name": "管理接口 - 使用统计",
+      "name": "\u7ba1\u7406\u63a5\u53e3 - \u4f7f\u7528\u7edf\u8ba1",
       "item": [
         {
-          "name": "获取使用错误列表",
+          "name": "\u83b7\u53d6\u4f7f\u7528\u9519\u8bef\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -7159,12 +7159,12 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "status_code",
@@ -7180,12 +7180,12 @@
                 }
               ]
             },
-            "description": "获取错误请求列表（状态码 >= 400）"
+            "description": "\u83b7\u53d6\u9519\u8bef\u8bf7\u6c42\u5217\u8868\uff08\u72b6\u6001\u7801 >= 400\uff09"
           },
           "response": []
         },
         {
-          "name": "获取使用统计概览",
+          "name": "\u83b7\u53d6\u4f7f\u7528\u7edf\u8ba1\u6982\u89c8",
           "event": [
             {
               "listen": "test",
@@ -7232,16 +7232,16 @@
                 {
                   "key": "time_range",
                   "value": "7days",
-                  "description": "时间范围：today/7days/30days/all"
+                  "description": "\u65f6\u95f4\u8303\u56f4\uff1atoday/7days/30days/all"
                 }
               ]
             },
-            "description": "获取使用统计概览数据"
+            "description": "\u83b7\u53d6\u4f7f\u7528\u7edf\u8ba1\u6982\u89c8\u6570\u636e"
           },
           "response": []
         },
         {
-          "name": "获取按端点统计的使用数据",
+          "name": "\u83b7\u53d6\u6309\u7aef\u70b9\u7edf\u8ba1\u7684\u4f7f\u7528\u6570\u636e",
           "event": [
             {
               "listen": "test",
@@ -7288,21 +7288,21 @@
                 {
                   "key": "time_range",
                   "value": "7days",
-                  "description": "时间范围：today/7days/30days/all"
+                  "description": "\u65f6\u95f4\u8303\u56f4\uff1atoday/7days/30days/all"
                 },
                 {
                   "key": "top_n",
                   "value": "20",
-                  "description": "返回前N个端点，默认20"
+                  "description": "\u8fd4\u56de\u524dN\u4e2a\u7aef\u70b9\uff0c\u9ed8\u8ba420"
                 }
               ]
             },
-            "description": "获取按API端点分组的使用统计"
+            "description": "\u83b7\u53d6\u6309API\u7aef\u70b9\u5206\u7ec4\u7684\u4f7f\u7528\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "获取按错误码统计的使用数据",
+          "name": "\u83b7\u53d6\u6309\u9519\u8bef\u7801\u7edf\u8ba1\u7684\u4f7f\u7528\u6570\u636e",
           "event": [
             {
               "listen": "test",
@@ -7349,16 +7349,16 @@
                 {
                   "key": "time_range",
                   "value": "7days",
-                  "description": "时间范围：today/7days/30days/all"
+                  "description": "\u65f6\u95f4\u8303\u56f4\uff1atoday/7days/30days/all"
                 }
               ]
             },
-            "description": "获取按错误码分组的使用统计"
+            "description": "\u83b7\u53d6\u6309\u9519\u8bef\u7801\u5206\u7ec4\u7684\u4f7f\u7528\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "获取使用趋势",
+          "name": "\u83b7\u53d6\u4f7f\u7528\u8d8b\u52bf",
           "event": [
             {
               "listen": "test",
@@ -7405,16 +7405,16 @@
                 {
                   "key": "time_range",
                   "value": "7days",
-                  "description": "时间范围：today/7days/30days/all"
+                  "description": "\u65f6\u95f4\u8303\u56f4\uff1atoday/7days/30days/all"
                 },
                 {
                   "key": "interval",
                   "value": "hour",
-                  "description": "时间间隔：hour/day/week/month"
+                  "description": "\u65f6\u95f4\u95f4\u9694\uff1ahour/day/week/month"
                 }
               ]
             },
-            "description": "获取使用趋势数据（按时间间隔）"
+            "description": "\u83b7\u53d6\u4f7f\u7528\u8d8b\u52bf\u6570\u636e\uff08\u6309\u65f6\u95f4\u95f4\u9694\uff09"
           },
           "response": []
         }
@@ -7422,10 +7422,10 @@
       "description": "Usage statistics endpoints for admin"
     },
     {
-      "name": "Token列表接口",
+      "name": "Token\u5217\u8868\u63a5\u53e3",
       "item": [
         {
-          "name": "获取Token列表",
+          "name": "\u83b7\u53d6Token\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -7523,27 +7523,32 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
+                },
+                {
+                  "key": "denom",
+                  "value": "",
+                  "description": "Filter by denom (e.g., peggy0x..., factory/...)"
                 }
               ]
             },
-            "description": "获取Token列表，支持分页、排序和多种过滤条件"
+            "description": "\u83b7\u53d6Token\u5217\u8868\uff0c\u652f\u6301\u5206\u9875\u3001\u6392\u5e8f\u548c\u591a\u79cd\u8fc7\u6ee4\u6761\u4ef6"
           },
           "response": []
         }
       ],
-      "description": "Token列表查询接口，提供带市场数据的Token列表"
+      "description": "Token\u5217\u8868\u67e5\u8be2\u63a5\u53e3\uff0c\u63d0\u4f9b\u5e26\u5e02\u573a\u6570\u636e\u7684Token\u5217\u8868"
     },
     {
-      "name": "Token详情接口",
+      "name": "Token\u8be6\u60c5\u63a5\u53e3",
       "item": [
         {
-          "name": "获取Token详情",
+          "name": "\u83b7\u53d6Token\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -7613,12 +7618,12 @@
                 }
               ]
             },
-            "description": "获取指定Token的详细信息，包括基本信息、市场数据、供应量等"
+            "description": "\u83b7\u53d6\u6307\u5b9aToken\u7684\u8be6\u7ec6\u4fe1\u606f\uff0c\u5305\u62ec\u57fa\u672c\u4fe1\u606f\u3001\u5e02\u573a\u6570\u636e\u3001\u4f9b\u5e94\u91cf\u7b49"
           },
           "response": []
         },
         {
-          "name": "获取Token转账记录",
+          "name": "\u83b7\u53d6Token\u8f6c\u8d26\u8bb0\u5f55",
           "event": [
             {
               "listen": "test",
@@ -7687,21 +7692,21 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 }
               ]
             },
-            "description": "获取指定Token的转账记录列表，支持按地址和方法过滤"
+            "description": "\u83b7\u53d6\u6307\u5b9aToken\u7684\u8f6c\u8d26\u8bb0\u5f55\u5217\u8868\uff0c\u652f\u6301\u6309\u5730\u5740\u548c\u65b9\u6cd5\u8fc7\u6ee4"
           },
           "response": []
         },
         {
-          "name": "获取Token持有者列表",
+          "name": "\u83b7\u53d6Token\u6301\u6709\u8005\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -7768,21 +7773,21 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 }
               ]
             },
-            "description": "获取Token持有者排名列表，支持按持有量或占比排序"
+            "description": "\u83b7\u53d6Token\u6301\u6709\u8005\u6392\u540d\u5217\u8868\uff0c\u652f\u6301\u6309\u6301\u6709\u91cf\u6216\u5360\u6bd4\u6392\u5e8f"
           },
           "response": []
         },
         {
-          "name": "获取Token持有者统计",
+          "name": "\u83b7\u53d6Token\u6301\u6709\u8005\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -7839,12 +7844,12 @@
                 }
               ]
             },
-            "description": "获取Token持有者统计数据，包括总持有者数、前10/100名占比等"
+            "description": "\u83b7\u53d6Token\u6301\u6709\u8005\u7edf\u8ba1\u6570\u636e\uff0c\u5305\u62ec\u603b\u6301\u6709\u8005\u6570\u3001\u524d10/100\u540d\u5360\u6bd4\u7b49"
           },
           "response": []
         },
         {
-          "name": "获取Token合约代码",
+          "name": "\u83b7\u53d6Token\u5408\u7ea6\u4ee3\u7801",
           "event": [
             {
               "listen": "test",
@@ -7900,18 +7905,18 @@
                 }
               ]
             },
-            "description": "获取Token合约的字节码和源代码（如已验证）"
+            "description": "\u83b7\u53d6Token\u5408\u7ea6\u7684\u5b57\u8282\u7801\u548c\u6e90\u4ee3\u7801\uff08\u5982\u5df2\u9a8c\u8bc1\uff09"
           },
           "response": []
         }
       ],
-      "description": "Token详情查询接口，提供Token的详细信息、转账记录、持有者等数据"
+      "description": "Token\u8be6\u60c5\u67e5\u8be2\u63a5\u53e3\uff0c\u63d0\u4f9bToken\u7684\u8be6\u7ec6\u4fe1\u606f\u3001\u8f6c\u8d26\u8bb0\u5f55\u3001\u6301\u6709\u8005\u7b49\u6570\u636e"
     },
     {
-      "name": "批量查询接口",
+      "name": "\u6279\u91cf\u67e5\u8be2\u63a5\u53e3",
       "item": [
         {
-          "name": "批量查询交易",
+          "name": "\u6279\u91cf\u67e5\u8be2\u4ea4\u6613",
           "event": [
             {
               "listen": "test",
@@ -7968,12 +7973,12 @@
                 "batch"
               ]
             },
-            "description": "批量查询交易详情，通过交易哈希列表一次性获取多个交易信息"
+            "description": "\u6279\u91cf\u67e5\u8be2\u4ea4\u6613\u8be6\u60c5\uff0c\u901a\u8fc7\u4ea4\u6613\u54c8\u5e0c\u5217\u8868\u4e00\u6b21\u6027\u83b7\u53d6\u591a\u4e2a\u4ea4\u6613\u4fe1\u606f"
           },
           "response": []
         },
         {
-          "name": "批量查询区块",
+          "name": "\u6279\u91cf\u67e5\u8be2\u533a\u5757",
           "event": [
             {
               "listen": "test",
@@ -8030,18 +8035,18 @@
                 "batch"
               ]
             },
-            "description": "批量查询区块详情，通过区块高度列表一次性获取多个区块信息"
+            "description": "\u6279\u91cf\u67e5\u8be2\u533a\u5757\u8be6\u60c5\uff0c\u901a\u8fc7\u533a\u5757\u9ad8\u5ea6\u5217\u8868\u4e00\u6b21\u6027\u83b7\u53d6\u591a\u4e2a\u533a\u5757\u4fe1\u606f"
           },
           "response": []
         }
       ],
-      "description": "批量查询接口，用于高性能批量获取交易和区块数据"
+      "description": "\u6279\u91cf\u67e5\u8be2\u63a5\u53e3\uff0c\u7528\u4e8e\u9ad8\u6027\u80fd\u6279\u91cf\u83b7\u53d6\u4ea4\u6613\u548c\u533a\u5757\u6570\u636e"
     },
     {
-      "name": "验证人统计接口",
+      "name": "\u9a8c\u8bc1\u4eba\u7edf\u8ba1\u63a5\u53e3",
       "item": [
         {
-          "name": "获取验证人区块统计",
+          "name": "\u83b7\u53d6\u9a8c\u8bc1\u4eba\u533a\u5757\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -8095,18 +8100,18 @@
                 }
               ]
             },
-            "description": "获取验证人的区块统计信息，包括提议、签名、错过的区块数量及在线率"
+            "description": "\u83b7\u53d6\u9a8c\u8bc1\u4eba\u7684\u533a\u5757\u7edf\u8ba1\u4fe1\u606f\uff0c\u5305\u62ec\u63d0\u8bae\u3001\u7b7e\u540d\u3001\u9519\u8fc7\u7684\u533a\u5757\u6570\u91cf\u53ca\u5728\u7ebf\u7387"
           },
           "response": []
         }
       ],
-      "description": "验证人统计接口，提供验证人的区块生产统计信息"
+      "description": "\u9a8c\u8bc1\u4eba\u7edf\u8ba1\u63a5\u53e3\uff0c\u63d0\u4f9b\u9a8c\u8bc1\u4eba\u7684\u533a\u5757\u751f\u4ea7\u7edf\u8ba1\u4fe1\u606f"
     },
     {
-      "name": "全局标签接口",
+      "name": "\u5168\u5c40\u6807\u7b7e\u63a5\u53e3",
       "item": [
         {
-          "name": "获取所有合约标签",
+          "name": "\u83b7\u53d6\u6240\u6709\u5408\u7ea6\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -8171,21 +8176,21 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始，默认1"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb\uff0c\u9ed8\u8ba41"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页大小，默认20，最大100"
+                  "description": "\u6bcf\u9875\u5927\u5c0f\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 }
               ]
             },
-            "description": "获取所有合约标签列表，支持分页和多种过滤条件"
+            "description": "\u83b7\u53d6\u6240\u6709\u5408\u7ea6\u6807\u7b7e\u5217\u8868\uff0c\u652f\u6301\u5206\u9875\u548c\u591a\u79cd\u8fc7\u6ee4\u6761\u4ef6"
           },
           "response": []
         },
         {
-          "name": "添加全局标签",
+          "name": "\u6dfb\u52a0\u5168\u5c40\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -8241,12 +8246,12 @@
                 "tag"
               ]
             },
-            "description": "添加全局标签（不绑定到特定合约）"
+            "description": "\u6dfb\u52a0\u5168\u5c40\u6807\u7b7e\uff08\u4e0d\u7ed1\u5b9a\u5230\u7279\u5b9a\u5408\u7ea6\uff09"
           },
           "response": []
         },
         {
-          "name": "删除全局标签",
+          "name": "\u5220\u9664\u5168\u5c40\u6807\u7b7e",
           "event": [
             {
               "listen": "test",
@@ -8292,18 +8297,18 @@
                 }
               ]
             },
-            "description": "删除全局标签"
+            "description": "\u5220\u9664\u5168\u5c40\u6807\u7b7e"
           },
           "response": []
         }
       ],
-      "description": "全局标签管理接口，用于管理不绑定到特定合约的全局标签"
+      "description": "\u5168\u5c40\u6807\u7b7e\u7ba1\u7406\u63a5\u53e3\uff0c\u7528\u4e8e\u7ba1\u7406\u4e0d\u7ed1\u5b9a\u5230\u7279\u5b9a\u5408\u7ea6\u7684\u5168\u5c40\u6807\u7b7e"
     },
     {
-      "name": "API Token统计接口",
+      "name": "API Token\u7edf\u8ba1\u63a5\u53e3",
       "item": [
         {
-          "name": "获取活跃Token数量",
+          "name": "\u83b7\u53d6\u6d3b\u8dc3Token\u6570\u91cf",
           "event": [
             {
               "listen": "test",
@@ -8354,12 +8359,12 @@
                 }
               ]
             },
-            "description": "获取活跃Token数量统计"
+            "description": "\u83b7\u53d6\u6d3b\u8dc3Token\u6570\u91cf\u7edf\u8ba1"
           },
           "response": []
         },
         {
-          "name": "获取错误码分析",
+          "name": "\u83b7\u53d6\u9519\u8bef\u7801\u5206\u6790",
           "event": [
             {
               "listen": "test",
@@ -8415,18 +8420,18 @@
                 }
               ]
             },
-            "description": "获取错误码分析统计，按HTTP状态码分组统计错误请求"
+            "description": "\u83b7\u53d6\u9519\u8bef\u7801\u5206\u6790\u7edf\u8ba1\uff0c\u6309HTTP\u72b6\u6001\u7801\u5206\u7ec4\u7edf\u8ba1\u9519\u8bef\u8bf7\u6c42"
           },
           "response": []
         }
       ],
-      "description": "API Token统计接口，提供Token使用情况的统计分析"
+      "description": "API Token\u7edf\u8ba1\u63a5\u53e3\uff0c\u63d0\u4f9bToken\u4f7f\u7528\u60c5\u51b5\u7684\u7edf\u8ba1\u5206\u6790"
     },
     {
-      "name": "限流和认证测试",
+      "name": "\u9650\u6d41\u548c\u8ba4\u8bc1\u6d4b\u8bd5",
       "item": [
         {
-          "name": "测试IP限流",
+          "name": "\u6d4b\u8bd5IP\u9650\u6d41",
           "event": [
             {
               "listen": "test",
@@ -8471,7 +8476,7 @@
           "response": []
         },
         {
-          "name": "测试令牌限流",
+          "name": "\u6d4b\u8bd5\u4ee4\u724c\u9650\u6d41",
           "event": [
             {
               "listen": "test",
@@ -8517,7 +8522,7 @@
           "response": []
         },
         {
-          "name": "测试无效令牌",
+          "name": "\u6d4b\u8bd5\u65e0\u6548\u4ee4\u724c",
           "event": [
             {
               "listen": "test",
@@ -8561,7 +8566,7 @@
           "response": []
         },
         {
-          "name": "测试缺失令牌",
+          "name": "\u6d4b\u8bd5\u7f3a\u5931\u4ee4\u724c",
           "event": [
             {
               "listen": "test",
@@ -8603,10 +8608,10 @@
       "description": "Tests for rate limiting and authentication scenarios."
     },
     {
-      "name": "账户管理 (Account Management)",
+      "name": "\u8d26\u6237\u7ba1\u7406 (Account Management)",
       "item": [
         {
-          "name": "List Accounts - 获取账户列表",
+          "name": "List Accounts - \u83b7\u53d6\u8d26\u6237\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -8659,39 +8664,39 @@
                 {
                   "key": "pagination.page",
                   "value": "1",
-                  "description": "页码，从1开始"
+                  "description": "\u9875\u7801\uff0c\u4ece1\u5f00\u59cb"
                 },
                 {
                   "key": "pagination.page_size",
                   "value": "20",
-                  "description": "每页数量，默认20，最大100"
+                  "description": "\u6bcf\u9875\u6570\u91cf\uff0c\u9ed8\u8ba420\uff0c\u6700\u5927100"
                 },
                 {
                   "key": "search",
                   "value": "",
-                  "description": "搜索用户名或邮箱",
+                  "description": "\u641c\u7d22\u7528\u6237\u540d\u6216\u90ae\u7bb1",
                   "disabled": true
                 },
                 {
                   "key": "status",
                   "value": "",
-                  "description": "按状态筛选: active/pending/disabled",
+                  "description": "\u6309\u72b6\u6001\u7b5b\u9009: active/pending/disabled",
                   "disabled": true
                 },
                 {
                   "key": "usage_filter",
                   "value": "",
-                  "description": "按使用量筛选: high/medium/low",
+                  "description": "\u6309\u4f7f\u7528\u91cf\u7b5b\u9009: high/medium/low",
                   "disabled": true
                 }
               ]
             },
-            "description": "获取所有API账户列表，支持搜索、筛选和分页"
+            "description": "\u83b7\u53d6\u6240\u6709API\u8d26\u6237\u5217\u8868\uff0c\u652f\u6301\u641c\u7d22\u3001\u7b5b\u9009\u548c\u5206\u9875"
           },
           "response": []
         },
         {
-          "name": "Get Account Detail - 获取账户详情",
+          "name": "Get Account Detail - \u83b7\u53d6\u8d26\u6237\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -8740,16 +8745,16 @@
                 {
                   "key": "user_id",
                   "value": "{{user_id}}",
-                  "description": "用户ID (必填)"
+                  "description": "\u7528\u6237ID (\u5fc5\u586b)"
                 }
               ]
             },
-            "description": "获取指定API账户的详细信息"
+            "description": "\u83b7\u53d6\u6307\u5b9aAPI\u8d26\u6237\u7684\u8be6\u7ec6\u4fe1\u606f"
           },
           "response": []
         },
         {
-          "name": "Get Account Stats - 获取账户统计",
+          "name": "Get Account Stats - \u83b7\u53d6\u8d26\u6237\u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -8795,12 +8800,12 @@
                 "stats"
               ]
             },
-            "description": "获取API账户统计信息（总账户数、活跃账户数、Token数量等）"
+            "description": "\u83b7\u53d6API\u8d26\u6237\u7edf\u8ba1\u4fe1\u606f\uff08\u603b\u8d26\u6237\u6570\u3001\u6d3b\u8dc3\u8d26\u6237\u6570\u3001Token\u6570\u91cf\u7b49\uff09"
           },
           "response": []
         },
         {
-          "name": "Toggle Account Status - 切换账户状态",
+          "name": "Toggle Account Status - \u5207\u6362\u8d26\u6237\u72b6\u6001",
           "event": [
             {
               "listen": "test",
@@ -8855,12 +8860,12 @@
                 "status"
               ]
             },
-            "description": "启用或禁用账户。action可以是'enable'或'disable'。"
+            "description": "\u542f\u7528\u6216\u7981\u7528\u8d26\u6237\u3002action\u53ef\u4ee5\u662f'enable'\u6216'disable'\u3002"
           },
           "response": []
         },
         {
-          "name": "Export Accounts - 导出账户列表",
+          "name": "Export Accounts - \u5bfc\u51fa\u8d26\u6237\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -8899,34 +8904,34 @@
                 {
                   "key": "format",
                   "value": "csv",
-                  "description": "导出格式: csv/excel (默认: csv)"
+                  "description": "\u5bfc\u51fa\u683c\u5f0f: csv/excel (\u9ed8\u8ba4: csv)"
                 },
                 {
                   "key": "search",
                   "value": "",
-                  "description": "搜索用户名或邮箱",
+                  "description": "\u641c\u7d22\u7528\u6237\u540d\u6216\u90ae\u7bb1",
                   "disabled": true
                 },
                 {
                   "key": "status",
                   "value": "",
-                  "description": "按状态筛选",
+                  "description": "\u6309\u72b6\u6001\u7b5b\u9009",
                   "disabled": true
                 },
                 {
                   "key": "usage_filter",
                   "value": "",
-                  "description": "按使用量筛选",
+                  "description": "\u6309\u4f7f\u7528\u91cf\u7b5b\u9009",
                   "disabled": true
                 }
               ]
             },
-            "description": "导出账户列表为CSV/Excel格式"
+            "description": "\u5bfc\u51fa\u8d26\u6237\u5217\u8868\u4e3aCSV/Excel\u683c\u5f0f"
           },
           "response": []
         },
         {
-          "name": "Toggle Token Status - 切换Token状态",
+          "name": "Toggle Token Status - \u5207\u6362Token\u72b6\u6001",
           "event": [
             {
               "listen": "test",
@@ -8981,18 +8986,18 @@
                 "status"
               ]
             },
-            "description": "启用或禁用Token。action可以是'enable'或'disable'。"
+            "description": "\u542f\u7528\u6216\u7981\u7528Token\u3002action\u53ef\u4ee5\u662f'enable'\u6216'disable'\u3002"
           },
           "response": []
         }
       ],
-      "description": "账户管理接口，用于管理员管理API账户"
+      "description": "\u8d26\u6237\u7ba1\u7406\u63a5\u53e3\uff0c\u7528\u4e8e\u7ba1\u7406\u5458\u7ba1\u7406API\u8d26\u6237"
     },
     {
-      "name": "Wasm 合约接口",
+      "name": "Wasm \u5408\u7ea6\u63a5\u53e3",
       "item": [
         {
-          "name": "获取 Wasm 合约列表",
+          "name": "\u83b7\u53d6 Wasm \u5408\u7ea6\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -9063,12 +9068,12 @@
                 }
               ]
             },
-            "description": "获取 Wasm 合约列表，支持分页和多种过滤条件"
+            "description": "\u83b7\u53d6 Wasm \u5408\u7ea6\u5217\u8868\uff0c\u652f\u6301\u5206\u9875\u548c\u591a\u79cd\u8fc7\u6ee4\u6761\u4ef6"
           },
           "response": []
         },
         {
-          "name": "获取 Wasm 合约详情",
+          "name": "\u83b7\u53d6 Wasm \u5408\u7ea6\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -9110,12 +9115,12 @@
                 }
               ]
             },
-            "description": "获取指定 Wasm 合约的详细信息"
+            "description": "\u83b7\u53d6\u6307\u5b9a Wasm \u5408\u7ea6\u7684\u8be6\u7ec6\u4fe1\u606f"
           },
           "response": []
         },
         {
-          "name": "获取 CW20 代币余额",
+          "name": "\u83b7\u53d6 CW20 \u4ee3\u5e01\u4f59\u989d",
           "event": [
             {
               "listen": "test",
@@ -9170,18 +9175,18 @@
                 }
               ]
             },
-            "description": "查询账户的 CW20 代币余额"
+            "description": "\u67e5\u8be2\u8d26\u6237\u7684 CW20 \u4ee3\u5e01\u4f59\u989d"
           },
           "response": []
         }
       ],
-      "description": "Wasm 智能合约相关接口，包括合约列表、详情和 CW20 代币余额查询"
+      "description": "Wasm \u667a\u80fd\u5408\u7ea6\u76f8\u5173\u63a5\u53e3\uff0c\u5305\u62ec\u5408\u7ea6\u5217\u8868\u3001\u8be6\u60c5\u548c CW20 \u4ee3\u5e01\u4f59\u989d\u67e5\u8be2"
     },
     {
-      "name": "验证者接口",
+      "name": "\u9a8c\u8bc1\u8005\u63a5\u53e3",
       "item": [
         {
-          "name": "获取验证者列表",
+          "name": "\u83b7\u53d6\u9a8c\u8bc1\u8005\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -9263,12 +9268,12 @@
                 }
               ]
             },
-            "description": "获取验证者列表，支持分页、过滤和排序"
+            "description": "\u83b7\u53d6\u9a8c\u8bc1\u8005\u5217\u8868\uff0c\u652f\u6301\u5206\u9875\u3001\u8fc7\u6ee4\u548c\u6392\u5e8f"
           },
           "response": []
         },
         {
-          "name": "获取验证者详情",
+          "name": "\u83b7\u53d6\u9a8c\u8bc1\u8005\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -9311,12 +9316,12 @@
                 }
               ]
             },
-            "description": "获取验证者详细信息，包括描述、slashing事件、uptime趋势等"
+            "description": "\u83b7\u53d6\u9a8c\u8bc1\u8005\u8be6\u7ec6\u4fe1\u606f\uff0c\u5305\u62ec\u63cf\u8ff0\u3001slashing\u4e8b\u4ef6\u3001uptime\u8d8b\u52bf\u7b49"
           },
           "response": []
         },
         {
-          "name": "获取验证者 Uptime 统计",
+          "name": "\u83b7\u53d6\u9a8c\u8bc1\u8005 Uptime \u7edf\u8ba1",
           "event": [
             {
               "listen": "test",
@@ -9370,17 +9375,17 @@
                 }
               ]
             },
-            "description": "获取验证者 uptime 统计信息，支持时间段和区块数量查询"
+            "description": "\u83b7\u53d6\u9a8c\u8bc1\u8005 uptime \u7edf\u8ba1\u4fe1\u606f\uff0c\u652f\u6301\u65f6\u95f4\u6bb5\u548c\u533a\u5757\u6570\u91cf\u67e5\u8be2"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "Wasm代码&交易接口",
+      "name": "Wasm\u4ee3\u7801&\u4ea4\u6613\u63a5\u53e3",
       "item": [
         {
-          "name": "获取Wasm代码列表",
+          "name": "\u83b7\u53d6Wasm\u4ee3\u7801\u5217\u8868",
           "event": [
             {
               "listen": "test",
@@ -9439,12 +9444,12 @@
                 }
               ]
             },
-            "description": "获取已上传的Wasm代码列表,支持分页和过滤"
+            "description": "\u83b7\u53d6\u5df2\u4e0a\u4f20\u7684Wasm\u4ee3\u7801\u5217\u8868,\u652f\u6301\u5206\u9875\u548c\u8fc7\u6ee4"
           },
           "response": []
         },
         {
-          "name": "获取Wasm代码详情",
+          "name": "\u83b7\u53d6Wasm\u4ee3\u7801\u8be6\u60c5",
           "event": [
             {
               "listen": "test",
@@ -9488,12 +9493,12 @@
                 }
               ]
             },
-            "description": "获取指定Wasm代码的详细信息"
+            "description": "\u83b7\u53d6\u6307\u5b9aWasm\u4ee3\u7801\u7684\u8be6\u7ec6\u4fe1\u606f"
           },
           "response": []
         },
         {
-          "name": "获取合约执行记录",
+          "name": "\u83b7\u53d6\u5408\u7ea6\u6267\u884c\u8bb0\u5f55",
           "event": [
             {
               "listen": "test",
@@ -9564,17 +9569,17 @@
                 }
               ]
             },
-            "description": "获取合约执行历史,支持分页、时间范围和发送者过滤"
+            "description": "\u83b7\u53d6\u5408\u7ea6\u6267\u884c\u5386\u53f2,\u652f\u6301\u5206\u9875\u3001\u65f6\u95f4\u8303\u56f4\u548c\u53d1\u9001\u8005\u8fc7\u6ee4"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "银行转账接口",
+      "name": "\u94f6\u884c\u8f6c\u8d26\u63a5\u53e3",
       "item": [
         {
-          "name": "获取银行转账记录",
+          "name": "\u83b7\u53d6\u94f6\u884c\u8f6c\u8d26\u8bb0\u5f55",
           "event": [
             {
               "listen": "test",
@@ -9676,17 +9681,17 @@
                 }
               ]
             },
-            "description": "获取银行转账记录,支持多维度过滤:发送者、接收者、时间范围、代币类型等"
+            "description": "\u83b7\u53d6\u94f6\u884c\u8f6c\u8d26\u8bb0\u5f55,\u652f\u6301\u591a\u7ef4\u5ea6\u8fc7\u6ee4:\u53d1\u9001\u8005\u3001\u63a5\u6536\u8005\u3001\u65f6\u95f4\u8303\u56f4\u3001\u4ee3\u5e01\u7c7b\u578b\u7b49"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "中继者接口",
+      "name": "\u4e2d\u7ee7\u8005\u63a5\u53e3",
       "item": [
         {
-          "name": "获取中继者信息",
+          "name": "\u83b7\u53d6\u4e2d\u7ee7\u8005\u4fe1\u606f",
           "event": [
             {
               "listen": "test",
@@ -9759,7 +9764,7 @@
                 }
               ]
             },
-            "description": "获取中继者信息,支持按市场ID和中继者地址过滤"
+            "description": "\u83b7\u53d6\u4e2d\u7ee7\u8005\u4fe1\u606f,\u652f\u6301\u6309\u5e02\u573aID\u548c\u4e2d\u7ee7\u8005\u5730\u5740\u8fc7\u6ee4"
           },
           "response": []
         }

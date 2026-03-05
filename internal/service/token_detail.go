@@ -163,7 +163,7 @@ func (s *TokenDetailService) GetTokenDetail(ctx context.Context, req *pb.GetToke
 	if contract.PeggyDenom != "" {
 		response.Basic.Denom = contract.PeggyDenom
 	} else if contract.ContractAddress != "" {
-		response.Basic.Denom = "peggy" + contract.ContractAddress
+		response.Basic.Denom = contract.PeggyDenom
 	}
 	response.Basic.Decimals = int32(contract.Decimals)
 	if response.Basic.Decimals == 0 {

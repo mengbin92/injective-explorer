@@ -145,6 +145,11 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		).Where("contract_tags.tag_type = ? AND contract_tags.visible = ?", req.GetTagType(), true)
 	}
 
+	// Apply denom filter
+	if req.GetDenom() != "" {
+		query = query.Where("peggy_denom = ?", req.GetDenom())
+	}
+
 	// 6. Get total count
 	var total int64
 	var countErr error
@@ -214,11 +219,14 @@ func (s *TokenListService) ListTokens(ctx context.Context, req *pb.TokenListRequ
 		// This handles tokens without CoinGecko mapping (e.g., custom Peggy tokens)
 		if item.HoldersCount == 0 && item.Denom != "" {
 			var holdersCount int64
-			db.Get().Model(&models.AccountBalance{}).
+			if err := db.Get().Model(&models.AccountBalance{}).
 				Where("denom = ?", item.Denom).
 				Where("amount != ?", "0").
-				Count(&holdersCount)
-			item.HoldersCount = holdersCount
+				Count(&holdersCount).Error; err != nil {
+				global.Logger.Warnf("failed to query holders for denom %s: %v", item.Denom, err)
+			} else {
+				item.HoldersCount = holdersCount
+			}
 		}
 
 		items = append(items, item)
@@ -527,6 +535,9 @@ func buildCacheKeySuffix(req *pb.TokenListRequest, pageSize int32) string {
 	if req.SortOrder != "" {
 		estimatedCap += len(req.SortOrder) + 1
 	}
+	if req.Denom != "" {
+		estimatedCap += len(req.Denom) + 1
+	}
 	// Page size field: "ps" + digits + separator
 	estimatedCap += 16
 	sb.Grow(estimatedCap)
@@ -555,6 +566,10 @@ func buildCacheKeySuffix(req *pb.TokenListRequest, pageSize int32) string {
 	if req.TagType != "" {
 		writeSeparator()
 		sb.WriteString(req.TagType)
+	}
+	if req.Denom != "" {
+		writeSeparator()
+		sb.WriteString(req.Denom)
 	}
 	if req.SortBy != "" {
 		writeSeparator()

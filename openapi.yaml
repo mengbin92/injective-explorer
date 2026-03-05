@@ -3260,6 +3260,11 @@ paths:
                   description: Filter by verification status (optional, e.g., "verified", "unverified")
                   schema:
                     type: string
+                - name: denom
+                  in: query
+                  description: Filter by denom (optional, e.g., "peggy0x...", "factory/...")
+                  schema:
+                    type: string
                 - name: pagination.page
                   in: query
                   description: Page number, starts from 1, default 1 (for page-based pagination)

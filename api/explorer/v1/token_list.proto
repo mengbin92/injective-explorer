@@ -44,6 +44,9 @@ message TokenListRequest {
   // Filter by verification status (optional, e.g., "verified", "unverified")
   string verification_status = 7 [ json_name = "verification_status" ];
 
+  // Filter by denom (optional, e.g., "peggy0x...", "factory/...")
+  string denom = 9 [ json_name = "denom" ];
+
   // Pagination parameters
   PaginationRequest pagination = 8 [ json_name = "pagination" ];
 }
